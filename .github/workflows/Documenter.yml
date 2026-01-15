@@ -6,6 +6,11 @@ on:
     tags: ['*']
   pull_request:
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to build (leave empty to build from current branch/ref)'
+        required: false
+        type: string
 
 permissions:
   contents: write
@@ -22,6 +27,8 @@ jobs:
         uses: actions/checkout@v5
         with:
           persist-credentials: false
+          fetch-depth: 0  # Fetch all history and tags for version detection
+          ref: ${{ github.event.inputs.tag || github.ref }}
       - name: Setup Julia
         uses: julia-actions/setup-julia@v2
         with:

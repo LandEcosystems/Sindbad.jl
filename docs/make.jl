@@ -88,6 +88,7 @@ if should_deploy
         target = joinpath(@__DIR__, "build"), # this is where Vitepress stores its output
         branch = "gh-pages",
         devbranch = "main",
+        versions = ["stable" => "v^", "v#.#" => "v#.#", "dev" => "dev"],
         push_preview = true
     )
 end
