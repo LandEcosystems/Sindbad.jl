@@ -29,6 +29,15 @@ jobs:
           persist-credentials: false
           fetch-depth: 0  # Fetch all history and tags for version detection
           ref: ${{ github.event.inputs.tag || github.ref }}
+      - name: Setup git for version detection
+        if: github.event.inputs.tag != ''
+        run: |
+          # Ensure the tag is properly set up for DocumenterVitepress to detect
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          # Verify tag exists and is accessible
+          git tag -l
+          echo "Building from tag: ${{ github.event.inputs.tag }}"
       - name: Setup Julia
         uses: julia-actions/setup-julia@v2
         with:
@@ -50,6 +59,8 @@ jobs:
           # - on pushes/tags/workflow_dispatch, always
           # - on PRs, only when the PR comes from the same repo (fork PRs get a read-only token)
           SINDBAD_DOCS_DEPLOY: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+          # Help DocumenterVitepress detect version when manually triggering with a tag
+          TRAVIS_TAG: ${{ github.event.inputs.tag || github.ref_name }}
         run: >
           cd docs;
           JULIA_PKG_USE_CLI_GIT=true julia --color=yes make.jl
