@@ -31,6 +31,8 @@ makedocs(; sitename="Sindbad",
     clean=true,
     format=DocumenterVitepress.MarkdownVitepress(
         repo = "github.com/LandEcosystems/Sindbad.jl",
+        devbranch = "main",
+        devurl = "dev",
         # IMPORTANT:
         # We intentionally skip the internal VitePress build during `makedocs`.
         # DocumenterVitepress emits `build/.documenter/index.md` from Documenter markdown,
