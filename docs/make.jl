@@ -90,10 +90,6 @@ if should_deploy
         target = joinpath(@__DIR__, "build"), # this is where Vitepress stores its output
         branch = "gh-pages",
         devbranch = "main",
-        deploy_decision = DocumenterVitepress.DeployDecision([ 
-            DocumenterVitepress.on_tag, # deploy stable docs on tags
-            DocumenterVitepress.on_devbranch, # deploy dev docs on main
-        ]),
         push_preview = true
     )
 end
