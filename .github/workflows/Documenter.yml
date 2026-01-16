@@ -64,7 +64,9 @@ jobs:
       - name: Build and deploy docs
         env:
           # Prefer the ephemeral workflow token. (Same value as `secrets.GITHUB_TOKEN` but clearer.)
-          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # SSH deploy key used by Documenter (same as TagBot)
+          DOCUMENTER_KEY: ${{ secrets.DOCUMENTER_KEY }}
           # Only deploy when we have permission to push:
           # - on pushes/tags/workflow_dispatch, always
           # - on PRs, only when the PR comes from the same repo (fork PRs get a read-only token)

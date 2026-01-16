@@ -91,10 +91,11 @@ should_deploy = get(ENV, "CI", "false") == "true" || get(ENV, "SINDBAD_DOCS_DEPL
 
 if should_deploy
     DocumenterVitepress.deploydocs(; 
-        repo = "github.com/LandEcosystems/Sindbad.jl", # this must be the full URL!
+        repo = "github.com/LandEcosystems/Sindbad.jl.git", # this must be the full URL!
         target = joinpath(@__DIR__, "build"), # this is where Vitepress stores its output
         branch = "gh-pages",
         devbranch = "main",
+        devurl = "dev",
         push_preview = true
     )
 end
