@@ -71,8 +71,13 @@ if !isdir(final_site_dir)
     final_site_dir = joinpath(@__DIR__,"build/1/")
 end
 
-if !isdir(joinpath(final_site_dir, "/pages/concept/sindbad_info"))
-    cp(joinpath(@__DIR__,"src/pages/concept/sindbad_info"), joinpath(final_site_dir, "pages/concept/sindbad_info"); force=true)
+# Copy sindbad_info directory if it doesn't exist
+sindbad_info_src = joinpath(@__DIR__,"src/pages/concept/sindbad_info")
+sindbad_info_dst = joinpath(final_site_dir, "pages/concept/sindbad_info")
+if isdir(sindbad_info_src) && !isdir(sindbad_info_dst)
+    # Ensure parent directory exists
+    mkpath(dirname(sindbad_info_dst))
+    cp(sindbad_info_src, sindbad_info_dst; force=true)
 end
 
 #
