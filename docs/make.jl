@@ -24,7 +24,7 @@ makedocs(; sitename="Sindbad",
     )
 
 DocumenterVitepress.deploydocs(; 
-    repo = "https://github.com/LandEcosystems/Sindbad.jl", # this must be the full URL!
+    repo = "github.com/LandEcosystems/Sindbad.jl.git", # this must be the full URL!
     branch = "gh-pages",
     devbranch = "main",
     push_preview = true
