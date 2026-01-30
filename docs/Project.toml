@@ -10,3 +10,8 @@ TimeSamplers = "a27efc82-29b7-4223-84cd-12fc64c7a5bb"
 
 [sources]
 Sindbad = {path = ".."}
+SindbadTEM = {path = "../SindbadTEM"}
+
+[compat]
+Documenter = "1"
+DocumenterVitepress = "0.2"

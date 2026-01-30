@@ -1,3 +1,4 @@
+```@raw html
 ---
 # https://vitepress.dev/reference/default-theme-home-page
 layout: home
@@ -51,6 +52,8 @@ features:
     link: /pages/code/api/Sindbad
     details: Generated API documentation for the Sindbad / SindbadTEM codebase.
 ---
+```
+
 ## 🚧🚧 UNDER PREPARATION FOR RELEASE 🚧🚧
 
 SINDBAD is being prepared for release with a manuscript, for which a preprint is available at

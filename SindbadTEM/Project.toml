@@ -1,10 +1,6 @@
 name = "SindbadTEM"
 uuid = "6686e6de-2010-4bf8-9178-b2bcc470766e"
-license = "EUPL-1.2"
 authors = ["SINDBAD Contributors <sindbad@bgc-jena.mpg.de>"]
-description = "Core terrestrial ecosystem model types and utilities for the SINDBAD framework"
-readme = "README.md"
-repository = "https://github.com/LandEcosystems/Sindbad.jl.git"
 version = "0.1.0"
 
 [deps]

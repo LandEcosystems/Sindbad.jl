@@ -6,81 +6,44 @@ on:
     tags: ['*']
   pull_request:
   workflow_dispatch:
-    inputs:
-      tag:
-        description: 'Tag to build (leave empty to build from current branch/ref)'
-        required: false
-        type: string
 
+# Add permissions for GitHub Actions to push to gh-pages
 permissions:
   contents: write
+  pages: write
+  id-token: write
+  statuses: write
 
+# Allow only one concurrent deployment, skipping runs queued between the run in-progress and latest queued.
+# However, do NOT cancel in-progress runs as we want to allow these production deployments to complete.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
-  cancel-in-progress: true
+  group: pages
+  cancel-in-progress: false
 
 jobs:
-  build-and-deploy:
+  # Build job
+  build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
-        with:
-          persist-credentials: false
-          fetch-depth: 0  # Fetch all history and tags for version detection
-          ref: ${{ github.event.inputs.tag || github.ref }}
-      - name: Setup git for version detection
-        run: |
-          # Ensure the tag is properly set up for DocumenterVitepress to detect
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          # Verify tag exists and is accessible
-          echo "Current ref: ${{ github.ref }}"
-          echo "Ref name: ${{ github.ref_name }}"
-          echo "Event name: ${{ github.event_name }}"
-          if [ "${{ github.event_name }}" = "push" ] && [[ "${{ github.ref }}" == refs/tags/* ]]; then
-            echo "Detected tag push: ${{ github.ref_name }}"
-          fi
-          if [ -n "${{ github.event.inputs.tag }}" ]; then
-            echo "Manual trigger with tag: ${{ github.event.inputs.tag }}"
-          fi
-          echo "All tags:"
-          git tag -l
-          echo "Current commit:"
-          git log -1 --oneline
+        uses: actions/checkout@v6
       - name: Setup Julia
         uses: julia-actions/setup-julia@v2
-        with:
-          version: '1'
-      - name: Julia cache
+      - name: Load Julia packages from cache
+        id: julia-cache
         uses: julia-actions/cache@v2
-      - name: Setup Node (for VitePress deps)
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-      - name: Install JS deps (VitePress)
-        working-directory: docs
-        run: npm install
       - name: Build and deploy docs
+        uses: julia-actions/julia-docdeploy@v1
         env:
-          # Prefer the ephemeral workflow token. (Same value as `secrets.GITHUB_TOKEN` but clearer.)
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # SSH deploy key used by Documenter (same as TagBot)
-          DOCUMENTER_KEY: ${{ secrets.DOCUMENTER_KEY }}
-          # Only deploy when we have permission to push:
-          # - on pushes/tags/workflow_dispatch, always
-          # - on PRs, only when the PR comes from the same repo (fork PRs get a read-only token)
-          SINDBAD_DOCS_DEPLOY: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
-          # Help DocumenterVitepress detect version - use ref_name for tag pushes
-          TRAVIS_TAG: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || github.event.inputs.tag || '' }}
-          # Set GITHUB_REF_NAME for tag detection
-          GITHUB_REF_NAME: ${{ github.ref_name }}
-          GITHUB_REF: ${{ github.ref }}
-        run: >
-          cd docs;
-          JULIA_PKG_USE_CLI_GIT=true julia --color=yes make.jl
-      - name: Upload site as artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: Docs build
-          path: ./docs/build
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # For authentication with GitHub Actions token
+          DOCUMENTER_KEY: ${{ secrets.DOCUMENTER_KEY }} # For authentication with SSH deploy key
+          JULIA_DEBUG: "Documenter"
+          DATADEPS_ALWAYS_ACCEPT: true
+      - name: Save Julia depot cache on cancel or failure
+        id: julia-cache-save
+        if: cancelled() || failure()
+        uses: actions/cache/save@v4
+        with: 
+          path: |
+            ${{ steps.julia-cache.outputs.cache-paths }}
+          key: ${{ steps.julia-cache.outputs.cache-key }}
