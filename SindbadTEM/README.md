@@ -5,10 +5,10 @@
 <img src="../docs/src/assets/sindbad_logo.png" align="right" style="padding-left:10px;" width="150"/>
 
 [docs-dev-img]: https://img.shields.io/badge/docs-dev-blue.svg
-[docs-dev-url]: https://landecosystems.github.io/Sindbad/dev/
+[docs-dev-url]: https://landecosystems.github.io/Sindbad.jl/dev/
 
 [docs-stable-img]: https://img.shields.io/badge/docs-stable-blue.svg
-[docs-stable-url]: https://landecosystems.github.io/Sindbad/stable/
+[docs-stable-url]: https://landecosystems.github.io/Sindbad.jl/stable/
 
 [codecov-img]: https://codecov.io/gh/LandEcosystems/Sindbad/branch/main/graph/badge.svg
 [codecov-url]: https://codecov.io/gh/LandEcosystems/Sindbad
@@ -111,8 +111,8 @@ Key direct dependencies (installed automatically by Julia’s package manager) i
 ## Documentation
 
 Comprehensive documentation is available at:
-- **Stable**: https://landecosystems.github.io/Sindbad/stable/
-- **Development**: https://landecosystems.github.io/Sindbad/dev/
+- **Stable**: https://landecosystems.github.io/Sindbad.jl/stable/
+- **Development**: https://landecosystems.github.io/Sindbad.jl/dev/
 
 ## SINDBAD Contributors
 

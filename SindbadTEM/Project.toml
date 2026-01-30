@@ -1,7 +1,7 @@
 name = "SindbadTEM"
 uuid = "6686e6de-2010-4bf8-9178-b2bcc470766e"
 authors = ["SINDBAD Contributors <sindbad@bgc-jena.mpg.de>"]
-version = "0.1.0"
+version = "0.1.1"
 
 [deps]
 Accessors = "7d9f7c33-5ae7-4f3b-8dc6-eff91059b697"
