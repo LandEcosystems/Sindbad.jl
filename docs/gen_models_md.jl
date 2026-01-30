@@ -6,7 +6,7 @@ using SindbadTEM.DataStructures
 sindbadTEM_src_dir = dirname(pathof(SindbadTEM))
 sindbadTEM_pkg_root = dirname(sindbadTEM_src_dir)
 # GitHub repository URL
-github_repo_url = "https://github.com/LandEcosystems/Sindbad"
+github_repo_url = "https://github.com/LandEcosystems/Sindbad.jl"
 github_branch = "main"
 
 # Function to get params, inputs, and outputs using getInOutModel
