@@ -1,15 +1,34 @@
 name: TagBot
+
 on:
   issue_comment:
     types:
       - created
   workflow_dispatch:
+
 jobs:
-  TagBot:
+  TagBot-Sindbad:
     if: github.event_name == 'workflow_dispatch' || github.actor == 'JuliaTagBot'
     runs-on: ubuntu-latest
     steps:
-      - uses: JuliaRegistries/TagBot@v1
+      - name: Tag Sindbad
+        uses: JuliaRegistries/TagBot@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           ssh: ${{ secrets.DOCUMENTER_KEY }}
+
+  TagBot-Subpackages:
+    if: github.event_name == 'workflow_dispatch' || github.actor == 'JuliaTagBot'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        package:
+          - SindbadTEM
+    steps:
+      - name: Tag ${{ matrix.package }}
+        uses: JuliaRegistries/TagBot@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          ssh: ${{ secrets.TAGBOT_KEY }}
+          subdir: ${{ matrix.package }}
