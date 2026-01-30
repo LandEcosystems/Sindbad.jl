@@ -1,7 +1,11 @@
 name = "Sindbad"
 uuid = "36c3e672-7dee-4606-99b5-7e5d8d85a313"
 authors = ["SINDBAD Contributors <sindbad@bgc-jena.mpg.de>"]
-version = "0.1.2"
+version = "0.1.3"
+description = "Model–data integration framework for terrestrial ecosystem models (SINDBAD)"
+license = "EUPL-1.2"
+readme = "README.md"
+repository = "https://github.com/LandEcosystems/Sindbad.jl.git"
 
 [deps]
 AxisKeys = "94b1ba4f-4ee9-5380-92f1-94cde586c3c5"
