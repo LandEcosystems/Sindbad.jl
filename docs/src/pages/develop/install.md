@@ -2,9 +2,16 @@
 
 In the Julia REPL type:
 
+```julia
+using Pkg
+Pkg.add("Sindbad")
+```
+
+or install `main` with the latest changes
+
 ````julia
 julia> ]
-pkg > add https://git.bgc-jena.mpg.de/sindbad/SINDBAD.git
+pkg > add https://github.com/LandEcosystems/Sindbad.jl.git
 ````
 
 The ] character starts the Julia package manager. Hit backspace key to return to Julia prompt.

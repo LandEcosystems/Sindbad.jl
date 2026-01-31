@@ -22,7 +22,7 @@ hero:
       link: pages/code/api/Sindbad
     - theme: alt
       text: Repository
-      link: https://github.com/LandEcosystems/Sindbad
+      link: https://github.com/LandEcosystems/Sindbad.jl
 features:
   - icon: <img width="64" height="64" src="https://img.icons8.com/?size=100&id=B1TKpLjVCRyp&format=png&color=000000" alt="modular-icon"/>
     title: Challenge

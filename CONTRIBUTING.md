@@ -13,8 +13,8 @@ Thank you for your interest in contributing to SINDBAD! This guide will help you
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/LandEcosystems/Sindbad.git
-   cd SINDBAD
+   git clone https://github.com/LandEcosystems/Sindbad.jl.git
+   cd Sindbad.jl
    ```
 
 2. Start Julia in the repository root:
