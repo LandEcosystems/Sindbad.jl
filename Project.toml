@@ -103,7 +103,7 @@ julia = "1.10, 1.11"
 
 # Optional dependencies (extensions)
 # Keeping these compat entries explicit improves JuliaRegistries AutoMerge compatibility.
-CMAEvolutionStrategy = "0.3"
+CMAEvolutionStrategy = "0.2.6"
 DifferentialEquations = "7"
 Enzyme = "0.13"
 Evolutionary = "0.11"

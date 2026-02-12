@@ -28,6 +28,7 @@ Streamline the ingestion and preprocessing of input data for SINDBAD experiments
 - **`spatialSubset.jl`**: Spatial operations (extracting subsets based on spatial dimensions).
 - **`getForcing.jl`**: Extracting and processing forcing data (environmental drivers).
 - **`getObservation.jl`**: Reading and processing observational data for evaluation/validation.
+- **`handleModelObsData.jl`**: Helpers for aligning forcing/observation/model outputs for cost evaluation.
 
 # Notes
 - The module uses `NCDatasets`, `YAXArrays`, and `Zarr` directly; it does not re-export them.
@@ -50,10 +51,12 @@ module DataLoaders
    using YAXArrays: YAXArrays, Cube, YAXArray
    using YAXArrays.DAT: InDims
    using Zarr
+   using TimeSamplers
 
    include("utilsDataLoaders.jl")
    include("spatialSubset.jl")
    include("getForcing.jl")
    include("getObservation.jl")
+   include("handleModelObsData.jl")
    
 end # module DataLoaders

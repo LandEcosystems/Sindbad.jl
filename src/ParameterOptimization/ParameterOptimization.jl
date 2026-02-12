@@ -29,7 +29,6 @@ Some optimizer backends are enabled via Julia extensions (see root `Project.toml
 Other packages listed under `[weakdeps]` may be used by experimental workflows but are not required for the base module to load.
 
 # Included Files
-- **`handleDataForCost.jl`**: Helpers for aligning forcing/observation/model outputs for cost evaluation.
 - **`getCost.jl`**: Cost extraction and convenience wrappers.
 - **`optimizer.jl`**: Core optimization logic (algorithm selection + option normalization).
 - **`cost.jl`**: Cost functions for evaluating model–observation mismatch.
@@ -61,9 +60,9 @@ module ParameterOptimization
    using SindbadTEM
    using ..Types
    using ..Setup
+   using ..DataLoaders
    using ..Simulation
 
-   include("handleDataForCost.jl")
    include("getCost.jl")
    include("optimizer.jl")
    include("cost.jl")

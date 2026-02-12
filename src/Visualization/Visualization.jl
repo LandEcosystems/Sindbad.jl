@@ -46,7 +46,9 @@ module Visualization
     using SindbadTEM
     using OmniTools
     using ..Types
+    using ..DataLoaders
     using Sindbad.ErrorMetrics
+    using Sindbad.NaNStatistics
     # using GLMakie
     # @reexport using GLMakie.Makie
     # using Colors
