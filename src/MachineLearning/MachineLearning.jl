@@ -53,9 +53,10 @@ module MachineLearning
         nprocs,
         CachingPool
     using Flux
+    using Zygote
     using Base.Iterators: repeated, partition
     using JLD2
-    # using Optimisers
+    using Optimisers
     # using PolyesterForwardDiff
     # using PreallocationTools
     using ProgressMeter: @showprogress, Progress, next!, progress_pmap, progress_map

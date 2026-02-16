@@ -23,6 +23,3 @@ Sindbad = "36c3e672-7dee-4606-99b5-7e5d8d85a313"
 SindbadTEM = "6686e6de-2010-4bf8-9178-b2bcc470766e"
 StableRNGs = "860ef19b-820b-49d6-a774-d7a799459cd3"
 Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
-
-[sources]
-Sindbad = {path = "../.."}

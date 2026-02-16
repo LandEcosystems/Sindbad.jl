@@ -14,6 +14,7 @@ path_input = "$(getSindbadDataDepot())/FLUXNET_v2023_12_1D.zarr"
 path_observation = path_input
 path_covariates = "$(getSindbadDataDepot())/CovariatesFLUXNET_3.zarr"
 
+
 replace_info = Dict(
     "forcing.default_forcing.data_path" => path_input,
     "optimization.observations.default_observation.data_path" => path_observation,
@@ -60,7 +61,7 @@ loss_vector_f_site(loc_params)
 ## try for a batch
 sites_batch = hybrid_helpers.sites.training[1:info.hybrid.ml_training.options.batch_size]
 scaled_params_batch = scaled_params_sites(; site=sites_batch)
-grads_batch = zeros(Float32, size(scaled_params_batch, 1), length(sites_batch));
+grads_batch = zeros(Float32, size(scaled_params_batch, 1), length(sites_batch))
 
 g_batch = gradientBatch!(info.hybrid.ml_gradient.method, grads_batch, info.hybrid.ml_gradient.options, loss_functions, scaled_params_batch, sites_batch; showprog=true)
 
