@@ -12,7 +12,8 @@ using Sindbad: FiniteDifferencesGrad
 
 # Example methods (for reference):
 
-function gradientSite(::FiniteDifferencesGrad, x_vals::AbstractArray, gradient_options::NamedTuple,loss_f::F) where {F}
-    gr_fds = FiniteDifferences.grad(FiniteDifferences.central_fdm(5, 1), loss_f, x_vals)
+function gradientSite(::FiniteDifferencesGrad, x_vals::AbstractArray, chunk_size::Int, loss_f::F, args...) where {F}
+    loss_tmp(x) = loss_f(x, grads_lib, args...)
+    gr_fds = FiniteDifferences.grad(FiniteDifferences.central_fdm(5, 1), loss_tmp, x_vals)
     return gr_fds[1]
 end
