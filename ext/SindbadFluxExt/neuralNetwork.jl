@@ -1,7 +1,7 @@
-export denseNN
-export destructureNN
-export getPullback
-export JoinDenseNN
+# export denseNN
+# export destructureNN
+# export getPullback
+# export JoinDenseNN
 # export SplitNN
 
 """
@@ -113,4 +113,4 @@ Flux.@layer SplitNN
   
 (m::SplitNN)(x::AbstractArray) = map(f -> f(x), m.paths)
 
-function getPullback end
+# function getPullback end

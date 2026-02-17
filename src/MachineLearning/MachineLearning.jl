@@ -55,8 +55,6 @@ module MachineLearning
     using Base.Iterators: repeated, partition
     using JLD2
     using Optimisers
-    # using PolyesterForwardDiff
-    # using PreallocationTools
     using ProgressMeter: @showprogress, Progress, next!, progress_pmap, progress_map
     using Random
     
@@ -72,14 +70,11 @@ module MachineLearning
 
     include("utilsMachineLearning.jl")
     include("diffCaches.jl")
-    include("activationFunctions.jl")
-    include("mlModels.jl")
     include("mlOptimizers.jl")
     include("loss.jl")
     include("prepHybrid.jl")
     include("mlGradient.jl")
     include("mlTrain.jl")
-    include("neuralNetwork.jl")
     include("siteLosses.jl")
     include("oneHots.jl")
     include("loadCovariates.jl")
