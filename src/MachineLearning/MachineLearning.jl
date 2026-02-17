@@ -24,7 +24,7 @@ This module brings together all components required for hybrid (process-based + 
 - `SindbadTEM`
 
 ## Optional dependencies (weakdeps / experimental)
-Some ML training/AD backends are listed as weak dependencies in the root `Project.toml` (e.g. `Zygote`, `ForwardDiff`, `Optimisers`, `PreallocationTools`, etc.) and are enabled via extensions. `Flux` is a hard dependency of this module.
+Some ML training/AD backends are listed as weak dependencies in the root `Project.toml` (e.g. `Flux`, `Zygote`, `ForwardDiff`, `Optimisers`, `PreallocationTools`, etc.) and are enabled via extensions.
 
 # Included Files
 - `utilsMachineLearning.jl`: Utility functions for machine-learning workflows.
@@ -52,8 +52,6 @@ module MachineLearning
         workers,
         nprocs,
         CachingPool
-    using Flux
-    using Zygote
     using Base.Iterators: repeated, partition
     using JLD2
     using Optimisers
