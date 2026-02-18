@@ -1,5 +1,9 @@
 export activationFunction
 export mlModel
+export denseNN
+export destructureNN
+export JoinDenseNN
+export SplitNN
 
 """
     activationFunction(model_options, act::AbstractActivation)

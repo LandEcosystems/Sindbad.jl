@@ -4,6 +4,10 @@ export vegOneHotbatch
 export lcKAoneHotbatch
 export vegKAoneHotbatch
 export toClass
+export vegetation_labels
+export vegetation_rules
+export KGlabels
+export PFTlabels
 
 const vegetation_labels = ["Tree", "Shrub", "Savanna", "Herb", "Non-Veg"]
 const vegetation_rules = Dict(

@@ -1,7 +1,8 @@
 module SindbadFluxExt
     using Flux
-    using KeyedArrays
-
+    using AxisKeys
+    using Random
+    
     include("mlModels.jl")
     include("activationFunctions.jl")
     include("neuralNetwork.jl")

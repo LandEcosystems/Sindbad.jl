@@ -1,8 +1,8 @@
 import Sindbad.MachineLearning:
-    denseNN
-    destructureNN
+    denseNN,
+    destructureNN,
     JoinDenseNN
-    SplitNN
+    # SplitNN
 
 """
     denseNN(in_dim::Int, n_neurons::Int, out_dim::Int; extra_hlayers=0, activation_hidden=Flux.relu, activation_out= Flux.sigmoid, seed=1618)
@@ -102,13 +102,14 @@ end
 # from
 # https://fluxml.ai/Flux.jl/dev/tutorials/custom_layers/#Multiple-outputs:-a-custom-Split-layer
 
-# custom split layer
-struct SplitNN{T}
-    paths::T
-end
+# custom split layer (we don't need it for now, but it could be useful in the future)
+
+# struct SplitNN{T}
+#     paths::T
+# end
   
-SplitNN(paths...) = SplitNN(paths)
+# SplitNN(paths...) = SplitNN(paths)
   
-Flux.@layer SplitNN
+# Flux.@layer SplitNN
   
-(m::SplitNN)(x::AbstractArray) = map(f -> f(x), m.paths)
+# (m::SplitNN)(x::AbstractArray) = map(f -> f(x), m.paths)

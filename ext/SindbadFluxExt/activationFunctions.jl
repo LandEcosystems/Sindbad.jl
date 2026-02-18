@@ -1,5 +1,6 @@
 import Sindbad.MachineLearning:
     activationFunction
+using Sindbad: CustomSigmoid, FluxRelu, FluxTanh, FluxSigmoid
 
 function activationFunction(_, ::FluxRelu)
     return Flux.relu

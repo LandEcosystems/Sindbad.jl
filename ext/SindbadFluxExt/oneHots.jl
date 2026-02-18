@@ -4,6 +4,13 @@ import Sindbad.MachineLearning:
     vegOneHotbatch,
     lcKAoneHotbatch,
     vegKAoneHotbatch
+    
+using Sindbad.MachineLearning:
+    toClass,
+    vegetation_labels,
+    vegetation_rules,
+    KGlabels,
+    PFTlabels
 
 
 """
