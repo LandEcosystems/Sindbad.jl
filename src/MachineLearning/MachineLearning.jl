@@ -46,12 +46,7 @@ Some ML training/AD backends are listed as weak dependencies in the root `Projec
 - It is tightly integrated with the SINDBAD ecosystem, ensuring consistent data handling and reproducibility across hybrid and process-based modeling workflows.
 """
 module MachineLearning
-    using Distributed:
-        nworkers,
-        pmap,
-        workers,
-        nprocs,
-        CachingPool
+
     using Base.Iterators: repeated, partition
     using JLD2
     using Optimisers
