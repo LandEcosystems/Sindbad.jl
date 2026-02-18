@@ -71,7 +71,8 @@ module MachineLearning
     include("mlGradient.jl")
     include("mlTrain.jl")
     include("siteLosses.jl")
-    include("oneHots.jl")
+    include("vegClasses.jl")
+    include("FluxInterfaces.jl")
     include("loadCovariates.jl")
 
 end

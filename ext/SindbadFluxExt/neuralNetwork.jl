@@ -1,8 +1,8 @@
-# export denseNN
-# export destructureNN
-# export getPullback
-# export JoinDenseNN
-# export SplitNN
+import Sindbad.MachineLearning:
+    denseNN
+    destructureNN
+    JoinDenseNN
+    SplitNN
 
 """
     denseNN(in_dim::Int, n_neurons::Int, out_dim::Int; extra_hlayers=0, activation_hidden=Flux.relu, activation_out= Flux.sigmoid, seed=1618)
@@ -112,5 +112,3 @@ SplitNN(paths...) = SplitNN(paths)
 Flux.@layer SplitNN
   
 (m::SplitNN)(x::AbstractArray) = map(f -> f(x), m.paths)
-
-# function getPullback end
