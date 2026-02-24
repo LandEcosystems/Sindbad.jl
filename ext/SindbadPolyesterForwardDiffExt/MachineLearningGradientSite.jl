@@ -14,16 +14,6 @@ import Sindbad.MachineLearning:
 # get all the types needed to dispatch the function. These types should defined in a corresponding file in Sindbad so that they can be used for dispatching and setup, if that were needed.
 using Sindbad: PolyesterForwardDiffGrad
 
-# ------------------------------------------------------------------
-# WARNING! Loading PreallocationTools before is required!
-function getCacheFromOutput(loc_output, ::PolyesterForwardDiffGrad)
-    return getCacheFromOutput(loc_output, ForwardDiffGrad())
-end
-
-function getOutputFromCache(loc_output, new_params, ::PolyesterForwardDiffGrad)
-    return getOutputFromCache(loc_output, new_params, ForwardDiffGrad())
-end
-
 function gradientSite(grads_lib::PolyesterForwardDiffGrad, x_vals::AbstractArray, chunk_size::Int, loss_f::F, args...) where {F}
     loss_tmp(x) = loss_f(x, grads_lib, args...)
     ∇x = similar(x_vals) # pre-allocate

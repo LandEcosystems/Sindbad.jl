@@ -3,6 +3,7 @@ export gradientBatch!
 export mixedGradientTraining
 export gradsNaNCheck!
 export loadTrainedNN
+export getPullback
 
 """
     mixedGradientTraining(grads_lib, nn_model, train_refs, test_val_refs, loss_fargs, forward_args; n_epochs=3, optimizer=Optimisers.Adam(), path_experiment="/")
@@ -92,6 +93,69 @@ function batchShuffler(x_forcings, ids_forcings, batch_size; bs_seed=1456)
     ids_batches = shuffleBatches(ids_forcings, batch_size; seed=bs_seed)
     return x_batches, ids_batches
 end
+
+
+"""
+    getPullback(flat, re, features::AbstractArray)
+    getPullback(flat, re, features::Tuple)
+
+# Arguments:
+- flat :: weight parameters.
+- re :: model structure (vanilla Chain Dense Layers).
+- features ::  `n` predictors and `s` samples.
+    - A vector of predictors
+    - A matrix of predictors: `(p_n x s)`
+    - A tuple vector of predictors: `(p1, p2)`
+    - A tuple of matrices of predictors: `[(p1_n x s), (p2_n x s)]`
+
+# Returns:
+- new parameters and pullback function
+
+# Example
+
+Here we do one input features vector or matrix.
+
+```julia
+using Sindbad.MachineLearning
+using Flux
+# model
+m = Chain(Dense(4 => 5, relu), Dense(5 => 3), Flux.sigmoid)
+# features
+_feat = rand(Float32, 4)
+# apply
+flat, re = destructureNN(m)
+# Zygote
+new_params, pullback_func = getPullback(flat, re, _feat)
+# ? or
+_feat_ns = rand(Float32, 4, 3) # `n` predictors and `s` samples.
+new_params, pullback_func = getPullback(flat, re, _feat_ns)
+```
+
+# Example
+
+Here we do one multiple input features vector or matrix.
+
+```julia
+using Sindbad.MachineLearning
+using Flux
+# model
+m1 = Chain(Dense(4 => 5, relu), Dense(5 => 3), Flux.sigmoid)
+m2 = Dense(2=>1, Flux.sigmoid)
+combo_ms = JoinDenseNN((m1, m2))
+# features
+_feat1 = rand(Float32, 4)
+_feat2 = rand(Float32, 2)
+# apply
+flat, re = destructureNN(combo_ms)
+# Zygote
+new_params, pullback_func = getPullback(flat, re, (_feat1, _feat2))
+# ? or with multiple samples
+_feat1_ns = rand(Float32, 4, 3) # `n` predictors and `s` samples.
+_feat2_ns = rand(Float32, 2, 3) # `n` predictors and `s` samples.
+new_params, pullback_func = getPullback(flat, re, (_feat1_ns, _feat2_ns))
+```
+"""
+function getPullback end
 
 
 # https://juliateachingctu.github.io/Scientific-Programming-in-Julia/dev/lecture_08/lecture/

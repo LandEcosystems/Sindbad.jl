@@ -12,7 +12,7 @@ Modify the code in the "MachineLearningGradientSite.jl" file to extend the packa
 """
 module SindbadPolyesterForwardDiffExt
     using PolyesterForwardDiff
-    using ForwardDiff
+    import PolyesterForwardDiff: ForwardDiff
     using Distributed:
         pmap,
         workers,

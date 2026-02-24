@@ -125,26 +125,28 @@ loc_params, inner_args = getInnerArgs(1, grads_lib, input_args...);
 gradientBatch!(grads_lib, grads_batch, 2, lossSite, getInnerArgs,input_args...; showprog=true)
 
 # ! Now other extensions!
-# @info "now testing PolyesterForwardDiff"
-# using PolyesterForwardDiff
-# grads_lib = PolyesterForwardDiffGrad();
+@info "now testing PolyesterForwardDiff"
+using PreallocationTools # this one gets the diffCache methods
+using PolyesterForwardDiff, Flux, Zygote
+grads_lib = PolyesterForwardDiffGrad();
 
-# loc_params, inner_args = getInnerArgs(1, grads_lib, input_args...);
-# # just for one site
-# @time gg = gradientSite(grads_lib, loc_params, 4, lossSite, inner_args...)
-# # for a batch
-# gradientBatch!(grads_lib, grads_batch, 4, lossSite, getInnerArgs,input_args...; showprog=true)
+loc_params, inner_args = getInnerArgs(1, grads_lib, input_args...);
+# just for one site
+@time gg = gradientSite(grads_lib, loc_params, 4, lossSite, inner_args...)
+# for a batch
+gradientBatch!(grads_lib, grads_batch, 4, lossSite, getInnerArgs,input_args...; showprog=true)
 
 # # ! FiniteDifferences
-# @info "now testing FiniteDifferences"
-# using FiniteDifferences
-# grads_lib = FiniteDifferencesGrad();
 
-# loc_params, inner_args = getInnerArgs(1, grads_lib, input_args...);
-# # just for one site
-# @time gg = gradientSite(grads_lib, loc_params, 4, lossSite, inner_args...)
-# # for a batch
-# gradientBatch!(grads_lib, grads_batch, 4, lossSite, getInnerArgs,input_args...; showprog=true)
+@info "now testing FiniteDifferences"
+using FiniteDifferences
+grads_lib = FiniteDifferencesGrad();
+
+loc_params, inner_args = getInnerArgs(1, grads_lib, input_args...);
+# just for one site
+@time gg = gradientSite(grads_lib, loc_params, 4, lossSite, inner_args...)
+# for a batch
+gradientBatch!(grads_lib, grads_batch, 4, lossSite, getInnerArgs,input_args...; showprog=true)
 
 # ! FiniteDiff
 @info "now testing FiniteDiff"
