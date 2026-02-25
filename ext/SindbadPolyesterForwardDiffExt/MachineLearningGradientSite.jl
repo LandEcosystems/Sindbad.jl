@@ -6,8 +6,6 @@ This file is included from the extension module and can use `PolyesterForwardDif
 
 # Bring the target function into scope for adding methods. This should be done using `import` and not `using`.
 import Sindbad.MachineLearning:
-    getCacheFromOutput,
-    getOutputFromCache,
     gradientSite,
     gradientBatch!
 
