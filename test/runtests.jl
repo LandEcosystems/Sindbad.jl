@@ -47,3 +47,5 @@ end
         @test land.states.c_eco_efflux == zero(tmp_land.pools.cEco)
     end
 end
+
+include("MachineLearning/test_gradientSite.jl")

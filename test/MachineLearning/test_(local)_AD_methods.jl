@@ -158,3 +158,25 @@ loc_params, inner_args = getInnerArgs(1, grads_lib, input_args...);
 @time gg = gradientSite(grads_lib, loc_params, 4, lossSite, inner_args...)
 # for a batch
 gradientBatch!(grads_lib, grads_batch, 4, lossSite, getInnerArgs,input_args...; showprog=true)
+
+# ? training arguments
+chunk_size = 2
+metadata_global = info.output.file_info.global_metadata
+
+in_gargs=(;
+    train_refs = (; sites_training, indices_sites_training, xfeatures, tbl_params, batch_size, chunk_size, metadata_global),
+    test_val_refs = (; sites_validation, indices_sites_validation, sites_testing, indices_sites_testing),
+    total_constraints = length(info.optimization.cost_options.variable),
+    forward_args,
+    loss_fargs = (lossSite, getInnerArgs)
+);
+
+checkpoint_path = "$(info.output.dirs.data)/HyALL_ALL_kσ_$(k_σ)_fold_$(_nfold)_nlayers_$(nlayers)_n_neurons_$(n_neurons)_$(n_epochs)epochs_batch_size_$(batch_size)/"
+
+mkpath(checkpoint_path)
+
+@info checkpoint_path
+
+grads_lib = PolyesterForwardDiffGrad();
+
+mixedGradientTraining(grads_lib, mlBaseline, in_gargs.train_refs, in_gargs.test_val_refs, in_gargs.total_constraints, in_gargs.loss_fargs, in_gargs.forward_args; n_epochs=n_epochs, path_experiment=checkpoint_path)

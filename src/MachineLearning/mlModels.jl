@@ -5,6 +5,8 @@ export destructureNN
 export JoinDenseNN
 export SplitNN
 
+using Sindbad: CustomSigmoid
+
 """
     activationFunction(model_options, act::AbstractActivation)
 
@@ -30,6 +32,14 @@ y = act_fn(x)
 ```
 """
 function activationFunction end
+
+
+function activationFunction(model_options, ::CustomSigmoid)
+    sigmoid_k(x, K) = one(x) / (one(x) + exp(-K * x))
+    custom_sigmoid = x -> sigmoid_k(x, model_options.k_σ)
+    return custom_sigmoid
+end
+
 
 """
     mlModel(info, n_features, ::MachineLearningModelType)

@@ -72,7 +72,7 @@ module MachineLearning
     include("mlTrain.jl")
     include("siteLosses.jl")
     include("vegClasses.jl")
-    include("FluxInterfaces.jl")
+    include("mlModels.jl")
     include("loadCovariates.jl")
 
 end
