@@ -1,6 +1,3 @@
-"""
-Simple tests for gradientSite across ForwardDiff, PolyesterForwardDiff, FiniteDifferences, and FiniteDiff backends.
-"""
 using Test, LinearAlgebra
 using Sindbad: gradientSite, ForwardDiffGrad, PolyesterForwardDiffGrad, FiniteDifferencesGrad, FiniteDiffGrad
 
