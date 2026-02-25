@@ -1,6 +1,9 @@
 using Sindbad
 using BenchmarkTools
 using Test
+using LinearAlgebra
+using PreallocationTools, ForwardDiff, Flux, Zygote
+using PolyesterForwardDiff, FiniteDifferences, FiniteDiff
 
 @testset "Sindbad smoke" begin
     # Module loads and reexports core stack
