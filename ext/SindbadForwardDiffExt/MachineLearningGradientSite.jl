@@ -13,7 +13,15 @@ using Sindbad: ForwardDiffGrad
 function gradientSite(grads_lib::ForwardDiffGrad, x_vals::AbstractArray, chunk_size::Int, loss_f::F, args...) where {F}
     loss_tmp(x) = loss_f(x, grads_lib, args...)
     ∇x = similar(x_vals) # pre-allocate
-    # cfg = ForwardDiff.GradientConfig(loss_tmp, x_vals, Chunk{chunk_size}());
+    # cfg = ForwardDiff.GradientConfig(loss_tmp, x_vals, Chunk{chunk_size}()); # we don't enforce chunking here, but it could be added if needed for performance tuning. As is it will use the default chunk size, which is typically good for small to medium sized problems.
     ForwardDiff.gradient!(∇x, loss_tmp, x_vals) # ?, add `cfg` at the end if further control is needed.
+    return ∇x
+end
+
+function gradientSite(grads_lib::ForwardDiffGrad, x_vals, gradient_options::NamedTuple, loss_f::F) where {F}
+    ∇x = similar(x_vals) # pre-allocate
+    chunk_size = gradient_options.chunk_size
+    # cfg = ForwardDiff.GradientConfig(loss_tmp, x_vals, Chunk{chunk_size}());
+    ForwardDiff.gradient!(∇x, loss_f, x_vals) # ?, add `cfg` at the end if further control is needed.
     return ∇x
 end

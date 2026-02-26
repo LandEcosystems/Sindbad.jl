@@ -33,3 +33,27 @@ function gradientBatch!(grads_lib::PolyesterForwardDiffGrad, dx_batch, chunk_siz
         dx_batch[:, idx] = result[idx]
     end
 end
+
+function gradientSite(::PolyesterForwardDiffGrad, x_vals, gradient_options::NamedTuple, loss_f::F) where {F}
+    ∇x = similar(x_vals) # pre-allocate
+    chunk_size = gradient_options.chunk_size
+    if occursin("arm64-apple-darwin", Sys.MACHINE) 
+        error("Not supported on M1 systems, try using ForwardDiff instead.")
+    else
+        PolyesterForwardDiff.threaded_gradient!(loss_f, ∇x, x_vals, ForwardDiff.Chunk(chunk_size));
+    end
+    return ∇x
+end
+
+function gradientBatch!(grads_lib::PolyesterForwardDiffGrad, dx_batch, gradient_options::NamedTuple, loss_functions, scaled_params_batch, sites_batch; showprog=false)
+    mapfun = showprog ? progress_pmap : pmap
+    result = mapfun(CachingPool(workers()), axes(dx_batch, 2)) do idx
+        site_name = sites_batch[idx]
+        loss_f = loss_functions(site=site_name)
+        x_vals = scaled_params_batch(site=site_name).data.data
+        gradientSite(grads_lib, x_vals, gradient_options, loss_f)    
+    end
+    for idx in axes(dx_batch, 2)
+        dx_batch[:, idx] = result[idx]
+    end
+end

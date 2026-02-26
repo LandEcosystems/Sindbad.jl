@@ -6,7 +6,6 @@ using PreallocationTools, ForwardDiff, Flux, Zygote
 file_folds = load("/User/homes/lalonso/SINDBAD/examples/exp_fluxnet_hybrid/sampling/nfolds_sites_indices_0.jld2")
 experiment_json = "/User/homes/lalonso/SINDBAD/examples/exp_fluxnet_hybrid/settings_fluxnet_hybrid/experiment.json"
 
-
 replace_info = Dict()
 if Sys.islinux()
     replace_info = Dict(
@@ -180,3 +179,16 @@ mkpath(checkpoint_path)
 grads_lib = PolyesterForwardDiffGrad();
 
 mixedGradientTraining(grads_lib, mlBaseline, in_gargs.train_refs, in_gargs.test_val_refs, in_gargs.total_constraints, in_gargs.loss_fargs, in_gargs.forward_args; n_epochs=n_epochs, path_experiment=checkpoint_path)
+
+#? trainML (NamedTuple dispatch)
+experiment_json = "/User/homes/lalonso/SINDBAD/examples/exp_fluxnet_hybrid/settings_fluxnet_hybrid/experiment_hybrid.json"
+
+info = getExperimentInfo(experiment_json; replace_info=replace_info);
+
+forcing = getForcing(info);
+observations = getObservation(info, forcing.helpers);
+sites_forcing = forcing.data[1].site;
+
+hybrid_helpers = prepHybrid(forcing, observations, info, info.hybrid.ml_training.method);
+
+trainML(hybrid_helpers, info.hybrid.ml_training.method)

@@ -196,7 +196,7 @@ grads = gradientSite(ForwardDiffGrad(), x_vals, 4, loss_f)
 """
 function gradientSite end
 
-function gradientSite(grads_lib::MachineLearningGradType, ::AbstractArray, ::Int, ::F, args...) where {F}
+function gradientSite(grads_lib::MachineLearningGradType, ::Any, ::Any, ::Any)
     @warn "
     Gradient library `$(nameof(typeof(grads_lib)))` not implemented. 
     
@@ -262,6 +262,26 @@ function gradientBatch!(grads_lib::MachineLearningGradType, dx_batch, chunk_size
                 x_vals, inner_args = get_inner_args(idx, grads_lib, input_args...)
                 gg = gradientSite(grads_lib, x_vals, chunk_size, loss_f, inner_args...)
                 dx_batch[:, idx] = gg
+                next!(p)
+            end
+        end
+    end
+end
+
+function gradientBatch!(grads_lib::MachineLearningGradType, grads_batch, gradient_options::NamedTuple, loss_functions, scaled_params_batch, sites_batch; showprog=false)
+    # Threads.@spawn allows dynamic scheduling instead of static scheduling
+    # of Threads.@threads macro.
+    # See <https://github.com/JuliaLang/julia/issues/21017>
+
+    p = Progress(length(axes(grads_batch,2)); desc="Computing batch grads...", color=:cyan, enabled=showprog)
+    @sync begin
+        for idx ∈ axes(grads_batch, 2)
+            Threads.@spawn begin
+                site_name = sites_batch[idx]
+                loss_f = loss_functions(site=site_name)
+                x_vals = scaled_params_batch(site=site_name).data.data
+                gg = gradientSite(grads_lib, x_vals, gradient_options, loss_f)    
+                grads_batch[:, idx] = gg
                 next!(p)
             end
         end
