@@ -1,6 +1,7 @@
 
 import Sindbad.MachineLearning: mlModel
 using Sindbad: FluxDenseNN
+using SindbadTEM: print_info
 
 function mlModel(info, n_features, ::FluxDenseNN)
     n_params = sum(info.optimization.parameter_table.is_ml);
