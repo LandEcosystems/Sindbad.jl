@@ -24,7 +24,7 @@ ATOL_AD = 1e-8
 ATOL_FD = 1e-4
 
 function test_gradientSite(label, grads_lib; atol)
-    gradient_options = (chunk = CHUNK,)
+    gradient_options = (; chunk_size = CHUNK,)
     @testset "$label" begin
         for (i, x) in enumerate(test_points)
             loss_f   = x_ -> test_loss(x_, inner_args...)
