@@ -65,6 +65,8 @@ module MachineLearning
 
     include("utilsMachineLearning.jl")
     include("diffCaches.jl")
+    include("activationFunctions.jl")
+    include("getPullback.jl")
     include("mlOptimizers.jl")
     include("loss.jl")
     include("prepHybrid.jl")
