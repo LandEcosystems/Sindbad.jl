@@ -18,6 +18,6 @@ using Sindbad: FiniteDiffGrad
 # ------------------------------------------------------------------
 # Add your extension methods below. The Example is a tentative placeholder for the method signature and should be replaced with the actual method signature.
 
-function gradientSite(grads_lib::FiniteDiffGrad, x_vals, gradient_options::NamedTuple, loss_f::F) where {F}
+function gradientSite(::FiniteDiffGrad, x_vals::AbstractArray, gradient_options::NamedTuple, loss_f::F) where {F}
     return FiniteDiff.finite_difference_gradient(loss_f, x_vals)
 end
