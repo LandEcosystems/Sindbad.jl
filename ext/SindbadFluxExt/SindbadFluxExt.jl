@@ -3,8 +3,8 @@ module SindbadFluxExt
     using AxisKeys
     using Random
     
-    include("mlModels.jl")
-    include("activationFunctions.jl")
-    include("neuralNetwork.jl")
-    include("oneHots.jl")
+    include("MachineLearningMLModels.jl")
+    include("MachineLearningActivationFunctions.jl")
+    include("MachineLearningNeuralNetwork.jl")
+    include("MachineLearningOneHots.jl")
 end
