@@ -1,6 +1,9 @@
 using Sindbad
 using BenchmarkTools
 using Test
+using LinearAlgebra
+using PreallocationTools, ForwardDiff, Flux, Zygote
+using PolyesterForwardDiff, FiniteDifferences, FiniteDiff
 
 @testset "Sindbad smoke" begin
     # Module loads and reexports core stack
@@ -47,3 +50,5 @@ end
         @test land.states.c_eco_efflux == zero(tmp_land.pools.cEco)
     end
 end
+
+include("MachineLearning/test_gradientSite.jl")

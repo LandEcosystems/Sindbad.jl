@@ -24,7 +24,7 @@ This module brings together all components required for hybrid (process-based + 
 - `SindbadTEM`
 
 ## Optional dependencies (weakdeps / experimental)
-Some ML training/AD backends are listed as weak dependencies in the root `Project.toml` (e.g. `Zygote`, `ForwardDiff`, `Optimisers`, `PreallocationTools`, etc.) and are enabled via extensions. `Flux` is a hard dependency of this module.
+Some ML training/AD backends are listed as weak dependencies in the root `Project.toml` (e.g. `Flux`, `Zygote`, `ForwardDiff`, `Optimisers`, `PreallocationTools`, etc.) and are enabled via extensions.
 
 # Included Files
 - `utilsMachineLearning.jl`: Utility functions for machine-learning workflows.
@@ -46,19 +46,10 @@ Some ML training/AD backends are listed as weak dependencies in the root `Projec
 - It is tightly integrated with the SINDBAD ecosystem, ensuring consistent data handling and reproducibility across hybrid and process-based modeling workflows.
 """
 module MachineLearning
-    using Distributed:
-        nworkers,
-        pmap,
-        workers,
-        nprocs,
-        CachingPool
-    using Flux
-    using Zygote
+
     using Base.Iterators: repeated, partition
     using JLD2
     using Optimisers
-    # using PolyesterForwardDiff
-    # using PreallocationTools
     using ProgressMeter: @showprogress, Progress, next!, progress_pmap, progress_map
     using Random
     
@@ -75,15 +66,15 @@ module MachineLearning
     include("utilsMachineLearning.jl")
     include("diffCaches.jl")
     include("activationFunctions.jl")
-    include("mlModels.jl")
+    include("getPullback.jl")
     include("mlOptimizers.jl")
     include("loss.jl")
     include("prepHybrid.jl")
     include("mlGradient.jl")
     include("mlTrain.jl")
-    include("neuralNetwork.jl")
     include("siteLosses.jl")
-    include("oneHots.jl")
+    include("vegClasses.jl")
+    include("mlModels.jl")
     include("loadCovariates.jl")
 
 end

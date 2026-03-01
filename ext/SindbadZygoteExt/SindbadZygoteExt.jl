@@ -14,7 +14,6 @@ module SindbadZygoteExt
 
     using Zygote
     
-    include("MachineLearningGradientSite.jl")
+    include("MachineLearningGetPullback.jl")
 
 end
-

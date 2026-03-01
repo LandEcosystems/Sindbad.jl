@@ -4,6 +4,10 @@ export vegOneHotbatch
 export lcKAoneHotbatch
 export vegKAoneHotbatch
 export toClass
+export vegetation_labels
+export vegetation_rules
+export KGlabels
+export PFTlabels
 
 const vegetation_labels = ["Tree", "Shrub", "Savanna", "Herb", "Non-Veg"]
 const vegetation_rules = Dict(
@@ -48,30 +52,6 @@ function toClass(x::Number; vegetation_rules=vegetation_rules)
     return get(vegetation_rules, new_key, "Unknown key")
 end
 
-
-"""
-    vegOneHotbatch(veg_classes; vegetation_labels)
-
-# Arguments
-- veg_classes: get these from `toClass.([x1, x2,...])`
-- vegetation_labels: see them by typing `vegetation_labels`
-"""
-function vegOneHotbatch(veg_classes; vegetation_labels=vegetation_labels)
-    return Flux.onehotbatch(veg_classes, vegetation_labels)
-end
-
-"""
-    vegOneHot(v_class; vegetation_labels)
-
-# Arguments    
-- `v_class`: get it by doing `toClass(x; vegetation_rules)`.
-- `vegetation_labels`: see them by typing `vegetation_labels`.
-"""
-function vegOneHot(v_class; vegetation_labels=vegetation_labels)
-    return Flux.onehot(v_class, vegetation_labels)
-end
-
-
 """
     oneHotPFT(pft, up_bound, veg_class)
 
@@ -80,19 +60,39 @@ end
 - `up_bound`: last index class, the range goes from `1:up_bound`, and any case not in that range uses the `up_bound` value. For `PFT` use `17`. 
 - `veg_class`: `true` or `false`.
 
+!!! warning
+    Do `using Flux` before using this function, otherwise it will error. This is because is fully defined in the `ext/SindbadFluxExt` folder.
+
 Returns a vector.
 """
-function oneHotPFT(pft, up_bound, veg_class)
-    if !veg_class
-        return Flux.onehot(pft, 1:up_bound, up_bound)
-    else
-        _pft = pft
-        if length(pft)==1
-            _pft = pft[1]
-        end
-        return vegOneHot(toClass(_pft))
-    end
-end
+function oneHotPFT end
+
+"""
+    vegOneHot(v_class; vegetation_labels)
+
+# Arguments    
+- `v_class`: get it by doing `toClass(x; vegetation_rules)`.
+- `vegetation_labels`: see them by typing `vegetation_labels`.
+
+!!! warning
+    Do `using Flux` before using this function, otherwise it will error. This is because is fully defined in the `ext/SindbadFluxExt` folder.
+
+Returns a vector.
+"""
+function vegOneHot end
+
+"""
+    vegOneHotbatch(veg_classes; vegetation_labels)
+
+# Arguments
+- veg_classes: get these from `toClass.([x1, x2,...])`
+- vegetation_labels: see them by typing `vegetation_labels`
+
+!!! warning
+    Do `using Flux` before using this function, otherwise it will error. This is because is fully defined in the `ext/SindbadFluxExt` folder.
+
+"""
+function vegOneHotbatch end
 
 """
     lcKAoneHotbatch(lc_data, up_bound, lc_name, ka_labels)
@@ -102,17 +102,12 @@ end
 - `up_bound`: last index class, the range goes from `1:up_bound`, and any case not in that range uses the `up_bound` value. For `PFT` use `17` and for `KG` `32`. 
 - `lc_name`: land cover approach, either `KG` or `PFT`.
 - `ka_labels`: KeyedArray labels, i.e. site names
+
+!!! warning
+    Do `using Flux` before using this function, otherwise it will error. This is because is fully defined in the `ext/SindbadFluxExt` folder.
+
 """
-function lcKAoneHotbatch(lc_data, up_bound, lc_name, ka_labels)
-    oneHot_lc = Flux.onehotbatch(lc_data, 1:up_bound, up_bound)
-    feat_labels = "$(lc_name)_".*string.(1:up_bound)
-    if lowercase(lc_name)=="kg"
-        feat_labels = KGlabels
-    elseif lowercase(lc_name)=="pft"
-        feat_labels = PFTlabels
-    end
-    return KeyedArray(Array(oneHot_lc); features=feat_labels, site=ka_labels)
-end
+function lcKAoneHotbatch end
 
 """
     vegKAoneHotbatch(pft_data, ka_labels)
@@ -120,8 +115,9 @@ end
 # Arguments
 - `pft_data`: Vector array
 - `ka_labels`: KeyedArray labels, i.e. site names
+
+!!! warning
+    Do `using Flux` before using this function, otherwise it will error. This is because is fully defined in the `ext/SindbadFluxExt` folder.
+
 """
-function vegKAoneHotbatch(pft_data, ka_labels)
-    oneHot_veg = vegOneHotbatch(toClass.(pft_data))
-    return KeyedArray(Array(oneHot_veg); features=vegetation_labels, site=ka_labels)
-end
+function vegKAoneHotbatch end
