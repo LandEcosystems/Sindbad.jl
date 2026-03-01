@@ -17,10 +17,3 @@ The optimizer is created using the given options and type. The options are passe
 """
 function mlOptimizer end
 
-function mlOptimizer(optimizer_options, ::OptimisersAdam)
-    return Optimisers.Adam(optimizer_options...)
-end
-function mlOptimizer(optimizer_options, ::OptimisersDescent)
-    return Optimisers.Descent(optimizer_options...)
-end
-
