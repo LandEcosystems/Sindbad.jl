@@ -21,8 +21,6 @@
 
 Welcome to the repository for **S**trategies to **IN**tegrate **D**ata and **B**iogeochemic**A**l mo**D**els (SINDBAD).
 
-Researchers and developers actively developing the model and doing research using [this public SINDBAD repo](https://github.com/LandEcosystems/Sindbad) are encouraged to contact and join [the RnD-Team](./SindbadTEM/governance4RnD.md), which provides "beta" updates under active development.
-
 ## Overview
 
 SINDBAD is a model data integration framework that encompasses the biogeochemical cycles of water and carbon, allowing for extensive and flexible integration of parsimonious models with a diverse set of observational data streams.
@@ -54,9 +52,9 @@ Internal packages (SINDBAD core):
 - **`SindbadTEM`**: Core terrestrial ecosystem models, types, and utilities
 
 Related packages (SINDBAD ecosystem):
-- **`ErrorMetrics`**: Model–observation metrics (maintained in a separate repository)
-- **`TimeSampler`**: Time aggregation / sampling utilities (maintained in a separate repository)
-- **`OmniTools`**: Shared utility toolkit (maintained in a separate repository)
+- **`ErrorMetrics.jl`**: Model–observation metrics (maintained in a separate repository)
+- **`TimeSamplers.jl`**: Time aggregation / sampling utilities (maintained in a separate repository)
+- **`OmniTools.jl`**: Shared utility toolkit (maintained in a separate repository)
 
 ## Installation
 
@@ -67,13 +65,6 @@ using Pkg
 Pkg.add("Sindbad")
 ```
 
-## Dependencies
-
-`Sindbad` depends on three categories of packages:
-
-- **Related (SINDBAD ecosystem)**: `ErrorMetrics`, `TimeSampler`, `OmniTools` (installed automatically).
-- **Internal (SINDBAD core)**: `Sindbad.DataLoaders`, `Sindbad.Experiment`, `Sindbad.MachineLearning`, `Sindbad.ParameterOptimization`, `Sindbad.Setup`, `Sindbad.Simulation`, `Sindbad.Types`, `Sindbad.Visualization`, `SindbadTEM`.
-- **External (third-party)**: e.g. `CSV`, `JLD2`, `JSON`, `NCDatasets`, `Plots`, `ProgressMeter`, `YAXArrays`, `Zarr`, etc. (installed automatically).
 
 ### From source (development / monorepo checkout)
 
