@@ -51,7 +51,7 @@ julia> # optim_para = optimizer(cost_function, default_values, lower_bounds, upp
 - The results are processed to extract the optimized parameter vector (`optim_para`), which is returned to the user.
 """
 function optimizer(::Any, default_values::Any, ::Any, ::Any, ::Any, x::ParameterOptimizationMethod)
-    @warn "
+    error("
     Optimizer `$(nameof(typeof(x)))` not implemented. 
     
     To implement a new optimizer:
@@ -64,44 +64,6 @@ function optimizer(::Any, default_values::Any, ::Any, ::Any, ::Any, x::Parameter
 
     As a fallback, this function will return the default values as the optimized parameters.
 
-    "
-    return default_values
+    ")
+    return
 end
-# function optimizer(cost_function, default_values, lower_bounds, upper_bounds, algo_options, ::BayesOptKMaternARD5)
-#     config = ConfigParameters()   # calls initialize_parameters_to_default of the C API
-#     config = merge_namedtuple(config, algo_options)
-#     set_kernel!(config, "kMaternARD5")  # calls set_kernel of the C API
-#     config.sc_type = SC_MAP
-#     _, optimum = bayes_optimization(cost_function, lower_bounds, upper_bounds, config)
-#     @show optimum
-#     return optimum
-# end
-
-# function optimizer(cost_function, default_values, lower_bounds, upper_bounds, algo_options, ::EvolutionaryCMAES)
-#     optim_results = Evolutionary.optimize(cost_function, Evolutionary.BoxConstraints(lower_bounds, upper_bounds), default_values, Evolutionary.CMAES(), Evolutionary.Options(; algo_options...))
-#     optim_para = Evolutionary.minimizer(optim_results)
-#     return optim_para
-# end
-
-
-# function optimizer(cost_function, default_values, lower_bounds, upper_bounds, algo_options, ::OptimLBFGS)
-#     results = optimize(cost_function, default_values, LBFGS(), Optim.Options(; algo_options...))
-#     optim_para = if results.ls_success
-#         results.minimizer
-#     else
-#         @warn "OptimLBFGS did not converge. Returning default as optimized parameters"
-#         default
-#     end
-#     return optim_para
-# end
-
-# function optimizer(cost_function, default_values, lower_bounds, upper_bounds, algo_options, ::OptimBFGS)
-#     results = optimize(cost_function, default_values, BFGS(; initial_stepnorm=0.001))
-#     optim_para = if results.ls_success
-#         results.minimizer
-#     else
-#         @warn "OptimBFGS did not converge. Returning default as optimized parameters"
-#         default
-#     end
-#     return optim_para
-# end
