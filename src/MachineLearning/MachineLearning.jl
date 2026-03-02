@@ -49,7 +49,6 @@ module MachineLearning
 
     using Base.Iterators: repeated, partition
     using JLD2
-    using Optimisers
     using ProgressMeter: @showprogress, Progress, next!, progress_pmap, progress_map
     using Random
     
