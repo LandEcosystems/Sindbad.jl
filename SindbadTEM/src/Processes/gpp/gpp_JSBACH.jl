@@ -3,10 +3,10 @@ export gpp_JSBACH
 #! format: off
 @bounds @describe @units @timescale @with_kw struct gpp_JSBACH{T1,T2,T3,T4,T5} <: gpp
 	P1::T1 = 0.2 | (-Inf, Inf) | "parameter 1" | "parameter 1 unit" | "parameter 1 timescale"
-	P2::T2 = Inf | (-Inf, Inf) | "parameter 2" | "parameter 2 unit" | "parameter 2 timescale"
-	P3::T3 = Inf | (-Inf, Inf) | "parameter 3" | "parameter 3 unit" | "parameter 3 timescale"
-	P4::T4 = Inf | (-Inf, Inf) | "parameter 4" | "parameter 4 unit" | "parameter 4 timescale"
-	P5::T5 = Inf | (-Inf, Inf) | "parameter 5" | "parameter 5 unit" | "parameter 5 timescale"
+	P2::T2 = 1.0 | (-Inf, Inf) | "parameter 2" | "parameter 2 unit" | "parameter 2 timescale"
+	P3::T3 = 1.0  | (-Inf, Inf) | "parameter 3" | "parameter 3 unit" | "parameter 3 timescale"
+	P4::T4 = 1.0 | (-Inf, Inf) | "parameter 4" | "parameter 4 unit" | "parameter 4 timescale"
+	P5::T5 = 1.0  | (-Inf, Inf) | "parameter 5" | "parameter 5 unit" | "parameter 5 timescale"
 end
 #! format: on
 
