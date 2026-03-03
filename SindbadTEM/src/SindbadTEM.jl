@@ -69,10 +69,8 @@ module SindbadTEM
    # We therefore only attempt to create the placeholder file if writing is permitted.
    file_path = joinpath(@__DIR__, "tmp_precompile_placeholder.jl")
    # Check if the file exists
-   if isfile(file_path)
       # Include the file if it exists
-      include(file_path)
-   else
+   if !isfile(file_path)
       # Create a blank file if it does not exist (only if the package dir is writable)
       try
          open(file_path, "w") do file
@@ -85,6 +83,8 @@ module SindbadTEM
          @debug "Could not create tmp_precompile_placeholder.jl (likely read-only install); skipping" file_path=file_path exception=(err, catch_backtrace())
       end
    end
+   
+   include(file_path)
    
    include("Types.jl")
    @reexport using .TEMTypes
