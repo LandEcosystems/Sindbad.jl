@@ -46,13 +46,33 @@ purpose(::Type{MixedGradient}) = "Use a mixed gradient approach for training usi
 struct LossModelObsMachineLearning <: MachineLearningTrainingType end
 purpose(::Type{LossModelObsMachineLearning}) = "Loss function using metrics between the predicted model and observation as defined in optimization.json"
 
+# Machine Learning update types
+export MachineLearningUpdateType
+export OptimisersUpdate
+
+abstract type MachineLearningUpdateType <: MachineLearningTypes end
+purpose(::Type{MachineLearningUpdateType}) = "Abstract type for updating the machine learning model during training"
+
+struct OptimisersUpdate <: MachineLearningUpdateType end
+purpose(::Type{OptimisersUpdate}) = "Use Optimisers.jl for updating the machine learning model during training"
+
+# Machine Learning Pullback types
+export MachineLearningPullbackType
+export ZygotePullback
+
+abstract type MachineLearningPullbackType <: MachineLearningTypes end
+purpose(::Type{MachineLearningPullbackType}) = "Abstract type for pullback functions used in machine learning training for calculating the Jacobian-vector product"
+
+struct ZygotePullback <: MachineLearningPullbackType end
+purpose(::Type{ZygotePullback}) = "Use Zygote.jl for calculating the pullback function for the Jacobian-vector product during machine learning training"
+
 
 # Folds
 export CalcFoldFromSplit
 export LoadFoldFromFile
 
 struct CalcFoldFromSplit <: MachineLearningTrainingType end
-purpose(::Type{CalcFoldFromSplit}) = "Use a split of the data to calculate the folds for cross-validation. The default wat to calculate the folds is by splitting the data into k-folds. In this case, the split is done on the go based on the values given in ml_training.split_ratios and n_folds."
+purpose(::Type{CalcFoldFromSplit}) = "Use a split of the data to calculate the folds for cross-validation. The default way to calculate the folds is by splitting the data into k-folds. In this case, the split is done on the go based on the values given in ml_training.split_ratios and n_folds."
 
 struct LoadFoldFromFile <: MachineLearningTrainingType end
 purpose(::Type{LoadFoldFromFile}) = "Use precalculated data to load the folds for cross-validation. In this case, the data path has to be set under ml_training.fold_path and ml_training.which_fold. The data has to be in the format of a jld2 file with the following structure: /folds/0, /folds/1, /folds/2, ... /folds/n_folds. Each fold has to be a tuple of the form (train_indices, test_indices)."

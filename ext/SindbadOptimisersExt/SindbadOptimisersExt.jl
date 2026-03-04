@@ -15,6 +15,7 @@ module SindbadOptimisersExt
     using Optimisers
     
     include("MachineLearningMlOptimizer.jl")
+    include("MachineLearningUpdateMLModel.jl")
 
 end
 

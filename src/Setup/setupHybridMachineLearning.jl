@@ -92,6 +92,17 @@ function setHybridOptions(info, which_option)
     merged_options = replaceOptionsWithType(merged_options, :activation_hidden)
     merged_options = replaceOptionsWithType(merged_options, :loss_function)
     merged_options = replaceNumbersWithTypedValues(merged_options, info.temp.helpers.numbers.num_type)
+    
+    if which_option == :ml_training 
+        pullback_method = hasproperty(merged_options, :pullback_method) ? merged_options.pullback_method : "ZygotePullback"
+        tmp_field = set_namedtuple_field(tmp_field, (:pullback_method, getTypeInstanceForNamedOptions(pullback_method)))
+    end
+
+    if which_option == :ml_optimizer
+        update_method = hasproperty(merged_options, :update_method) ? merged_options.update_method : "OptimisersUpdate"
+        tmp_field = set_namedtuple_field(tmp_field, (:update_method, getTypeInstanceForNamedOptions(update_method)))
+    end
+
     tmp_field = set_namedtuple_field(tmp_field, (:method, field_method))
     tmp_field = set_namedtuple_field(tmp_field, (:options, merged_options))
     info = set_namedtuple_subfield(info, :hybrid, (which_option, tmp_field))
