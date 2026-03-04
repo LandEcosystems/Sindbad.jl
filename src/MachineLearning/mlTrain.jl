@@ -50,6 +50,8 @@ function trainML(hybrid_helpers, ::MixedGradient)
     options = hybrid_helpers.options
     batch_size = options.ml_training.options.batch_size
     gradient_options = options.ml_gradient
+    pullback_method = options.ml_training.pullback_method
+    update_method = options.ml_optimizer.update_method
     n_epochs = options.ml_training.options.n_epochs
     checkpoint_path = hybrid_helpers.checkpoint_path
 
@@ -60,7 +62,7 @@ function trainML(hybrid_helpers, ::MixedGradient)
             
             grads_batch = zeros(Float32, n_params, length(sites_batch))
             x_feat_batch = xfeatures(; site=sites_batch)
-            new_params, pullback_func = getPullback(flat, re, x_feat_batch)
+            new_params, pullback_func = getPullback(pullback_method, flat, re, x_feat_batch)
             scaled_params_batch = getParamsAct(new_params, parameter_table)
             @debug "  Epoch $(epoch): training on batch with $(length(sites_batch)) sites, scaled_params: minimum=$(minimum(scaled_params_batch)), maximum=$(maximum(scaled_params_batch))"
 
@@ -69,7 +71,8 @@ function trainML(hybrid_helpers, ::MixedGradient)
             gradsNaNCheck!(grads_batch, scaled_params_batch, sites_batch, parameter_table, replace_value=options.replace_value_for_gradient) #? checks for NaNs and if any replace them with replace_value_for_gradient
             # Jacobian-vector product
             ∇params = pullback_func(grads_batch)[1]
-            opt_state, flat = Optimisers.update(opt_state, flat, ∇params)
+            opt_state, flat = updateMLModel(update_method, opt_state, flat, ∇params, )
+            # opt_state, flat = Optimisers.update(opt_state, flat, ∇params)
         end
         # calculate losses for all sites!
         if !isempty(checkpoint_path)

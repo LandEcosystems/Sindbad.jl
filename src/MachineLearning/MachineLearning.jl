@@ -70,6 +70,7 @@ module MachineLearning
     include("loss.jl")
     include("prepHybrid.jl")
     include("mlGradient.jl")
+    include("mlUpdate.jl")
     include("mlTrain.jl")
     include("siteLosses.jl")
     include("vegClasses.jl")

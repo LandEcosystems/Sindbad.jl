@@ -62,7 +62,6 @@ function optimizer(::Any, default_values::Any, ::Any, ::Any, ::Any, x::Parameter
       - if it can be implemented as an internal Sindbad method without additional dependencies, implement the method in `src/ParameterOptimization/optimizer.jl`.     
       - if it requires additional dependencies, implement the method in `ext/<extension_name>/ParameterOptimizationOptimizer.jl` extension.
 
-    As a fallback, this function will return the default values as the optimized parameters.
 
     ")
     return
