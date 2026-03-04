@@ -14,6 +14,9 @@ Converts a relative data path to an absolute path based on the experiment direct
 An absolute data path.
 """
 function getAbsDataPath(info, data_path)
+    if startswith(data_path, "http") || startswith(data_path, "s3://")
+        return data_path
+    end
     if !isabspath(data_path)
         d_data_path = getSindbadDataDepot(local_data_depot=data_path)
         if data_path == d_data_path
