@@ -21,8 +21,9 @@ Other options
 - `KG_veg`
 - `veg_ABCNOPSWB`
 """
-function loadCovariates(sites_forcing; kind="all", cube_path = "/Net/Groups/BGI/work_5/scratch/lalonso/CovariatesFLUXNET_3.zarr")
-    c_read = Cube(cube_path)
+function loadCovariates(::MachineLearningExperimentType, sites_forcing, covariate_path, covariate_options)
+    c_read = Cube(covariate_path)
+    kind = covariate_options.kind
     # select features, do only nor
     only_nor = occursin.(r"nor", c_read.features)
     nor_sel = c_read.features[only_nor].val
