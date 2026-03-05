@@ -134,9 +134,10 @@ Determines the root directories for the SINDBAD framework and the experiment.
 - A NamedTuple containing the root directories for the experiment, SINDBAD, and settings.
 """
 function getRootDirs(local_root, sindbad_experiment)
-    sindbad_root = join(split(local_root, path_separator)[1:(end-2)] |> collect, path_separator)
+    # sindbad_root = join(split(local_root, path_separator)[1:(end-2)] |> collect, path_separator)
     exp_base_path = dirname(sindbad_experiment)
-    root_dir = (; experiment=local_root, sindbad=sindbad_root, settings=exp_base_path)
+    root_dir = (; experiment=normalize_path_separator(local_root), settings=normalize_path_separator(exp_base_path))
+    # root_dir = (; experiment=local_root, sindbad=sindbad_root, settings=exp_base_path)
     return root_dir
 end
 
