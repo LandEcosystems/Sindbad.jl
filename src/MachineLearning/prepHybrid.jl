@@ -243,9 +243,9 @@ function prepHybrid(forcing, observations, info, ::MachineLearningTrainingType)
     ## get covariates
 
     print_info(prepHybrid, @__FILE__, @__LINE__, "Loading covariates for hybridMachine Learningmodel", n_f=2)
-    print_info(nothing, @__FILE__, @__LINE__, "variables: $(info.hybrid.covariates.variables)", n_m=4)
+    print_info(nothing, @__FILE__, @__LINE__, "options: $(info.hybrid.covariates.options)", n_m=4)
     print_info(nothing, @__FILE__, @__LINE__, "path: $(info.hybrid.covariates.path)", n_m=4)
-    xfeatures = loadCovariates(sites_forcing; kind=info.hybrid.covariates.variables, cube_path=info.hybrid.covariates.path)
+    xfeatures = loadCovariates(info.hybrid.ml_experiment_type, sites_forcing, info.hybrid.covariates.path, info.hybrid.covariates.options)
     print_info(nothing, @__FILE__, @__LINE__, "Min/Max of features: [$(minimum(xfeatures)), $(maximum(xfeatures))]", n_m=4)
     n_features = length(xfeatures.features)
 

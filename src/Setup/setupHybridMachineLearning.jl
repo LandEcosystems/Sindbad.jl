@@ -133,6 +133,8 @@ function setHybridInfo(info::NamedTuple)
         mkpath(checkpoint_path)
     end
 
+
+
     output_dirs = info.temp.output.dirs
     output_dirs = (; output_dirs..., hybrid=(; root=hybrid_root, checkpoint=checkpoint_path))
     info = (; info..., temp = (info.temp..., output = (; info.temp.output..., dirs = output_dirs)))
@@ -162,9 +164,10 @@ function setHybridInfo(info::NamedTuple)
 
     info = set_namedtuple_subfield(info, :hybrid, (:replace_value_for_gradient, info.temp.helpers.numbers.num_type(replace_value_for_gradient)))
 
+    info = set_namedtuple_subfield(info, :hybrid, (:ml_experiment_type, getTypeInstanceForNamedOptions(info.settings.hybrid.ml_experiment_type)))
 
     covariates_path = getAbsDataPath(info.temp, info.settings.hybrid.covariates.path)
-    covariates = (; path=covariates_path, variables=info.settings.hybrid.covariates.variables)
+    covariates = (; path=covariates_path, options=info.settings.hybrid.covariates.options)
     info = set_namedtuple_subfield(info, :hybrid, (:covariates, covariates))
     info = set_namedtuple_subfield(info, :hybrid, (:random_seed, info.settings.hybrid.random_seed))
 

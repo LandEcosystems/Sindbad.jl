@@ -32,6 +32,18 @@ purpose(::Type{PolyesterForwardDiffGrad}) = "Use PolyesterForwardDiff.jl for aut
 struct ZygoteGrad <: MachineLearningGradType  end
 purpose(::Type{ZygoteGrad}) = "Use Zygote.jl for automatic differentiation"
 
+# Machine learning experiment types
+export MachineLearningExperimentType
+export FluxnetParameterLearningWROASTED
+
+abstract type MachineLearningExperimentType <: MachineLearningTypes end
+purpose(::Type{MachineLearningExperimentType}) = "Abstract type for machine learning related experiments in SINDBAD"
+
+struct FluxnetParameterLearningWROASTED <: MachineLearningExperimentType end
+purpose(::Type{FluxnetParameterLearningWROASTED}) = "Experiment type for learning spatial variability of WROASTED model parameters from FLUXNET data using a machine learning model in SINDBAD.MachineLearning"
+
+
+
 #Machine Learningtraining types
 export MachineLearningTrainingType
 export MixedGradient

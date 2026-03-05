@@ -105,3 +105,19 @@ function trainML(hybrid_helpers, ::MixedGradient)
     end
 
 end
+
+"""
+    trainML(hybrid_helpers, ::MachineLearningTrainingType)
+A wrapper function for training a machine learning (ML) or hybrid modeling experiment in SINDBAD using the default mixed gradient training method.
+"""
+function trainML(hybrid_helpers, ::MachineLearningExperimentType)
+    trainML(hybrid_helpers, MixedGradient())
+end
+
+"""
+    trainML(hybrid_helpers, ::FluxnetParameterLearningWROASTED)
+A wrapper function for training parameter learning experiment in SINDBAD using the default mixed gradient training method across fluxnet sites.
+"""
+function trainML(hybrid_helpers, ::FluxnetParameterLearningWROASTED)
+    trainML(hybrid_helpers, MixedGradient())
+end
