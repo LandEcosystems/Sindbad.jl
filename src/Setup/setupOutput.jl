@@ -282,31 +282,26 @@ Sets up and creates the output directory for the experiment.
 function setExperimentOutput(info)
     print_info(setExperimentOutput, @__FILE__, @__LINE__, "setting Experiment Output Paths...")
     path_output = info[:settings][:experiment][:model_output][:path]
-    if isnothing(path_output)
-        path_output_new = "output_"
-        path_output_new = joinpath(join(split(info.temp.experiment.dirs.settings, path_separator)[1:(end-1)], path_separator),
-            path_output_new)
-    elseif !isabspath(path_output)
-        if !occursin(path_separator, path_output)
-            path_output_new = "output_" * path_output
-        else
-            path_output_new = "output_" * replace(path_output, path_separator => "_")
-        end
-        path_output_new = joinpath(join(split(info.temp.experiment.dirs.settings, path_separator)[1:(end-1)], path_separator),
-            path_output_new)
+    dir_base = info.temp.experiment.dirs.experiment
+
+    # path_input is your variable
+
+    # 1. Handle nothing or empty or "." or "./"
+    if path_output === nothing || path_output == "" || path_output == "." || path_output == "./"
+        path_resolved = dir_base
+
+    # 2. Absolute path → use as-is
+    elseif isabspath(path_output)
+        path_resolved = path_output
+
+    # 3. Relative path → prepend working directory
     else
-        if occursin(info.temp.experiment.dirs.sindbad, path_output)
-            error(
-                "You cannot specify output.path: $(path_output) in model_run.json as the absolute path within the sindbad_root: $(info.temp.experiment.dirs.sindbad). Change it to null or a relative path or set output directory outside sindbad."
-            )
-        else
-            path_output_new = path_output
-            if !endswith(path_output_new, path_separator)
-                path_output_new = path_output_new * path_separator
-            end
-        end
+        path_resolved = joinpath(dir_base, path_output)
     end
-    path_output_new = path_output_new * info.temp.experiment.basics.id
+
+    path_resolved_normalized = normalize_path_separator(path_resolved)
+    last_dir = "output_"*info.temp.experiment.basics.id
+    path_output_full = joinpath(path_resolved_normalized, last_dir)
 
     # create output and subdirectories
     sub_output = ["code", "data", "figure", "root", "settings"]
@@ -316,10 +311,10 @@ function setExperimentOutput(info)
     out_info = (; dirs=(;), format=info.settings.experiment.model_output.format)
     for s_o ∈ sub_output
         if s_o == "root"
-            out_info = set_namedtuple_subfield(out_info, :dirs, (Symbol(s_o), path_output_new))
+            out_info = set_namedtuple_subfield(out_info, :dirs, (Symbol(s_o), path_output_full))
         else
             out_info = set_namedtuple_subfield(out_info, :dirs,
-                (Symbol(s_o), joinpath(path_output_new, s_o)))
+                (Symbol(s_o), joinpath(path_output_full, s_o)))
             mkpath(getfield(getfield(out_info, :dirs), Symbol(s_o)))
         end
     end

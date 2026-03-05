@@ -47,6 +47,7 @@ module Setup
 
    using SindbadTEM
    @reexport using OmniTools.ForCollections: Table
+   using OmniTools.ForString: normalize_path_separator
    using TimeSamplers
    using ErrorMetrics
    using ..Types
