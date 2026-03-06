@@ -1,7 +1,7 @@
 repository = "https://github.com/LandEcosystems/Sindbad.jl.git"
 readme = "README.md"
 name = "Sindbad"
-version = "0.1.1"
+version = "0.2.0"
 description = "Strategies to Integrate Data and Biogeochemical Models (SINDBAD) Model–Data Integration framework for Terrestrial Ecosystem Models"
 uuid = "36c3e672-7dee-4606-99b5-7e5d8d85a313"
 license = "EUPL-1.2"
@@ -12,7 +12,7 @@ test = ["Test", "BenchmarkTools"]
 
 [compat]
 CSV = "0.10"
-OmniTools = "0.1.0"
+OmniTools = "0.1.1"
 SindbadTEM = "0.1.1"
 GlobalSensitivity = "2"
 Evolutionary = "0.11"
