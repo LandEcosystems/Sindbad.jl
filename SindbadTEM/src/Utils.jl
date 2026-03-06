@@ -374,7 +374,10 @@ get a value of a given model parameter with units corrected
 function getParameterValue(model, parameter_name, model_timestep)
     param = getfield(model, parameter_name)
     p_timescale = SindbadTEM.Processes.timescale(model, parameter_name)
-    return param * getUnitConversionForParameter(p_timescale, model_timestep)
+    if !isa(param, String)
+        return param = param * getUnitConversionForParameter(p_timescale, model_timestep)
+    end
+    return param
 end
 
 
