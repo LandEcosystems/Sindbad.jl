@@ -44,7 +44,7 @@ plotIOModelStructure(info)
 """
 module Visualization
     using SindbadTEM
-    using OmniTools
+    using SindbadTEM.OmniTools
     using ..Types
     using ..DataLoaders
     using Sindbad.ErrorMetrics

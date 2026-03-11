@@ -41,7 +41,7 @@ julia> # result = runExperiment(info, forcing, DoRunForward())
 ```
 """
 module Experiment
-    using OmniTools
+    using SindbadTEM.OmniTools
     using ErrorMetrics
     using ...SindbadTEM
     using ..Types

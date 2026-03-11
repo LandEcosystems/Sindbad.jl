@@ -40,7 +40,7 @@ module DataLoaders
    using SindbadTEM
    using ..Setup
    using ..Types
-   using OmniTools
+   using SindbadTEM.OmniTools
    using AxisKeys: KeyedArray, AxisKeys
    using FillArrays
    using Dates

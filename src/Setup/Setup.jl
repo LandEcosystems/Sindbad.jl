@@ -46,8 +46,8 @@ This module is designed to produce the SINDBAD `info` object, which contains all
 module Setup
 
    using SindbadTEM
-   @reexport using OmniTools.ForCollections: Table
-   using OmniTools.ForString: normalize_path_separator
+   @reexport using SindbadTEM.OmniTools.ForCollections: Table
+   using SindbadTEM.OmniTools.ForString: normalize_path_separator
    using TimeSamplers
    using ErrorMetrics
    using ..Types

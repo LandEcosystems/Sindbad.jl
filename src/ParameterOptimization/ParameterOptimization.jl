@@ -54,10 +54,10 @@ julia> # cost_result = runExperimentCost("path/to/experiment_config.json")
 """
 module ParameterOptimization
    using StableRNGs
-   using OmniTools
    using ErrorMetrics
    using TimeSamplers
    using SindbadTEM
+   using SindbadTEM.OmniTools
    using ..Types
    using ..Setup
    using ..DataLoaders

@@ -45,7 +45,7 @@ module Simulation
    using SindbadTEM
    using TimeSamplers
    using ..Types
-   using OmniTools
+   using SindbadTEM.OmniTools
    using ..Setup
    using ..DataLoaders: YAXArrays
    using ThreadPools
