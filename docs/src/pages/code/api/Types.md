@@ -383,6 +383,13 @@ FluxTanh
 
 ----
 
+### FluxnetParameterLearningWROASTED
+```@docs
+FluxnetParameterLearningWROASTED
+```
+
+----
+
 ### ForcingWithTime
 ```@docs
 ForcingWithTime
@@ -509,6 +516,13 @@ LossModelObsMachineLearning
 
 ----
 
+### MachineLearningExperimentType
+```@docs
+MachineLearningExperimentType
+```
+
+----
+
 ### MachineLearningGradType
 ```@docs
 MachineLearningGradType
@@ -530,6 +544,13 @@ MachineLearningOptimizerType
 
 ----
 
+### MachineLearningPullbackType
+```@docs
+MachineLearningPullbackType
+```
+
+----
+
 ### MachineLearningTrainingType
 ```@docs
 MachineLearningTrainingType
@@ -540,6 +561,13 @@ MachineLearningTrainingType
 ### MachineLearningTypes
 ```@docs
 MachineLearningTypes
+```
+
+----
+
+### MachineLearningUpdateType
+```@docs
+MachineLearningUpdateType
 ```
 
 ----
@@ -673,6 +701,13 @@ OptimisersAdam
 ### OptimisersDescent
 ```@docs
 OptimisersDescent
+```
+
+----
+
+### OptimisersUpdate
+```@docs
+OptimisersUpdate
 ```
 
 ----
@@ -1093,6 +1128,13 @@ TimeSpace
 ### ZygoteGrad
 ```@docs
 ZygoteGrad
+```
+
+----
+
+### ZygotePullback
+```@docs
+ZygotePullback
 ```
 
 ----

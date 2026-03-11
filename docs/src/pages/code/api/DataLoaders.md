@@ -3,6 +3,91 @@ Sindbad.DataLoaders
 ```
 ## Functions
 
+### getData
+```@docs
+getData
+```
+
+:::details Code
+
+```julia
+function getData end
+
+function getData(model_output::LandWrapper, observations, cost_option)
+    obs_ind = cost_option.obs_ind
+    mod_field = cost_option.mod_field
+    mod_subfield = cost_option.mod_subfield
+    ŷField = getproperty(model_output, mod_field)
+    ŷ = getproperty(ŷField, mod_subfield)
+    y = observations[obs_ind]
+    yσ = observations[obs_ind+1]
+    if size(ŷ, 2) == 1
+        ŷ = getModelOutputView(ŷ)
+        y = y[:]
+        yσ = yσ[:]
+    end
+    # ymask = observations[obs_ind + 2]
+    y, yσ, ŷ = getHarmonizedData(y, yσ, ŷ, cost_option)
+    return (y, yσ, ŷ)
+end
+
+function getData(model_output::LandWrapper, observations, cost_option)
+    obs_ind = cost_option.obs_ind
+    mod_field = cost_option.mod_field
+    mod_subfield = cost_option.mod_subfield
+    ŷField = getproperty(model_output, mod_field)
+    ŷ = getproperty(ŷField, mod_subfield)
+    y = observations[obs_ind]
+    yσ = observations[obs_ind+1]
+    if size(ŷ, 2) == 1
+        ŷ = getModelOutputView(ŷ)
+        y = y[:]
+        yσ = yσ[:]
+    end
+    # ymask = observations[obs_ind + 2]
+    y, yσ, ŷ = getHarmonizedData(y, yσ, ŷ, cost_option)
+    return (y, yσ, ŷ)
+end
+
+function getData(model_output::NamedTuple, observations, cost_option)
+    obs_ind = cost_option.obs_ind
+    mod_field = cost_option.mod_field
+    mod_subfield = cost_option.mod_subfield
+    ŷ = model_output
+    sf_name = mod_subfield
+    if !hasproperty(model_output, sf_name)
+        sf_name = Symbol(String(mod_field) * "__" * String(mod_subfield))
+    end
+    ŷ = getproperty(model_output, sf_name)
+    y = observations[obs_ind]
+    yσ = observations[obs_ind+1]
+    if size(ŷ, 2) == 1
+        ŷ = getModelOutputView(ŷ)
+    end
+    # ymask = observations[obs_ind + 2]
+
+    y, yσ, ŷ = getHarmonizedData(y, yσ, ŷ, cost_option)
+    return (y, yσ, ŷ)
+end
+
+function getData(model_output::AbstractArray, observations, cost_option)
+    obs_ind = cost_option.obs_ind
+    ŷ = model_output[cost_option.mod_ind]
+    if size(ŷ, 2) == 1
+        ŷ = getModelOutputView(ŷ)
+    end
+    y = observations[obs_ind]
+    yσ = observations[obs_ind+1]
+    y, yσ, ŷ = getHarmonizedData(y, yσ, ŷ, cost_option)
+    return (y, yσ, ŷ)
+end
+```
+
+:::
+
+
+----
+
 ### getForcing
 ```@docs
 getForcing
@@ -57,6 +142,30 @@ function getForcing(info::NamedTuple)
         incube
     end
     return createForcingNamedTuple(incubes, f_sizes, f_dimension, info)
+end
+```
+
+:::
+
+
+----
+
+### getModelOutputView
+```@docs
+getModelOutputView
+```
+
+:::details Code
+
+```julia
+function getModelOutputView(_dat::AbstractArray{<:Any,N}) where N
+    dim = 1
+    inds = map(size(_dat)) do _
+        ind = dim == 2 ? 1 : Colon()
+        dim += 1
+        ind
+    end
+    @view _dat[inds...]
 end
 ```
 

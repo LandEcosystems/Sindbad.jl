@@ -1,6 +1,6 @@
 using Sindbad
 using SindbadTEM
-using OmniTools  # Needed for get_definitions function used in this script
+using SindbadTEM.OmniTools  # Needed for get_definitions function used in this script
 using Sindbad.Simulation
 using Sindbad.Setup
 using Sindbad.DataLoaders

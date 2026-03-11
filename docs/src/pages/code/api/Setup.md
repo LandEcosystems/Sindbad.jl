@@ -358,9 +358,10 @@ Determines the root directories for the SINDBAD framework and the experiment.
 - A NamedTuple containing the root directories for the experiment, SINDBAD, and settings.
 """
 function getRootDirs(local_root, sindbad_experiment)
-    sindbad_root = join(split(local_root, path_separator)[1:(end-2)] |> collect, path_separator)
+    # sindbad_root = join(split(local_root, path_separator)[1:(end-2)] |> collect, path_separator)
     exp_base_path = dirname(sindbad_experiment)
-    root_dir = (; experiment=local_root, sindbad=sindbad_root, settings=exp_base_path)
+    root_dir = (; experiment=normalize_path_separator(local_root), settings=normalize_path_separator(exp_base_path))
+    # root_dir = (; experiment=local_root, sindbad=sindbad_root, settings=exp_base_path)
     return root_dir
 end
 ```
@@ -552,6 +553,9 @@ getAbsDataPath
 
 ```julia
 function getAbsDataPath(info, data_path)
+    if startswith(data_path, "http") || startswith(data_path, "s3://")
+        return data_path
+    end
     if !isabspath(data_path)
         d_data_path = getSindbadDataDepot(local_data_depot=data_path)
         if data_path == d_data_path
@@ -1524,6 +1528,8 @@ function setHybridInfo(info::NamedTuple)
         mkpath(checkpoint_path)
     end
 
+
+
     output_dirs = info.temp.output.dirs
     output_dirs = (; output_dirs..., hybrid=(; root=hybrid_root, checkpoint=checkpoint_path))
     info = (; info..., temp = (info.temp..., output = (; info.temp.output..., dirs = output_dirs)))
@@ -1553,9 +1559,10 @@ function setHybridInfo(info::NamedTuple)
 
     info = set_namedtuple_subfield(info, :hybrid, (:replace_value_for_gradient, info.temp.helpers.numbers.num_type(replace_value_for_gradient)))
 
+    info = set_namedtuple_subfield(info, :hybrid, (:ml_experiment_type, getTypeInstanceForNamedOptions(info.settings.hybrid.ml_experiment_type)))
 
     covariates_path = getAbsDataPath(info.temp, info.settings.hybrid.covariates.path)
-    covariates = (; path=covariates_path, variables=info.settings.hybrid.covariates.variables)
+    covariates = (; path=covariates_path, options=info.settings.hybrid.covariates.options)
     info = set_namedtuple_subfield(info, :hybrid, (:covariates, covariates))
     info = set_namedtuple_subfield(info, :hybrid, (:random_seed, info.settings.hybrid.random_seed))
 

@@ -254,42 +254,6 @@ end
 
 ----
 
-### getData
-```@docs
-getData
-```
-
-:::details Code
-
-```julia
-function getDataWithoutNaN end
-
-function getDataWithoutNaN(y, yσ, ŷ, idxs)
-    y_view = @view y[idxs] 
-    yσ_view = @view yσ[idxs] 
-    ŷ_view = @view ŷ[idxs] 
-    return (y_view, yσ_view, ŷ_view)
-end
-
-function getDataWithoutNaN(y, yσ, ŷ, idxs)
-    y_view = @view y[idxs] 
-    yσ_view = @view yσ[idxs] 
-    ŷ_view = @view ŷ[idxs] 
-    return (y_view, yσ_view, ŷ_view)
-end
-
-function getDataWithoutNaN(y, yσ, ŷ)
-    @debug sum(is_invalid_number.(y)), sum(is_invalid_number.(yσ)), sum(is_invalid_number.(ŷ))
-    idxs = (.!isnan.(y .* yσ .* ŷ)) # TODO this has to be run because LandWrapper produces a vector. So, dispatch with the inefficient versions without idxs argument
-    return y[idxs], yσ[idxs], ŷ[idxs]
-end
-```
-
-:::
-
-
-----
-
 ### getDataWithoutNaN
 ```@docs
 getDataWithoutNaN
@@ -318,30 +282,6 @@ function getDataWithoutNaN(y, yσ, ŷ)
     @debug sum(is_invalid_number.(y)), sum(is_invalid_number.(yσ)), sum(is_invalid_number.(ŷ))
     idxs = (.!isnan.(y .* yσ .* ŷ)) # TODO this has to be run because LandWrapper produces a vector. So, dispatch with the inefficient versions without idxs argument
     return y[idxs], yσ[idxs], ŷ[idxs]
-end
-```
-
-:::
-
-
-----
-
-### getModelOutputView
-```@docs
-getModelOutputView
-```
-
-:::details Code
-
-```julia
-function getModelOutputView(_dat::AbstractArray{<:Any,N}) where N
-    dim = 1
-    inds = map(size(_dat)) do _
-        ind = dim == 2 ? 1 : Colon()
-        dim += 1
-        ind
-    end
-    @view _dat[inds...]
 end
 ```
 
@@ -555,7 +495,7 @@ optimizer
 
 ```julia
 function optimizer(::Any, default_values::Any, ::Any, ::Any, ::Any, x::ParameterOptimizationMethod)
-    @warn "
+    error("
     Optimizer `$(nameof(typeof(x)))` not implemented. 
     
     To implement a new optimizer:
@@ -566,10 +506,9 @@ function optimizer(::Any, default_values::Any, ::Any, ::Any, ::Any, x::Parameter
       - if it can be implemented as an internal Sindbad method without additional dependencies, implement the method in `src/ParameterOptimization/optimizer.jl`.     
       - if it requires additional dependencies, implement the method in `ext/<extension_name>/ParameterOptimizationOptimizer.jl` extension.
 
-    As a fallback, this function will return the default values as the optimized parameters.
 
-    "
-    return default_values
+    ")
+    return
 end
 ```
 

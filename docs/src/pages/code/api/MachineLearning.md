@@ -8,16 +8,12 @@ Sindbad.MachineLearning
 JoinDenseNN
 ```
 
-:::details Code
+----
 
-```julia
-function JoinDenseNN(models::Tuple)
-    return Chain(Join(vcat, models...))
-end
+### SplitNN
+```@docs
+SplitNN
 ```
-
-:::
-
 
 ----
 
@@ -31,20 +27,11 @@ activationFunction
 ```julia
 function activationFunction end
 
-function activationFunction(_, ::FluxRelu)
-    return Flux.relu
-end
 
-function activationFunction(_, ::FluxRelu)
-    return Flux.relu
-end
-
-function activationFunction(_, ::FluxTanh)
-    return Flux.tanh
-end
-
-function activationFunction(_, ::FluxSigmoid)
-    return Flux.sigmoid
+function activationFunction(model_options, ::CustomSigmoid)
+    sigmoid_k(x, K) = one(x) / (one(x) + exp(-K * x))
+    custom_sigmoid = x -> sigmoid_k(x, model_options.k_σ)
+    return custom_sigmoid
 end
 
 function activationFunction(model_options, ::CustomSigmoid)
@@ -67,17 +54,10 @@ denseNN
 :::details Code
 
 ```julia
-function denseNN(in_dim::Int, n_neurons::Int, out_dim::Int;
-    extra_hlayers=0,
-    activation_hidden=Flux.relu,
-    activation_out=Flux.sigmoid,
-    seed=1618)
-
-    Random.seed!(seed)
-    return Flux.Chain(Flux.Dense(in_dim => n_neurons, activation_hidden),
-        [Flux.Dense(n_neurons, n_neurons, activation_hidden) for _ in 0:(extra_hlayers-1)]...,
-        Flux.Dense(n_neurons => out_dim, activation_out))
-end
+function denseNN end
+function destructureNN end
+function JoinDenseNN end
+function SplitNN end
 ```
 
 :::
@@ -93,11 +73,9 @@ destructureNN
 :::details Code
 
 ```julia
-function destructureNN(model; nn_opt=Optimisers.Adam())
-    flat, re = Optimisers.destructure(model)
-    opt_state = Optimisers.setup(nn_opt, flat)
-    return flat, re, opt_state
-end
+function destructureNN end
+function JoinDenseNN end
+function SplitNN end
 ```
 
 :::
@@ -401,21 +379,18 @@ getPullback
 :::details Code
 
 ```julia
-function getPullback end
-
-function getPullback(flat, re, features::AbstractArray)
-    new_params, pullback_func = Zygote.pullback(p -> re(p)(features), flat)
-    return new_params, pullback_func
-end
-
-function getPullback(flat, re, features::AbstractArray)
-    new_params, pullback_func = Zygote.pullback(p -> re(p)(features), flat)
-    return new_params, pullback_func
-end
-
-function getPullback(flat, re, features::Tuple)
-    new_params, pullback_func = Zygote.pullback(p -> re(p)(features), flat)
-    return new_params, pullback_func
+function getPullback(::MachineLearningPullbackType, _, _, _)
+    error("
+    getPullback `$(nameof(typeof(x)))` not implemented. 
+    
+    To implement a new pullback type:
+    
+    - First add a new type as a subtype of `MachineLearningPullbackType` in `src/Types/MachineLearningTypes.jl`. 
+    
+    - Then, add a corresponding method:
+      - if it can be implemented as an internal Sindbad method without additional dependencies, implement the method in `src/MachineLearning/getPullback.jl`.     
+      - if it requires additional dependencies, implement the method in `ext/<extension_name>/MachineLearningGetPullback.jl` extension.
+    ")
 end
 ```
 
@@ -433,42 +408,23 @@ gradientBatch!
 
 ```julia
 function gradientBatch! end
+function gradientBatch!(grads_lib::MachineLearningGradType, grads_batch, gradient_options::NamedTuple, loss_functions, scaled_params_batch, sites_batch; showprog=false)
+    # Threads.@spawn allows dynamic scheduling instead of static scheduling
+    # of Threads.@threads macro.
+    # See <https://github.com/JuliaLang/julia/issues/21017>
 
-
-function gradientBatch!(grads_lib::PolyesterForwardDiffGrad, dx_batch, chunk_size::Int,
-    loss_f::Function, get_inner_args::Function, input_args...; showprog=false)
-    mapfun = showprog ? progress_pmap : pmap
-    result = mapfun(CachingPool(workers()), axes(dx_batch, 2)) do idx
-        x_vals, inner_args = get_inner_args(idx, grads_lib, input_args...)
-        gradientSite(grads_lib, x_vals, chunk_size, loss_f, inner_args...)
-    end
-    for idx in axes(dx_batch, 2)
-        dx_batch[:, idx] = result[idx]
-    end
-end
-
-function gradientBatch!(grads_lib::PolyesterForwardDiffGrad, dx_batch, chunk_size::Int,
-    loss_f::Function, get_inner_args::Function, input_args...; showprog=false)
-    mapfun = showprog ? progress_pmap : pmap
-    result = mapfun(CachingPool(workers()), axes(dx_batch, 2)) do idx
-        x_vals, inner_args = get_inner_args(idx, grads_lib, input_args...)
-        gradientSite(grads_lib, x_vals, chunk_size, loss_f, inner_args...)
-    end
-    for idx in axes(dx_batch, 2)
-        dx_batch[:, idx] = result[idx]
-    end
-end
-
-function gradientBatch!(grads_lib::PolyesterForwardDiffGrad, dx_batch, gradient_options::NamedTuple, loss_functions, scaled_params_batch, sites_batch; showprog=false)
-    mapfun = showprog ? progress_pmap : pmap
-    result = mapfun(CachingPool(workers()), axes(dx_batch, 2)) do idx
-        site_name = sites_batch[idx]
-        loss_f = loss_functions(site=site_name)
-        x_vals = scaled_params_batch(site=site_name).data.data
-        gradientSite(grads_lib, x_vals, gradient_options, loss_f)    
-    end
-    for idx in axes(dx_batch, 2)
-        dx_batch[:, idx] = result[idx]
+    p = Progress(length(axes(grads_batch,2)); desc="Computing batch grads...", color=:cyan, enabled=showprog)
+    @sync begin
+        for idx ∈ axes(grads_batch, 2)
+            Threads.@spawn begin
+                site_name = sites_batch[idx]
+                loss_f = loss_functions(site=site_name)
+                x_vals = scaled_params_batch(site=site_name).data.data
+                gg = gradientSite(grads_lib, x_vals, gradient_options, loss_f)    
+                grads_batch[:, idx] = gg
+                next!(p)
+            end
+        end
     end
 end
 
@@ -541,29 +497,6 @@ function gradientSite(grads_lib::MachineLearningGradType, ::Any, ::Any, ::Any)
     "
     return 10.0f0
 end
-
-function gradientSite(grads_lib::PolyesterForwardDiffGrad, x_vals, chunk_size::Int, loss_f::F, args...) where {F}
-    loss_tmp(x) = loss_f(x, grads_lib, args...)
-    ∇x = similar(x_vals) # pre-allocate
-    if occursin("arm64-apple-darwin", Sys.MACHINE) # fallback due to closure issues on M1 systems
-        # cfg = ForwardDiff.GradientConfig(loss_tmp, x_vals, Chunk{chunk_size}());
-        ForwardDiff.gradient!(∇x, loss_tmp, x_vals) # ?, add `cfg` at the end if further control is needed.
-    else
-        PolyesterForwardDiff.threaded_gradient!(loss_tmp, ∇x, x_vals, ForwardDiff.Chunk(chunk_size));
-    end
-    return ∇x
-end
-
-function gradientSite(::PolyesterForwardDiffGrad, x_vals, gradient_options::NamedTuple, loss_f::F) where {F}
-    ∇x = similar(x_vals) # pre-allocate
-    if occursin("arm64-apple-darwin", Sys.MACHINE) # fallback due to closure issues on M1 systems
-        # cfg = ForwardDiff.GradientConfig(loss_tmp, x_vals, Chunk{chunk_size}());
-        ForwardDiff.gradient!(∇x, loss_f, x_vals) # ?, add `cfg` at the end if further control is needed.
-    else
-        PolyesterForwardDiff.threaded_gradient!(loss_f, ∇x, x_vals, ForwardDiff.Chunk(chunk_size));
-    end
-    return ∇x
-end
 ```
 
 :::
@@ -609,16 +542,20 @@ lcKAoneHotbatch
 :::details Code
 
 ```julia
-function lcKAoneHotbatch(lc_data, up_bound, lc_name, ka_labels)
-    oneHot_lc = Flux.onehotbatch(lc_data, 1:up_bound, up_bound)
-    feat_labels = "$(lc_name)_".*string.(1:up_bound)
-    if lowercase(lc_name)=="kg"
-        feat_labels = KGlabels
-    elseif lowercase(lc_name)=="pft"
-        feat_labels = PFTlabels
-    end
-    return KeyedArray(Array(oneHot_lc); features=feat_labels, site=ka_labels)
-end
+function lcKAoneHotbatch end
+
+"""
+    vegKAoneHotbatch(pft_data, ka_labels)
+
+# Arguments
+- `pft_data`: Vector array
+- `ka_labels`: KeyedArray labels, i.e. site names
+
+!!! warning
+    Do `using Flux` before using this function, otherwise it will error. This is because is fully defined in the `ext/SindbadFluxExt` folder.
+
+"""
+function vegKAoneHotbatch end
 ```
 
 :::
@@ -634,8 +571,9 @@ loadCovariates
 :::details Code
 
 ```julia
-function loadCovariates(sites_forcing; kind="all", cube_path = "/Net/Groups/BGI/work_5/scratch/lalonso/CovariatesFLUXNET_3.zarr")
-    c_read = Cube(cube_path)
+function loadCovariates(::MachineLearningExperimentType, sites_forcing, covariate_path, covariate_options)
+    c_read = Cube(covariate_path)
+    kind = covariate_options.kind
     # select features, do only nor
     only_nor = occursin.(r"nor", c_read.features)
     nor_sel = c_read.features[only_nor].val
@@ -846,83 +784,6 @@ end
 
 ----
 
-### mixedGradientTraining
-```@docs
-mixedGradientTraining
-```
-
-:::details Code
-
-```julia
-function mixedGradientTraining(grads_lib, nn_model, train_refs, test_val_refs, total_constraints, loss_fargs, forward_args;
-    n_epochs=3, optimizer=Optimisers.Adam(), path_experiment="/")
-    
-    sites_training, indices_sites_training, xfeatures, parameter_table, batch_size, chunk_size, metadata_global = train_refs
-    sites_validation, indices_sites_validation, sites_testing, indices_sites_testing = test_val_refs
-
-    lossSite, getInnerArgs = loss_fargs
-    flat, re, opt_state = destructureNN(nn_model; nn_opt=optimizer)
-    n_params = length(nn_model[end].bias)
-
-    loss_training = fill(zero(Float32), length(sites_training), n_epochs)
-    loss_validation = fill(zero(Float32), length(sites_validation), n_epochs)
-    loss_testing = fill(zero(Float32), length(sites_testing), n_epochs)
-    # ? save also the individual losses
-    loss_split_training = fill(NaN32, length(sites_training), total_constraints, n_epochs)
-    loss_split_validation = fill(NaN32, length(sites_validation), total_constraints, n_epochs)
-    loss_split_testing = fill(NaN32, length(sites_testing), total_constraints, n_epochs)
-
-    path_checkpoint = joinpath(path_experiment, "checkpoint")
-    f_path = mkpath(path_checkpoint)
-
-    @showprogress desc="training..." for epoch ∈ 1:n_epochs
-        x_batches, idx_xbatches = batchShuffler(sites_training, indices_sites_training, batch_size; bs_seed=epoch)
-
-        for (sites_batch, indices_sites_batch) in zip(x_batches, idx_xbatches)
-            
-            grads_batch = zeros(Float32, n_params, length(sites_batch))
-            x_feat_batch = xfeatures(; site=sites_batch)
-            new_params, pullback_func = getPullback(flat, re, x_feat_batch)
-            _params_batch = getParamsAct(new_params, parameter_table)
-
-            input_args = (_params_batch, forward_args..., indices_sites_batch, sites_batch)
-            gradientBatch!(grads_lib, grads_batch, chunk_size, lossSite, getInnerArgs, input_args...)
-            gradsNaNCheck!(grads_batch, _params_batch, sites_batch, parameter_table) #? checks for NaNs and if any replace them with 0.0f0
-            # Jacobian-vector product
-            ∇params = pullback_func(grads_batch)[1]
-            opt_state, flat = Optimisers.update(opt_state, flat, ∇params)
-        end
-        # calculate losses for all sites!
-        _params_epoch = re(flat)(xfeatures)
-        params_epoch = getParamsAct(_params_epoch, parameter_table)
-        getLossForSites(grads_lib, lossSite, loss_training, loss_split_training, epoch, params_epoch, sites_training, indices_sites_training, forward_args...)
-        # ? validation
-        getLossForSites(grads_lib, lossSite, loss_validation, loss_split_validation, epoch, params_epoch, sites_validation, indices_sites_validation, forward_args...)
-        # ? test 
-        getLossForSites(grads_lib, lossSite, loss_testing, loss_split_testing, epoch, params_epoch, sites_testing, indices_sites_testing, forward_args...)
-
-        jldsave(joinpath(f_path, "checkpoint_epoch_$(epoch).jld2");
-            lower_bound=parameter_table.lower, upper_bound=parameter_table.upper, ps_names=parameter_table.name,
-            parameter_table=parameter_table,
-            metadata_global=metadata_global,
-            loss_training=loss_training[:, epoch],
-            loss_validation=loss_validation[:, epoch],
-            loss_testing=loss_testing[:, epoch],
-            loss_split_training=loss_split_training[:,:, epoch],
-            loss_split_validation=loss_split_validation[:,:, epoch],
-            loss_split_testing=loss_split_testing[:,:, epoch],
-            re=re,
-            flat=flat)
-    end
-    return nothing
-end
-```
-
-:::
-
-
-----
-
 ### mlModel
 ```@docs
 mlModel
@@ -933,55 +794,10 @@ mlModel
 ```julia
 function mlModel end
 
-function mlModel(info, n_features, ::FluxDenseNN)
-    n_params = sum(info.optimization.parameter_table.is_ml);
-    n_layers = info.hybrid.ml_model.options.n_layers
-    n_neurons = info.hybrid.ml_model.options.n_neurons
-    ml_seed = info.hybrid.random_seed;
-    print_info(mlModel, @__FILE__, @__LINE__, "Flux Dense NN with $n_features features, $n_params parameters, $n_layers hidden/inner layers and $n_neurons neurons.", n_f=2)
-
-    print_info(nothing, @__FILE__, @__LINE__, "Seed: $ml_seed", n_f=4)
-    print_info(nothing, @__FILE__, @__LINE__, "Hidden Layers: $(n_layers)", n_f=4)
-    print_info(nothing, @__FILE__, @__LINE__, "Total number of parameters: $(sum(info.optimization.parameter_table.is_ml))", n_f=4)
-    print_info(nothing, @__FILE__, @__LINE__, "Number of neurons per layer: $(n_neurons)", n_f=4)
-    print_info(nothing, @__FILE__, @__LINE__, "Number of parameters per layer: $(n_params / n_layers)", n_f=4)
-    activation_hidden = activationFunction(info.hybrid.ml_model.options, info.hybrid.ml_model.options.activation_hidden)
-    activation_out = activationFunction(info.hybrid.ml_model.options, info.hybrid.ml_model.options.activation_out)
-    print_info(nothing, @__FILE__, @__LINE__, "Activation function for hidden layers: $(info.hybrid.ml_model.options.activation_hidden)", n_f=4)
-    print_info(nothing, @__FILE__, @__LINE__, "Activation function for output layer: $(info.hybrid.ml_model.options.activation_out)", n_f=4)
-    Random.seed!(ml_seed)
-    flux_model = Flux.Chain(
-        Flux.Dense(n_features => n_neurons, activation_hidden),
-        [Flux.Dense(n_neurons, n_neurons, activation_hidden) for _ in 1:n_layers]...,
-        Flux.Dense(n_neurons => n_params, activation_out)
-        )
-    return flux_model
-end
-
-function mlModel(info, n_features, ::FluxDenseNN)
-    n_params = sum(info.optimization.parameter_table.is_ml);
-    n_layers = info.hybrid.ml_model.options.n_layers
-    n_neurons = info.hybrid.ml_model.options.n_neurons
-    ml_seed = info.hybrid.random_seed;
-    print_info(mlModel, @__FILE__, @__LINE__, "Flux Dense NN with $n_features features, $n_params parameters, $n_layers hidden/inner layers and $n_neurons neurons.", n_f=2)
-
-    print_info(nothing, @__FILE__, @__LINE__, "Seed: $ml_seed", n_f=4)
-    print_info(nothing, @__FILE__, @__LINE__, "Hidden Layers: $(n_layers)", n_f=4)
-    print_info(nothing, @__FILE__, @__LINE__, "Total number of parameters: $(sum(info.optimization.parameter_table.is_ml))", n_f=4)
-    print_info(nothing, @__FILE__, @__LINE__, "Number of neurons per layer: $(n_neurons)", n_f=4)
-    print_info(nothing, @__FILE__, @__LINE__, "Number of parameters per layer: $(n_params / n_layers)", n_f=4)
-    activation_hidden = activationFunction(info.hybrid.ml_model.options, info.hybrid.ml_model.options.activation_hidden)
-    activation_out = activationFunction(info.hybrid.ml_model.options, info.hybrid.ml_model.options.activation_out)
-    print_info(nothing, @__FILE__, @__LINE__, "Activation function for hidden layers: $(info.hybrid.ml_model.options.activation_hidden)", n_f=4)
-    print_info(nothing, @__FILE__, @__LINE__, "Activation function for output layer: $(info.hybrid.ml_model.options.activation_out)", n_f=4)
-    Random.seed!(ml_seed)
-    flux_model = Flux.Chain(
-        Flux.Dense(n_features => n_neurons, activation_hidden),
-        [Flux.Dense(n_neurons, n_neurons, activation_hidden) for _ in 1:n_layers]...,
-        Flux.Dense(n_neurons => n_params, activation_out)
-        )
-    return flux_model
-end
+function denseNN end
+function destructureNN end
+function JoinDenseNN end
+function SplitNN end
 ```
 
 :::
@@ -994,27 +810,6 @@ end
 mlOptimizer
 ```
 
-:::details Code
-
-```julia
-function mlOptimizer end
-
-function mlOptimizer(optimizer_options, ::OptimisersAdam)
-    return Optimisers.Adam(optimizer_options...)
-end
-
-function mlOptimizer(optimizer_options, ::OptimisersAdam)
-    return Optimisers.Adam(optimizer_options...)
-end
-
-function mlOptimizer(optimizer_options, ::OptimisersDescent)
-    return Optimisers.Descent(optimizer_options...)
-end
-```
-
-:::
-
-
 ----
 
 ### oneHotPFT
@@ -1025,17 +820,62 @@ oneHotPFT
 :::details Code
 
 ```julia
-function oneHotPFT(pft, up_bound, veg_class)
-    if !veg_class
-        return Flux.onehot(pft, 1:up_bound, up_bound)
-    else
-        _pft = pft
-        if length(pft)==1
-            _pft = pft[1]
-        end
-        return vegOneHot(toClass(_pft))
-    end
-end
+function oneHotPFT end
+
+"""
+    vegOneHot(v_class; vegetation_labels)
+
+# Arguments    
+- `v_class`: get it by doing `toClass(x; vegetation_rules)`.
+- `vegetation_labels`: see them by typing `vegetation_labels`.
+
+!!! warning
+    Do `using Flux` before using this function, otherwise it will error. This is because is fully defined in the `ext/SindbadFluxExt` folder.
+
+Returns a vector.
+"""
+function vegOneHot end
+
+"""
+    vegOneHotbatch(veg_classes; vegetation_labels)
+
+# Arguments
+- veg_classes: get these from `toClass.([x1, x2,...])`
+- vegetation_labels: see them by typing `vegetation_labels`
+
+!!! warning
+    Do `using Flux` before using this function, otherwise it will error. This is because is fully defined in the `ext/SindbadFluxExt` folder.
+
+"""
+function vegOneHotbatch end
+
+"""
+    lcKAoneHotbatch(lc_data, up_bound, lc_name, ka_labels)
+
+# Arguments
+- `lc_data`: Vector array
+- `up_bound`: last index class, the range goes from `1:up_bound`, and any case not in that range uses the `up_bound` value. For `PFT` use `17` and for `KG` `32`. 
+- `lc_name`: land cover approach, either `KG` or `PFT`.
+- `ka_labels`: KeyedArray labels, i.e. site names
+
+!!! warning
+    Do `using Flux` before using this function, otherwise it will error. This is because is fully defined in the `ext/SindbadFluxExt` folder.
+
+"""
+function lcKAoneHotbatch end
+
+"""
+    vegKAoneHotbatch(pft_data, ka_labels)
+
+# Arguments
+- `pft_data`: Vector array
+- `ka_labels`: KeyedArray labels, i.e. site names
+
+!!! warning
+    Do `using Flux` before using this function, otherwise it will error. This is because is fully defined in the `ext/SindbadFluxExt` folder.
+
+"""
+function vegKAoneHotbatch end
 ```
 
 :::
@@ -1097,9 +937,9 @@ function prepHybrid(forcing, observations, info, ::MachineLearningTrainingType)
     ## get covariates
 
     print_info(prepHybrid, @__FILE__, @__LINE__, "Loading covariates for hybridMachine Learningmodel", n_f=2)
-    print_info(nothing, @__FILE__, @__LINE__, "variables: $(info.hybrid.covariates.variables)", n_m=4)
+    print_info(nothing, @__FILE__, @__LINE__, "options: $(info.hybrid.covariates.options)", n_m=4)
     print_info(nothing, @__FILE__, @__LINE__, "path: $(info.hybrid.covariates.path)", n_m=4)
-    xfeatures = loadCovariates(sites_forcing; kind=info.hybrid.covariates.variables, cube_path=info.hybrid.covariates.path)
+    xfeatures = loadCovariates(info.hybrid.ml_experiment_type, sites_forcing, info.hybrid.covariates.path, info.hybrid.covariates.options)
     print_info(nothing, @__FILE__, @__LINE__, "Min/Max of features: [$(minimum(xfeatures)), $(maximum(xfeatures))]", n_m=4)
     n_features = length(xfeatures.features)
 
@@ -1278,6 +1118,8 @@ function trainML(hybrid_helpers, ::MixedGradient)
     options = hybrid_helpers.options
     batch_size = options.ml_training.options.batch_size
     gradient_options = options.ml_gradient
+    pullback_method = options.ml_training.pullback_method
+    update_method = options.ml_optimizer.update_method
     n_epochs = options.ml_training.options.n_epochs
     checkpoint_path = hybrid_helpers.checkpoint_path
 
@@ -1288,7 +1130,7 @@ function trainML(hybrid_helpers, ::MixedGradient)
             
             grads_batch = zeros(Float32, n_params, length(sites_batch))
             x_feat_batch = xfeatures(; site=sites_batch)
-            new_params, pullback_func = getPullback(flat, re, x_feat_batch)
+            new_params, pullback_func = getPullback(pullback_method, flat, re, x_feat_batch)
             scaled_params_batch = getParamsAct(new_params, parameter_table)
             @debug "  Epoch $(epoch): training on batch with $(length(sites_batch)) sites, scaled_params: minimum=$(minimum(scaled_params_batch)), maximum=$(maximum(scaled_params_batch))"
 
@@ -1297,7 +1139,8 @@ function trainML(hybrid_helpers, ::MixedGradient)
             gradsNaNCheck!(grads_batch, scaled_params_batch, sites_batch, parameter_table, replace_value=options.replace_value_for_gradient) #? checks for NaNs and if any replace them with replace_value_for_gradient
             # Jacobian-vector product
             ∇params = pullback_func(grads_batch)[1]
-            opt_state, flat = Optimisers.update(opt_state, flat, ∇params)
+            opt_state, flat = updateMLModel(update_method, opt_state, flat, ∇params, )
+            # opt_state, flat = Optimisers.update(opt_state, flat, ∇params)
         end
         # calculate losses for all sites!
         if !isempty(checkpoint_path)
@@ -1330,6 +1173,44 @@ function trainML(hybrid_helpers, ::MixedGradient)
     end
 
 end
+
+function trainML(hybrid_helpers, ::MachineLearningExperimentType)
+    trainML(hybrid_helpers, MixedGradient())
+end
+
+function trainML(hybrid_helpers, ::FluxnetParameterLearningWROASTED)
+    trainML(hybrid_helpers, MixedGradient())
+end
+```
+
+:::
+
+
+----
+
+### updateMLModel
+```@docs
+updateMLModel
+```
+
+:::details Code
+
+```julia
+function updateMLModel(::MachineLearningUpdateType, _model_state, _model_flat, _gradient) 
+    error("
+    updateMLModel `$(nameof(typeof(x)))` not implemented. 
+    
+    To implement a new optimizer:
+    
+    - First add a new type as a subtype of `MachineLearningUpdateType` in `src/Types/MachineLearningTypes.jl`. 
+    
+    - Then, add a corresponding method:
+      - if it can be implemented as an internal Sindbad method without additional dependencies, implement the method in `src/MachineLearning/mlUpdate.jl`.     
+      - if it requires additional dependencies, implement the method in `ext/<extension_name>/MachineLearningUpdateMLModel.jl` extension.
+
+    ")
+
+end
 ```
 
 :::
@@ -1342,18 +1223,6 @@ end
 vegKAoneHotbatch
 ```
 
-:::details Code
-
-```julia
-function vegKAoneHotbatch(pft_data, ka_labels)
-    oneHot_veg = vegOneHotbatch(toClass.(pft_data))
-    return KeyedArray(Array(oneHot_veg); features=vegetation_labels, site=ka_labels)
-end
-```
-
-:::
-
-
 ----
 
 ### vegOneHot
@@ -1364,13 +1233,78 @@ vegOneHot
 :::details Code
 
 ```julia
-function vegOneHotbatch(veg_classes; vegetation_labels=vegetation_labels)
-    return Flux.onehotbatch(veg_classes, vegetation_labels)
-end
+function vegOneHot end
 
-function vegOneHot(v_class; vegetation_labels=vegetation_labels)
-    return Flux.onehot(v_class, vegetation_labels)
-end
+"""
+    vegOneHotbatch(veg_classes; vegetation_labels)
+
+# Arguments
+- veg_classes: get these from `toClass.([x1, x2,...])`
+- vegetation_labels: see them by typing `vegetation_labels`
+
+!!! warning
+    Do `using Flux` before using this function, otherwise it will error. This is because is fully defined in the `ext/SindbadFluxExt` folder.
+
+"""
+function vegOneHotbatch end
+
+"""
+    lcKAoneHotbatch(lc_data, up_bound, lc_name, ka_labels)
+
+# Arguments
+- `lc_data`: Vector array
+- `up_bound`: last index class, the range goes from `1:up_bound`, and any case not in that range uses the `up_bound` value. For `PFT` use `17` and for `KG` `32`. 
+- `lc_name`: land cover approach, either `KG` or `PFT`.
+- `ka_labels`: KeyedArray labels, i.e. site names
+
+!!! warning
+    Do `using Flux` before using this function, otherwise it will error. This is because is fully defined in the `ext/SindbadFluxExt` folder.
+
+"""
+function lcKAoneHotbatch end
+
+"""
+    vegKAoneHotbatch(pft_data, ka_labels)
+
+# Arguments
+- `pft_data`: Vector array
+- `ka_labels`: KeyedArray labels, i.e. site names
+
+!!! warning
+    Do `using Flux` before using this function, otherwise it will error. This is because is fully defined in the `ext/SindbadFluxExt` folder.
+
+"""
+function vegKAoneHotbatch end
+
+function vegOneHotbatch end
+
+"""
+    lcKAoneHotbatch(lc_data, up_bound, lc_name, ka_labels)
+
+# Arguments
+- `lc_data`: Vector array
+- `up_bound`: last index class, the range goes from `1:up_bound`, and any case not in that range uses the `up_bound` value. For `PFT` use `17` and for `KG` `32`. 
+- `lc_name`: land cover approach, either `KG` or `PFT`.
+- `ka_labels`: KeyedArray labels, i.e. site names
+
+!!! warning
+    Do `using Flux` before using this function, otherwise it will error. This is because is fully defined in the `ext/SindbadFluxExt` folder.
+
+"""
+function lcKAoneHotbatch end
+
+"""
+    vegKAoneHotbatch(pft_data, ka_labels)
+
+# Arguments
+- `pft_data`: Vector array
+- `ka_labels`: KeyedArray labels, i.e. site names
+
+!!! warning
+    Do `using Flux` before using this function, otherwise it will error. This is because is fully defined in the `ext/SindbadFluxExt` folder.
+
+"""
+function vegKAoneHotbatch end
 ```
 
 :::
@@ -1386,9 +1320,35 @@ vegOneHotbatch
 :::details Code
 
 ```julia
-function vegOneHotbatch(veg_classes; vegetation_labels=vegetation_labels)
-    return Flux.onehotbatch(veg_classes, vegetation_labels)
-end
+function vegOneHotbatch end
+
+"""
+    lcKAoneHotbatch(lc_data, up_bound, lc_name, ka_labels)
+
+# Arguments
+- `lc_data`: Vector array
+- `up_bound`: last index class, the range goes from `1:up_bound`, and any case not in that range uses the `up_bound` value. For `PFT` use `17` and for `KG` `32`. 
+- `lc_name`: land cover approach, either `KG` or `PFT`.
+- `ka_labels`: KeyedArray labels, i.e. site names
+
+!!! warning
+    Do `using Flux` before using this function, otherwise it will error. This is because is fully defined in the `ext/SindbadFluxExt` folder.
+
+"""
+function lcKAoneHotbatch end
+
+"""
+    vegKAoneHotbatch(pft_data, ka_labels)
+
+# Arguments
+- `pft_data`: Vector array
+- `ka_labels`: KeyedArray labels, i.e. site names
+
+!!! warning
+    Do `using Flux` before using this function, otherwise it will error. This is because is fully defined in the `ext/SindbadFluxExt` folder.
+
+"""
+function vegKAoneHotbatch end
 ```
 
 :::
