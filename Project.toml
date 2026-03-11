@@ -13,7 +13,7 @@ test = ["Test", "BenchmarkTools"]
 [compat]
 CSV = "0.10"
 OmniTools = "0.1.1"
-SindbadTEM = "0.1.1"
+SindbadTEM = "0.1.2"
 GlobalSensitivity = "2"
 Evolutionary = "0.11"
 YAXArrayBase = "0.7"
