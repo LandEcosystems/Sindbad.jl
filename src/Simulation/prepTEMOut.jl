@@ -155,7 +155,8 @@ function getOutDims(info, forcing_helpers, ::OutputYAXArray)
         vname = string(last(vname_full))
         _properties = collectMetadata(info, vname_full)
         vdims = var_dims[v_index]
-        outformat = info.settings.experiment.model_output.format
+        # outformat = info.settings.experiment.model_output.format
+        outformat = info.output.format # ? test and see if this works, which it should!
         backend = outformat == "nc" ? :netcdf : :zarr
         out_dim = YAXArrays.OutDims(vdims...;
         properties = _properties,
