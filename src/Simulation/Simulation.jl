@@ -48,6 +48,7 @@ module Simulation
    using SindbadTEM.OmniTools
    using ..Setup
    using ..DataLoaders: YAXArrays
+   using ..DataLoaders: AllNaN, cleanData
    using ThreadPools
 
    include("utilsSimulation.jl")
