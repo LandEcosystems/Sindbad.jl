@@ -35,7 +35,7 @@ end
 function backScaleParameters(parameter_vector_scaled, parameter_table, ::ScaleBounds)
     ub = parameter_table.upper  # upper bounds
     lb = parameter_table.lower   # lower bounds
-    parameter_vector_scaled .= lb + (ub - lb) .* parameter_vector_scaled
+    parameter_vector_scaled .= lb .+ (ub .- lb) .* parameter_vector_scaled
     return parameter_vector_scaled
 end
 
