@@ -444,7 +444,7 @@ function subsetAndProcessYax(yax, forcing_mask, tar_dims, _data_info, info, ::Va
             yax = mapCleanData(yax, yax_qc, vfill, bounds_qc, _data_info, vNT)
         else
             yax = map(yax_point -> replace_invalid_number(yax_point, vfill), yax)
-            yax = num_type.(yax)
+            yax = map(num_type, yax)
         end
     end
     return yax

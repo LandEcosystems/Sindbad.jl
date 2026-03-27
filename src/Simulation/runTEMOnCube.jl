@@ -86,9 +86,9 @@ function runTEMYax(selected_models::Tuple, forcing::NamedTuple, info::NamedTuple
     loc_land = deepcopy(run_helpers.loc_land);
 
     _data_fill = 0.0f0
-    _forcing_default_info = info.settings.forcing.default_forcing
+    _forcing_default_info = info.experiment.data_settings.forcing.default_forcing
     _num_type = Val{info.helpers.numbers.num_type}()
-    _forcing_vars_info = info.settings.forcing.variables
+    _forcing_vars_info = info.experiment.data_settings.forcing.variables
 
     outcubes = mapCube(TEMYax,
         (incubes...,);
@@ -100,7 +100,7 @@ function runTEMYax(selected_models::Tuple, forcing::NamedTuple, info::NamedTuple
         clean_data=(; _data_fill, _forcing_default_info, _num_type, _forcing_vars_info),
         indims=indims,
         outdims=run_helpers.output_dims,
-        max_cache=info.settings.experiment.exe_rules.yax_max_cache,
+        max_cache=info.experiment.exe_rules.yax_max_cache,
         ispar=false,
         )
     return outcubes
