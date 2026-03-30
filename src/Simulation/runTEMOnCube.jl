@@ -42,8 +42,13 @@ end
 - `forcing_vars`: forcing variables
 """
 function TEMYax(map_cubes...;selected_models::Tuple, forcing_vars, loc_land::NamedTuple, output_vars, tem::NamedTuple, clean_data)
+    # Make NaN check here instead of AllNaN filters
+    
 
     outputs, inputs = unpackYaxForward(map_cubes; output_vars, forcing_vars)
+    # What exactly should the NaN check be? 
+    # Do I check per variable, or for all variables together?
+    # all(ismissing || isnan , inputs)
 
     # ? apply clean_data fields to input data points
     _data_fill, _forcing_default_info, _num_type, _forcing_vars_info = clean_data
@@ -80,28 +85,31 @@ function runTEMYax(selected_models::Tuple, forcing::NamedTuple, info::NamedTuple
     # forcing/input information
     incubes = forcing.data;
     indims = forcing.dims;
-    
     # information for running model
     run_helpers = prepTEM(forcing, info);
+    @show typeof(run_helpers.loc_land)
     loc_land = deepcopy(run_helpers.loc_land);
-
+    #@show run_helpers.output_dims
     _data_fill = 0.0f0
     _forcing_default_info = info.experiment.data_settings.forcing.default_forcing
     _num_type = Val{info.helpers.numbers.num_type}()
     _forcing_vars_info = info.experiment.data_settings.forcing.variables
-
-    outcubes = mapCube(TEMYax,
-        (incubes...,);
-        selected_models=selected_models,
+    #@show size.(run_helpers.output_dims)
+    #output = XOutput.(getproperty.(run_helpers.output_dims, :axisdesc))
+    output = run_helpers.output_dims
+    @show output 
+    outcubes = xmap(TEMYax,
+        (incubes .⊘ indims)...;
+    function_kwargs = (selected_models=selected_models,
         forcing_vars=forcing.variables,
         output_vars=run_helpers.output_vars,
         loc_land=loc_land,
         tem=run_helpers.tem_info,
-        clean_data=(; _data_fill, _forcing_default_info, _num_type, _forcing_vars_info),
-        indims=indims,
-        outdims=run_helpers.output_dims,
-        max_cache=info.experiment.exe_rules.yax_max_cache,
-        ispar=false,
+        clean_data=(; _data_fill, _forcing_default_info, _num_type, _forcing_vars_info)),
+        output = output,
+        #outdims=run_helpers.output_dims,
+        #max_cache=info.experiment.exe_rules.yax_max_cache,
+        #ispar=false,
         )
     return outcubes
 end
@@ -145,11 +153,12 @@ function runTEMYaxParameters(selected_models::Tuple, forcing::NamedTuple, in_cub
     in_cubes_all = (in_cubes_forcing..., in_cube_params)
     indims = forcing.dims
     indims = (indims..., InDims((YAXArrays.ByName("parameter"),), Array, (AllNaN(),), missing))
+    @show indims
     param_to_index = getParameterIndices(selected_models, tbl_params)
     # information for running model
     run_helpers = prepTEM(forcing, info)
     loc_land = deepcopy(run_helpers.loc_land)
-
+    @show run_helpers.output_dims
     _data_fill = 0.0f0
     _forcing_default_info = info.experiment.data_settings.forcing.default_forcing
     _num_type = Val{info.helpers.numbers.num_type}()
