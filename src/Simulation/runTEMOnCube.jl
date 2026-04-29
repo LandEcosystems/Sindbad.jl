@@ -87,7 +87,6 @@ function runTEMYax(selected_models::Tuple, forcing::NamedTuple, info::NamedTuple
     indims = forcing.dims;
     # information for running model
     run_helpers = prepTEM(forcing, info);
-    @show typeof(run_helpers.loc_land)
     loc_land = deepcopy(run_helpers.loc_land);
     #@show run_helpers.output_dims
     _data_fill = 0.0f0
@@ -97,7 +96,6 @@ function runTEMYax(selected_models::Tuple, forcing::NamedTuple, info::NamedTuple
     #@show size.(run_helpers.output_dims)
     #output = XOutput.(getproperty.(run_helpers.output_dims, :axisdesc))
     output = run_helpers.output_dims
-    @show output 
     outcubes = xmap(TEMYax,
         (incubes .⊘ indims)...;
     function_kwargs = (selected_models=selected_models,
@@ -111,7 +109,9 @@ function runTEMYax(selected_models::Tuple, forcing::NamedTuple, info::NamedTuple
         #max_cache=info.experiment.exe_rules.yax_max_cache,
         #ispar=false,
         )
-    return outcubes
+    varnames = getUniqueVarNames(info.output.variables)
+    @show varnames
+    return Dataset(;zip(varnames, outcubes)...)
 end
 
 """
