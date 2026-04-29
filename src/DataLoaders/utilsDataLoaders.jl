@@ -197,9 +197,11 @@ function getSindbadDims(c)
     act_dimnames = []
     foreach(dimnames) do dimn
         td = dimn
+        #=
         if dimn in (:Ti, :Time, :TIME, :t, :T, :TI)
             td = :time
         end
+        =#
         push!(act_dimnames, td)
     end
     return [act_dimnames[k] => getproperty(c, dimnames[k]) |> Array for k ∈ eachindex(dimnames)]

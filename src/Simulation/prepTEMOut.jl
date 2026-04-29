@@ -145,7 +145,7 @@ function getOutDims(info, forcing_helpers, ::OutputYAXArray)
         od = []
         for _dim in dim_pairs
             if first(_dim) ∉ space_dims
-                push!(od, YAXArrays.Dim{first(_dim)}(last(_dim)))
+                push!(od, DD.rebuild(DD.Dimensions.name2dim(first(_dim)),(last(_dim))))
             end
         end
         Tuple(od)
