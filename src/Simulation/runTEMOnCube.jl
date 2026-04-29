@@ -61,7 +61,6 @@ function TEMYax(map_cubes...;selected_models::Tuple, forcing_vars, loc_land::Nam
     land_out = coreTEMYax(selected_models, loc_forcing, loc_land, tem)
     i = 1
     foreach(output_vars) do var_pair
-        # @show i, var_pair, size(outputs[i])
         data = land_out[first(var_pair)][last(var_pair)]
             fillOutputYax(outputs[i], data)
             i += 1
@@ -88,12 +87,10 @@ function runTEMYax(selected_models::Tuple, forcing::NamedTuple, info::NamedTuple
     # information for running model
     run_helpers = prepTEM(forcing, info);
     loc_land = deepcopy(run_helpers.loc_land);
-    #@show run_helpers.output_dims
     _data_fill = 0.0f0
     _forcing_default_info = info.experiment.data_settings.forcing.default_forcing
     _num_type = Val{info.helpers.numbers.num_type}()
     _forcing_vars_info = info.experiment.data_settings.forcing.variables
-    #@show size.(run_helpers.output_dims)
     #output = XOutput.(getproperty.(run_helpers.output_dims, :axisdesc))
     output = run_helpers.output_dims
     outcubes = xmap(TEMYax,
@@ -110,7 +107,6 @@ function runTEMYax(selected_models::Tuple, forcing::NamedTuple, info::NamedTuple
         #ispar=false,
         )
     varnames = getUniqueVarNames(info.output.variables)
-    @show varnames
     return Dataset(;zip(varnames, outcubes)...)
 end
 
@@ -134,7 +130,6 @@ function psTEMYax(in_pixel_cube...; selected_models::Tuple, param_to_index, forc
     land_out = coreTEMYax(updated_models, loc_forcing, loc_land, tem)
     i = 1
     foreach(output_vars) do var_pair
-        # @show i, var_pair, size(outputs[i])
         data = land_out[first(var_pair)][last(var_pair)]
             fillOutputYax(outputs[i], data)
             i += 1
@@ -153,12 +148,10 @@ function runTEMYaxParameters(selected_models::Tuple, forcing::NamedTuple, in_cub
     in_cubes_all = (in_cubes_forcing..., in_cube_params)
     indims = forcing.dims
     indims = (indims..., InDims((YAXArrays.ByName("parameter"),), Array, (AllNaN(),), missing))
-    @show indims
     param_to_index = getParameterIndices(selected_models, tbl_params)
     # information for running model
     run_helpers = prepTEM(forcing, info)
     loc_land = deepcopy(run_helpers.loc_land)
-    @show run_helpers.output_dims
     _data_fill = 0.0f0
     _forcing_default_info = info.experiment.data_settings.forcing.default_forcing
     _num_type = Val{info.helpers.numbers.num_type}()
