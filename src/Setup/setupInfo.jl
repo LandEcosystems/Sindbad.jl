@@ -251,8 +251,16 @@ function setModelRunInfo(info::NamedTuple)
         info = @set info.settings.experiment.flags.catch_model_errors = false
     end
     run_vals = convertRunFlagsToTypes(info)
-    output_array_type = getfield(Types, to_uppercase_first(info.settings.experiment.model_output.output_array_type, "Output"))()
+    # check if lazy run is set, and if so, set output array type to YAXArray regardless of the setting in json, as well as land output type to YAXArray
+    run_lazy = hasproperty(info.settings.experiment.flags, :run_lazy) ? get(info.settings.experiment.flags, :run_lazy, false) : false
+    
+    in_output_array_type = info.settings.experiment.model_output.output_array_type
+    if run_lazy
+        in_output_array_type = "YAXArray"
+    end
+    output_array_type = getfield(Types, to_uppercase_first(in_output_array_type, "Output"))()
     run_info = (; run_vals..., output_array_type = output_array_type)
+    
     run_info = set_namedtuple_field(run_info, (:save_single_file, getTypeInstanceForFlags(:save_single_file, info.settings.experiment.model_output.save_single_file, "Do")))
     run_info = set_namedtuple_field(run_info, (:use_forward_diff, run_vals.use_forward_diff))
     run_info = set_namedtuple_field(run_info, (:input_data_backend, info.settings.experiment.exe_rules.input_data_backend))
@@ -260,7 +268,13 @@ function setModelRunInfo(info::NamedTuple)
 
     parallelization = titlecase(info.settings.experiment.exe_rules.parallelization)
     run_info = set_namedtuple_field(run_info, (:parallelization, getfield(Types, Symbol(parallelization*"Parallelization"))()))
-    land_output_type = getfield(Types, to_uppercase_first(info.settings.experiment.exe_rules.land_output_type, "PreAlloc"))()
+
+    # if lazy, the run helpers will handle the output array type and land output type, so we set those to YAXArray here regardless of the setting in json, and the run helpers will overwrite it if not lazy
+    in_land_output_type = info.settings.experiment.exe_rules.land_output_type
+    if run_lazy
+        in_land_output_type = "YAXArray"
+    end
+    land_output_type = getfield(Types, to_uppercase_first(in_land_output_type, "PreAlloc"))()
     run_info = set_namedtuple_field(run_info, (:land_output_type, land_output_type))
     info = (; info..., temp=(; info.temp..., helpers=(; info.temp.helpers..., run=run_info)))
     return info
