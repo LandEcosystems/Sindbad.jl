@@ -48,7 +48,7 @@ function TEMYax(map_cubes...;selected_models::Tuple, forcing_vars, loc_land::Nam
     outputs, inputs = unpackYaxForward(map_cubes; output_vars, forcing_vars)
     # What exactly should the NaN check be? 
     # Do I check per variable, or for all variables together?
-    # all(ismissing || isnan , inputs)
+    any(ismissing || isnan , inputs)
 
     # ? apply clean_data fields to input data points
     _data_fill, _forcing_default_info, _num_type, _forcing_vars_info = clean_data

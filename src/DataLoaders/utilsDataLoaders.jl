@@ -109,7 +109,7 @@ function getDataDims(c, mappinginfo)
     inollt = findall(∉(mappinginfo), axnames)
     !isempty(inollt) && append!(inax, axnames[inollt])
     #return InDims(inax...; filter=AllNaN())
-    return only(inax)
+    return Tuple(inax)
 end
 
 """
