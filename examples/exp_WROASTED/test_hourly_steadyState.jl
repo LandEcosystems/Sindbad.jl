@@ -35,7 +35,7 @@ function plot_and_save(land, out_sp_exp, out_sp_exp_nl, out_sp_nl, xtname, plot_
         xticks=(1:length(xtname) |> collect, string.(xtname)),
         rotation=45)
 
-    plots_savefig(joinpath(out_path, "$(string(plot_var))_sin_explicit_$(plot_elem)_$(model_array_type)_tj-$(tj).png"))
+    plots_savefig(joinpath(out_path, "$(domain)_$(mod_step)_$(string(plot_var))_sin_explicit_$(plot_elem)_$(model_array_type)_tj-$(tj).png"))
     return nothing
 end
 
@@ -57,10 +57,28 @@ function get_xtick_names(info, land_for_s, look_at)
     end
     return xtname
 end
-experiment_json = "../exp_steadyState/settings_steadyState/experiment.json"
+experiment_json = "../exp_WROASTED/settings_WROASTED/experiment.json"
+begin_year = "1999"
+end_year = "2010"
+
+domain = "CA-Obs"
+path_input = nothing
+forcing_config = nothing
+
+mod_step = "day"
+mod_step = "hour"
+if mod_step == "day"
+    path_input = "$(getSindbadDataDepot())/fn/$(domain).1979.2017.daily.nc"
+    forcing_config = "forcing_erai.json"
+else
+    path_input = "$(getSindbadDataDepot())/CA-Obs.1999.2010.hourly_for_Sindbad.nc"
+    forcing_config = "forcing_hourly.json"
+end
+
 out_sp_exp = nothing
 model_array_type = "static_array"
 tjs = (1,)# 100, 1_000, 10_000)
+tjs = (1,)
 tjs = (1, 100, 1_000, 10_000)
 # tjs = (1000,)
 # tjs = (10_000,)
@@ -70,7 +88,15 @@ nLoop_pre_spin = 10
 set_log_level(:warn)
 model_array_type = "static_array"
 for model_array_type ∈ ("static_array",) #, "array") #, "static_array")
-    replace_info = Dict("experiment.exe_rules.model_array_type" => model_array_type,
+    replace_info = Dict("experiment.basics.time.date_begin" => begin_year * "-01-01",
+        "experiment.basics.config_files.forcing" => forcing_config,
+        "experiment.basics.domain" => domain,
+        "experiment.basics.name" => "WROASTED_$mod_step",
+        "experiment.basics.time.temporal_resolution" => mod_step,
+        "forcing.default_forcing.data_path" => path_input,
+        "experiment.basics.time.date_end" => end_year * "-12-31",
+        "experiment.flags.run_optimization" => false,
+        "experiment.exe_rules.model_array_type" => model_array_type,
         "experiment.flags.debug_model" => false);
     println("model_array_type: ", model_array_type)
 
@@ -89,12 +115,12 @@ for model_array_type ∈ ("static_array",) #, "array") #, "static_array")
     spinup_forcing = run_helpers.space_spinup_forcing[1]
 
 
-    spinupforc = :day_MSC
+    spinupforc = :first_year
     theforcing = getfield(spinup_forcing, spinupforc)
 
     n_timesteps = getfield(run_helpers.tem_info.spinup_sequence[findfirst(x -> x.forcing === spinupforc, run_helpers.tem_info.spinup_sequence)], :n_timesteps)
 
-    spinup_models = info.models.forward[info.models.is_spinup]
+    spinup_models = info.models.forward#[info.models.is_spinup]
     out_path = info.output.dirs.figure
     sel_pool = :cEco_TWS
     for sel_pool in (:cEco_TWS,)

@@ -53,8 +53,8 @@ run the compute function of SINDBAD TEM processes
 - `model_helpers`: helper NT with necessary objects for model run and type consistencies
 """
 function computeTEM(tem_processes::LongTuple, forcing, _land, model_helpers) 
-    return foldl_longtuple(tem_processes, init=_land) do model, _land
-        Processes.compute(model, forcing, _land, model_helpers)
+    return foldl_longtuple(tem_processes, init=_land) do model, __land
+        __land = Processes.compute(model, forcing, __land, model_helpers)
     end
 end
 
