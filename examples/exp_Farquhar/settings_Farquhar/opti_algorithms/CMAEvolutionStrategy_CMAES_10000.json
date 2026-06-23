@@ -1,0 +1,10 @@
+{
+  "method": "CMAES",
+  "options": {
+    "maxfevals": 50,
+    "maxiter": 10000,
+    "popsize": 20,
+    "multi_threading": true,
+    "parallel_evaluation": true},
+  "package": "CMAEvolutionStrategy"
+}

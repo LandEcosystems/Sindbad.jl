@@ -1,0 +1,8 @@
+{
+  "method": "CMAES",
+  "options": {
+    "maxfevals": 2000,
+    "multi_threading": false
+  },
+  "package": "CMAEvolutionStrategy"
+}

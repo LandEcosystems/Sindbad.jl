@@ -1,0 +1,148 @@
+{
+  "default_model": {
+    "implicit_t_repeat": 1,
+    "use_in_spinup": true
+  },
+  "models": {
+    "ambientCO2": {
+      "approach": "forcing"
+    },
+    "capillaryFlow": {
+      "approach": "VanDijk2010"
+    },
+    "drainage": {
+      "approach": "dos"
+    },
+    "evaporation": {
+      "approach": "vegFraction"
+    },
+    "evapotranspiration": {
+      "approach": "sum"
+    },
+    "NDVI": {
+      "approach": "forcing"
+    },
+    "fAPAR": {
+      "approach": "linear"
+    },
+    "getPools": {
+      "approach": "simple"
+    },
+     "APAR": {
+      "approach": "simple"
+    },  
+    "aerodynamic": {
+      "approach": "simple"
+    },
+     "Conductance": {
+      "approach": "Farquhar1980"
+    },   
+    "LAI": {
+      "approach": "constant"
+    },
+    "gpp": {
+      "approach": "JSBACH"
+    },
+    "groundWRecharge": {
+      "approach": "dos"
+    },
+    "groundWSoilWInteraction": {
+      "approach": "VanDijk2010"
+    },
+    "interception": {
+      "approach": "vegFraction"
+    },
+    "percolation": {
+      "approach": "WBP"
+    },
+    "PET": {
+      "approach": "Lu2005"
+    },
+    "rainSnow": {
+      "approach": "Tair"
+    },
+    "rootMaximumDepth": {
+      "approach": "fracSoilD"
+    },
+    "rootWaterEfficiency": {
+      "approach": "constant"
+    },
+    "rootWaterUptake": {
+      "approach": "proportion"
+    },
+    "runoff": {
+      "approach": "sum"
+    },
+    "runoffBase": {
+      "approach": "Zhang2008"
+    },
+    "runoffOverland": {
+      "approach": "Sat"
+    },
+    "runoffSaturationExcess": {
+      "approach": "Bergstroem1992"
+    },
+    "runoffSurface": {
+      "approach": "all"
+    },
+    "snowFraction": {
+      "approach": "HTESSEL"
+    },
+    "snowMelt": {
+      "approach": "TairRn"
+    },
+    "soilProperties": {
+      "approach": "Saxton2006"
+    },
+    "soilTexture": {
+      "approach": "forcing"
+    },
+    "soilWBase": {
+      "approach": "uniform"
+    },
+     "transpiration": {
+      "approach": "demandSupply"
+    },
+    "transpirationDemand": {
+      "approach": "JSBACH"
+    },
+    "transpirationSupply": {
+      "approach": "wAWC"
+    },
+    "vegAvailableWater": {
+      "approach": "rootWaterEfficiency"
+    },
+    "vegFraction": {
+      "approach": "constant"
+    },
+    "waterBalance": {
+      "approach": "simple"
+    },
+    "wCycle": {
+      "approach": "components"
+    },
+    "wCycleBase": {
+      "approach": "simple"
+    },
+    "constants": {
+      "approach": "numbers"
+    },
+    "WUE": {
+      "approach": "expVPDDayCo2"
+    }
+  },
+  "pools": {
+    "water": {
+      "combine": "TWS",
+      "components": {
+        "soilW": [[50.0, 200.0, 750.0, 1000.0], 100.0],
+        "groundW": [1, 1000.0],
+        "snowW": [1, 0.01],
+        "surfaceW": [1, 0.01]
+      },
+      "state_variables": {
+        "Δ": 0.0
+      }
+    }
+  }
+}

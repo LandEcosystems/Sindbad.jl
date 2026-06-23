@@ -9,6 +9,7 @@ version = "0.2.1"
 
 [deps]
 AxisKeys = "94b1ba4f-4ee9-5380-92f1-94cde586c3c5"
+CMAEvolutionStrategy = "8d3b24bd-414e-49e0-94fb-163cc3a3e411"
 CSV = "336ed68f-0bac-5ca0-87d4-7b16caf5d00b"
 ComponentArrays = "b0b7db55-cfe3-40fc-9ded-d10e2dbeff66"
 ConstructionBase = "187b0558-2788-49d3-abe0-74a17ed4e7c9"
@@ -40,7 +41,6 @@ YAXArrays = "c21b50f5-aa40-41ea-b809-c0f5e47bfa5c"
 Zarr = "0a941bbe-ad1d-11e8-39d9-ab76183a1d99"
 
 [weakdeps]
-CMAEvolutionStrategy = "8d3b24bd-414e-49e0-94fb-163cc3a3e411"
 DifferentialEquations = "0c46a032-eb83-5123-abaf-570d42b7fbaa"
 Enzyme = "7da242da-08ed-463a-9acd-ee780be4f1d9"
 Evolutionary = "86b6b26d-c046-49b6-aa0b-5f0f74682bd6"
