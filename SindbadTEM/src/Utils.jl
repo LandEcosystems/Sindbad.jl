@@ -128,74 +128,134 @@ function getInOutModel(model, model_func::Symbol)
 
     mod_code_lines = strip.(split(mod_code, "\n"))
 
+    function group_triples(triples::Vector)
+        land_dict = SindbadTEM.DataStructures.OrderedDict{Symbol, Vector{Symbol}}()
+        flat_dict = SindbadTEM.DataStructures.OrderedDict{Symbol, Vector{Symbol}}()
+
+        for (parent, sub, var) in triples
+            if isnothing(sub)
+                push!(get!(flat_dict, parent, Symbol[]), var)
+            else
+                push!(get!(land_dict, sub, Symbol[]), var)
+            end
+        end
+
+        wrap(t) = t isa Pair ? (t,) : t
+
+        land_inner  = wrap(Tuple(sub    => wrap(Tuple(vars)) for (sub,    vars) in land_dict))
+        flat_tuples = wrap(Tuple(parent => wrap(Tuple(vars)) for (parent, vars) in flat_dict))
+
+        if isempty(land_dict) && isempty(flat_dict)
+            return ()
+        elseif isempty(land_dict)
+            return flat_tuples
+        elseif isempty(flat_dict)
+            return ((:land => land_inner),)
+        else
+            return ((:land => land_inner), flat_tuples...)
+        end
+    end
+
     # get the input vars
-    in_lines_index = findall(x -> ((occursin("⇐", x) || occursin("land.", x) || occursin("forcing.", x))&& !occursin("for ", x) && !occursin("helpers.", x) && !startswith(x, "#")), mod_code_lines)
-    in_all = map(in_lines_index) do in_in 
+    in_lines_index = findall(x -> (
+        occursin("⇐", x) &&
+        !occursin("for ", x) &&
+        !startswith(x, "#")
+    ), mod_code_lines)
+
+    in_all = map(in_lines_index) do in_in
         mod_line = mod_code_lines[in_in]
         in_line = ""
-        try 
+        try
             mod_line = strip(mod_line)
-            in_line_src=""
-            if occursin("⇐", mod_line)
-                in_line = strip(split(mod_line, "⇐")[1])
-                in_line_src = strip(split(mod_line, "⇐")[2])
-                if occursin("@unpack_nt", in_line)
-                    in_line=strip(split(in_line, "@unpack_nt")[2])
-                end
-                if occursin("@unpack_nt", in_line)
-                    in_line=strip(split(in_line, "@unpack_nt")[2])
-                end
-                if occursin("land.", in_line_src)
-                    in_line_src=strip(split(in_line_src, "land.")[2])
-                end
-                if occursin("forcing.", in_line_src)
-                    in_line_src="forcing"
-                end
-            elseif occursin("land.", mod_line) && occursin("=", mod_line) && !occursin("⇒", mod_line) 
-                in_line = strip(mod_line)
-                @warn "Using an unextracted variable from land in $model_func function of $(model_name).jl in line $(in_line).\nWhile this is not necessarily a source of error, these variables are NOT used in consistency checks and may be prone to bugs and lead to cluttered code. Follow the convention of unpacking all variables to use locally using @unpack_nt."
 
-                # rhs=strip(split(strip(mod_line), "=")[2])
-            elseif occursin("forcing.", mod_line) && occursin("=", mod_line) && !occursin("⇒", mod_line) 
-                in_line = strip(mod_line)
-                # in_line=strip(split(strip(mod_line), "⇐")[1])
-                @warn "Using an unextracted variable from forcing in  $model_func function of $(model_name).jl in line $(in_line).\nWhile this is not necessarily a source of error, these variables are NOT used in consistency checks and may be prone to bugs and lead to cluttered code. Follow the convention of unpacking all variables to use locally using @unpack_nt."
-                in_line_src="forcing"
+            # strip leading rename assignment: `land_pools = pools ⇐ land` -> `pools ⇐ land`
+            if occursin("=", mod_line) && occursin("⇐", mod_line)
+                mod_line = strip(split(mod_line, "=")[2])
             end
-            in_v_str = replace(strip(in_line), "(" => "",  ")" => "")
-            in_v_list = [(strip(_v)) for _v in split(in_v_str, ",")[1:end]]
-            in_v_list = Symbol.(in_v_list[(!isempty).(in_v_list)])
 
-            in_line_src = Symbol(in_line_src)
-            Pair.(Ref(in_line_src), in_v_list)
+            in_line = strip(split(mod_line, "⇐")[1])
+            in_line_src = strip(split(mod_line, "⇐")[2])
+
+            if occursin("@unpack_nt", in_line)
+                in_line = strip(split(in_line, "@unpack_nt")[2])
+            end
+
+            in_parent, in_sub = if occursin("land.", in_line_src)
+                :land, Symbol(strip(split(in_line_src, "land.")[2]))
+            elseif strip(in_line_src) == "land"
+                # bare `land` — the variable name is the sub-key
+                :land, Symbol(strip(replace(in_line, "(" => "", ")" => "")))
+            elseif strip(in_line_src) == "forcing"
+                :forcing, nothing
+            elseif occursin("helpers.", in_line_src)
+                :helpers, Symbol(strip(split(in_line_src, "helpers.")[2]))
+            elseif strip(in_line_src) == "helpers"
+                :helpers, nothing
+            else
+                @warn "Unknown source in $model_func of $(model_name).jl: $(in_line_src)"
+                return []
+            end
+
+            in_v_str  = replace(strip(in_line), "(" => "", ")" => "")
+            in_v_list = [strip(_v) for _v in split(in_v_str, ",")]
+            in_v_list = Symbol.(in_v_list[(!isempty).(in_v_list)])
+            [(in_parent, in_sub, v) for v in in_v_list]
         catch e
             @error "Error extracting input information from $model_func function of $(model_name).jl in line $(in_line). Possibly due to a line break in call of @unpack_nt macro."
             error(e)
         end
     end
-    mod_vars[:input] = Tuple(vcat(in_all...))
+    mod_vars[:input] = group_triples([t for t in Iterators.flatten(in_all)])
 
     # get the output vars
-    out_lines_index = findall(x -> (occursin("⇒", x) && !occursin("_elem", x) && !occursin("@rep_", x) && !startswith(x, "#")), mod_code_lines)
-    out_all = map(out_lines_index) do out_in
-        out_line = strip(split(mod_code_lines[out_in], "⇒")[1])
-        try
-        out_line_tar = Symbol(strip(split(split(mod_code_lines[out_in], "⇒")[2], "land.")[2]))
-            if occursin("@pack_nt", out_line)
-                out_line=strip(split(out_line, "@pack_nt")[2])
-            end
-            out_v_str = replace(strip(out_line), "(" => "",  ")" => "")
-            out_v_list = [(strip(_v)) for _v in split(out_v_str, ",")[1:end]]
+    out_lines_index = findall(x -> (
+        occursin("⇒", x) &&
+        !occursin("_elem", x) &&
+        !occursin("@rep_", x) &&
+        !startswith(x, "#")
+    ), mod_code_lines)
 
-            # @show out_v_list, (!isempty).(out_v_list)
+    out_all = map(out_lines_index) do out_in
+        mod_line = mod_code_lines[out_in]
+        out_line = strip(split(mod_line, "⇒")[1])
+        try
+            rhs = strip(split(mod_line, "⇒")[2])
+            out_parent, out_sub = if occursin("land.", rhs)
+                :land, Symbol(strip(split(rhs, "land.")[2]))
+            elseif strip(rhs) == "land"
+                :land, nothing
+            elseif occursin("forcing.", rhs)
+                :forcing, Symbol(strip(split(rhs, "forcing.")[2]))
+            elseif strip(rhs) == "forcing"
+                :forcing, nothing
+            elseif occursin("helpers.", rhs)
+                :helpers, Symbol(strip(split(rhs, "helpers.")[2]))
+            elseif strip(rhs) == "helpers"
+                :helpers, nothing
+            else
+                @warn "Unknown target in $model_func of $(model_name).jl: $(rhs)"
+                return []
+            end
+
+            if occursin("@pack_nt", out_line)
+                out_line = strip(split(out_line, "@pack_nt")[2])
+            end
+
+            # strip leading begin block marker if present
+            out_line = strip(replace(out_line, "begin" => ""))
+
+            out_v_str  = replace(strip(out_line), "(" => "", ")" => "")
+            out_v_list = [strip(_v) for _v in split(out_v_str, ",")]
             out_v_list = Symbol.(out_v_list[(!isempty).(out_v_list)])
-            Pair.(Ref(out_line_tar), out_v_list)
+            [(out_parent, out_sub, v) for v in out_v_list]
         catch e
             @error "Error extracting output information from $model_func function of $(model_name).jl in line $(out_line). Possibly due to a line break in call of @pack_nt macro."
             error(e)
         end
     end
-    mod_vars[:output] = Tuple(vcat(out_all...))
+    mod_vars[:output] = group_triples([t for t in Iterators.flatten(out_all)])
+    
     return mod_vars
 end
 

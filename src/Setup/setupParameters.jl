@@ -162,6 +162,109 @@ function getParameters(selected_models::Tuple, num_type, model_timestep; return_
     output = return_table ? Table(output) : output
     return output
 end
+function getParameters(model::LandEcosystem)
+    k_names = propertynames(model)
+    bounds  = SindbadTEM.Processes.bounds(model)
+
+    params = map(k_names, bounds, SindbadTEM.Processes.timescale(model)) do n, b, ts
+        n => (default = getproperty(model, n),
+            lower = first(b),
+            upper = last(b),
+            units = SindbadTEM.Processes.units(model, n),
+            timescale = ts)
+    end
+
+    return NamedTuple(params)
+end
+
+function Base.show(io::IO, ::MIME"text/plain", params::NamedTuple)
+    isempty(params) && return show(io, params)
+
+    all(v -> v isa NamedTuple{(:default, :lower, :upper, :units, :timescale)},
+        values(params)) || return show(io, params)
+
+    K = keys(params)
+    pad = maximum(length ∘ string, K) + 2
+
+    printstyled(io, "NamedTuple:", color=:light_black)
+    printstyled(io, " Parameters ($(length(K)))\n", color=:cyan)
+    printstyled(io, "─"^(pad + 12) * "\n", color=:light_black)
+
+    for k in K
+        p = params[k]
+
+        ts = isempty(p.timescale) ? "—" : p.timescale
+        u  = isempty(p.units)     ? "—" : p.units
+
+        printstyled(io, "  $(rpad(k, pad))", color=:yellow)
+        printstyled(io, " default: ") # color=:light_black
+        printstyled(io, _preview(p.default), color=:white, bold=true)
+        println(io)
+
+        printstyled(io, "  $(rpad("", pad))  bounds: ", color=:light_black)
+        printstyled(io, _preview((p.lower, p.upper)), color=:green)
+        println(io)
+
+        printstyled(io, "  $(rpad("", pad))   units: ", color=:magenta)
+        printstyled(io, u)
+        println(io)
+
+        printstyled(io, "$(rpad("", pad)) timescale: ", color=:blue)
+        printstyled(io, ts)
+        println(io)
+    end
+end
+
+function _preview(x; max_elems=5)
+    io = IOBuffer()
+    _preview(io, x, max_elems)
+    return String(take!(io))
+end
+
+function _preview(io::IO, x::AbstractArray, max_elems)
+    print(io, typeof(x), "(", size(x), ") ")
+
+    flat = vec(x)
+    n = length(flat)
+
+    if n <= max_elems
+        print(io, flat)
+    else
+        print(io, "[")
+
+        half = max_elems ÷ 2
+
+        for i in 1:half
+            print(io, flat[i], ", ")
+        end
+
+        print(io, " … ")
+
+        for i in (n - half + 1):n
+            print(io, flat[i])
+            if i != n
+                print(io, ", ")
+            end
+        end
+
+        print(io, "]")
+    end
+end
+
+function _preview(io::IO, x::Tuple, max_elems)
+    print(io, "(")
+
+    for (i, v) in enumerate(x)
+        _preview(io, v, max_elems÷3)
+        i != length(x) && print(io, ", ")
+    end
+
+    print(io, ")")
+end
+
+function _preview(io::IO, x, max_elems)
+    print(io, x)
+end
 
 """
     getOptimizationParametersTable(parameter_table_all::Table, model_parameter_default, optimization_parameters)
