@@ -110,6 +110,7 @@ module Sindbad
   @reexport using .Experiment
   # include("writeDocStringForTypes.jl")
   # include("Types/docStringForTypes.jl")
+  include("Visualization/Processes.jl")
 
   export addExtensionToSindbad
   """

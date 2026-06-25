@@ -173,17 +173,44 @@ module Processes
             return doc_string
         end
         foreach(io_list) do io_item
-            v_key = Symbol(String(first(io_item))*"__"*String(last(io_item)))
-            var_info = getVariableInfo(v_key, "time")
-            miss_doc = isempty(var_info["long_name"])
-            v_d = miss_doc ? "No description available in ```src/sindbadVariableCatalog.jl``` catalog. Run ```whatIs(:$(first(io_item)), :$(last(io_item)))``` for information on how to add the variable to the catalog." : var_info["description"]
-            v_units = var_info["units"]
-            v_units = miss_doc ? "" : isempty(v_units) ? "{unitless}" : "{$(v_units)}"
-            if !miss_doc
-                v_d = replace(v_d, "_" => "\\_")
+            parent = first(io_item)
+            inner = last(io_item)
+            if parent == :land
+                # inner is a Tuple of (sub_key => Tuple{Symbol...}) pairs
+                foreach(inner) do sub_item
+                    sub_key = first(sub_item)   # e.g. :states
+                    vars = last(sub_item)    # e.g. (:EVI,)
+                    # vars may be a bare Symbol if single-element — normalise
+                    vars = vars isa Symbol ? (vars,) : vars
+                    foreach(vars) do var
+                        v_key = Symbol(String(sub_key) * "__" * String(var))
+                        var_info = getVariableInfo(v_key, "time")
+                        miss_doc = isempty(var_info["long_name"])
+                        v_d = miss_doc ? "No description available in ```src/sindbadVariableCatalog.jl``` catalog. Run ```whatIs(:$(sub_key), :$(var))``` for information on how to add the variable to the catalog." : var_info["description"]
+                        v_units = var_info["units"]
+                        v_units = miss_doc ? "" : isempty(v_units) ? "{unitless}" : "{$(v_units)}"
+                        if !miss_doc
+                            v_d = replace(v_d, "_" => "\\_")
+                        end
+                        doc_string *= "     - `$(parent).$(sub_key).$(var)`: $(v_d)\n"
+                    end
+                end
+            else
+                # forcing/helpers: inner is a Tuple of Symbols, or bare Symbol
+                vars = inner isa Symbol ? (inner,) : inner
+                foreach(vars) do var
+                    v_key = Symbol(String(parent) * "__" * String(var))
+                    var_info = getVariableInfo(v_key, "time")
+                    miss_doc = isempty(var_info["long_name"])
+                    v_d = miss_doc ? "No description available in ```src/sindbadVariableCatalog.jl``` catalog. Run ```whatIs(:$(parent), :$(var))``` for information on how to add the variable to the catalog." : var_info["description"]
+                    v_units = var_info["units"]
+                    v_units = miss_doc ? "" : isempty(v_units) ? "{unitless}" : "{$(v_units)}"
+                    if !miss_doc
+                        v_d = replace(v_d, "_" => "\\_")
+                    end
+                    doc_string *= "     - `$(parent).$(var)`: $(v_d)\n"
+                end
             end
-
-            doc_string *= "     - `$(first(io_item)).$(last(io_item))`: $(v_d)\n"
         end
         return doc_string
     end
