@@ -40,6 +40,7 @@ YAXArrays = "c21b50f5-aa40-41ea-b809-c0f5e47bfa5c"
 Zarr = "0a941bbe-ad1d-11e8-39d9-ab76183a1d99"
 
 [weakdeps]
+Bonito = "824d6782-a2ef-11e9-3a09-e5662e0c26f8"
 CMAEvolutionStrategy = "8d3b24bd-414e-49e0-94fb-163cc3a3e411"
 DifferentialEquations = "0c46a032-eb83-5123-abaf-570d42b7fbaa"
 Enzyme = "7da242da-08ed-463a-9acd-ee780be4f1d9"
@@ -69,7 +70,7 @@ SindbadFiniteDifferencesExt = "FiniteDifferences"
 SindbadFluxExt = "Flux"
 SindbadForwardDiffExt = "ForwardDiff"
 SindbadLuxExt = "Lux"
-SindbadMakie = "Makie"
+SindbadMakie = ["Makie", "Bonito"]
 SindbadNLsolveExt = "NLsolve"
 SindbadOptimisersExt = "Optimisers"
 SindbadOptimizationExt = "Optimization"

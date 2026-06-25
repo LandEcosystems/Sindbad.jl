@@ -1,6 +1,6 @@
-export dash_plot
+export app_process
 
 """
 To be extended in `ext/SindbadMakie`
 """
-function dash_plot end
+function app_process end

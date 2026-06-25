@@ -2,6 +2,8 @@ module SindbadMakie
 import Sindbad
 using Sindbad.Setup: getParameters
 using Makie
+using Bonito
+using Bonito: App, DOM, Grid, Card, Styles, Slider
 
 function _slider_range(lower, upper, default)
     center = isfinite(default) && default != 0 ? default : default == 0 ? 0.0 : 1.0
@@ -9,6 +11,11 @@ function _slider_range(lower, upper, default)
 
     lo = isfinite(lower) ? lower : center - 10 * half
     hi = isfinite(upper) ? upper : center + 10 * half
+
+    if lo == hi
+        lo = lo - 1.0
+        hi = hi + 1.0
+    end
 
     step = default isa Integer ? 1 : (hi - lo) / 200
     lo_anchored = default - floor((default - lo) / step) * step
@@ -30,47 +37,59 @@ function _flatten_paths(node, prefix="")
     end
     return result
 end
-function _build_slider_rows!(gl, start_row, items, get_range)
-    sliders = map(enumerate(items)) do (i, (label_str, key))
+
+function _slider_item(label_str, lo, hi, def)
+    sl = Slider(_slider_range(lo, hi, def); startvalue = def)
+
+    item = DOM.div(
+        DOM.div(
+            sl,
+            DOM.span(map(v -> string(round(v, sigdigits=4)), sl.value))
+        ),
+        DOM.div(label_str)
+    )
+
+    return item, sl
+end
+
+function _build_slider_panel(title_str, items, get_range)
+    sliders  = []
+    elements = [DOM.div(DOM.b(title_str))]
+
+    for (label_str, key) in items
         lo, hi, def = get_range(key)
-        r = i - 1
-
-        sl = Slider(gl[start_row + r*2, 1],
-            range = _slider_range(lo, hi, def),
-            startvalue = def)
-
-        Label(gl[start_row + r*2, 2],
-            @lift(string(round($(sl.value), sigdigits=4)));
-            halign = :left, tellwidth = false, fontsize = 14)
-
-        Label(gl[start_row + r*2 + 1, 1:2], label_str;
-            halign = :left, tellwidth = false,
-            fontsize = 14, #color = (:gray, 0.8)
-            )
-
-        key => sl
+        item, sl    = _slider_item(label_str, lo, hi, def)
+        push!(elements, item)
+        push!(sliders, key => sl)
     end
 
-    return sliders
+    content = DOM.div(elements...;
+        style = Styles("padding" => "10px", "overflow-y" => "auto", "height" => "100%"))
+
+    return content, sliders
 end
 
-function _build_output_rows!(gl, start_row, items)
-    labels = map(enumerate(items)) do (i, (label_str, key))
-        r = i - 1
+function _build_output_panel(title_str, items)
+    observables = []
+    elements    = [DOM.div(DOM.b(title_str))]
 
-        lbl = Label(gl[start_row + r*2, 1:2], "—";
-            halign = :left, tellwidth = false, fontsize = 14)
-
-        Label(gl[start_row + r*2 + 1, 1:2], label_str;
-            halign = :left, tellwidth = false,
-            fontsize = 14, color = (:gray, 0.9))
-
-        key => lbl
+    for (label_str, key) in items
+        obs  = Observable("—")
+        item = DOM.div(
+            DOM.div(map(v -> v, obs)),
+            DOM.div(label_str)
+        )
+        push!(elements, item)
+        push!(observables, key => obs)
     end
-    return labels
+
+    content = DOM.div(elements...;
+        style = Styles("padding" => "10px", "overflow-y" => "auto", "height" => "100%"))
+
+    return content, observables
 end
 
-function Sindbad.dash_plot(model, compute::Symbol; input_ranges::Dict = Dict())
+function Sindbad.app_process(model, compute::Symbol; input_ranges::Dict = Dict())
 
     params = getParameters(model)
     io = Sindbad.getInOutModel(model, compute)
@@ -81,85 +100,183 @@ function Sindbad.dash_plot(model, compute::Symbol; input_ranges::Dict = Dict())
     K_fixed = filter(k -> !(params[k].default isa Number), K)
     K_scalars = filter(k ->   params[k].default isa Number,  K)
 
-    fig = Figure(; size = (1100, 600))
-
-    Label(fig[1, 1:3],
-        rich("$(string(io[:approach]))"; font=:bold, fontsize=18);
-        halign = :left, tellwidth = false)
-
-    params_gl = fig[2, 1] = GridLayout()
-    inputs_gl = fig[1, 2] = GridLayout()
-    outputs_gl = fig[1, 3] = GridLayout()
-    plot_gl = fig[2, 2:3] = GridLayout()
-
-    colsize!(fig.layout, 1, Relative(0.25))
-    colsize!(fig.layout, 2, Relative(0.35))
-    colsize!(fig.layout, 3, Relative(0.40))
-
-    prow = 1
-    Label(params_gl[prow, 1:2],
-        rich(rich("Parameters"; font=:bold));
-        halign = :left, tellwidth = false)
-    prow += 1
-
-    if length(K_fixed) > 0
-        Label(params_gl[prow, 1:2],
-            rich(rich("Fixed: "; color=:tomato, font=:bold),
-                 rich(join(string.(K_fixed), ", "); color=:tomato));
-            halign = :left, tellwidth = false)
-        prow += 1
-    end
-
-    colsize!(params_gl, 1, Relative(0.7))
-    colsize!(params_gl, 2, Relative(0.3))
-
     param_items = [
         (let
-            p = params[k]
-            u  = isempty(p.units) ? "" : " [$(p.units)]"
+            p  = params[k]
+            u  = isempty(p.units)     ? "" : " [$(p.units)]"
             ts = isempty(p.timescale) ? "" : " ($(p.timescale))"
             string(k) * u * ts
         end, k) for k in K_scalars
     ]
 
-    param_sliders = _build_slider_rows!(params_gl, prow, param_items,
-        k -> (params[k].lower, params[k].upper, params[k].default))
+    params_elements = [DOM.div(DOM.b("Parameters"))]
 
-    irow = 1
-    Label(inputs_gl[irow, 1:2],
-        rich(rich("Inputs"; font=:bold));
-        halign = :left, tellwidth = false)
-    irow += 1
+    if length(K_fixed) > 0
+        push!(params_elements,
+            DOM.div("Fixed: " * join(string.(K_fixed), ", ")))
+    end
 
-    colsize!(inputs_gl, 1, Relative(0.7))
-    colsize!(inputs_gl, 2, Relative(0.3))
+    param_sliders = []
+    for (label_str, key) in param_items
+        p           = params[key]
+        item, sl    = _slider_item(label_str, p.lower, p.upper, p.default)
+        push!(params_elements, item)
+        push!(param_sliders, key => sl)
+    end
+
+    params_panel = DOM.div(params_elements...;
+        style = Styles("padding" => "10px", "overflow-y" => "auto", "height" => "100%"));
 
     in_items = [(path, leaf) for (path, leaf) in in_paths]
 
-    input_sliders = _build_slider_rows!(inputs_gl, irow, in_items,
+    inputs_panel, input_sliders = _build_slider_panel("Inputs", in_items,
         leaf -> if haskey(input_ranges, leaf)
             r = input_ranges[leaf]; (r[1], r[2], r[3])
         else
             (-Inf, Inf, 0.0)
         end)
 
-    orow = 1
-    Label(outputs_gl[orow, 1:2],
-        rich(rich("Outputs"; font=:bold));
-        halign = :left, tellwidth = false)
-    orow += 1
-
     out_items = [(path, leaf) for (path, leaf) in out_paths]
-    output_labels = _build_output_rows!(outputs_gl, orow, out_items)
+    outputs_panel, output_observables = _build_output_panel("Outputs", out_items)
 
-    ax = Axis(plot_gl[1, 1];
-        title  = "Plot",
-        xlabel = "input",
-        ylabel = "output")
-    text!(ax, 0.5, 0.5;
-        text = "placeholder", align = (:center, :center), space = :relative)
+    fig = Figure()
+    ax  = Axis(fig[1, 1]; title="Plot", xlabel="input", ylabel="output")
+    text!(ax, 0.5, 0.5; text="placeholder", align=(:center, :center), space=:relative)
 
-    return fig, param_sliders, input_sliders, output_labels
+    app = App() do
+        # Make Makie responsive
+        fig.scene.viewport[] = Rect2f(0, 0, 800, 500)
+        fig.scene.px_area[] = Rect2f(0, 0, 800, 500)
+
+        title_card = Card(
+            DOM.div(
+                DOM.b(string(nameof(typeof(model)))),
+                DOM.span(" — $(string(io[:approach]))")
+            );
+            style=Styles(
+                "grid-area" => "title",
+                "padding" => "10px"
+            )
+        )
+
+        params_card = Card(
+            params_panel;
+            style=Styles(
+                "grid-area" => "params",
+                "overflow" => "auto",
+                "min-width" => "0"
+            )
+        )
+
+        io_div = DOM.div(
+            Card(
+                inputs_panel;
+                style=Styles(
+                    "flex" => "1",
+                    "min-width" => "0"
+                )
+            ),
+
+            Card(
+                outputs_panel;
+                style=Styles(
+                    "flex" => "1",
+                    "min-width" => "0"
+                )
+            );
+
+            style=Styles(
+                "grid-area" => "io",
+                "display" => "flex",
+                "gap" => "16px",
+                "flex-wrap" => "wrap"
+            )
+        )
+
+        plot_card = Card(
+            DOM.div(
+                fig;
+                style=Styles(
+                    "width" => "100%",
+                    "height" => "100%"
+                )
+            );
+
+            style=Styles(
+                "grid-area" => "plot",
+                "min-height" => "400px",
+                "overflow" => "hidden"
+            )
+        )
+
+        grid = Grid(
+            title_card,
+            params_card,
+            io_div,
+            plot_card;
+
+            columns = "320px 1fr",
+            rows = "auto auto 1fr",
+
+            areas = """
+            'title title'
+            'params io'
+            'params plot'
+            """,
+
+            style = Styles(
+                "display" => "grid",
+                "gap" => "20px",          # ← space between IO and plot
+                "height" => "100%",
+
+                # Responsive
+                "@media (max-width: 768px)" => Dict(
+                    "grid-template-columns" => "1fr",
+                    "grid-template-rows" =>
+                        "auto auto auto auto",
+
+                    "grid-template-areas" =>
+                        """
+                        'title'
+                        'params'
+                        'io'
+                        'plot'
+                        """
+                )
+            )
+        )
+
+        DOM.div(
+            grid;
+
+            style=Styles(
+                "height" => "100vh",
+                "padding" => "20px",
+                "box-sizing" => "border-box",
+
+                # Slider expansion
+                ".bonito-slider" => Dict(
+                    "width" => "100%"
+                ),
+
+                "input[type=range]" => Dict(
+                    "width" => "100%"
+                ),
+
+                # Stack INPUT/OUTPUT on phones
+                "@media (max-width: 768px)" => Dict(
+                    ".io" => Dict(
+                        "flex-direction" => "column"
+                    )
+                )
+            )
+        )
+    end
+
+    Bonito.Server(app, "0.0.0.0", 8080)
+    Bonito.browser_display()
+    # return app, param_sliders, input_sliders, output_observables
+    return app
 end
 
 end
