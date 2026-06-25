@@ -17,7 +17,6 @@ function Sindbad.dash_plot(model)
 
     row = 2
 
-    # --- Fixed block ---
     if n_fixed > 0
         Label(fig[row, 1:3],
             rich(rich("Fixed: "; color=:tomato, font=:bold));
@@ -38,10 +37,8 @@ function Sindbad.dash_plot(model)
                 halign = :left, tellwidth = false)
             row += 1
         end
-        # rowgap!(fig.layout, row - 1, 4)
     end
 
-    # --- Scalar sliders ---
     sliders = map(enumerate(K_scalars)) do (i, k)
         p  = params[k]
         u  = isempty(p.units)     ? "" : " [$(p.units)]"
@@ -55,17 +52,31 @@ function Sindbad.dash_plot(model)
             halign = :right, tellwidth = true)
 
         sl = Slider(fig[row + i - 1, 2],
-            range      = LinRange(p.lower, p.upper, 200),
+            range = _slider_range(p.lower, p.upper, p.default),
             startvalue = p.default)
 
         Label(fig[row + i - 1, 3],
             @lift(string(round($(sl.value), sigdigits=4)));
-            halign = :left, tellwidth = true)
+            halign = :left, width = 50)
 
         k => sl
     end
 
-    return fig, NamedTuple(sliders)
+    return fig
+end
+
+function _slider_range(lower, upper, default)
+    center = isfinite(default) && default != 0 ? default : default == 0 ? 0.0 : 1.0
+    half = abs(center) > 0 ? abs(center) : 100.0
+
+    lo = isfinite(lower) ? lower : center - 10 * half
+    hi = isfinite(upper) ? upper : center + 10 * half
+
+    step = default isa Integer ? 1 : (hi - lo) / 200
+    # Anchor grid to default so it's always an exact step
+    lo_anchored = default - floor((default - lo) / step) * step
+
+    return lo_anchored:step:hi
 end
 
 end
