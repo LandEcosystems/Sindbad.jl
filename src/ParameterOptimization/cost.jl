@@ -39,7 +39,41 @@ julia> # Calculate cost for a parameter vector
 julia> # cost_value = cost(parameter_vector, default_values, selected_models, space_forcing, space_spinup_forcing, loc_forcing_t, output_array, space_output, space_land, tem_info, observations, parameter_updater, cost_options, multi_constraint_method, parameter_scaling_type, CostModelObs())
 ```
 """
+
+const HISTORY_LOCK = ReentrantLock()
+const ITER_COUNTER = Ref(0)
+
+function write_history!(history_file, iter, cost_vec, param_vec)
+    jldopen(history_file, "a") do f
+        f["cost_$iter"] = cost_vec
+        f["params_$iter"] = param_vec
+    end
+end
+
 function cost end
+
+""" this function is used to record training history for optimization"""
+function cost(parameter_vector, _, selected_models, space_forcing, space_spinup_forcing, loc_forcing_t, output_array, space_output, space_land, tem_info, observations, parameter_updater, cost_options, multi_constraint_method, parameter_scaling_type, history_file, info, ::CostModelObs)
+
+    @debug parameter_vector
+    updated_models = updateModels(parameter_vector, parameter_updater, parameter_scaling_type, selected_models)
+    runTEM!(updated_models, space_forcing, space_spinup_forcing, loc_forcing_t, space_output, space_land, tem_info)
+    cost_vector = metricVector(output_array, observations, cost_options)
+    cost_metric = combineMetric(cost_vector, multi_constraint_method)
+    @debug cost_vector, cost_metric
+
+    param_vec = parameter_vector .* info.optimization.parameter_table.default
+    cost_vec = vcat(cost_vector, cost_metric)
+
+    lock(HISTORY_LOCK) do
+        ITER_COUNTER[] += 1
+        iter = ITER_COUNTER[]
+
+        write_history!(history_file, iter, cost_vec, param_vec)
+    end
+
+    return cost_metric
+end
 
 function cost(parameter_vector, _, selected_models, space_forcing, space_spinup_forcing, loc_forcing_t, output_array, space_output, space_land, tem_info, observations, parameter_updater, cost_options, multi_constraint_method, parameter_scaling_type, ::CostModelObs)
     @debug parameter_vector

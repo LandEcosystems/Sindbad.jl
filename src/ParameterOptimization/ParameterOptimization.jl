@@ -62,6 +62,7 @@ module ParameterOptimization
    using ..Setup
    using ..DataLoaders
    using ..Simulation
+   using JLD2
 
    include("getCost.jl")
    include("optimizer.jl")

@@ -21,6 +21,8 @@ export DoSpinupTEM
 export DoNotSpinupTEM
 export DoStoreSpinup
 export DoNotStoreSpinup
+export DoStoreHistory
+export DoNotStoreHistory
 
 
 abstract type RunFlag <: SimulationTypes end
@@ -73,6 +75,12 @@ purpose(::Type{DoUseForwardDiff}) = "Enable forward mode automatic differentiati
 
 struct DoNotUseForwardDiff <: RunFlag end
 purpose(::Type{DoNotUseForwardDiff}) = "Disable forward mode automatic differentiation"
+
+struct DoStoreHistory <: RunFlag end
+purpose(::Type{DoStoreHistory}) = "Enable storing of training history during optimization"
+
+struct DoNotStoreHistory <: RunFlag end
+purpose(::Type{DoNotStoreHistory}) = "Disable storing of training history during optimization"
 
 # ------------------------- parallelization options-------------------------
 export ParallelizationPackage

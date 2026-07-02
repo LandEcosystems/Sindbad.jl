@@ -50,6 +50,8 @@ module Experiment
     using ..Simulation
     using ..ParameterOptimization
     using ..Visualization
+    using AxisKeys: axiskeys
+    using CSV
 
     include("runExperiment.jl")
     include("saveOutput.jl")

@@ -7,3 +7,4 @@ include("../mock_input/helpers.jl")
 
 include("ambientCO2.jl")
 include("autoRespiration.jl")
+include("hydraulicConductivity.jl")

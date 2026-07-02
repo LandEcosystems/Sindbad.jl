@@ -94,6 +94,47 @@ function runExperiment(info::NamedTuple, forcing::NamedTuple, ::DoCalcCost)
     set_log_level()
     observations = getObservation(info, forcing.helpers)
     obs_array = [Array(_o) for _o in observations.data]; # TODO: necessary now for performance because view of keyedarray is slow
+    time_axis = axiskeys(observations.data[1,1,1,1], 1);
+
+    # k-fold
+    if info.helpers.dates.fold == true
+        ### flux
+        mask_flux = Date(info.helpers.dates.flux_fold_start) .<= Date.(time_axis) .<= Date(info.helpers.dates.flux_fold_end);
+
+        ### structure
+        mask_structure = Date(info.helpers.dates.structure_fold_start) .<= Date.(time_axis) .<= Date(info.helpers.dates.structure_fold_end);
+
+        ### Mask
+        if info.helpers.dates.select_var == true
+            indices = findall(x -> any(var -> occursin(var, String(x)), info.helpers.dates.flux_var), observations.variables);
+            for i in eachindex(indices)
+                obs_array[indices[i]] = Float64.(obs_array[indices[i]]);
+                obs_array[indices[i]][mask_flux, :, :] .= NaN;
+            end
+
+            indices = findall(x -> any(var -> occursin(var, String(x)), info.helpers.dates.structure_var), observations.variables);
+            for i in eachindex(indices)
+                obs_array[indices[i]] = Float64.(obs_array[indices[i]]);
+                obs_array[indices[i]][mask_structure, :, :] .= NaN;
+            end
+
+        else
+            for i in eachindex(obs_array)
+                obs_array[i] = Float64.(obs_array[i]);
+                obs_array[i][mask_flux, :, :] .= NaN;
+            end
+        end
+    end
+
+    # growing season
+    if info.helpers.dates.GS == true
+        growing_season_mask = month.(time_axis) .∈ Ref(info.helpers.dates.GS_month)
+        ### Mask
+        for i in eachindex(obs_array)
+            obs_array[i] = Float64.(obs_array[i]);
+            obs_array[i][.!growing_season_mask, :, :] .= NaN;
+        end
+    end
     print_info(runExperiment, @__FILE__, @__LINE__, "do forward run...")
     output_array = runTEM!(forcing, info)
     print_info(runExperiment, @__FILE__, @__LINE__, "calculate cost...")
@@ -134,6 +175,48 @@ function runExperiment(info::NamedTuple, forcing::NamedTuple, ::DoRunOptimizatio
     else
         print_info(runExperiment, @__FILE__, @__LINE__, "run optimization for spatial domain...")
         obs_array = [Array(_o) for _o in observations.data]; # TODO: necessary now for performance because view of keyedarray is slow
+        time_axis = axiskeys(observations.data[1,1,1,1], 1);
+
+        # k-fold
+        if info.helpers.dates.fold == true
+            ### flux
+            mask_flux = Date(info.helpers.dates.flux_fold_start) .<= Date.(time_axis) .<= Date(info.helpers.dates.flux_fold_end);
+
+            ### structure
+            mask_structure = Date(info.helpers.dates.structure_fold_start) .<= Date.(time_axis) .<= Date(info.helpers.dates.structure_fold_end);
+
+            ### Mask
+            if info.helpers.dates.select_var == true
+                indices = findall(x -> any(var -> occursin(var, String(x)), info.helpers.dates.flux_var), observations.variables);
+                for i in eachindex(indices)
+                    obs_array[indices[i]] = Float64.(obs_array[indices[i]]);
+                    obs_array[indices[i]][mask_flux, :, :] .= NaN;
+                end
+
+                indices = findall(x -> any(var -> occursin(var, String(x)), info.helpers.dates.structure_var), observations.variables);
+                for i in eachindex(indices)
+                    obs_array[indices[i]] = Float64.(obs_array[indices[i]]);
+                    obs_array[indices[i]][mask_structure, :, :] .= NaN;
+                end
+
+            else
+                for i in eachindex(obs_array)
+                    obs_array[i] = Float64.(obs_array[i]);
+                    obs_array[i][mask_flux, :, :] .= NaN;
+                end
+            end
+        end
+
+
+        # growing season
+        if info.helpers.dates.GS == true
+            growing_season_mask = month.(time_axis) .∈ Ref(info.helpers.dates.GS_month)
+            ### Mask
+            for i in eachindex(obs_array)
+                obs_array[i] = Float64.(obs_array[i])
+                obs_array[i][.!growing_season_mask, :, :] .= NaN
+            end
+        end
         optim_params = optimizeTEM(forcing, obs_array, info)
         optim_file_prefix = joinpath(info.output.dirs.optimization, info.experiment.basics.name * "_" * info.experiment.basics.domain)
         print_info(runExperiment, @__FILE__, @__LINE__, "saving optimized parameters to file: $(optim_file_prefix)_model_parameters_optimized.csv")
@@ -302,6 +385,10 @@ function runExperimentOpti(sindbad_experiment::String; replace_info=Dict(), log_
     loss_vector_def = metricVector(fp_output.output.default, opti_output.observation, cost_options)
     loss_table = Table((; variable=cost_options.variable, metric=cost_options.cost_metric, loss_opt=loss_vector, loss_def=loss_vector_def))
     display(loss_table)
+
+    loss_table_output_file = joinpath(info.output.dirs.data, "$(info.experiment.basics.name)_$(info.experiment.basics.domain)_Loss_Table.csv")
+    showInfo(runExperimentOpti, @__FILE__, @__LINE__, "saving training process to file: `$(loss_table_output_file)`", n_m=1)
+    CSV.write(loss_table_output_file, DataFrame(loss_table))
     return (; forcing, cost_options, run_helpers, info=fp_output.info, loss=loss_table, observation=opti_output.observation, output=fp_output.output, parameters=opti_output.parameters)
 end
 

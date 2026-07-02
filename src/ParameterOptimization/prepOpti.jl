@@ -160,6 +160,20 @@ function  prepOpti(forcing, observations, info, ::CostModelObsLandTS)
     return opti_helpers
 end
 
+function init_history_file(info)
+
+    history_file = joinpath(
+        info.output.dirs.data,
+        "$(info.experiment.basics.name)_$(info.experiment.basics.domain)_History.jld2"
+    )
+
+    if isfile(history_file)
+        rm(history_file)
+    end
+
+    return history_file
+end
+
 
 function  prepOpti(forcing, observations, info, cost_method::CostModelObs)
     run_helpers = prepTEM(forcing, info)
@@ -173,7 +187,15 @@ function  prepOpti(forcing, observations, info, cost_method::CostModelObs)
 
     cost_options = prepCostOptions(observations, info.optimization.cost_options, cost_method)
 
-    cost_function = x -> cost(x, default_values, info.models.forward, run_helpers.space_forcing, run_helpers.space_spinup_forcing, run_helpers.loc_forcing_t, run_helpers.output_array, run_helpers.space_output, deepcopy(run_helpers.space_land), run_helpers.tem_info, observations, parameter_table, cost_options, info.optimization.run_options.multi_constraint_method, info.optimization.run_options.parameter_scaling, cost_method)
+    if info.helpers.run.store_history isa DoStoreHistory
+        history_file = init_history_file(info)
+        print_info(prepOpti, @__FILE__, @__LINE__, "saving training history to file: $history_file")
+        cost_function = x -> cost(x, default_values, info.models.forward, run_helpers.space_forcing, run_helpers.space_spinup_forcing, run_helpers.loc_forcing_t, run_helpers.output_array, run_helpers.space_output, deepcopy(run_helpers.space_land), run_helpers.tem_info, observations, parameter_table, cost_options, info.optimization.run_options.multi_constraint_method, info.optimization.run_options.parameter_scaling, history_file, info, cost_method)
+    
+    elseif  info.helpers.run.store_history isa DoNotStoreHistory
+        print_info(prepOpti, @__FILE__, @__LINE__, "History file will not be stored as 'store_history' flag is set to false.")
+        cost_function = x -> cost(x, default_values, info.models.forward, run_helpers.space_forcing, run_helpers.space_spinup_forcing, run_helpers.loc_forcing_t, run_helpers.output_array, run_helpers.space_output, deepcopy(run_helpers.space_land), run_helpers.tem_info, observations, parameter_table, cost_options, info.optimization.run_options.multi_constraint_method, info.optimization.run_options.parameter_scaling, cost_method)
+    end
 
     opti_helpers = (; parameter_table=parameter_table, cost_function=cost_function, cost_options=cost_options, default_values=default_values, lower_bounds=lower_bounds, upper_bounds=upper_bounds, run_helpers=run_helpers)
     

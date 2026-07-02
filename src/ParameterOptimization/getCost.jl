@@ -138,14 +138,32 @@ julia> # metric_vec = metricVector(model_output, observations, cost_options)
 """
 function metricVector end
 
-function metricVector(model_output, observations, cost_options)
+# function metricVector(model_output, observations, cost_options)
+#     loss_vector = map(cost_options) do cost_option
+#         @debug "***cost for $(cost_option.variable)***"
+#         lossMetric = cost_option.cost_metric
+#         (y, yσ, ŷ) = getData(model_output, observations, cost_option)
+#         (y, yσ, ŷ) = getDataWithoutNaN(y, yσ, ŷ, cost_option.valids)
+#         @debug "size y, yσ, ŷ", size(y), size(yσ), size(ŷ)
+#         # (y, yσ, ŷ) = getDataWithoutNaN(y, yσ, ŷ, cost_option.valids)
+#         metr = metric(lossMetric, ŷ, y, yσ) * cost_option.cost_weight
+#         if isnan(metr)
+#             metr = oftype(metr, 1e19)
+#         end
+#         @debug "$(cost_option.variable) => $(nameof(typeof(lossMetric))): $(metr)"
+#         metr
+#     end
+#     @debug "\n-------------------\n"
+#     return loss_vector
+# end
+
+function metricVector(model_output::LandWrapper, observations, cost_options)
     loss_vector = map(cost_options) do cost_option
-        @debug "***cost for $(cost_option.variable)***"
+        @debug "$(cost_option.variable)"
         lossMetric = cost_option.cost_metric
         (y, yσ, ŷ) = getData(model_output, observations, cost_option)
-        (y, yσ, ŷ) = getDataWithoutNaN(y, yσ, ŷ, cost_option.valids)
-        @debug "size y, yσ, ŷ", size(y), size(yσ), size(ŷ)
-        # (y, yσ, ŷ) = getDataWithoutNaN(y, yσ, ŷ, cost_option.valids)
+        @debug "size y, yσ, ŷ", size(y), size(yσ), size(ŷ), size(idxs)
+        (y, yσ, ŷ) = getDataWithoutNaN(y, yσ, ŷ) ## cannot use the valids because LandWrapper produces vector
         metr = metric(lossMetric, ŷ, y, yσ) * cost_option.cost_weight
         if isnan(metr)
             metr = oftype(metr, 1e19)
@@ -157,14 +175,20 @@ function metricVector(model_output, observations, cost_options)
     return loss_vector
 end
 
-function metricVector(model_output::LandWrapper, observations, cost_options)
+## TODO: add timescale for it
+function metricVector(model_output, observations, cost_options)
     loss_vector = map(cost_options) do cost_option
-        @debug "$(cost_option.variable)"
+        @debug "***cost for $(cost_option.variable)***"
         lossMetric = cost_option.cost_metric
         (y, yσ, ŷ) = getData(model_output, observations, cost_option)
-        @debug "size y, yσ, ŷ", size(y), size(yσ), size(ŷ), size(idxs)
-        (y, yσ, ŷ) = getDataWithoutNaN(y, yσ, ŷ) ## cannot use the valids because LandWrapper produces vector
-        metr = metric(lossMetric, ŷ, y, yσ) * cost_option.cost_weight
+        (y, yσ, ŷ) = getDataWithoutNaN(y, yσ, ŷ, cost_option.valids)
+        @debug "size y, yσ, ŷ", size(y), size(yσ), size(ŷ)
+        # (y, yσ, ŷ) = getDataWithoutNaN(y, yσ, ŷ, cost_option.valids)
+        if cost_option.time_scale != nothing
+            metr = metric(lossMetric, ŷ, y, yσ, cost_option.time_scale) * cost_option.cost_weight
+        else
+            metr = metric(lossMetric, ŷ, y, yσ) * cost_option.cost_weight
+        end
         if isnan(metr)
             metr = oftype(metr, 1e19)
         end

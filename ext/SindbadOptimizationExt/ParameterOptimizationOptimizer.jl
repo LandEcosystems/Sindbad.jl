@@ -22,8 +22,9 @@ using Sindbad: OptimizationBBOxnes, OptimizationBBOadaptive, OptimizationBFGS, O
 
 
 function optimizer(cost_function, default_values, lower_bounds, upper_bounds, algo_options, ::OptimizationBBOxnes)
-    default_options = (; maxiters = 100)
-    opt_options = merge_namedtuple(default_options, algo_options)
+    # default_options = (; maxiters = 100)
+    # opt_options = mergeNamedTuple(default_options, algo_options)
+    opt_options = algo_options
     optim_cost = (p, tmp=nothing) -> cost_function(p)
     optim_prob = OptimizationProblem(optim_cost, default_values; lb=lower_bounds, ub=upper_bounds)
     optim_para = solve(optim_prob, BBO_xnes(); opt_options...)
@@ -33,14 +34,17 @@ end
 function optimizer(cost_function, default_values, lower_bounds, upper_bounds, algo_options, ::OptimizationBBOadaptive)
     optim_cost = (p, tmp=nothing) -> cost_function(p)
     optim_prob = OptimizationProblem(optim_cost, default_values; lb=lower_bounds, ub=upper_bounds)
-    optim_para = solve(optim_prob, BBO_adaptive_de_rand_1_bin_radiuslimited())
+    optim_para = solve(optim_prob, BBO_adaptive_de_rand_1_bin_radiuslimited(); algo_options...)
     return optim_para
 end
 
 
 function optimizer(cost_function, default_values, lower_bounds, upper_bounds, algo_options, ::OptimizationBFGS)
-    optim_cost = (p, tmp=nothing) -> cost_function(p)
-    optim_prob = OptimizationProblem(optim_cost, default_values)
+    optim_cost = (p, tmp=nothing) -> cost_function(Real.(p))
+
+    optim_cost_fd = OptimizationFunction(optim_cost, Optimization.AutoForwardDiff())
+
+    optim_prob = OptimizationProblem(optim_cost_fd, default_values; lb=lower_bounds, ub=upper_bounds)
     optim_para = solve(optim_prob, BFGS(; initial_stepnorm=0.001))
     return optim_para
 end
@@ -55,7 +59,7 @@ end
 
 function optimizer(cost_function, default_values, lower_bounds, upper_bounds, algo_options, ::OptimizationFminboxGradientDescent)
     optim_cost = (p, tmp=nothing) -> cost_function(p)
-    optim_cost_fd = OptimizationFunction(optim_cost)
+    optim_cost_fd = OptimizationFunction(optim_cost, Optimization.AutoForwardDiff())
     optim_prob = OptimizationProblem(optim_cost_fd, default_values; lb=lower_bounds, ub=upper_bounds)
     optim_para = solve(optim_prob)
     return optim_para

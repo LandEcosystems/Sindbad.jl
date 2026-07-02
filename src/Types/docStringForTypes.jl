@@ -4046,3 +4046,12 @@ SindbadTEM.Processes.waterBalance
 
 SindbadTEM.Processes.waterBalance_simple
 
+# """ added by SINDBAD-EEO expriment """
+# ## store training history
+# DoStoreHistory
+
+# DoNotStoreHistory
+
+# ## new cost functions
+
+
