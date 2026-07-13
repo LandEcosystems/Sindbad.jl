@@ -1891,7 +1891,6 @@ A helper function to return the information of a SINDBAD variable
 function whatIs end
 
 function whatIs(var_name::String)
-    @show var_name
     if startswith(var_name, "land")
         var_name = var_name[6:end]
     end
