@@ -252,7 +252,7 @@ function setModelRunInfo(info::NamedTuple)
     end
     run_vals = convertRunFlagsToTypes(info)
     # check if lazy run is set, and if so, set output array type to YAXArray regardless of the setting in json, as well as land output type to YAXArray
-    run_lazy = hasproperty(info.settings.experiment.flags, :run_lazy) ? get(info.settings.experiment.flags, :run_lazy, false) : false
+    run_lazy = get(info.settings.experiment.flags, :run_lazy, false)
     
     in_output_array_type = info.settings.experiment.model_output.output_array_type
     if run_lazy
