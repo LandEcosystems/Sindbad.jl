@@ -13,6 +13,8 @@ export DoFilterNanPixels
 export DoNotFilterNanPixels
 export DoRunForward
 export DoNotRunForward
+export DoRunLazy
+export DoNotRunLazy
 export DoRunOptimization
 export DoNotRunOptimization
 export DoSaveInfo
@@ -43,6 +45,12 @@ purpose(::Type{DoRunForward}) = "Enable forward model run"
 
 struct DoNotRunForward <: RunFlag end
 purpose(::Type{DoNotRunForward}) = "Disable forward model run"
+
+struct DoRunLazy <: RunFlag end
+purpose(::Type{DoRunLazy}) = "Enable lazy run mode for running experiements based on Diskarrays and YAXArrays"
+
+struct DoNotRunLazy <: RunFlag end
+purpose(::Type{DoNotRunLazy}) = "Disable lazy run mode for running experiements based on Diskarrays and YAXArrays"
 
 struct DoRunOptimization <: RunFlag end
 purpose(::Type{DoRunOptimization}) = "Enable model parameter optimization"

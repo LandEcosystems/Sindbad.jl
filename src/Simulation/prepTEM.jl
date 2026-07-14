@@ -519,8 +519,10 @@ function helpPrepTEM(selected_models, info, forcing::NamedTuple, output::NamedTu
     loc_land = output.land_init
     output_vars = output.variables
     output_dims = output.dims
-
     run_helpers = (; loc_land, output_vars, output_dims, tem_info)
+    if hasproperty(output, :parameter_dim)
+        run_helpers = set_namedtuple_field(run_helpers, (:parameter_dim, output.parameter_dim))
+    end
     return run_helpers
 end
 

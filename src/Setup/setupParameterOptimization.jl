@@ -365,7 +365,8 @@ function setOptimization(info::NamedTuple)
     info = set_namedtuple_subfield(info, :optimization, (:observational_constraints, info.settings.optimization.observational_constraints))
 
     n_threads_cost = 1
-    if info.settings.optimization.optimization_cost_threaded > 0 && info.settings.experiment.flags.run_optimization
+    run_lazy =get(info.settings.experiment.flags, :run_lazy, false)
+    if info.settings.optimization.optimization_cost_threaded > 0 && info.settings.experiment.flags.run_optimization && !run_lazy
         n_threads_cost = info.settings.optimization.optimization_cost_threaded > 1 ? info.settings.optimization.optimization_cost_threaded : Threads.nthreads()
         # overwrite land array type when threaded optimization is set
         info = @set info.temp.helpers.run.land_output_type = PreAllocArrayMT()
