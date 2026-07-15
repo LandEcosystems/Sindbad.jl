@@ -187,7 +187,6 @@ function getInOutModel(model, model_func::Symbol)
             out_v_str = replace(strip(out_line), "(" => "",  ")" => "")
             out_v_list = [(strip(_v)) for _v in split(out_v_str, ",")[1:end]]
 
-            # @show out_v_list, (!isempty).(out_v_list)
             out_v_list = Symbol.(out_v_list[(!isempty).(out_v_list)])
             Pair.(Ref(out_line_tar), out_v_list)
         catch e
@@ -533,7 +532,6 @@ function modelParameter(model::LandEcosystem, show=true)
         end
     else
         p_vec = map(pnames) do fn
-            # @show model, fn
             mod_prop = getproperty(model, fn)
             p_val = getproperty(model, fn)
             p_describe = SindbadTEM.Processes.describe(model, fn)

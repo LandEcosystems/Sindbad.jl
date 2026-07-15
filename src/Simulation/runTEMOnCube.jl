@@ -17,16 +17,10 @@ run the SINBAD CORETEM for a given location
 function coreTEMYax(selected_models, loc_forcing, loc_land, tem_info)
 
     loc_forcing_t = getForcingForTimeStep(loc_forcing, deepcopy(loc_forcing), 1, tem_info.vals.forcing_types)
-    
-    spinup_forcing = getAllSpinupForcing(loc_forcing, tem_info.spinup_sequence, tem_info.model_helpers);
-
     land_prec = definePrecomputeTEM(selected_models, loc_forcing_t, loc_land, tem_info.model_helpers)
-
-    land_spin = spinupTEM(selected_models, spinup_forcing, loc_forcing_t, land_prec, tem_info, run_helpers.tem_info.run.spinup_TEM)
-
-    # land_spin = land_prec
+    # land_prec = precomputeTEM(selected_models, loc_forcing_t, land_prec, tem_info.model_helpers) # ? do I need this step here? 
+    land_spin = spinupTEMYax(selected_models, loc_forcing, loc_forcing_t, land_prec, tem_info, tem_info.run.spinup_TEM)
     land_time_series = timeLoopTEM(selected_models, loc_forcing, loc_forcing_t, land_spin, tem_info, tem_info.run.debug_model)
-
     return LandWrapper(land_time_series)
 end
 
@@ -43,14 +37,26 @@ end
 - `selected_models`: a tuple of all models selected in the given model structure
 - `forcing_vars`: forcing variables
 """
-function TEMYax(map_cubes...;selected_models::Tuple, forcing_vars::AbstractArray, loc_land::NamedTuple, output_vars, tem::NamedTuple)
+function TEMYax(map_cubes...;selected_models::Tuple, forcing_vars, loc_land::NamedTuple, output_vars, tem::NamedTuple, clean_data)
+    # Make NaN check here instead of AllNaN filters
+    
+
     outputs, inputs = unpackYaxForward(map_cubes; output_vars, forcing_vars)
+    # What exactly should the NaN check be? 
+    # Do I check per variable, or for all variables together?
+    any(ismissing || isnan , inputs)
+
+    # ? apply clean_data fields to input data points
+    _data_fill, _forcing_default_info, _num_type, _forcing_vars_info = clean_data
+
+    inputs = map(enumerate(inputs)) do (i, in_forcing)
+        _data_info = merge_namedtuple(_forcing_default_info, _forcing_vars_info[i])
+        map(data_point -> cleanData(data_point, _data_fill, _data_info, _num_type), in_forcing)
+    end
     loc_forcing = (; Pair.(forcing_vars, inputs)...)
     land_out = coreTEMYax(selected_models, loc_forcing, loc_land, tem)
-
     i = 1
     foreach(output_vars) do var_pair
-        # @show i, var_pair
         data = land_out[first(var_pair)][last(var_pair)]
             fillOutputYax(outputs[i], data)
             i += 1
@@ -74,23 +80,131 @@ function runTEMYax(selected_models::Tuple, forcing::NamedTuple, info::NamedTuple
     # forcing/input information
     incubes = forcing.data;
     indims = forcing.dims;
-    
     # information for running model
     run_helpers = prepTEM(forcing, info);
     loc_land = deepcopy(run_helpers.loc_land);
-
-    outcubes = mapCube(TEMYax,
-        (incubes...,);
-        selected_models=selected_models,
+    _data_fill = 0.0f0
+    _forcing_default_info = info.experiment.data_settings.forcing.default_forcing
+    _num_type = Val{info.helpers.numbers.num_type}()
+    _forcing_vars_info = info.experiment.data_settings.forcing.variables
+    #output = XOutput.(getproperty.(run_helpers.output_dims, :axisdesc))
+    output = run_helpers.output_dims
+    outcubes = xmap(TEMYax,
+        (incubes .⊘ indims)...;
+    function_kwargs = (selected_models=selected_models,
         forcing_vars=forcing.variables,
-        output_vars = run_helpers.output_vars,
+        output_vars=run_helpers.output_vars,
         loc_land=loc_land,
         tem=run_helpers.tem_info,
+        clean_data=(; _data_fill, _forcing_default_info, _num_type, _forcing_vars_info)),
+        output = output,
+        #outdims=run_helpers.output_dims,
+        #max_cache=info.experiment.exe_rules.yax_max_cache,
+        #ispar=false,
+        )
+    varnames = getUniqueVarNames(info.output.variables)
+    return Dataset(;zip(varnames, outcubes)...)
+end
+
+"""
+    psTEMYax(in_pixel_cube...; selected_models::Tuple, param_to_index, forcing_vars, loc_land::NamedTuple, output_vars, tem::NamedTuple, clean_data)
+"""
+function psTEMYax(in_pixel_cube...; selected_models::Tuple, param_to_index, forcing_vars, loc_land::NamedTuple,
+    output_vars, tem::NamedTuple, clean_data)
+
+    outputs, inputs = unpackYaxForward(in_pixel_cube[1:end-1]; output_vars, forcing_vars)
+    in_new_params = last(in_pixel_cube)
+    # ? apply clean_data fields to input data points
+    _data_fill, _forcing_default_info, _num_type, _forcing_vars_info = clean_data
+
+    inputs = map(enumerate(inputs)) do (i, in_forcing)
+        _data_info = getCombinedNamedTuple(_forcing_default_info, _forcing_vars_info[i])
+        map(data_point -> cleanData(data_point, _data_fill, _data_info, _num_type), in_forcing)
+    end
+    loc_forcing = (; Pair.(forcing_vars, inputs)...)
+    updated_models = updateModelParameters(param_to_index, selected_models, in_new_params)
+    land_out = coreTEMYax(updated_models, loc_forcing, loc_land, tem)
+    i = 1
+    foreach(output_vars) do var_pair
+        data = land_out[first(var_pair)][last(var_pair)]
+            fillOutputYax(outputs[i], data)
+            i += 1
+    end
+end
+
+
+"""
+    runTEMYaxParameters(selected_models::Tuple, forcing::NamedTuple, in_cube_params, tbl_params, info::NamedTuple)
+
+"""
+function runTEMYaxParameters(selected_models::Tuple, forcing::NamedTuple, in_cube_params, tbl_params, info::NamedTuple)
+
+    # forcing/input information
+    in_cubes_forcing = forcing.data
+    in_cubes_all = (in_cubes_forcing..., in_cube_params)
+    indims = forcing.dims
+    indims = (indims..., InDims((YAXArrays.ByName("parameter"),), Array, (AllNaN(),), missing))
+    param_to_index = getParameterIndices(selected_models, tbl_params)
+    # information for running model
+    run_helpers = prepTEM(forcing, info)
+    loc_land = deepcopy(run_helpers.loc_land)
+    _data_fill = 0.0f0
+    _forcing_default_info = info.experiment.data_settings.forcing.default_forcing
+    _num_type = Val{info.helpers.numbers.num_type}()
+    _forcing_vars_info = info.experiment.data_settings.forcing.variables
+
+    outcubes = mapCube(psTEMYax,
+        (in_cubes_all...,);
+        selected_models=selected_models,
+        param_to_index=param_to_index,
+        forcing_vars=forcing.variables,
+        output_vars=run_helpers.output_vars,
+        loc_land=loc_land,
+        tem=run_helpers.tem_info,
+        clean_data=(; _data_fill, _forcing_default_info, _num_type, _forcing_vars_info),
         indims=indims,
         outdims=run_helpers.output_dims,
-        max_cache=info.settings.experiment.exe_rules.yax_max_cache,
-        ispar=true)
+        max_cache=info.experiment.exe_rules.yax_max_cache,
+        ispar=true,
+        )
     return outcubes
+end
+
+
+
+"""
+    spinupTEMYax(selected_models, loc_forcing, loc_forcing_t, land_prec, tem_info, spinup_mode)
+
+Handle TEM spinup according to `spinup_mode`. If spinup is requested, the forcing needed for the Spinup is derived and a normal spinup is performed. If spinup is skipped, the provided precomputed land is returned unchanged.
+
+# Arguments
+- `selected_models`: Tuple of models selected in the model structure.
+- `loc_forcing`: Forcing NamedTuple containing time series for the location (all timesteps).
+- `loc_forcing_t`: Forcing NamedTuple for a single timestep (used for precompute structures).
+- `land_prec`: Precomputed/initial land NamedTuple that may be modified during spinup.
+- `tem_info`: NamedTuple with helper objects and run settings (including `spinup_sequence`
+  and `run.spinup_TEM`).
+- `spinup_mode`: Dispatch type controlling behavior: use `DoSpinupTEM()` to run/load spinup,
+  or `DoNotSpinupTEM()` to skip spinup.
+
+# Returns
+- Updated land NamedTuple to be used for the main TEM time loop.
+
+# Notes
+- When `DoSpinupTEM` is used the function derives the spinup forcing via
+  `getAllSpinupForcing` and calls `spinupTEM` with `tem_info.run.spinup_TEM`.
+- When `DoNotSpinupTEM` is used the input `land_prec` is returned unchanged.
+"""
+function spinupTEMYax end
+
+function spinupTEMYax(selected_models, loc_forcing, loc_forcing_t, land_prec, tem_info, ::DoSpinupTEM)
+    spinup_forcing = getAllSpinupForcing(loc_forcing, tem_info.spinup_sequence, tem_info);
+    land_spin = spinupTEM(selected_models, spinup_forcing, loc_forcing_t, land_prec, tem_info, tem_info.run.spinup_TEM)
+    return land_spin
+end
+
+function spinupTEMYax(_, _, _, land_prec, _, ::DoNotSpinupTEM)
+    return land_prec
 end
 
 
@@ -124,13 +238,13 @@ fills the output array position with the input data/vector
 - `xin`: input data/vector
 """
 function fillOutputYax(xout, xin)
-    if ndims(xout) == ndims(xin)
+    if ndims(xout) == ndims(xin) && length(xin[1]) == 1
         for i ∈ eachindex(xin)
             xout[i] = xin[i][1]
         end
     else
         for i ∈ CartesianIndices(xin)
-            xout[:, i] .= xin[i]
+            xout[:, i] = xin[i]
         end
     end
 end

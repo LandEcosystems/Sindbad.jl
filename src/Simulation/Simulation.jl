@@ -48,7 +48,10 @@ module Simulation
    using SindbadTEM.OmniTools
    using ..Setup
    using ..DataLoaders: YAXArrays
+   using ..DataLoaders: AllNaN, cleanData
    using ThreadPools
+   using YAXArrays
+   using DimensionalData: DimensionalData as DD
 
    include("utilsSimulation.jl")
    include("deriveSpinupForcing.jl")

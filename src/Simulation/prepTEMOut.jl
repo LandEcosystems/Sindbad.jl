@@ -145,7 +145,7 @@ function getOutDims(info, forcing_helpers, ::OutputYAXArray)
         od = []
         for _dim in dim_pairs
             if first(_dim) ∉ space_dims
-                push!(od, YAXArrays.Dim{first(_dim)}(last(_dim)))
+                push!(od, DD.rebuild(DD.Dimensions.name2dim(first(_dim)),(last(_dim))))
             end
         end
         Tuple(od)
@@ -155,13 +155,14 @@ function getOutDims(info, forcing_helpers, ::OutputYAXArray)
         vname = string(last(vname_full))
         _properties = collectMetadata(info, vname_full)
         vdims = var_dims[v_index]
-        outformat = info.settings.experiment.model_output.format
+        # outformat = info.settings.experiment.model_output.format
+        outformat = info.output.format # ? test and see if this works, which it should!
         backend = outformat == "nc" ? :netcdf : :zarr
-        out_dim = YAXArrays.OutDims(vdims...;
+        out_dim = YAXArrays.XOutput(vdims...)#=;
         properties = _properties,
         path=info.output.file_info.file_prefix * "_$(vname).$(outformat)",
         backend=backend,
-        overwrite=true)
+        overwrite=true)=#
         v_index += 1
         out_dim
     end
@@ -419,11 +420,11 @@ function setupOptiOutput(info::NamedTuple, output::NamedTuple, ::DoRunOptimizati
     paramaxis = YAXArrays.Dim{:parameter}(params)
     outformat = info.output.format
     backend = outformat == "nc" ? :netcdf : :zarr
-    od = YAXArrays.OutDims(paramaxis;
-        path=joinpath(info.output.dirs.optimization,
-            "optimized_parameters.$(outformat)"),
-        backend=backend,
-        overwrite=true)
+    od = YAXArrays.XOutput(paramaxis)
+        #path=joinpath(info.output.dirs.optimization,
+        #    "optimized_parameters.$(outformat)"),
+        #backend=backend,
+        #overwrite=true)
     # list of parameter
     output = set_namedtuple_field(output, (:parameter_dim, od))
     return output

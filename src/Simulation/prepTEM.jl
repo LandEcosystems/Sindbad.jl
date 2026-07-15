@@ -189,7 +189,10 @@ function getRunTEMInfo(info, forcing)
     upd_tem_helpers = set_namedtuple_field(upd_tem_helpers, (:vals, vals))
     upd_tem_helpers = set_namedtuple_field(upd_tem_helpers, (:model_helpers, model_helpers))
     upd_tem_helpers = set_namedtuple_field(upd_tem_helpers, (:run, tem_helpers.run))
-    upd_tem_helpers = set_namedtuple_field(upd_tem_helpers, (:spinup_sequence, getSpinupTemLite(info.spinup.sequence)))
+    # upd_tem_helpers = set_namedtuple_field(upd_tem_helpers, (:spinup_sequence, getSpinupTemLite(info.spinup.sequence)))
+    # don't do `getSpinupTemLite` here, but rather later on more inner functions! 
+    # ! BECAUSE THIS IS LOADING ALL THE DATA
+    upd_tem_helpers = set_namedtuple_field(upd_tem_helpers, (:spinup_sequence, info.spinup.sequence))
 
     return upd_tem_helpers
 end
@@ -516,8 +519,10 @@ function helpPrepTEM(selected_models, info, forcing::NamedTuple, output::NamedTu
     loc_land = output.land_init
     output_vars = output.variables
     output_dims = output.dims
-
     run_helpers = (; loc_land, output_vars, output_dims, tem_info)
+    if hasproperty(output, :parameter_dim)
+        run_helpers = set_namedtuple_field(run_helpers, (:parameter_dim, output.parameter_dim))
+    end
     return run_helpers
 end
 

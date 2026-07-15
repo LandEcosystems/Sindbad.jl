@@ -1,5 +1,8 @@
 export getNumberOfTimeSteps
 export mapCleanData
+export cleanData
+export applyUnitConversion
+export applyQCBound
 export subsetAndProcessYax
 export yaxCubeToKeyedArray
 export toDimStackArray
@@ -105,7 +108,8 @@ function getDataDims(c, mappinginfo)
     axnames = DimensionalData.name(dims(c))
     inollt = findall(∉(mappinginfo), axnames)
     !isempty(inollt) && append!(inax, axnames[inollt])
-    return InDims(inax...; filter=AllNaN())
+    #return InDims(inax...; filter=AllNaN())
+    return Tuple(inax)
 end
 
 """
@@ -193,9 +197,11 @@ function getSindbadDims(c)
     act_dimnames = []
     foreach(dimnames) do dimn
         td = dimn
+        #=
         if dimn in (:Ti, :Time, :TIME, :t, :T, :TI)
             td = :time
         end
+        =#
         push!(act_dimnames, td)
     end
     return [act_dimnames[k] => getproperty(c, dimnames[k]) |> Array for k ∈ eachindex(dimnames)]
@@ -430,16 +436,19 @@ function subsetAndProcessYax(yax, forcing_mask, tar_dims, _data_info, info, ::Va
     end
 
     #todo mean of the data instead of zero or nan
-    vfill = 0.0
-    if fill_nan
-        vfill = NaN
-    end
-    vNT = Val{num_type}()
-    if clean_data
-        yax = mapCleanData(yax, yax_qc, vfill, bounds_qc, _data_info, vNT)
-    else
-        yax = map(yax_point -> replace_invalid_number(yax_point, vfill), yax)
-        # yax = num_type.(yax)
+    # do a proper check on input type for forcing and if is not lazy do the cleanup
+    if info.experiment.exe_rules.land_output_type == "array"
+        vfill = 0.0
+        if fill_nan
+            vfill = NaN
+        end
+        vNT = Val{num_type}()
+        if clean_data
+            yax = mapCleanData(yax, yax_qc, vfill, bounds_qc, _data_info, vNT)
+        else
+            yax = map(yax_point -> replace_invalid_number(yax_point, vfill), yax)
+            yax = map(num_type, yax)
+        end
     end
     return yax
 end
