@@ -110,7 +110,7 @@ function createForcingNamedTuple(incubes, f_sizes, f_dimensions, info)
     @debug "     ::variable names::"
     forcing_vars = keys(info.experiment.data_settings.forcing.variables)
     f_helpers = collectForcingHelpers(info, f_sizes, f_dimensions)
-    input_array_type = getfield(Types, to_uppercase_first(info.helpers.run.input_array_type, "Input"))()
+    input_array_type = info.helpers.run.input_array_type
     typed_cubes = getInputArrayOfType(incubes, input_array_type)
     data_ts_type=[]
     time_dim_name = Symbol(info.experiment.data_settings.forcing.data_dimension.time)
@@ -186,7 +186,7 @@ function getForcing(info::NamedTuple)
         print_info(getForcing, @__FILE__, @__LINE__, "default_data_path: `$(data_path)`")
         nc_default = loadDataFile(data_path)
     end
-    data_backend = getfield(Types, to_uppercase_first(info.helpers.run.input_data_backend, "Backend"))()
+    data_backend = info.helpers.run.input_data_backend
 
     forcing_mask = nothing
     if :sel_mask ∈ keys(forcing_data_settings)

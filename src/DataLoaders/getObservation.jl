@@ -118,7 +118,7 @@ function getObservation(info::NamedTuple, forcing_helpers::NamedTuple)
     forcing_data_settings = info.experiment.data_settings.forcing
     exe_rules_settings = info.experiment.exe_rules
     data_path = observation_data_settings.observations.default_observation.data_path
-    data_backend = getfield(Types, to_uppercase_first(exe_rules_settings.input_data_backend, "Backend"))()
+    data_backend = info.helpers.run.input_data_backend
     default_info = observation_data_settings.observations.default_observation
     tar_dims = getTargetDimensionOrder(info)
 

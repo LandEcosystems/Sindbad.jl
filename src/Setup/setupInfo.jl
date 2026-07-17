@@ -253,18 +253,19 @@ function setModelRunInfo(info::NamedTuple)
     run_vals = convertRunFlagsToTypes(info)
     # check if lazy run is set, and if so, set output array type to YAXArray regardless of the setting in json, as well as land output type to YAXArray
     run_lazy = get(info.settings.experiment.flags, :run_lazy, false)
-    
-    in_output_array_type = info.settings.experiment.model_output.output_array_type
+    output_array_type = info.settings.experiment.model_output.output_array_type
+    input_array_type = info.settings.experiment.exe_rules.input_array_type
     if run_lazy
-        in_output_array_type = "YAXArray"
+        output_array_type = "YAXArray"
+        input_array_type = "YAXArray"
     end
-    output_array_type = getfield(Types, to_uppercase_first(in_output_array_type, "Output"))()
-    run_info = (; run_vals..., output_array_type = output_array_type)
-    
+    output_array_type = getfield(Types, to_uppercase_first(output_array_type, "Output"))()
+    input_array_type = getfield(Types, to_uppercase_first(input_array_type, "Input"))()
+    input_data_backend = getfield(Types, to_uppercase_first(info.settings.experiment.exe_rules.input_data_backend, "Backend"))()
+    run_info = (; run_vals..., output_array_type = output_array_type, input_array_type = input_array_type, input_data_backend = input_data_backend)
+
     run_info = set_namedtuple_field(run_info, (:save_single_file, getTypeInstanceForFlags(:save_single_file, info.settings.experiment.model_output.save_single_file, "Do")))
     run_info = set_namedtuple_field(run_info, (:use_forward_diff, run_vals.use_forward_diff))
-    run_info = set_namedtuple_field(run_info, (:input_data_backend, info.settings.experiment.exe_rules.input_data_backend))
-    run_info = set_namedtuple_field(run_info, (:input_array_type, info.settings.experiment.exe_rules.input_array_type))
 
     parallelization = titlecase(info.settings.experiment.exe_rules.parallelization)
     run_info = set_namedtuple_field(run_info, (:parallelization, getfield(Types, Symbol(parallelization*"Parallelization"))()))
