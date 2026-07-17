@@ -22,7 +22,7 @@ export InputArrayBackend
 export InputArray
 export InputKeyedArray
 export InputNamedDimsArray
-export InputYaxArray
+export InputYAXArray
 
 abstract type InputArrayBackend <: InputTypes end
 purpose(::Type{InputArrayBackend}) = "Abstract type for input data array types in SINDBAD"
@@ -36,8 +36,8 @@ purpose(::Type{InputKeyedArray}) = "Use keyed arrays for input data"
 struct InputNamedDimsArray <: InputArrayBackend end
 purpose(::Type{InputNamedDimsArray}) = "Use named dimension arrays for input data"
 
-struct InputYaxArray <: InputArrayBackend end
-purpose(::Type{InputYaxArray}) = "Use YAXArray for input data"
+struct InputYAXArray <: InputArrayBackend end
+purpose(::Type{InputYAXArray}) = "Use YAXArray for input data"
 
 
 # -------------------------------- forcing variable type --------------------------------
