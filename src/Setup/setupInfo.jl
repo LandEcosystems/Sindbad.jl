@@ -264,6 +264,8 @@ function setModelRunInfo(info::NamedTuple)
     input_data_backend = getfield(Types, to_uppercase_first(info.settings.experiment.exe_rules.input_data_backend, "Backend"))()
     run_info = (; run_vals..., output_array_type = output_array_type, input_array_type = input_array_type, input_data_backend = input_data_backend)
 
+    run_info = set_namedtuple_field(run_info, (:run_lazy, getTypeInstanceForFlags(:run_lazy, run_lazy, "Do")))
+
     run_info = set_namedtuple_field(run_info, (:save_single_file, getTypeInstanceForFlags(:save_single_file, info.settings.experiment.model_output.save_single_file, "Do")))
     run_info = set_namedtuple_field(run_info, (:use_forward_diff, run_vals.use_forward_diff))
 
