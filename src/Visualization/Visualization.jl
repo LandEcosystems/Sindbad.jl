@@ -52,7 +52,7 @@ module Visualization
     # using GLMakie
     # @reexport using GLMakie.Makie
     # using Colors
-    @reexport using Plots: annotate! as plots_annotate!, default as plots_default, histogram as plots_histogram, histogram! as plots_histogram!, scatter as plots_scatter, scatter! as plots_scatter!, vline as plots_vline, vline! as plots_vline!, hline as plots_hline, hline! as plots_hline!, xlims! as plots_xlims!, ylims! as plots_ylims!, xlabel! as plots_xlabel!, ylabel! as plots_ylabel!, title! as plots_title!, plot as plots_plot, plot! as plots_plot!, savefig as plots_savefig, text as plots_text, mm as plots_mm, cm as plots_cm
+    @reexport using Plots: annotate! as plots_annotate!, default as plots_default, heatmap as plots_heatmap, heatmap! as plots_heatmap!, histogram as plots_histogram, histogram! as plots_histogram!, scatter as plots_scatter, scatter! as plots_scatter!, vline as plots_vline, vline! as plots_vline!, hline as plots_hline, hline! as plots_hline!, xlims! as plots_xlims!, ylims! as plots_ylims!, xlabel! as plots_xlabel!, ylabel! as plots_ylabel!, title! as plots_title!, plot as plots_plot, plot! as plots_plot!, savefig as plots_savefig, text as plots_text, mm as plots_mm, cm as plots_cm
 
     # include("plotOutputData.jl")
     include("plotOutputUsingPlots.jl")
