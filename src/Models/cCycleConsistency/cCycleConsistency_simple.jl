@@ -13,7 +13,7 @@ function define(params::cCycleConsistency_simple, forcing, land, helpers)
     # make list of indices which give carbon to other pools during the flow, and separate them if 
     # they are above or below the diagonal in flow vector
     giver_upper = Tuple([ind[2] for ind ∈ findall(>(0), flagUpper(c_flow_A_array) .* c_flow_A_array)])
-    giver_lower = Tuple([ind[2] for ind ∈ findall(>(0), flagUpper(c_flow_A_array) .* c_flow_A_array)])
+    giver_lower = Tuple([ind[2] for ind ∈ findall(>(0), flagLower(c_flow_A_array) .* c_flow_A_array)])
     giver_upper_unique = unique(giver_upper)
     giver_lower_unique = unique(giver_lower)
     giver_upper_indices = []
