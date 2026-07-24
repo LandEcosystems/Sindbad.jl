@@ -65,8 +65,8 @@ function compute(params::cFireCombustionCompleteness_vanDerWerf2006, forcing, la
         (z_zero, o_one) ⇐ land.constants
     end
 
-    totalSoilW = maxZero(totalS(soilW))
-    soilW_nor = minOne(totalSoilW / ∑w_sat)
+    totalSoilW = at_least_zero(totalS(soilW))
+    soilW_nor = at_most_one(totalSoilW / ∑w_sat)
 
     # for all soil pools c_Fire_cc_fW = soilW_nor
     for zixSoil in (zix.cLit, zix.cSoil)
