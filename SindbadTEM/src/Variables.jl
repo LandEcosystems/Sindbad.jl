@@ -14,6 +14,7 @@ module Variables
     import ..SindbadTEM.TEMTypes: LandEcosystem
 
     export checkMissingVarInfo
+    export defaultVariableInfo
     export getUniqueVarNames
     export getVarFull
     export getVariableInfo
@@ -1592,8 +1593,33 @@ function checkMissingVarInfo()
         end  
     end      
    return nothing
-end 
-    
+end
+
+
+"""
+    defaultVariableInfo(string_key = false)
+
+a central helper function to get the default information of a sindbad variable as a dictionary
+"""
+function defaultVariableInfo(string_key=false)
+    if string_key
+        return DataStructures.OrderedDict(
+            "standard_name" => "",
+            "long_name" => "",
+            "units" => "",
+            "land_field" => "",
+            "description" => ""
+        )
+    else
+        return DataStructures.OrderedDict(
+            :standard_name => "",
+            :long_name => "",
+            :units => "",
+            :land_field => "",
+            :description => ""
+        )
+    end
+end
 
 
 """
