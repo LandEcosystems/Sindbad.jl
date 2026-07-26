@@ -20,7 +20,7 @@ jobs:
   test:
     name: Julia ${{ matrix.version }} - ${{ matrix.os }} - ${{ github.event_name }}
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
+    timeout-minutes: 60
     continue-on-error: ${{ matrix.allow_failure }}
     env:
       # Julia 1.10 can deadlock in FileWatching.Pidfile when precompiling

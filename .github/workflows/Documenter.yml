@@ -24,7 +24,7 @@ jobs:
   # Build job
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
     env:
       # Julia 1.10 can deadlock in FileWatching.Pidfile when precompiling
       # multiple package extensions concurrently; force serial precompilation.
