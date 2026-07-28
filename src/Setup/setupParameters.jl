@@ -151,11 +151,10 @@ Keys that come out as `AbstractString`s have `.` replaced with `__`, same as
 
 # Returns
 A `NamedTuple` of `NamedTuple`s of `NamedTuple`s: `nt.<group>.<name>` is that row, minus
-`group_field`/`name_field`/`name_full`/`model_approach`/`approach_func`.
-
-# Errors
-Throws an `ArgumentError` if two rows within the same group produce the same `name_field`
-key, naming the group, the duplicated key, and the offending row indices.
+`group_field`/`name_field`/`name_full`/`model_approach`/`approach_func`. Assumes the
+`(group_field, name_field)` combination is unique per row (true for `(:model, :name)` in
+a SINDBAD parameter table); if it isn't, `NamedTuple` construction itself errors on the
+resulting duplicate field name.
 
 # Examples
 ```jldoctest
@@ -192,19 +191,8 @@ function convertParametersToNamedTuple(parameter_table, group_field::Symbol, nam
 
     group_nts = map(group_keys) do group_key
         row_inds = rows_by_group[group_key]
-        name_keys = _sanitizeNamedTupleKey.(name_values[row_inds])
-
-        rows_by_name = Dict{Symbol,Vector{Int}}()
-        for (row_ind, name_key) in zip(row_inds, name_keys)
-            push!(get!(rows_by_name, name_key, Int[]), row_ind)
-        end
-        duplicated_names = filter(kv -> length(kv.second) > 1, rows_by_name)
-        if !isempty(duplicated_names)
-            dup_msg = join(("  :$k <- rows $(row_inds)" for (k, row_inds) in duplicated_names), "\n")
-            throw(ArgumentError("convertParametersToNamedTuple: within group :$group_key, names are not unique, so they cannot become NamedTuple fields (each key must map to exactly one row). Duplicated keys:\n$dup_msg"))
-        end
-
-        NamedTuple{Tuple(name_keys)}(Tuple(_concreteNamedTuple(drop_namedtuple_fields(parameter_table[row_ind], exclude_fields)) for row_ind in row_inds))
+        name_keys = Tuple(_sanitizeNamedTupleKey.(name_values[row_inds]))
+        NamedTuple{name_keys}(Tuple(_concreteNamedTuple(drop_namedtuple_fields(parameter_table[row_ind], exclude_fields)) for row_ind in row_inds))
     end
     return NamedTuple{group_keys}(group_nts)
 end
