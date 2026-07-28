@@ -2,6 +2,7 @@ using Revise
 using Sindbad
 using Sindbad.DataLoaders
 using Plots
+using Plots: cm
 
 using NLsolve
 # using Accessors

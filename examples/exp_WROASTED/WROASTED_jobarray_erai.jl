@@ -2,6 +2,7 @@ using Revise
 using Sindbad
 using Dates
 using Plots
+using Plots: cm
 
 toggle_type_abbrev_in_stacktrace()
 site_index = nothing
