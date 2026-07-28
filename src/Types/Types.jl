@@ -66,6 +66,7 @@ module Types
     include("SimulationTypes.jl")
     include("ParameterOptimizationTypes.jl")
     include("MachineLearningTypes.jl")
+    include("VisualizationTypes.jl")
 
 
     # append the docstring of the SindbadTypes type to the docstring of the Sindbad module so that all the methods of the SindbadTypes type are included after the models have been described
