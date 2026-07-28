@@ -46,10 +46,9 @@ function prepExperiment(sindbad_experiment::String; replace_info=Dict())
 
     forcing = getForcing(info)
 
-
     print_info(prepExperiment, @__FILE__, @__LINE__, "plotting IO signatures in the selected model structure...", n_m=1)
 
-    for model_func in (:define, :precompute, :compute,)                 
+    for model_func in (:define, :precompute, :compute,)
         plotIOModelStructure(info, model_func)
     end
 
