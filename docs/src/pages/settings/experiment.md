@@ -58,8 +58,6 @@ The `exe_rules` section defines model execution settings and performance configu
 == Explanation
 ```json
 "exe_rules": {
-    "input_array_type": "Data type for input arrays after reading forcing data",
-    "input_data_backend": "Data backend for forcing dataset",
     "land_output_type": "Output array backend for model time series",
     "longtuple_size": "Length of the longtuple for model storage",
     "model_array_type": "Data backend for arrays/vectors within models",
@@ -73,8 +71,6 @@ The `exe_rules` section defines model execution settings and performance configu
 == Example
 ```json
 "exe_rules": {
-    "input_array_type": "keyed_array",
-    "input_data_backend": "netcdf",
     "land_output_type": "array",
     "longtuple_size": null,
     "model_array_type": "static_array",
@@ -84,11 +80,6 @@ The `exe_rules` section defines model execution settings and performance configu
     "yax_max_cache": 2e9
 }
 ```
-:::
-
-::: tip Available Options
-- Use `show_methods_of(InputArrayBackend)` to list available `input_array_type` options
-- Use `show_methods_of(DataFormatBackend)` to list supported `input_data_backend` options
 :::
 
 ### Flags

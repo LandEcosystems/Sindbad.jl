@@ -263,8 +263,9 @@ function setModelRunInfo(info::NamedTuple)
     
     run_info = set_namedtuple_field(run_info, (:save_single_file, getTypeInstanceForFlags(:save_single_file, info.settings.experiment.model_output.save_single_file, "Do")))
     run_info = set_namedtuple_field(run_info, (:use_forward_diff, run_vals.use_forward_diff))
-    run_info = set_namedtuple_field(run_info, (:input_data_backend, info.settings.experiment.exe_rules.input_data_backend))
-    run_info = set_namedtuple_field(run_info, (:input_array_type, info.settings.experiment.exe_rules.input_array_type))
+    # a lazy run always needs lazy (YAXArray) forcing/observation data; a non-lazy run always needs KeyedArray
+    input_array_type = run_lazy ? InputYaxArray() : InputKeyedArray()
+    run_info = set_namedtuple_field(run_info, (:input_array_type, input_array_type))
 
     parallelization = titlecase(info.settings.experiment.exe_rules.parallelization)
     run_info = set_namedtuple_field(run_info, (:parallelization, getfield(Types, Symbol(parallelization*"Parallelization"))()))

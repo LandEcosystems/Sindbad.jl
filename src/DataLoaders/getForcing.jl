@@ -110,8 +110,7 @@ function createForcingNamedTuple(incubes, f_sizes, f_dimensions, info)
     @debug "     ::variable names::"
     forcing_vars = keys(info.experiment.data_settings.forcing.variables)
     f_helpers = collectForcingHelpers(info, f_sizes, f_dimensions)
-    input_array_type = getfield(Types, to_uppercase_first(info.helpers.run.input_array_type, "Input"))()
-    typed_cubes = getInputArrayOfType(incubes, input_array_type)
+    typed_cubes = getInputArrayOfType(incubes, info.helpers.run.input_array_type)
     data_ts_type=[]
     time_dim_name = Symbol(info.experiment.data_settings.forcing.data_dimension.time)
     for incube in typed_cubes
@@ -184,15 +183,14 @@ function getForcing(info::NamedTuple)
     if !isnothing(data_path)
         data_path = getAbsDataPath(info, data_path)
         print_info(getForcing, @__FILE__, @__LINE__, "default_data_path: `$(data_path)`")
-        nc_default = loadDataFile(data_path)
+        nc_default = YAXArrays.open_dataset(data_path)
     end
-    data_backend = getfield(Types, to_uppercase_first(info.helpers.run.input_data_backend, "Backend"))()
 
     forcing_mask = nothing
     if :sel_mask ∈ keys(forcing_data_settings)
         if !isnothing(forcing_data_settings.forcing_mask.data_path)
             mask_path = getAbsDataPath(info, forcing_data_settings.forcing_mask.data_path)
-            _, forcing_mask = getYaxFromSource(nothing, mask_path, nothing, forcing_data_settings.forcing_mask.source_variable, info, data_backend)
+            _, forcing_mask = getYaxFromSource(nothing, mask_path, nothing, forcing_data_settings.forcing_mask.source_variable)
             forcing_mask = positive_mask(forcing_mask)
         end
     end
@@ -209,7 +207,7 @@ function getForcing(info::NamedTuple)
         nc = nc_default
         vinfo = merge_namedtuple_prefer_nonempty(default_info, forcing_data_settings.variables[k])
         data_path_v = getAbsDataPath(info, getfield(vinfo, :data_path))
-        nc, yax = getYaxFromSource(nc, data_path, data_path_v, vinfo.source_variable, info, data_backend)
+        nc, yax = getYaxFromSource(nc, data_path, data_path_v, vinfo.source_variable)
         incube = subsetAndProcessYax(yax, forcing_mask, tar_dims, vinfo, info, num_type)
         v_op = vinfo.additive_unit_conversion ? " + " : " * "
         v_op = v_op * "$(vinfo.source_to_sindbad_unit)"

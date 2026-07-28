@@ -1,13 +1,12 @@
 export getObservation
 
 """
-    getAllConstraintData(nc, data_backend, data_path, default_info, v_info, data_sub_field, info; yax=nothing, use_data_sub=true)
+    getAllConstraintData(nc, data_path, default_info, v_info, data_sub_field, info; yax=nothing, use_data_sub=true)
 
 Reads data from the observation file and returns the data, YAXArray, variable info, and bounds for the observation constraint.
 
 # Arguments:
 - `nc`: The file or NetCDF object containing the observation data.
-- `data_backend`: The backend used to process the data (e.g., NetCDF, Zarr).
 - `data_path`: The path to the observation data file.
 - `default_info`: Default variable information for constraints.
 - `v_info`: Variable-specific information for the observation constraint, which can overwrite `default_info`.
@@ -34,7 +33,7 @@ julia> # Get constraint data for observations
 julia> # nc_sub, yax_sub, v_info_sub, bounds_sub = getAllConstraintData(nc, data_backend, data_path, default_info, v_info, :data, info)
 ```
 """
-function getAllConstraintData(nc, data_backend, data_path, default_info, v_info, data_sub_field, info; yax=nothing, use_data_sub=true)
+function getAllConstraintData(nc, data_path, default_info, v_info, data_sub_field, info; yax=nothing, use_data_sub=true)
     nc_sub = nothing
     yax_sub = nothing
     v_info_sub = nothing
@@ -53,7 +52,7 @@ function getAllConstraintData(nc, data_backend, data_path, default_info, v_info,
         v_info_sub = merge_namedtuple_prefer_nonempty(default_info, v_info_var)
         data_path_sub = getAbsDataPath(info, v_info_sub.data_path)
         nc_sub = nc
-        nc_sub, yax_sub = getYaxFromSource(nc_sub, data_path, data_path_sub, v_info_sub.source_variable, info, data_backend)
+        nc_sub, yax_sub = getYaxFromSource(nc_sub, data_path, data_path_sub, v_info_sub.source_variable)
         # @show v_info_sub
         v_op = v_info_sub.additive_unit_conversion ? " + " : " * "
         v_op = v_op * "$(v_info_sub.source_to_sindbad_unit)"
@@ -116,9 +115,7 @@ julia> # observations = getObservation(info, forcing_helpers)
 function getObservation(info::NamedTuple, forcing_helpers::NamedTuple)
     observation_data_settings = info.experiment.data_settings.optimization
     forcing_data_settings = info.experiment.data_settings.forcing
-    exe_rules_settings = info.experiment.exe_rules
     data_path = observation_data_settings.observations.default_observation.data_path
-    data_backend = getfield(Types, to_uppercase_first(exe_rules_settings.input_data_backend, "Backend"))()
     default_info = observation_data_settings.observations.default_observation
     tar_dims = getTargetDimensionOrder(info)
 
@@ -127,7 +124,7 @@ function getObservation(info::NamedTuple, forcing_helpers::NamedTuple)
     if !isnothing(data_path)
         data_path = getAbsDataPath(info, data_path)
         print_info(getObservation, @__FILE__, @__LINE__, "default_observation_data_path: `$(data_path)`")
-        nc_default = loadDataFile(data_path)
+        nc_default = YAXArrays.open_dataset(data_path)
     end
 
     varnames = Symbol.(observation_data_settings.observational_constraints)
@@ -136,7 +133,7 @@ function getObservation(info::NamedTuple, forcing_helpers::NamedTuple)
     if :one_sel_mask ∈ keys(observation_data_settings)
         if !isnothing(observation_data_settings.one_sel_mask)
             mask_path = getAbsDataPath(info, observation_data_settings.one_sel_mask)
-            _, yax_mask = getYaxFromSource(nothing, mask_path, nothing, "mask", info, data_backend)
+            _, yax_mask = getYaxFromSource(nothing, mask_path, nothing, "mask")
             yax_mask = positive_mask(yax_mask)
         end
     end
@@ -152,17 +149,17 @@ function getObservation(info::NamedTuple, forcing_helpers::NamedTuple)
 
         src_var = vinfo.data.source_variable
         nc = nc_default
-        nc, yax, vinfo_data, bounds_data = getAllConstraintData(nc, data_backend, data_path, default_info, vinfo, :data, info)
+        nc, yax, vinfo_data, bounds_data = getAllConstraintData(nc, data_path, default_info, vinfo, :data, info)
 
         # get quality flags data and use it later to mask observations. Set to value of 1 when :qflag field is not given for a data stream or all are turned off by setting optimizatio.optimization.observations.use_quality_flag to false
-        nc_qc, yax_qc, vinfo_qc, bounds_qc = getAllConstraintData(nc, data_backend, data_path, default_info, vinfo, :qflag, info; yax=yax, use_data_sub=observation_data_settings.observations.use_quality_flag)
+        nc_qc, yax_qc, vinfo_qc, bounds_qc = getAllConstraintData(nc, data_path, default_info, vinfo, :qflag, info; yax=yax, use_data_sub=observation_data_settings.observations.use_quality_flag)
 
         # get uncertainty data and add to observations. Set to value of 1 when :unc field is not given for a data stream or all are turned off by setting observation_data_settings.use_uncertainty to false
-        nc_unc, yax_unc, vinfo_unc, bounds_unc = getAllConstraintData(nc, data_backend, data_path, default_info, vinfo, :unc, info; yax=yax, use_data_sub=observation_data_settings.observations.use_uncertainty)
+        nc_unc, yax_unc, vinfo_unc, bounds_unc = getAllConstraintData(nc, data_path, default_info, vinfo, :unc, info; yax=yax, use_data_sub=observation_data_settings.observations.use_uncertainty)
 
-        nc_wgt, yax_wgt, vinfo_wgt, bounds_wgt = getAllConstraintData(nc, data_backend, data_path, default_info, vinfo, :weight, info; yax=yax, use_data_sub=observation_data_settings.observations.use_spatial_weight)
+        nc_wgt, yax_wgt, vinfo_wgt, bounds_wgt = getAllConstraintData(nc, data_path, default_info, vinfo, :weight, info; yax=yax, use_data_sub=observation_data_settings.observations.use_spatial_weight)
 
-        _, yax_mask_v, vinfo_mask, bounds_mask = getAllConstraintData(nc, data_backend, data_path, default_info, vinfo, :sel_mask, info; yax=yax)
+        _, yax_mask_v, vinfo_mask, bounds_mask = getAllConstraintData(nc, data_path, default_info, vinfo, :sel_mask, info; yax=yax)
         yax_mask_v = positive_mask(yax_mask_v)
         if !isnothing(yax_mask)
             yax_mask_v .= yax_mask .* yax_mask_v
@@ -197,8 +194,7 @@ function getObservation(info::NamedTuple, forcing_helpers::NamedTuple)
         push!(varnames_all, Symbol(string(v) * "_mask"))
         push!(varnames_all, Symbol(string(v) * "_weight"))
     end
-    input_array_type = getfield(Types, to_uppercase_first(exe_rules_settings.input_array_type, "Input"))()
     print_info_separator()
 
-    return (; data=getInputArrayOfType(obscubes, input_array_type), dims=indims, variables=Tuple(varnames_all))
+    return (; data=getInputArrayOfType(obscubes, info.helpers.run.input_array_type), dims=indims, variables=Tuple(varnames_all))
 end

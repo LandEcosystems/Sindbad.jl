@@ -34,8 +34,6 @@ The main configuration file that defines the basic experiment settings:
     }
   },
   "exe_rules": {
-    "input_array_type": "keyed_array",
-    "input_data_backend": "netcdf",
     "land_output_type": "array",
     "model_array_type": "static_array",
     "model_number_type": "Float32",

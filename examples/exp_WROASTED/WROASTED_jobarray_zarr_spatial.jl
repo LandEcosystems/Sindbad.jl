@@ -110,7 +110,6 @@ o_set = :set1
         "experiment.basics.domain" => domain,
         "experiment.basics.name" => exp_name,
         "experiment.basics.time.date_end" => end_year * "-12-31",
-        "experiment.exe_rules.input_data_backend" => "zarr",
         "experiment.flags.run_optimization" => optimize_it,
         "experiment.flags.calc_cost" => true,
         "experiment.flags.catch_model_errors" => true,
