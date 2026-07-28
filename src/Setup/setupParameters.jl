@@ -3,6 +3,7 @@ export filterParameterTable
 export getParameters
 export getParameterIndices
 export perturbParameters
+export convertParametersToNamedTuple
 
 
 """
@@ -38,6 +39,164 @@ function filterParameterTable(parameter_table::Table; prop_name::Symbol=:model, 
         return filter(row -> getproperty(row, prop_name) in prop_values, parameter_table)
     end
 end
+
+
+"""
+    convertParametersToNamedTuple(parameter_table, name_field::Symbol)
+    convertParametersToNamedTuple(parameter_table, names::Union{AbstractVector,Tuple})
+
+Convert a parameter table into a `NamedTuple` keyed by parameter name, so that a single
+row - and any of its columns - can be reached by dot-notation (e.g. `nt.Model__a.value`)
+instead of filtering the table. Each row is kept as a `NamedTuple` (not e.g. a `Tuple` of
+`Pair`s), since only `NamedTuple` supports this further `.column` chaining.
+
+# Arguments
+- `parameter_table`: a table of parameters (one row per parameter; anything supporting
+  `length`, integer row indexing, and `getproperty` for named columns, e.g. `Table`).
+- `name_field`: either
+    - a `Symbol` giving the column of `parameter_table` whose values are used as the
+      `NamedTuple` keys, or
+    - a `Vector`/`Tuple` of names to use directly as keys, one per row of
+      `parameter_table`.
+
+Keys that come out as `AbstractString`s (e.g. from a `name_full` column such as
+`"Model.a"`) have `.` replaced with `__` so that they form valid Julia identifiers
+(`:Model__a`), since `.` cannot appear in a `NamedTuple`/dot-access field name.
+
+# Returns
+A `NamedTuple` with one entry per row of `parameter_table`; each value is that row
+(itself a `NamedTuple`, keyed by `parameter_table`'s column names), e.g.
+`(name = "a", name_full = "Model.a", value = 1)`.
+
+# Errors
+Throws an `ArgumentError` if the resulting keys are not unique - dot-access requires
+each key to resolve to exactly one row - naming the duplicated key(s) and the row
+indices that produced them, so a different `name_field`/`names` can be chosen instead.
+
+# Examples
+```jldoctest
+julia> using Sindbad
+
+julia> using TypedTables: Table
+
+julia> t = Table(name=["a", "b"], name_full=["Model.a", "Model.b"], value=[1, 2]);
+
+julia> nt = convertParametersToNamedTuple(t, :name_full);
+
+julia> nt.Model__a
+(name = "a", name_full = "Model.a", value = 1)
+
+julia> nt.Model__a.value
+1
+```
+"""
+function convertParametersToNamedTuple(parameter_table, name_field::Symbol)
+    return convertParametersToNamedTuple(parameter_table, getproperty(parameter_table, name_field))
+end
+
+function convertParametersToNamedTuple(parameter_table, names::Union{AbstractVector,Tuple})
+    n_rows = length(parameter_table)
+    length(names) == n_rows || throw(ArgumentError("convertParametersToNamedTuple: got $(length(names)) names for $(n_rows) rows in parameter_table; they must match one-to-one."))
+    keys_sym = _sanitizeNamedTupleKey.(names)
+    rows_by_key = Dict{Symbol,Vector{Int}}()
+    for (row_ind, key) in enumerate(keys_sym)
+        push!(get!(rows_by_key, key, Int[]), row_ind)
+    end
+    duplicated_keys = filter(kv -> length(kv.second) > 1, rows_by_key)
+    if !isempty(duplicated_keys)
+        dup_msg = join(("  :$k <- rows $(row_inds)" for (k, row_inds) in duplicated_keys), "\n")
+        throw(ArgumentError("convertParametersToNamedTuple: names are not unique, so they cannot become NamedTuple fields (each key must map to exactly one row). Duplicated keys:\n$dup_msg\nPass a different name_field (or names) - e.g. a fully-qualified column such as `name_full` - to disambiguate."))
+    end
+    return NamedTuple{Tuple(keys_sym)}(Tuple(_concreteNamedTuple(parameter_table[row_ind]) for row_ind in 1:n_rows))
+end
+
+"""
+    _concreteNamedTuple(nt::NamedTuple)
+
+Rebuild `nt` so its field types are inferred from its actual (runtime) values, rather
+than kept as whatever (possibly `Any`, e.g. from a table column holding mixed types
+across rows) they were declared as in `nt`'s original type. A `NamedTuple` with any
+`Any`-typed field prints itself as `@NamedTuple{...}(...)` instead of the compact
+`(a = 1, b = 2)` form, since Base can't otherwise guarantee that re-`eval`ing the
+printed form reconstructs the same type; concretizing the field types sidesteps that.
+"""
+_concreteNamedTuple(nt::NamedTuple) = NamedTuple{keys(nt)}(values(nt))
+
+_sanitizeNamedTupleKey(key::Symbol) = key
+_sanitizeNamedTupleKey(key::AbstractString) = Symbol(replace(key, "." => "__"))
+_sanitizeNamedTupleKey(key) = Symbol(key)
+
+
+"""
+    convertParametersToNamedTuple(parameter_table, group_field::Symbol, name_field::Symbol)
+
+Convert a parameter table into a two-level nested `NamedTuple`: first keyed by
+`group_field` (e.g. `:model`), then within each group by `name_field` (e.g. `:name`), so
+that a single column of a single parameter can be reached like
+`nt.rootMaximumDepth.constant_frac_max_root_depth.default`.
+
+`group_field`, `name_field`, and (whichever of these are present) `name_full`,
+`model_approach`, `approach_func` are dropped from each leaf row: the path to a leaf
+(`nt.<group>.<name>`) already says which model/parameter it is, so repeating that (or
+the model's implementation choice) inside the leaf itself would be pure redundancy.
+
+# Arguments
+- `parameter_table`: a table of parameters (one row per parameter; anything supporting
+  `length`, integer row indexing, `getproperty`, and `propertynames`, e.g. `Table`).
+- `group_field`: column used for the outer key, e.g. `:model`.
+- `name_field`: column used for the inner key (within each group), e.g. `:name`.
+
+Keys that come out as `AbstractString`s have `.` replaced with `__`, same as
+[`convertParametersToNamedTuple(parameter_table, name_field)`](@ref).
+
+# Returns
+A `NamedTuple` of `NamedTuple`s of `NamedTuple`s: `nt.<group>.<name>` is that row, minus
+`group_field`/`name_field`/`name_full`/`model_approach`/`approach_func`. Assumes the
+`(group_field, name_field)` combination is unique per row (true for `(:model, :name)` in
+a SINDBAD parameter table); if it isn't, `NamedTuple` construction itself errors on the
+resulting duplicate field name.
+
+# Examples
+```jldoctest
+julia> using Sindbad
+
+julia> t = Table(model=["Model", "Model"], name=["a", "b"], value=[1, 2]);
+
+julia> nt = convertParametersToNamedTuple(t, :model, :name);
+
+julia> nt.Model.a
+(value = 1,)
+
+julia> nt.Model.a.value
+1
+```
+"""
+function convertParametersToNamedTuple(parameter_table, group_field::Symbol, name_field::Symbol)
+    n_rows = length(parameter_table)
+    group_values = getproperty(parameter_table, group_field)
+    name_values = getproperty(parameter_table, name_field)
+
+    exclude_fields = (group_field, name_field)
+    for redundant_field in (:name_full, :model_approach, :approach_func)
+        if redundant_field !== group_field && redundant_field !== name_field && hasproperty(parameter_table, redundant_field)
+            exclude_fields = (exclude_fields..., redundant_field)
+        end
+    end
+
+    rows_by_group = Dict{Symbol,Vector{Int}}()
+    for row_ind in 1:n_rows
+        push!(get!(rows_by_group, _sanitizeNamedTupleKey(group_values[row_ind]), Int[]), row_ind)
+    end
+    group_keys = Tuple(unique(_sanitizeNamedTupleKey.(group_values)))
+
+    group_nts = map(group_keys) do group_key
+        row_inds = rows_by_group[group_key]
+        name_keys = Tuple(_sanitizeNamedTupleKey.(name_values[row_inds]))
+        NamedTuple{name_keys}(Tuple(_concreteNamedTuple(drop_namedtuple_fields(parameter_table[row_ind], exclude_fields)) for row_ind in row_inds))
+    end
+    return NamedTuple{group_keys}(group_nts)
+end
+
 
 """
     getParameters(selected_models::Tuple, num_type, model_timestep; return_table=true)
