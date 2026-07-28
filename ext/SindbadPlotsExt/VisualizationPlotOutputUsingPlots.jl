@@ -1,6 +1,5 @@
-export plotPerformanceHistograms
-export plotTimeSeriesWithObs
-export plotTimeSeriesDebug
+# Bring the target functions into scope for adding methods. This should be done using `import` and not `using`.
+import Sindbad.Visualization: plotPerformanceHistograms, plotTimeSeriesWithObs, plotTimeSeriesDebug
 
 """
     plotPerformanceHistograms(out_opti)
@@ -21,7 +20,7 @@ julia> # Plot performance histograms from optimization results
 julia> # plotPerformanceHistograms(out_opti)
 ```
 """
-function plotPerformanceHistograms(out_opti)
+function plotPerformanceHistograms(out_opti, ::VisualizationPlots)
     opt_dat = out_opti.output.optimized
     def_dat = out_opti.output.default
     obs_array = out_opti.observation
@@ -74,10 +73,11 @@ function plotPerformanceHistograms(out_opti)
 end
 
 """
-    plotTimeSeriesWithObs(out_opti)
+    plotTimeSeriesWithObs(out_opti, ::VisualizationPlots)
 Generate time series plots comparing optimized and default model outputs with observations.
 # Arguments
 - `out_opti`: ParameterOptimization output data structure containing model outputs and information
+- `::VisualizationPlots`: Placeholder for the visualization backend type
 # Description
 Generates time series plots that compare the optimized and default model outputs with observations. The function iterates over each variable specified in the cost options and creates a separate plot for each one. Each plot displays the observed data as scatter points, along with the default and optimized model outputs as line graphs. Additionally, it includes vertical lines indicating the calculated loss metric values for both the default and optimized models.
 
@@ -89,7 +89,7 @@ julia> # Plot time series with observations
 julia> # plotTimeSeriesWithObs(out_opti)
 ```
 """
-function plotTimeSeriesWithObs(out_opti)
+function plotTimeSeriesWithObs(out_opti, ::VisualizationPlots)
     opt_dat = out_opti.output.optimized
     def_dat = out_opti.output.default
     obs_array = out_opti.observation
@@ -148,16 +148,17 @@ function plotTimeSeriesWithObs(out_opti)
 end
 
 """
-    plotTimeSeriesDebug(info, opt_dat, def_dat)
+    plotTimeSeriesDebug(info, opt_dat, def_dat, ::VisualizationPlots)
 Plot debugging figures for model outputs.
 # Arguments
 - `info`: Information structure containing experiment details
 - `opt_dat`: Optimized model output data
 - `def_dat`: Default model output data
+- `::VisualizationPlots`: Placeholder for the visualization backend type
 # Description
 This function generates debugging figures by plotting the optimized and default model outputs for each variable specified in the experiment's output variables list. It calculates the mean of the model outputs across layers and then plots them against time using Plots.jl. Debugging figures are saved in a directory specified by `info.output.dirs.figure`.
 """
-function plotTimeSeriesDebug(info, opt_dat, def_dat)
+function plotTimeSeriesDebug(info, opt_dat, def_dat, ::VisualizationPlots)
 
     # plot debug figures
     output_array_opt = values(opt_dat)
@@ -200,7 +201,7 @@ Generate time series plots comparing optimized and default model outputs with ob
 # Description
 Generates time series plots that compare the optimized and default model outputs with observations. The function iterates over each variable specified in the cost options and creates a separate plot for each one. Each plot displays the observed data as scatter points, along with the default and optimized model outputs as line graphs. Additionally, it includes vertical lines indicating the calculated loss metric values for both the default and optimized models.
 """
-function plotTimeSeriesWithObs(out,obs_array,cost_options)
+function plotTimeSeriesWithObs(out,obs_array,cost_options, ::VisualizationPlots)
     costOpt = cost_options
     info    = out.info
     domain  = info.experiment.basics.domain
