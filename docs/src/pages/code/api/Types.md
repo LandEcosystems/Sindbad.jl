@@ -481,9 +481,9 @@ InputTypes
 
 ----
 
-### InputYaxArray
+### InputYAXArray
 ```@docs
-InputYaxArray
+InputYAXArray
 ```
 
 ----

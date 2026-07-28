@@ -42,7 +42,7 @@ InputKeyedArray
 
 InputNamedDimsArray
 
-InputYaxArray
+InputYAXArray
 
 SpatialSubsetter
 
@@ -1054,7 +1054,7 @@ InputKeyedArray
 
 InputNamedDimsArray
 
-InputYaxArray
+InputYAXArray
 
 SpatialSubsetter
 
@@ -2066,7 +2066,7 @@ Sindbad.Types.InputKeyedArray
 
 Sindbad.Types.InputNamedDimsArray
 
-Sindbad.Types.InputYaxArray
+Sindbad.Types.InputYAXArray
 
 Sindbad.Types.SpatialSubsetter
 
@@ -3078,7 +3078,7 @@ Sindbad.Types.InputKeyedArray
 
 Sindbad.Types.InputNamedDimsArray
 
-Sindbad.Types.InputYaxArray
+Sindbad.Types.InputYAXArray
 
 Sindbad.Types.SpatialSubsetter
 

@@ -40,7 +40,7 @@ These types control how data is stored and manipulated within the model and outp
 
 This file defines the `InputTypes` abstract type and its subtypes, which includes types for:
 - Data backends: `BackendNetcdf`, `BackendZarr`
-- Input array types: `InputArray`, `InputKeyedArray`, `InputNamedDimsArray`, `InputYaxArray`
+- Input array types: `InputArray`, `InputKeyedArray`, `InputNamedDimsArray`, `InputYAXArray`
 - Forcing variable types: `ForcingWithTime`, `ForcingWithoutTime`
 - Spatial subsetting methods: `Spaceid`, `Spacelatitude`, `Spacelon`, etc.
 
