@@ -31,8 +31,7 @@
     "run_optimization": false,
     "save_info": true,
     "spinup_TEM": true,
-    "store_spinup": false,
-    "use_forward_diff": false
+    "store_spinup": false
   },
   "model_output": {
     "depth_dimensions": {
