@@ -43,13 +43,14 @@ function getExperimentInfo(sindbad_experiment::String; replace_info=Dict())
     info = getConfiguration(sindbad_experiment; replace_info=deepcopy(replace_info))
 
     info = setupInfo(info)
-    saveInfo(info, info.helpers.run.save_info)
-    setDebugErrorCatcher(info.helpers.run.catch_model_errors)
 
     print_info(getExperimentInfo, @__FILE__, @__LINE__, "plotting IO signatures in the selected model structure...", n_m=1)
     for model_func in (:define, :precompute, :compute,)
         Base.moduleroot(@__MODULE__).Visualization.plotIOModelStructure(info, model_func)
     end
+
+    saveInfo(info, info.helpers.run.save_info)
+    setDebugErrorCatcher(info.helpers.run.catch_model_errors)
 
     return info
 end
