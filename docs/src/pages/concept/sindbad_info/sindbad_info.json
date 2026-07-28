@@ -1013,7 +1013,6 @@
             { "name": "save_info", "value": 1 },
             { "name": "spinup_TEM", "value": 1 },
             { "name": "store_spinup", "value": 1 },
-            { "name": "use_forward_diff", "value": 1 },
             { "name": "output_array_type", "value": 1 },
             { "name": "save_single_file", "value": 1 },
             { "name": "input_data_backend", "value": 1 },

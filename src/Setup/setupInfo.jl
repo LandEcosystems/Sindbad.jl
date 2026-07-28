@@ -264,7 +264,6 @@ function setModelRunInfo(info::NamedTuple)
     run_info = set_namedtuple_field(run_info, (:run_lazy, getTypeInstanceForFlags(:run_lazy, run_lazy, "Do")))
 
     run_info = set_namedtuple_field(run_info, (:save_single_file, getTypeInstanceForFlags(:save_single_file, info.settings.experiment.model_output.save_single_file, "Do")))
-    run_info = set_namedtuple_field(run_info, (:use_forward_diff, run_vals.use_forward_diff))
     # a lazy run always needs lazy (YAXArray) forcing/observation data; a non-lazy run always needs KeyedArray
     input_array_type = run_lazy ? InputYAXArray() : InputKeyedArray()
     run_info = set_namedtuple_field(run_info, (:input_array_type, input_array_type))
