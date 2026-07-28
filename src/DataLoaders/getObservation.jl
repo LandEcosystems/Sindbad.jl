@@ -30,7 +30,7 @@ Reads data from the observation file and returns the data, YAXArray, variable in
 julia> using Sindbad
 
 julia> # Get constraint data for observations
-julia> # nc_sub, yax_sub, v_info_sub, bounds_sub = getAllConstraintData(nc, data_backend, data_path, default_info, v_info, :data, info)
+julia> # nc_sub, yax_sub, v_info_sub, bounds_sub = getAllConstraintData(nc, data_path, default_info, v_info, :data, info)
 ```
 """
 function getAllConstraintData(nc, data_path, default_info, v_info, data_sub_field, info; yax=nothing, use_data_sub=true)

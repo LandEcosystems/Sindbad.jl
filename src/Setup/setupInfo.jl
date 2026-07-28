@@ -253,18 +253,20 @@ function setModelRunInfo(info::NamedTuple)
     run_vals = convertRunFlagsToTypes(info)
     # check if lazy run is set, and if so, set output array type to YAXArray regardless of the setting in json, as well as land output type to YAXArray
     run_lazy = get(info.settings.experiment.flags, :run_lazy, false)
-    
+
     in_output_array_type = info.settings.experiment.model_output.output_array_type
     if run_lazy
         in_output_array_type = "YAXArray"
     end
     output_array_type = getfield(Types, to_uppercase_first(in_output_array_type, "Output"))()
     run_info = (; run_vals..., output_array_type = output_array_type)
-    
+
+    run_info = set_namedtuple_field(run_info, (:run_lazy, getTypeInstanceForFlags(:run_lazy, run_lazy, "Do")))
+
     run_info = set_namedtuple_field(run_info, (:save_single_file, getTypeInstanceForFlags(:save_single_file, info.settings.experiment.model_output.save_single_file, "Do")))
     run_info = set_namedtuple_field(run_info, (:use_forward_diff, run_vals.use_forward_diff))
     # a lazy run always needs lazy (YAXArray) forcing/observation data; a non-lazy run always needs KeyedArray
-    input_array_type = run_lazy ? InputYaxArray() : InputKeyedArray()
+    input_array_type = run_lazy ? InputYAXArray() : InputKeyedArray()
     run_info = set_namedtuple_field(run_info, (:input_array_type, input_array_type))
 
     parallelization = titlecase(info.settings.experiment.exe_rules.parallelization)
@@ -483,9 +485,11 @@ function setupInfo(info::NamedTuple)
     land_init = createInitLand(info.pools, info.temp)
     info = (; info..., temp=(; info.temp..., helpers=(; info.temp.helpers..., land_init=land_init)))
 
+    data_settings = (; forcing = info.settings.forcing,)
     if (info.settings.experiment.flags.run_optimization || info.settings.experiment.flags.calc_cost) && hasproperty(info.settings.optimization, :algorithm_optimization)
         # @info "  setupInfo: setting ParameterOptimization and Observation info..."
         info = setOptimization(info)
+        data_settings = set_namedtuple_field(data_settings, (:optimization, info.settings.optimization))
     else
         parameter_table = info.temp.models.parameter_table
         checkParameterBounds(parameter_table.name, parameter_table.initial, parameter_table.lower, parameter_table.upper, ScaleNone(), p_units=parameter_table.units, show_info=true, model_names=parameter_table.model_approach)
@@ -501,7 +505,6 @@ function setupInfo(info::NamedTuple)
     end
 
     print_info(setupInfo, @__FILE__, @__LINE__, "Cleaning Info Fields...")
-    data_settings = (; forcing = info.settings.forcing, optimization = info.settings.optimization)
     exe_rules = info.settings.experiment.exe_rules
     info = drop_namedtuple_fields(info, (:model_structure, :experiment, :output, :pools))
     info = (; info..., info.temp...)

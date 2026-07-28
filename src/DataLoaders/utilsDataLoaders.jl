@@ -146,7 +146,7 @@ Converts the provided input data into a specific input array type.
     - `::InputArray`: Specifies the input array type as a simple array
     - `::InputKeyedArray`: Specifies the input array type as a keyed array
     - `::InputNamedDimsArray`: Specifies the input array type as a named dims array
-    - `::InputYaxArray`: Specifies the input array type as a YAX array
+    - `::InputYAXArray`: Specifies the input array type as a YAX array
 
 # Returns
 Returns the input data converted to the specified input array type.
@@ -176,7 +176,7 @@ function getInputArrayOfType(input_data, ::InputNamedDimsArray)
     return named_array_data
 end
 
-function getInputArrayOfType(input_data, ::InputYaxArray)
+function getInputArrayOfType(input_data, ::InputYAXArray)
     return input_data
 end
 
