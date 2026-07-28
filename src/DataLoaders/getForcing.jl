@@ -113,8 +113,9 @@ function createForcingNamedTuple(incubes, f_sizes, f_dimensions, info)
     input_array_type = getfield(Types, to_uppercase_first(info.helpers.run.input_array_type, "Input"))()
     typed_cubes = getInputArrayOfType(incubes, input_array_type)
     data_ts_type=[]
+    time_dim_name = Symbol(info.experiment.data_settings.forcing.data_dimension.time)
     for incube in typed_cubes
-        push!(data_ts_type, collectTypesTiDim(incube))
+        push!(data_ts_type, collectTypesTiDim(incube, time_dim_name))
     end
     data_ts_type = [_dt for _dt in data_ts_type]
     f_types =  Tuple(Tuple.(Pair.(forcing_vars, data_ts_type)))
@@ -130,11 +131,12 @@ end
 
 # Fixes bug. Collecting forcing variables `WithTime` was not working for YAXArrays
 # These two functions now dispatch on KeyedArray and YAXArray
+# remove hardcoded time_dim_name and use the one from info.experiment.data_settings.forcing.data_dimension.time 
 """
- collectTypesTiDim(incube::AxisKeys.KeyedArray)
+ collectTypesTiDim(incube::AxisKeys.KeyedArray, time_dim_name::Symbol)
 """
-function collectTypesTiDim(incube::AxisKeys.KeyedArray)
-    if in(:time, AxisKeys.dimnames(incube))
+function collectTypesTiDim(incube::AxisKeys.KeyedArray, time_dim_name::Symbol)
+    if in(time_dim_name, AxisKeys.dimnames(incube))
         return ForcingWithTime()
     else
         return ForcingWithoutTime()
@@ -142,10 +144,10 @@ function collectTypesTiDim(incube::AxisKeys.KeyedArray)
 end
 
 """
- collectTypesTiDim(incube::YAXArrays.YAXArray)
+ collectTypesTiDim(incube::YAXArrays.YAXArray, time_dim_name::Symbol)
 """
-function collectTypesTiDim(incube::YAXArrays.YAXArray)
-    if hasdim(incube, Ti) || hasdim(incube, DD.Dim{:Time}) || hasdim(incube, DD.Dim{:time})
+function collectTypesTiDim(incube::YAXArrays.YAXArray, time_dim_name::Symbol)
+    if hasdim(incube, DD.Dim{time_dim_name})
         return ForcingWithTime()
     else
         return ForcingWithoutTime()
