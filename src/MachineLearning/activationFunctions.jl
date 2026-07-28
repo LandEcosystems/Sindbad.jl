@@ -26,7 +26,30 @@ act_fn = activationFunction(model_options, FluxRelu())
 y = act_fn(x)
 ```
 """
-function activationFunction end
+function activationFunction(model_options, x::ActivationType)
+    pkg = requires_package(typeof(x))
+    if !isnothing(pkg)
+        error("
+    activationFunction `$(nameof(typeof(x)))` requires the `$(pkg)` package to be loaded.
+
+    This activation function is implemented in the `Sindbad$(pkg)Ext` extension, which activates automatically once you run `using $(pkg)` in your session (alongside `using Sindbad`).
+    ")
+    else
+        error("
+    activationFunction `$(nameof(typeof(x)))` not implemented.
+
+    To implement a new activation function:
+
+    - First add a new type as a subtype of `ActivationType` in `src/Types/MachineLearningTypes.jl`.
+
+    - Then, add a corresponding method:
+      - if it can be implemented as an internal Sindbad method without additional dependencies, implement the method in `src/MachineLearning/activationFunctions.jl`.
+      - if it requires additional dependencies, implement the method in `ext/<extension_name>/MachineLearningActivationFunctions.jl` extension.
+
+    ")
+    end
+    return
+end
 
 
 function activationFunction(model_options, ::CustomSigmoid)

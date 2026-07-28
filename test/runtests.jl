@@ -2,7 +2,7 @@ using Sindbad
 using BenchmarkTools
 using Test
 using LinearAlgebra
-using PreallocationTools, ForwardDiff, Flux, Zygote
+using PreallocationTools, ForwardDiff
 using PolyesterForwardDiff, FiniteDifferences, FiniteDiff
 
 @testset "Sindbad smoke" begin

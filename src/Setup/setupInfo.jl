@@ -279,6 +279,12 @@ function setModelRunInfo(info::NamedTuple)
     end
     land_output_type = getfield(Types, to_uppercase_first(in_land_output_type, "PreAlloc"))()
     run_info = set_namedtuple_field(run_info, (:land_output_type, land_output_type))
+
+    ## visualization backend
+    visualization_backend = get(info.settings.experiment.exe_rules, :visualization_backend, "Types")
+    visualization_backend_type = getfield(Types, to_uppercase_first(visualization_backend, "Visualization"))()
+    run_info = set_namedtuple_field(run_info, (:visualization_backend, visualization_backend_type))
+    
     info = (; info..., temp=(; info.temp..., helpers=(; info.temp.helpers..., run=run_info)))
     return info
 end

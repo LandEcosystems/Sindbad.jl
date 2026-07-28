@@ -29,6 +29,7 @@ purpose(::Type{BayesOptKMaternARD5}) = "Bayesian Optimization using Matern 5/2 k
 
 struct CMAEvolutionStrategyCMAES <: ParameterOptimizationMethod end
 purpose(::Type{CMAEvolutionStrategyCMAES}) = "Covariance Matrix Adaptation Evolution Strategy (CMA-ES) from CMAEvolutionStrategy.jl"
+requires_package(::Type{CMAEvolutionStrategyCMAES}) = "CMAEvolutionStrategy"
 
 struct EvolutionaryCMAES <: ParameterOptimizationMethod end
 purpose(::Type{EvolutionaryCMAES}) = "Evolutionary version of CMA-ES optimization from Evolutionary.jl"
@@ -41,33 +42,43 @@ purpose(::Type{OptimBFGS}) = "Broyden-Fletcher-Goldfarb-Shanno (BFGS) from Optim
 
 struct OptimizationBBOadaptive <: ParameterOptimizationMethod end
 purpose(::Type{OptimizationBBOadaptive}) = "Black Box Optimization with adaptive parameters from Optimization.jl"
+requires_package(::Type{OptimizationBBOadaptive}) = "Optimization"
 
 struct OptimizationBBOxnes <: ParameterOptimizationMethod end
 purpose(::Type{OptimizationBBOxnes}) = "Black Box Optimization using Natural Evolution Strategy (xNES) from Optimization.jl"
+requires_package(::Type{OptimizationBBOxnes}) = "Optimization"
 
 struct OptimizationBFGS <: ParameterOptimizationMethod end
 purpose(::Type{OptimizationBFGS}) = "BFGS optimization with box constraints from Optimization.jl"
+requires_package(::Type{OptimizationBFGS}) = "Optimization"
 
 struct OptimizationFminboxGradientDescent <: ParameterOptimizationMethod end
 purpose(::Type{OptimizationFminboxGradientDescent}) = "Gradient descent optimization with box constraints from Optimization.jl"
+requires_package(::Type{OptimizationFminboxGradientDescent}) = "Optimization"
 
 struct OptimizationFminboxGradientDescentFD <: ParameterOptimizationMethod end
 purpose(::Type{OptimizationFminboxGradientDescentFD}) = "Gradient descent optimization with box constraints using forward differentiation from Optimization.jl"
+requires_package(::Type{OptimizationFminboxGradientDescentFD}) = "Optimization"
 
 struct OptimizationGCMAESDef <: ParameterOptimizationMethod end
 purpose(::Type{OptimizationGCMAESDef}) = "Global CMA-ES optimization with default settings from Optimization.jl"
+requires_package(::Type{OptimizationGCMAESDef}) = "Optimization"
 
 struct OptimizationGCMAESFD <: ParameterOptimizationMethod end
 purpose(::Type{OptimizationGCMAESFD}) = "Global CMA-ES optimization using forward differentiation from Optimization.jl"
+requires_package(::Type{OptimizationGCMAESFD}) = "Optimization"
 
 struct OptimizationMultistartOptimization <: ParameterOptimizationMethod end
 purpose(::Type{OptimizationMultistartOptimization}) = "Multi-start optimization to find global optimum from Optimization.jl"
+requires_package(::Type{OptimizationMultistartOptimization}) = "Optimization"
 
 struct OptimizationNelderMead <: ParameterOptimizationMethod end
 purpose(::Type{OptimizationNelderMead}) = "Nelder-Mead simplex optimization method from Optimization.jl"
+requires_package(::Type{OptimizationNelderMead}) = "Optimization"
 
 struct OptimizationQuadDirect <: ParameterOptimizationMethod end
 purpose(::Type{OptimizationQuadDirect}) = "Quadratic Direct optimization method from Optimization.jl"
+requires_package(::Type{OptimizationQuadDirect}) = "Optimization"
 
 # ------------------------- global sensitivity analysis -------------------------
 
