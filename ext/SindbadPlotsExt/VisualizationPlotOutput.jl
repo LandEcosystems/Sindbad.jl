@@ -105,7 +105,12 @@ end
 function _plotOutputVsObsForVariable!(info, obs_array, var_row, def_dat, lossMetric, domain, vinfo, vname, fig_prefix; opt_dat=nothing)
     valids = var_row.valids
     (obs_var, obs_σ, def_var) = getData(def_dat, obs_array, var_row)
-    obs_var_TMP = nanmean(obs_var, dims=2)
+    # `dims=` reductions keep the reduced dimension as a singleton instead of dropping
+    # it (e.g. (T,1,1) stays 3D), so `vec` flattens down to a plain 1D vector - without
+    # it, `findall` below returns `CartesianIndex`es, `tspan` becomes a `CartesianIndices`
+    # range instead of a `UnitRange`, and every `[tspan]` index downstream silently stays
+    # 3D instead of collapsing to a vector (breaking the `plot(...)` calls).
+    obs_var_TMP = vec(nanmean(obs_var, dims=2))
 
     non_nan_index = findall(x -> !isnan(x), obs_var_TMP)
     if length(non_nan_index) < 2
@@ -116,7 +121,7 @@ function _plotOutputVsObsForVariable!(info, obs_array, var_row, def_dat, lossMet
     obs_var = obs_var_TMP[tspan]
     obs_σ = obs_σ[tspan]
 
-    def_var_TMP = mean(def_var, dims=3)
+    def_var_TMP = vec(mean(def_var, dims=3))
     def_var = def_var_TMP[tspan]
     valids = valids[tspan]
 
@@ -131,7 +136,7 @@ function _plotOutputVsObsForVariable!(info, obs_array, var_row, def_dat, lossMet
 
     if has_opt
         (_, _, opt_var) = getData(opt_dat, obs_array, var_row)
-        opt_var_TMP = mean(opt_var, dims=3)
+        opt_var_TMP = vec(mean(opt_var, dims=3))
         opt_var = opt_var_TMP[tspan]
         metr_opt = metric(lossMetric, opt_var[valids], obs_var[valids], obs_σ[valids])
         plots_plot!(xdata, opt_var; color=:seagreen3, label="opt ($(round(metr_opt, digits=2)))", lw=1.5, ls=:dash)
