@@ -1,7 +1,7 @@
 using Revise
 using Sindbad
 using Plots
-# using CMAEvolutionStrategy
+using CMAEvolutionStrategy
 # Simulation
 # using CairoMakie
 
