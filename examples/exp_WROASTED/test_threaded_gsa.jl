@@ -1,6 +1,7 @@
 using Revise
 using SindbadTEM
 using Sindbad
+using Plots
 
 using QuasiMonteCarlo
 using GlobalSensitivity
@@ -72,26 +73,26 @@ sa_method = nameof(typeof(info.optimization.sensitivity_analysis.method))
 if sa_method in (:GSASobol, :GSASobolDM)
     sobol_result = out_sensitivity.sensitivity;
     xt=1:length(parameter_names)
-    pb = plots_bar(xt, sobol_result.ST[:, :], label="Total",
+    pb = bar(xt, sobol_result.ST[:, :], label="Total",
         title = "Sobol Indices", legend = true, size=(2000, 1000), xticks=(xt, parameter_names), xrotation=90,fontsize=18,layout=(2,1))
-    plots_bar!(xt, sobol_result.S1[:, :], label="First", legend = true, size=(2000, 1000), xticks=(xt, parameter_names), xrotation=90,fontsize=18, subplot=2)
-    plots_savefig(joinpath(info.output.dirs.figure, "GSA_$(sa_method)_S1-ST_$(domain)_$(length(out_sensitivity.cost_vector))-cost_evals.png"))
+    bar!(xt, sobol_result.S1[:, :], label="First", legend = true, size=(2000, 1000), xticks=(xt, parameter_names), xrotation=90,fontsize=18, subplot=2)
+    savefig(joinpath(info.output.dirs.figure, "GSA_$(sa_method)_S1-ST_$(domain)_$(length(out_sensitivity.cost_vector))-cost_evals.png"))
     s2=deepcopy(sobol_result.S2)
     s2[s2.==0] .= NaN
-    ph=plots_heatmap(s2; title="S2" , size=(1500, 1500), xticks=(xt, parameter_names), xrotation=90,fontsize=18, yticks=(xt, parameter_names))
-    plots_savefig(joinpath(info.output.dirs.figure, "GSA_$(sa_method)_S2_$(domain)_$(length(out_sensitivity.cost_vector))-cost_evals.png"))    
+    ph=heatmap(s2; title="S2" , size=(1500, 1500), xticks=(xt, parameter_names), xrotation=90,fontsize=18, yticks=(xt, parameter_names))
+    savefig(joinpath(info.output.dirs.figure, "GSA_$(sa_method)_S2_$(domain)_$(length(out_sensitivity.cost_vector))-cost_evals.png"))    
 end
 
 if sa_method in (:GSAMorris, )
     morris_result = out_sensitivity.sensitivity;
     xt=1:length(parameter_names)
-    ps=plots_scatter(morris_result.means[1, :], morris_result.variances[1, :], series_annotations = parameter_names, color = :gray, size=(2000, 1000))
-    plots_savefig(joinpath(info.output.dirs.figure, "GSA_$(sa_method)_scatter_$(domain)_$(length(out_sensitivity.cost_vector))-cost_evals.png"))    
-    pb = plots_bar(xt, morris_result.means[1, :], label="Means",
+    ps=scatter(morris_result.means[1, :], morris_result.variances[1, :], series_annotations = parameter_names, color = :gray, size=(2000, 1000))
+    savefig(joinpath(info.output.dirs.figure, "GSA_$(sa_method)_scatter_$(domain)_$(length(out_sensitivity.cost_vector))-cost_evals.png"))    
+    pb = bar(xt, morris_result.means[1, :], label="Means",
         title = "Morris Means", legend = true, size=(2000, 1000), xticks=(xt, parameter_names), xrotation=90,fontsize=18,layout=(2,1))
-    plots_bar!(xt, morris_result.variances[1, :], label="Variances",
+    bar!(xt, morris_result.variances[1, :], label="Variances",
         title = "Morris Variances", legend = true, size=(2000, 1000), xticks=(xt, parameter_names), xrotation=90,fontsize=18,subplot=2)
-    plots_savefig(joinpath(info.output.dirs.figure, "GSA_$(sa_method)_bar_$(domain)_$(length(out_sensitivity.cost_vector))-cost_evals.png"))
+    savefig(joinpath(info.output.dirs.figure, "GSA_$(sa_method)_bar_$(domain)_$(length(out_sensitivity.cost_vector))-cost_evals.png"))
 end
 
 # calls to look at inner objects in the experiment for dev purposes
