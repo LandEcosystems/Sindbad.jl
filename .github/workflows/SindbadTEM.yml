@@ -18,11 +18,14 @@ concurrency:
 
 jobs:
   test:
-    name: Julia ${{ matrix.version }} - ${{ matrix.os }} - ${{ matrix.arch }} - ${{ github.event_name }}
+    name: Julia ${{ matrix.version }} - ${{ matrix.os }} - ${{ github.event_name }}
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
     continue-on-error: ${{ matrix.allow_failure }}
     env:
-      JULIA_PKG_USE_CLI_GIT: "true"
+      # Julia 1.10 can deadlock in FileWatching.Pidfile when precompiling
+      # multiple package extensions concurrently; force serial precompilation.
+      JULIA_NUM_PRECOMPILE_TASKS: 1
     strategy:
       fail-fast: false
       matrix:
@@ -33,24 +36,13 @@ jobs:
           - ubuntu-latest
           - macOS-latest
           - windows-latest
-        arch:
-          - x64
         allow_failure: [false]
     steps:
-      - uses: actions/checkout@v4
-      - uses: julia-actions/setup-julia@v2
+      - uses: actions/checkout@v6
+      - uses: julia-actions/setup-julia@v3
         with:
           version: ${{ matrix.version }}
-          arch: ${{ matrix.arch }}
-      - uses: actions/cache@v4
-        env:
-          cache-name: cache-artifacts
-        with:
-          path: ~/.julia/artifacts
-          key: ${{ runner.os }}-test-${{ env.cache-name }}-${{ hashFiles('**/Project.toml') }}
-          restore-keys: |
-            ${{ runner.os }}-test-${{ env.cache-name }}-
-            ${{ runner.os }}-test-
+      - uses: julia-actions/cache@v3
       - name: Develop and test SindbadTEM
         shell: julia --project=SindbadTEM {0}
         run: |
@@ -63,6 +55,6 @@ jobs:
       - uses: julia-actions/julia-processcoverage@v1
         with:
           directories: SindbadTEM/src
-      - uses: codecov/codecov-action@v5
+      - uses: codecov/codecov-action@v7
         with:
           files: lcov.info
