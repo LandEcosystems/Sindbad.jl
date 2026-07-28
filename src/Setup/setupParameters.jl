@@ -3,6 +3,7 @@ export filterParameterTable
 export getParameters
 export getParameterIndices
 export perturbParameters
+export convertParametersToNamedTuple
 
 
 """
@@ -38,6 +39,74 @@ function filterParameterTable(parameter_table::Table; prop_name::Symbol=:model, 
         return filter(row -> getproperty(row, prop_name) in prop_values, parameter_table)
     end
 end
+
+
+"""
+    convertParametersToNamedTuple(parameter_table, name_field::Symbol)
+    convertParametersToNamedTuple(parameter_table, names::Union{AbstractVector,Tuple})
+
+Convert a parameter table into a `NamedTuple` keyed by parameter name, so that a single
+row can be reached by dot-notation (e.g. `nt.Model__a`) instead of filtering the table.
+
+# Arguments
+- `parameter_table`: a table of parameters (one row per parameter; anything supporting
+  `length`, integer row indexing, and `getproperty` for named columns, e.g. `Table`).
+- `name_field`: either
+    - a `Symbol` giving the column of `parameter_table` whose values are used as the
+      `NamedTuple` keys, or
+    - a `Vector`/`Tuple` of names to use directly as keys, one per row of
+      `parameter_table`.
+
+Keys that come out as `AbstractString`s (e.g. from a `name_full` column such as
+`"Model.a"`) have `.` replaced with `__` so that they form valid Julia identifiers
+(`:Model__a`), since `.` cannot appear in a `NamedTuple`/dot-access field name.
+
+# Returns
+A `NamedTuple` with one entry per row of `parameter_table`; each value is that row.
+
+# Errors
+Throws an `ArgumentError` if the resulting keys are not unique - dot-access requires
+each key to resolve to exactly one row - naming the duplicated key(s) and the row
+indices that produced them, so a different `name_field`/`names` can be chosen instead.
+
+# Examples
+```jldoctest
+julia> using Sindbad
+
+julia> using TypedTables: Table
+
+julia> t = Table(name=["a", "b"], name_full=["Model.a", "Model.b"], value=[1, 2]);
+
+julia> nt = convertParametersToNamedTuple(t, :name_full);
+
+julia> nt.Model__a.value
+1
+```
+"""
+function convertParametersToNamedTuple(parameter_table, name_field::Symbol)
+    return convertParametersToNamedTuple(parameter_table, getproperty(parameter_table, name_field))
+end
+
+function convertParametersToNamedTuple(parameter_table, names::Union{AbstractVector,Tuple})
+    n_rows = length(parameter_table)
+    length(names) == n_rows || throw(ArgumentError("convertParametersToNamedTuple: got $(length(names)) names for $(n_rows) rows in parameter_table; they must match one-to-one."))
+    keys_sym = _sanitizeNamedTupleKey.(names)
+    rows_by_key = Dict{Symbol,Vector{Int}}()
+    for (row_ind, key) in enumerate(keys_sym)
+        push!(get!(rows_by_key, key, Int[]), row_ind)
+    end
+    duplicated_keys = filter(kv -> length(kv.second) > 1, rows_by_key)
+    if !isempty(duplicated_keys)
+        dup_msg = join(("  :$k <- rows $(row_inds)" for (k, row_inds) in duplicated_keys), "\n")
+        throw(ArgumentError("convertParametersToNamedTuple: names are not unique, so they cannot become NamedTuple fields (each key must map to exactly one row). Duplicated keys:\n$dup_msg\nPass a different name_field (or names) - e.g. a fully-qualified column such as `name_full` - to disambiguate."))
+    end
+    return NamedTuple{Tuple(keys_sym)}(Tuple(parameter_table[row_ind] for row_ind in 1:n_rows))
+end
+
+_sanitizeNamedTupleKey(key::Symbol) = key
+_sanitizeNamedTupleKey(key::AbstractString) = Symbol(replace(key, "." => "__"))
+_sanitizeNamedTupleKey(key) = Symbol(key)
+
 
 """
     getParameters(selected_models::Tuple, num_type, model_timestep; return_table=true)
