@@ -1,6 +1,7 @@
 using Revise
 using Sindbad
 using Dates
+using Plots
 
 toggle_type_abbrev_in_stacktrace()
 
@@ -192,8 +193,8 @@ for o_set in opti_set
         metr_def = metric(lossMetric, def_var[valids], obs_var[valids], obs_σ[valids])
         metr_opt = metric(lossMetric, opt_var[valids], obs_var[valids], obs_σ[valids])
 
-        plot(xdata, obs_var; label="obs", seriestype=:scatter, mc=:black, ms=4, lw=0, ma=0.65, left_margin=1plots_cm)
-        plot!(xdata, opt_var; color=:seagreen3, label="julia ($(round(metr_opt, digits=2)))", lw=1.5, ls=:dash, left_margin=1plots_cm, legend=:outerbottom, legendcolumns=4, size=(2000, 1000), title="$(domain):: $(vinfo["long_name"]) ($(vinfo["units"])) -> $(nameof(typeof(lossMetric))), $(forcing_set), $(o_set)" )
+        plot(xdata, obs_var; label="obs", seriestype=:scatter, mc=:black, ms=4, lw=0, ma=0.65, left_margin=1cm)
+        plot!(xdata, opt_var; color=:seagreen3, label="julia ($(round(metr_opt, digits=2)))", lw=1.5, ls=:dash, left_margin=1cm, legend=:outerbottom, legendcolumns=4, size=(2000, 1000), title="$(domain):: $(vinfo["long_name"]) ($(vinfo["units"])) -> $(nameof(typeof(lossMetric))), $(forcing_set), $(o_set)" )
         plot!(xdata, ml_var; label="matlab ($(round(metr_ml, digits=2)))", lw=1.5, ls=:dash)
         savefig(fig_prefix * "_$(v)_$(forcing_set).png")
     end
@@ -223,11 +224,11 @@ for o_set in opti_set
         xdata = [info.helpers.dates.range...]
         if size(opt_var, 2) == 1
             plot(xdata, opt_var[:, 1]; label="opt ($(round(SindbadTEM.mean(opt_var[:, 1]), digits=2)))")
-            ylabel!("$(vinfo["standard_name"])", font=(20, :green), size=(2000, 1000), title="$(domain):: $(vinfo["long_name"]) ($(vinfo["units"]))", left_margin=1plots_cm)
+            ylabel!("$(vinfo["standard_name"])", font=(20, :green), size=(2000, 1000), title="$(domain):: $(vinfo["long_name"]) ($(vinfo["units"]))", left_margin=1cm)
             savefig(fig_prefix * "_$(v).png")
         else
             foreach(axes(opt_var, 2)) do ll
-                plot(xdata, opt_var[:, ll]; label="opt ($(round(SindbadTEM.mean(opt_var[:, ll]), digits=2)))", size=(2000, 1000), title="$(domain):: $(vinfo["long_name"]), layer $(ll),  ($(vinfo["units"]))", left_margin=1plots_cm)
+                plot(xdata, opt_var[:, ll]; label="opt ($(round(SindbadTEM.mean(opt_var[:, ll]), digits=2)))", size=(2000, 1000), title="$(domain):: $(vinfo["long_name"]), layer $(ll),  ($(vinfo["units"]))", left_margin=1cm)
                 ylabel!("$(vinfo["standard_name"])", font=(20, :green))
                 savefig(fig_prefix * "_$(v)_$(ll).png")
             end

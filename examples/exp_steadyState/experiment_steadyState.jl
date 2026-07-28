@@ -1,41 +1,42 @@
 using Revise
 using Sindbad
 using Sindbad.DataLoaders
+using Plots
 
 using NLsolve
 # using Accessors
 toggle_type_abbrev_in_stacktrace()
-plots_default(titlefont=(20, "times"), legendfontsize=18, tickfont=(15, :blue))
+default(titlefont=(20, "times"), legendfontsize=18, tickfont=(15, :blue))
 function plot_and_save(land, out_sp_exp, out_sp_exp_nl, out_sp_nl, xtname, plot_elem, plot_var, tj, model_array_type, out_path)
     plot_elem = string(plot_elem)
     if plot_var == :cEco
-        plt = plots_plot(; legend=:outerbottom, legendcolumns=4, size=(1800, 1200), yscale=:log10, left_margin=1plots_cm, title="$(plot_var), jump: $tj")
-        plots_ylims!(0.00000001, 1e9)
+        plt = plot(; legend=:outerbottom, legendcolumns=4, size=(1800, 1200), yscale=:log10, left_margin=1cm, title="$(plot_var), jump: $tj")
+        ylims!(0.00000001, 1e9)
     else
-        plt = plots_plot(; legend=:outerbottom, legendcolumns=4, size=(1800, 1200), left_margin=1plots_cm,  title="$(plot_var), jump: $tj")
-        plots_ylims!(10, 2000)
+        plt = plot(; legend=:outerbottom, legendcolumns=4, size=(1800, 1200), left_margin=1cm,  title="$(plot_var), jump: $tj")
+        ylims!(10, 2000)
     end
-    plots_plot!(getfield(land.pools, plot_var);
+    plot!(getfield(land.pools, plot_var);
         linewidth=5,
         xaxis="Pool",
         label="Init\n($(round(SindbadTEM.mean(getfield(land.pools, plot_var)), digits=2)))")
 
-    plots_plot!(getfield(out_sp_exp.pools, plot_var);
+    plot!(getfield(out_sp_exp.pools, plot_var);
         linewidth=5,
         label="Exp_Init\n($(round(SindbadTEM.mean(getfield(out_sp_exp.pools, plot_var)), digits=2)))")
     # title="SU: $(plot_elem) - $(plot_var):: jump => $(tj), $(model_array_type)")
-    plots_plot!(getfield(out_sp_exp_nl.pools, plot_var);
+    plot!(getfield(out_sp_exp_nl.pools, plot_var);
         linewidth=5,
         ls=:dash,
         label="Exp_NL\n($(round(SindbadTEM.mean(getfield(out_sp_exp_nl.pools, plot_var)), digits=2)))")
-    plots_plot!(getfield(out_sp_nl.pools, plot_var);
+    plot!(getfield(out_sp_nl.pools, plot_var);
         linewidth=5,
         ls=:dot,
         label="NL_Solve\n($(round(SindbadTEM.mean(getfield(out_sp_nl.pools, plot_var)), digits=2)))",
         xticks=(1:length(xtname) |> collect, string.(xtname)),
         rotation=45)
 
-    plots_savefig(joinpath(out_path, "$(string(plot_var))_sin_explicit_$(plot_elem)_$(model_array_type)_tj-$(tj).png"))
+    savefig(joinpath(out_path, "$(string(plot_var))_sin_explicit_$(plot_elem)_$(model_array_type)_tj-$(tj).png"))
     return nothing
 end
 

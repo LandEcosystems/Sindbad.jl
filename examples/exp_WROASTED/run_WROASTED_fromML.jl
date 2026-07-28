@@ -1,6 +1,7 @@
 using Revise
 using Sindbad
 using Dates
+using Plots
 
 toggle_type_abbrev_in_stacktrace()
 
@@ -223,8 +224,8 @@ parameter_table = info.optimization.parameter_table;
             v = (var_row.mod_field, var_row.mod_subfield)
             vinfo = getVariableInfo(v, info.experiment.basics.temporal_resolution)
             v = vinfo["standard_name"]
-            plot(xdata, obs_var; label="obs", seriestype=:scatter, mc=:black, ms=4, lw=0, ma=0.65, left_margin=1plots_cm)
-            plot!(xdata, ml_dat, lw=1.5, ls=:dash, left_margin=1plots_cm, legend=:outerbottom, legendcolumns=3, label="matlab ($(round(metr_def, digits=2)))", size=(2000, 1000), title="$(vinfo["long_name"]) ($(vinfo["units"])) -> $(nameof(typeof(lossMetric)))")
+            plot(xdata, obs_var; label="obs", seriestype=:scatter, mc=:black, ms=4, lw=0, ma=0.65, left_margin=1cm)
+            plot!(xdata, ml_dat, lw=1.5, ls=:dash, left_margin=1cm, legend=:outerbottom, legendcolumns=3, label="matlab ($(round(metr_def, digits=2)))", size=(2000, 1000), title="$(vinfo["long_name"]) ($(vinfo["units"])) -> $(nameof(typeof(lossMetric)))")
             plot!(xdata, jl_dat; label="julia ($(round(metr_opt, digits=2)))", lw=1.5, ls=:dash)
             savefig("examples/exp_WROASTED/tmp_figs_comparison/wroasted_$(domain)_$(v)_$(forcing_set).png")
             # savefig(fig_prefix * "_$(v)_$(forcing_set).png")
@@ -265,14 +266,14 @@ parameter_table = info.optimization.parameter_table;
                     ml_dat = nc_ml[varib_dict[v]]
                 end
                 if size(def_var, 2) == 1
-                    plot(xdata, def_var[debug_span, 1]; label="julia ($(round(SindbadTEM.mean(def_var[debug_span, 1]), digits=2)))", size=(2000, 1000), title="$(vinfo["long_name"]) ($(vinfo["units"]))", left_margin=1plots_cm)
+                    plot(xdata, def_var[debug_span, 1]; label="julia ($(round(SindbadTEM.mean(def_var[debug_span, 1]), digits=2)))", size=(2000, 1000), title="$(vinfo["long_name"]) ($(vinfo["units"]))", left_margin=1cm)
                     if !isnothing(ml_dat)
                         plot!(xdata, ml_dat[debug_span]; label="matlab ($(round(SindbadTEM.mean(ml_dat[debug_span]), digits=2)))", size=(2000, 1000))
                     end
                     savefig(joinpath("examples/exp_WROASTED/tmp_figs_comparison/", "dbg_wroasted_$(domain)_$(vinfo["standard_name"])_$(forcing_set).png"))
                 else
                     foreach(axes(def_var, 2)) do ll
-                        plot(xdata, def_var[debug_span, ll]; label="julia ($(round(SindbadTEM.mean(def_var[debug_span, ll]), digits=2)))", size=(2000, 1000), title="$(vinfo["long_name"]), layer $ll ($(vinfo["units"]))", left_margin=1plots_cm)
+                        plot(xdata, def_var[debug_span, ll]; label="julia ($(round(SindbadTEM.mean(def_var[debug_span, ll]), digits=2)))", size=(2000, 1000), title="$(vinfo["long_name"]), layer $ll ($(vinfo["units"]))", left_margin=1cm)
                         println("           layer => $ll")
 
                         if !isnothing(ml_dat)
