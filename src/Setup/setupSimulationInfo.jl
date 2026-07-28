@@ -19,6 +19,7 @@ Loads and sets up the experiment configuration, saving the information and enabl
   2. Sets up the experiment `info` using `setupInfo`.
   3. Saves the experiment `info` if `save_info` is enabled.
   4. Sets up a debug error catcher if `catch_model_errors` is enabled.
+  5. Plots the IO structure of the selected model structure via `plotIOModelStructure`.
 
 # Examples
 ```jldoctest
@@ -44,6 +45,12 @@ function getExperimentInfo(sindbad_experiment::String; replace_info=Dict())
     info = setupInfo(info)
     saveInfo(info, info.helpers.run.save_info)
     setDebugErrorCatcher(info.helpers.run.catch_model_errors)
+
+    print_info(getExperimentInfo, @__FILE__, @__LINE__, "plotting IO signatures in the selected model structure...", n_m=1)
+    for model_func in (:define, :precompute, :compute,)
+        Base.moduleroot(@__MODULE__).Visualization.plotIOModelStructure(info, model_func)
+    end
+
     return info
 end
 
