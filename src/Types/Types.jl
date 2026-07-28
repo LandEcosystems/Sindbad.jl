@@ -44,6 +44,20 @@ module Types
     using InteractiveUtils: subtypes
     using TimeSamplers
 
+    export requires_package
+    """
+        requires_package(::Type{<:SindbadTypes})
+
+    Name of the external package whose Sindbad extension (`ext/Sindbad<Package>Ext`) provides
+    the real implementation for a given dispatch type, e.g. `requires_package(CMAEvolutionStrategyCMAES) == "CMAEvolutionStrategy"`.
+    Returns `nothing` for types that need no external package (implemented directly in Sindbad,
+    or not yet implemented for any backend). Used by generic dispatch-fallback methods (e.g.
+    `optimizer`, `mlOptimizer`, `mlModel`, `activationFunction`, `getPullback`, `updateMLModel`)
+    to tell users exactly which package to `using` when a selected backend type has no method
+    loaded yet, instead of implying the method doesn't exist at all.
+    """
+    requires_package(::Type{<:SindbadTypes}) = nothing
+
     # Julia 1.10 compatibility:
     # `Base.Docs.hasdoc` is not available on all supported Julia versions, so we implement a
     # small helper that checks whether a *binding* has a docstring attached.

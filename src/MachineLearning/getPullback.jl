@@ -60,16 +60,25 @@ _feat2_ns = rand(Float32, 2, 3) # `n` predictors and `s` samples.
 new_params, pullback_func = getPullback(ZygotePullBack(), flat, re, (_feat1_ns, _feat2_ns))
 ```
 """
-function getPullback(::MachineLearningPullbackType, _, _, _)
-    error("
-    getPullback `$(nameof(typeof(x)))` not implemented. 
-    
+function getPullback(x::MachineLearningPullbackType, _, _, _)
+    pkg = requires_package(typeof(x))
+    if !isnothing(pkg)
+        error("
+    getPullback `$(nameof(typeof(x)))` requires the `$(pkg)` package to be loaded.
+
+    This pullback type is implemented in the `Sindbad$(pkg)Ext` extension, which activates automatically once you run `using $(pkg)` in your session (alongside `using Sindbad`).
+    ")
+    else
+        error("
+    getPullback `$(nameof(typeof(x)))` not implemented.
+
     To implement a new pullback type:
-    
-    - First add a new type as a subtype of `MachineLearningPullbackType` in `src/Types/MachineLearningTypes.jl`. 
-    
+
+    - First add a new type as a subtype of `MachineLearningPullbackType` in `src/Types/MachineLearningTypes.jl`.
+
     - Then, add a corresponding method:
-      - if it can be implemented as an internal Sindbad method without additional dependencies, implement the method in `src/MachineLearning/getPullback.jl`.     
+      - if it can be implemented as an internal Sindbad method without additional dependencies, implement the method in `src/MachineLearning/getPullback.jl`.
       - if it requires additional dependencies, implement the method in `ext/<extension_name>/MachineLearningGetPullback.jl` extension.
     ")
+    end
 end
