@@ -7,7 +7,7 @@
   "default_forcing": {
     "additive_unit_conversion": false,
     "bounds": [],
-    "data_path": "../data/fluxnet_cube/FLUXNET_v1.zarr",
+    "data_path": "../data/FLUXNET_v2023_12_1D.zarr",
     "depth_dimension": null,
     "is_categorical": false,
     "standard_name": null,

@@ -14,9 +14,8 @@ Streamline the ingestion and preprocessing of input data for SINDBAD experiments
 - `AxisKeys`: Labeled multidimensional arrays (`KeyedArray`).
 - `DimensionalData`: Dimension-aware indexing/slicing.
 - `FillArrays`: Efficient filled-array representations.
-- `NCDatasets`: NetCDF reader/writer.
-- `YAXArrays`, `YAXArrayBase`: Multidimensional array/cube abstractions used for IO and spatial data.
-- `Zarr`: Chunked/compressed array storage for large datasets.
+- `YAXArrays`, `YAXArrayBase`: Multidimensional array/cube abstractions used for IO and spatial data. `YAXArrays.open_dataset` reads both netcdf and zarr sources uniformly.
+- `NetCDF`, `Zarr`: not called directly for I/O; merely having them loaded activates YAXArrayBase's `NetCDFExt`/`ZarrExt` backends that `open_dataset` dispatches to. `NetCDF` is also used directly by some example scripts via `DataLoaders.NetCDF.open`.
 
 ## Internal (within `Sindbad`)
 - `Sindbad.Setup`
@@ -31,7 +30,7 @@ Streamline the ingestion and preprocessing of input data for SINDBAD experiments
 - **`handleModelObsData.jl`**: Helpers for aligning forcing/observation/model outputs for cost evaluation.
 
 # Notes
-- The module uses `NCDatasets`, `YAXArrays`, and `Zarr` directly; it does not re-export them.
+- The module uses `YAXArrays` directly; it does not re-export it.
 - Designed to handle large datasets efficiently, leveraging chunked and compressed data formats like NetCDF and Zarr.
 - Ensures compatibility with SINDBAD's experimental framework by integrating spatial and temporal data management tools.
 
@@ -46,7 +45,6 @@ module DataLoaders
    using Dates
    using DimensionalData
    using DimensionalData: DimensionalData as DD
-   using NCDatasets
    using NetCDF
    using YAXArrayBase
    using YAXArrays: YAXArrays, Cube, YAXArray
