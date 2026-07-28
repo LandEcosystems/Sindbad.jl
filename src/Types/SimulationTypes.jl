@@ -7,8 +7,6 @@ purpose(::Type{SimulationTypes}) = "Abstract type for model simulation run flags
 export RunFlag
 export DoCalcCost
 export DoNotCalcCost
-export DoUseForwardDiff
-export DoNotUseForwardDiff
 export DoFilterNanPixels
 export DoNotFilterNanPixels
 export DoRunForward
@@ -75,12 +73,6 @@ purpose(::Type{DoStoreSpinup}) = "Enable storing of spinup results"
 
 struct DoNotStoreSpinup <: RunFlag end
 purpose(::Type{DoNotStoreSpinup}) = "Disable storing of spinup results"
-
-struct DoUseForwardDiff <: RunFlag end
-purpose(::Type{DoUseForwardDiff}) = "Enable forward mode automatic differentiation"
-
-struct DoNotUseForwardDiff <: RunFlag end
-purpose(::Type{DoNotUseForwardDiff}) = "Disable forward mode automatic differentiation"
 
 # ------------------------- parallelization options-------------------------
 export ParallelizationPackage

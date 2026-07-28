@@ -298,8 +298,6 @@ DoNotSpinupTEM
 
 DoNotStoreSpinup
 
-DoNotUseForwardDiff
-
 DoRunForward
 
 DoRunOptimization
@@ -309,8 +307,6 @@ DoSaveInfo
 DoSpinupTEM
 
 DoStoreSpinup
-
-DoUseForwardDiff
 
 SpinupTypes
 
@@ -1310,8 +1306,6 @@ DoNotSpinupTEM
 
 DoNotStoreSpinup
 
-DoNotUseForwardDiff
-
 DoRunForward
 
 DoRunOptimization
@@ -1321,8 +1315,6 @@ DoSaveInfo
 DoSpinupTEM
 
 DoStoreSpinup
-
-DoUseForwardDiff
 
 SpinupTypes
 
@@ -2322,8 +2314,6 @@ Sindbad.Types.DoNotSpinupTEM
 
 Sindbad.Types.DoNotStoreSpinup
 
-Sindbad.Types.DoNotUseForwardDiff
-
 Sindbad.Types.DoRunForward
 
 Sindbad.Types.DoRunOptimization
@@ -2333,8 +2323,6 @@ Sindbad.Types.DoSaveInfo
 Sindbad.Types.DoSpinupTEM
 
 Sindbad.Types.DoStoreSpinup
-
-Sindbad.Types.DoUseForwardDiff
 
 Sindbad.Types.SpinupTypes
 
@@ -3334,8 +3322,6 @@ Sindbad.Types.DoNotSpinupTEM
 
 Sindbad.Types.DoNotStoreSpinup
 
-Sindbad.Types.DoNotUseForwardDiff
-
 Sindbad.Types.DoRunForward
 
 Sindbad.Types.DoRunOptimization
@@ -3345,8 +3331,6 @@ Sindbad.Types.DoSaveInfo
 Sindbad.Types.DoSpinupTEM
 
 Sindbad.Types.DoStoreSpinup
-
-Sindbad.Types.DoUseForwardDiff
 
 Sindbad.Types.SpinupTypes
 
