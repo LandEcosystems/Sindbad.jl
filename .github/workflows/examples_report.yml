@@ -14,7 +14,7 @@ jobs:
         setup: [LUE, WROASTED]
         mode: [pixel, spatial]
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: julia-actions/setup-julia@v3
         with:
           version: '1'
@@ -34,7 +34,7 @@ jobs:
           SIMULATION_SETUPS: ${{ matrix.setup }}
           SIMULATION_MODES: ${{ matrix.mode }}
           SIMULATION_REPORT_CSV: simulation_report_${{ matrix.os }}_${{ matrix.setup }}_${{ matrix.mode }}.csv
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: simulation-report-${{ matrix.os }}-${{ matrix.setup }}-${{ matrix.mode }}
           path: simulation_report_${{ matrix.os }}_${{ matrix.setup }}_${{ matrix.mode }}.csv
@@ -45,8 +45,8 @@ jobs:
     if: always()
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
         with:
           pattern: simulation-report-*
           path: reports
