@@ -99,8 +99,9 @@ Then load/use `Sindbad` normally; the extension will be picked up automatically.
 `.github/workflows/examples_report.yml` ("Execution Report") is a manually-triggered workflow
 (`workflow_dispatch`, run from the Actions tab), pinned to the latest Julia only. It runs one job
 per `{ubuntu,macOS,windows} x {LUE,WROASTED} x {pixel,spatial}` combination (12 jobs, in
-parallel), named so it's clear at a glance what each is running -- e.g. "ubuntu-latest x LUE x
-pixel (forward + optimization)". Each job runs `examples/scripts/simulation_report.jl` restricted
+parallel), named so it's clear at a glance what each is running -- e.g. "LUE x pixel x F+O x
+ubuntu-latest" (F+O = runs both forward and optimization). Each job runs
+`examples/scripts/simulation_report.jl` restricted
 to its one setup/mode (via the `SIMULATION_SETUPS`/`SIMULATION_MODES` environment variables), for
 both `forward` and `optimization` kinds, and writes a CSV of status, wall time, memory allocated,
 mean simulated GPP, and (for optimization runs) the total optimized cost for each (see

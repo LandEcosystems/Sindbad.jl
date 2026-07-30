@@ -4,7 +4,7 @@ on:
 
 jobs:
   simulate:
-    name: ${{ matrix.os }} x ${{ matrix.setup }} x ${{ matrix.mode }} (forward + optimization)
+    name: ${{ matrix.setup }} x ${{ matrix.mode }} x F+O x ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 90
     strategy:
