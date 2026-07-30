@@ -1,4 +1,4 @@
-name: Execution Report
+name: Test Simulation
 on:
   workflow_dispatch:
 
