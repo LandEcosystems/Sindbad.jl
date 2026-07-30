@@ -1,0 +1,18 @@
+[deps]
+CMAEvolutionStrategy = "8d3b24bd-414e-49e0-94fb-163cc3a3e411"
+Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
+HTTP = "cd3eb016-35fb-5094-929b-558a96fad6f3"
+Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
+Sindbad = "36c3e672-7dee-4606-99b5-7e5d8d85a313"
+Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
+YAXArrays = "c21b50f5-aa40-41ea-b809-c0f5e47bfa5c"
+
+[compat]
+# Zarr.jl's HTTPStore forces the OpenSSL TLS backend via a `socket_type_tls` kwarg that HTTP.jl
+# only honors in its 1.x client; HTTP 2.x silently ignores it and falls back to a native TLS
+# stack that fails the handshake against the sindbad S3 bucket. Pin to 1.x until that's fixed
+# upstream (tracked: Zarr.jl HTTPStore + HTTP.jl 2.0 client incompatibility).
+HTTP = "1"
+
+[sources]
+Sindbad = {path = "../.."}

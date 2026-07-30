@@ -94,6 +94,30 @@ Then load/use `Sindbad` normally; the extension will be picked up automatically.
 - **Create an extension file** under `ext/` (e.g. `SindbadMyPkgExt.jl`) that defines methods for the relevant hooks/types in `Sindbad`.
 - **Avoid hard dependencies**: keep imports of the optional package inside the extension module only.
 
+## Examples report (manual CI)
+
+`.github/workflows/examples_report.yml` is a manually-triggered workflow (`workflow_dispatch`,
+run from the Actions tab), pinned to the latest Julia only, that runs on ubuntu, macOS, and
+windows runners in parallel. Each OS runs `examples/scripts/simulation_report.jl`, which executes
+all 8 combinations of `{LUE,WROASTED} x {pixel,spatial} x {forward,optimization}` (see
+`examples/README.md` for what these setups are) and writes a CSV of status, wall time, memory
+allocated, mean simulated GPP, and (for optimization runs) the total optimized cost for each. A
+final `combine` job downloads all three OSes' CSVs and merges them into one Markdown table (OS
+and Julia version included per row) written to the workflow run's job summary, via
+`examples/scripts/combine_simulation_reports.jl`.
+
+`simulation_report.jl` also works standalone locally:
+
+```sh
+julia --project=examples/scripts examples/scripts/simulation_report.jl
+```
+
+which writes `examples/output_simulation_report_<os>.csv` and `.md` (both git-ignored).
+
+The PR template (`.github/PULL_REQUEST_TEMPLATE.md`) includes a checklist item requiring this
+report to be run and pasted/linked in the PR whenever the change could affect the example
+setups' forward/optimization runs -- reviewers should check for it before approving.
+
 ## Governance
 
 This section describes guiding governance principles for collaborating on SINDBAD.
