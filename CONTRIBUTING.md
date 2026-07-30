@@ -94,17 +94,20 @@ Then load/use `Sindbad` normally; the extension will be picked up automatically.
 - **Create an extension file** under `ext/` (e.g. `SindbadMyPkgExt.jl`) that defines methods for the relevant hooks/types in `Sindbad`.
 - **Avoid hard dependencies**: keep imports of the optional package inside the extension module only.
 
-## Examples report (manual CI)
+## Simulation Report (manual CI)
 
-`.github/workflows/examples_report.yml` is a manually-triggered workflow (`workflow_dispatch`,
-run from the Actions tab), pinned to the latest Julia only, that runs on ubuntu, macOS, and
-windows runners in parallel. Each OS runs `examples/scripts/simulation_report.jl`, which executes
-all 8 combinations of `{LUE,WROASTED} x {pixel,spatial} x {forward,optimization}` (see
-`examples/README.md` for what these setups are) and writes a CSV of status, wall time, memory
-allocated, mean simulated GPP, and (for optimization runs) the total optimized cost for each. A
-final `combine` job downloads all three OSes' CSVs and merges them into one Markdown table (OS
-and Julia version included per row) written to the workflow run's job summary, via
-`examples/scripts/combine_simulation_reports.jl`.
+`.github/workflows/TestSimulations.yml` ("Execution Report") is a manually-triggered workflow
+(`workflow_dispatch`, run from the Actions tab), pinned to the latest Julia only. It runs one job
+per `{ubuntu,macOS,windows} x {LUE,WROASTED} x {pixel,spatial}` combination (12 jobs, in
+parallel), named so it's clear at a glance what each is running -- e.g. "LUE x pixel x F+O x
+ubuntu-latest" (F+O = runs both forward and optimization). Each job runs
+`examples/scripts/simulation_report.jl` restricted
+to its one setup/mode (via the `SIMULATION_SETUPS`/`SIMULATION_MODES` environment variables), for
+both `forward` and `optimization` kinds, and writes a CSV of status, wall time, memory allocated,
+mean simulated GPP, and (for optimization runs) the total optimized cost for each (see
+`examples/README.md` for what the LUE/WROASTED setups are). A final `combine` job downloads all
+12 jobs' CSVs and merges them into one Markdown table (OS and Julia version included per row)
+written to the workflow run's job summary, via `examples/scripts/combine_simulation_reports.jl`.
 
 `simulation_report.jl` also works standalone locally:
 

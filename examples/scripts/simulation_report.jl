@@ -4,12 +4,14 @@ using Dates
 using Statistics
 using Printf
 
-# Runs every {LUE,WROASTED} x {pixel,spatial} x {forward,optimization} combination (8 total)
-# against examples/setups/ on the current OS/Julia version, and writes a CSV of wall time,
-# memory allocated, and mean simulated GPP for each. Intended to be run once per OS by
-# .github/workflows/examples_report.yml (ubuntu/macOS/windows, latest Julia), whose separate
-# "combine" job merges each OS's CSV into one Markdown report (see combine_simulation_reports.jl)
-# -- but this script also works standalone locally:
+# Runs every {LUE,WROASTED} x {pixel,spatial} x {forward,optimization} combination against
+# examples/setups/ on the current OS/Julia version, and writes a CSV of wall time, memory
+# allocated, and mean simulated GPP for each. `.github/workflows/TestSimulations.yml` ("Execution
+# Report") runs one job per {OS} x {setup} x {mode} (each job runs both {forward,optimization}
+# kinds), restricted via the SIMULATION_SETUPS/SIMULATION_MODES environment variables below; a
+# separate "combine" job merges every job's CSV into one Markdown report (see
+# combine_simulation_reports.jl) -- but this script also works standalone locally, defaulting to
+# every setup/mode:
 #
 #   julia --project=examples/scripts examples/scripts/simulation_report.jl
 #
@@ -17,19 +19,23 @@ using Printf
 # Markdown table it would otherwise contribute to the combined report.
 
 site_index = 1
-n_sites = 205
+n_sites = 16 # spatial mode uses sites 1:n_sites, not all 205, to keep test runs fast
 
-setups = ("LUE", "WROASTED")
-modes = (:pixel, :spatial)
+setups = split(get(ENV, "SIMULATION_SETUPS", "LUE,WROASTED"), ",")
+modes = Symbol.(split(get(ENV, "SIMULATION_MODES", "pixel,spatial"), ","))
 kinds = (:forward, :optimization)
 
 os_name = get(ENV, "RUNNER_OS", Sys.iswindows() ? "Windows" : Sys.isapple() ? "macOS" : "Linux")
+@info "julia threads" Threads.nthreads()
 
 function buildReplaceInfo(mode, kind, output_path)
     subset_site = mode == :pixel ? [site_index] : collect(1:n_sites)
     replace_info = Dict{String,Any}(
         "forcing.subset.site" => subset_site,
-        "experiment.model_output.path" => output_path,
+        "experiment.model_output.path" => output_path, # root; SINDBAD creates its own output_<domain>_<name> subfolder inside
+        # override the setup's own domain so the auto-generated output subfolder name reflects
+        # what kind of run this is instead of a fixed domain name.
+        "experiment.basics.domain" => "$(kind)_$(mode)",
     )
     if kind == :optimization
         replace_info["experiment.flags.run_optimization"] = true
@@ -42,7 +48,9 @@ end
 rows = NamedTuple[]
 for setup in setups, mode in modes, kind in kinds
     experiment_json = joinpath(@__DIR__, "..", "setups", setup, "experiment.json")
-    output_path = joinpath(@__DIR__, "..", "output_$(setup)_$(kind)_$(mode)_report")
+    # shared root; SINDBAD's auto-generated output_<domain>_<name> subfolder (domain =
+    # "<kind>_<mode>", name = setup) already keeps every combination's output separate.
+    output_path = joinpath(@__DIR__, "..", "output")
     replace_info = buildReplaceInfo(mode, kind, output_path)
 
     @info "running" os_name setup mode kind

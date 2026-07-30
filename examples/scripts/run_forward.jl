@@ -5,23 +5,30 @@ using Sindbad;
 # --------------------------------------------------------------------------------------
 # `setup`      : "LUE" or "WROASTED" -- which examples/setups/<setup> to run.
 # `mode`       : :pixel   -- run a single site; `forcing.subset.site` is a 1-element vector.
-#                :spatial -- run all sites at once; `forcing.subset.site` is a vector of every index.
+#                :spatial -- run the first `n_sites` sites at once (1:n_sites); `forcing.subset.site`
+#                            is a vector of those indices. Kept well below the full 205 by default
+#                            to keep runs fast -- bump `n_sites` for a larger spatial domain.
 # `site_index` : which site to use when `mode == :pixel` (1..205).
 setup = "LUE";
 mode = :pixel;
 site_index = 1;
 
-n_sites = 205;
+n_sites = 16;
 subset_site = mode == :pixel ? [site_index] : collect(1:n_sites);
 
 experiment_json = joinpath(@__DIR__, "..", "setups", setup, "experiment.json");
-output_path = joinpath(@__DIR__, "..", "output_$(setup)_forward_$(mode)");
+# Root directory SINDBAD writes into -- it creates its own subfolder inside based on
+# `experiment.basics.domain`/`name` (e.g. `output_path/output_<domain>_<name>/...`).
+output_path = joinpath(@__DIR__, "..", "output");
 
 # The setups' forcing.json already points `data_path` at the shared S3-hosted
 # synthetic_data_examples.zarr, so no override is needed here.
 replace_info = Dict{String,Any}(
     "forcing.subset.site" => subset_site,
     "experiment.model_output.path" => output_path,
+    # override the setup's own domain so the auto-generated output subfolder name reflects
+    # what kind of run this is instead of a fixed domain name.
+    "experiment.basics.domain" => "forward_$(mode)",
 );
 
 # --------------------------------------------------------------------------------------

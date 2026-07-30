@@ -1,0 +1,71 @@
+name: Execution Report
+on:
+  workflow_dispatch:
+
+jobs:
+  simulate:
+    name: ${{ matrix.setup }} x ${{ matrix.mode }} x F+O x ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        setup: [LUE, WROASTED]
+        mode: [pixel, spatial]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: julia-actions/setup-julia@v3
+        with:
+          version: '1'
+      - uses: julia-actions/cache@v3
+        with:
+          cache-registries: "false"
+      - name: Run simulations
+        shell: julia --project=examples/scripts {0}
+        run: |
+          import Pkg
+          Pkg.instantiate()
+          # `include` resolves relative paths against the calling file's directory, not the
+          # process's working directory -- and the calling "file" here is this run block's own
+          # generated temp script (under runner.temp), not the checkout. Use $GITHUB_WORKSPACE.
+          include(joinpath(ENV["GITHUB_WORKSPACE"], "examples", "scripts", "simulation_report.jl"))
+        env:
+          SIMULATION_SETUPS: ${{ matrix.setup }}
+          SIMULATION_MODES: ${{ matrix.mode }}
+          SIMULATION_REPORT_CSV: simulation_report_${{ matrix.os }}_${{ matrix.setup }}_${{ matrix.mode }}.csv
+          # spatial runs use 4 threads (GitHub-hosted runners provide 4 cores) -- SINDBAD
+          # parallelizes the forward run across sites, and CMA-ES's multi_threading/
+          # parallel_evaluation (set in WROASTED's CMAEvolutionStrategy_CMAES.json) parallelizes
+          # cost evaluation during optimization. Pixel runs stay single-threaded (one site, no
+          # benefit). Julia reads JULIA_NUM_THREADS automatically at startup; `shell:` itself
+          # can't use matrix expressions, so this has to be set here instead of via `-t`.
+          JULIA_NUM_THREADS: ${{ matrix.mode == 'spatial' && 4 || 1 }}
+      - uses: actions/upload-artifact@v7
+        with:
+          name: simulation-report-${{ matrix.os }}-${{ matrix.setup }}-${{ matrix.mode }}
+          path: simulation_report_${{ matrix.os }}_${{ matrix.setup }}_${{ matrix.mode }}.csv
+
+  combine:
+    name: Combine reports
+    needs: simulate
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: simulation-report-*
+          path: reports
+          merge-multiple: true
+      - uses: julia-actions/setup-julia@v3
+        with:
+          version: '1'
+      - name: Combine into one report
+        shell: julia --project=examples/scripts {0}
+        run: |
+          import Pkg
+          Pkg.instantiate()
+          include(joinpath(ENV["GITHUB_WORKSPACE"], "examples", "scripts", "combine_simulation_reports.jl"))
+        env:
+          SIMULATION_REPORT_DIR: reports
