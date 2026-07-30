@@ -38,7 +38,7 @@
     "default_observation": {
       "additive_unit_conversion": false,
       "bounds": null,
-      "data_path": "examples/data/synthetic_data_examples.zarr",
+      "data_path": "https://s3.bgc-jena.mpg.de:9000/sindbad/synthetic_data_examples.zarr",
       "is_categorical": false,
       "standard_name": null,
       "sindbad_unit": null,
