@@ -1,0 +1,8 @@
+[deps]
+CMAEvolutionStrategy = "8d3b24bd-414e-49e0-94fb-163cc3a3e411"
+Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
+Sindbad = "36c3e672-7dee-4606-99b5-7e5d8d85a313"
+YAXArrays = "c21b50f5-aa40-41ea-b809-c0f5e47bfa5c"
+
+[sources]
+Sindbad = {path = "../.."}
