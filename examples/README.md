@@ -13,8 +13,8 @@ to their own repos over time.
 
 ## Setups
 
-Both setups run against the same 2015-only, 205-site FLUXNET-derived dataset (see
-[Data](#data) below) and share the same JSON layout:
+Both setups run against the same sample dataset, `synthetic_data_examples.zarr` (205 sites,
+one year of daily data), and share the same JSON layout:
 
 - `experiment.json` -- top-level experiment definition: which other config files to use, the
   domain/name/date range, execution flags, spinup sequence, and requested output variables.
@@ -35,37 +35,8 @@ pools and allocation). Optimizes ~34 parameters against `gpp`, `nee`, `reco`, `t
 `evapotranspiration`, `agb`, and `ndvi`.
 
 Both setups' `forcing.json`/`optimization.json` point `data_path` at
-`examples/data/synthetic_data_examples.zarr` -- this is a **local-only placeholder path**. The
-run scripts (below) override it at runtime with the resolved absolute path, since Sindbad
-resolves relative data paths against the `SINDBAD_DATA_DEPOT` environment variable when it's
-set, which may point elsewhere on your machine. Once this derived dataset is uploaded to the
-sindbad S3 bucket, both setups will be updated to read it directly from there instead.
-
-## Data
-
-`scripts/derive_example_data.jl` derives `examples/data/synthetic_data_examples.zarr` -- the
-dataset both setups run against -- from the full
-`FLUXNET_v2023_12_1D_REPLACED_Noise003_v1.zarr` cube (205 sites x ~39 years, daily). It:
-
-1. Slices the cube down to calendar year 2015.
-2. Keeps only the 25 variables actually referenced (as `source_variable`) by the two setups'
-   `forcing.json` and the *active* `observational_constraints` in their `optimization.json`.
-
-That second step matters: the raw (non-gap-filled) FLUXNET tower variables and their
-`_QC*`/`_RANDUNC` companions are excluded on purpose. Real tower observation coverage in this
-cube ends around 2014 -- every `_QC*`/`_RANDUNC` variable is 100% `NaN` for 2015 regardless of
-site, which is also why both setups set `use_quality_flag`/`use_uncertainty: false` in
-`optimization.json`. What's left is a small (25-variable), gap-free dataset.
-
-To (re-)run it:
-
-```sh
-SINDBAD_TUTORIALS_DATA_DEPOT=/path/to/dir/containing/FLUXNET_v2023_12_1D_REPLACED_Noise003_v1.zarr \
-  julia --project=examples/scripts examples/scripts/derive_example_data.jl
-```
-
-`examples/data/` is git-ignored -- the derived file is meant to be regenerated locally, not
-committed.
+`https://s3.bgc-jena.mpg.de:9000/sindbad/synthetic_data_examples.zarr`, so no local data or
+path override is needed to run either setup.
 
 ## Running the scripts
 
@@ -90,8 +61,8 @@ and `mode = :spatial` at the top of `run_optimization.jl` before running it.
 
 Both scripts are written as a flat sequence of calls -- `getExperimentInfo`/`getForcing` (or
 `prepExperiment`, which does both), then `prepTEM`/`runTEM!` for a forward run, or
-`getObservation` + `optimizeTEMYax`/`optimizeTEM` for an optimization run -- rather than hidden
-behind a single convenience call. This is deliberate: every intermediate object (`info`,
+`getObservation` + `optimizeTEM` for an optimization run -- rather than hidden behind a single
+convenience call. This is deliberate: every intermediate object (`info`,
 `forcing`, `run_helpers`, `observations`, ...) stays defined afterwards, so you can open either
 script in the REPL, run it one line at a time, and inspect any of those objects directly. Each
 line has a short comment explaining what it produces; see `run_forward.jl` and
