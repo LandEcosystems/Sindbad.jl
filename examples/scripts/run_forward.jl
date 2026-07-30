@@ -19,15 +19,15 @@ subset_site = mode == :pixel ? [site_index] : collect(1:n_sites);
 experiment_json = joinpath(@__DIR__, "..", "setups", setup, "experiment.json");
 # Root directory SINDBAD writes into -- it creates its own subfolder inside based on
 # `experiment.basics.domain`/`name` (e.g. `output_path/output_<domain>_<name>/...`).
-output_path = joinpath(@__DIR__, "..", "output_$(setup)_forward_$(mode)");
+output_path = joinpath(@__DIR__, "..", "output");
 
 # The setups' forcing.json already points `data_path` at the shared S3-hosted
 # synthetic_data_examples.zarr, so no override is needed here.
 replace_info = Dict{String,Any}(
     "forcing.subset.site" => subset_site,
     "experiment.model_output.path" => output_path,
-    # override the setup's own domain (normally "FLUXNET") so the auto-generated output
-    # subfolder name reflects what kind of run this is instead.
+    # override the setup's own domain so the auto-generated output subfolder name reflects
+    # what kind of run this is instead of a fixed domain name.
     "experiment.basics.domain" => "forward_$(mode)",
 );
 
