@@ -2,7 +2,7 @@ using Dates
 using Printf
 
 # Combines the per-OS CSVs written by simulation_report.jl (one per matrix job in
-# .github/workflows/examples_report.yml) into a single Markdown report covering all OSes/Julia
+# .github/workflows/TestSimulations.yml) into a single Markdown report covering all OSes/Julia
 # versions, written to $GITHUB_STEP_SUMMARY. Reads every *.csv file in the directory named by
 # the SIMULATION_REPORT_DIR environment variable (defaults to "reports", matching the workflow's
 # artifact download step).

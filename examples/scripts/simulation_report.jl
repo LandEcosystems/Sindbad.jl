@@ -6,7 +6,7 @@ using Printf
 
 # Runs every {LUE,WROASTED} x {pixel,spatial} x {forward,optimization} combination against
 # examples/setups/ on the current OS/Julia version, and writes a CSV of wall time, memory
-# allocated, and mean simulated GPP for each. `.github/workflows/examples_report.yml` ("Execution
+# allocated, and mean simulated GPP for each. `.github/workflows/TestSimulations.yml` ("Execution
 # Report") runs one job per {OS} x {setup} x {mode} (each job runs both {forward,optimization}
 # kinds), restricted via the SIMULATION_SETUPS/SIMULATION_MODES environment variables below; a
 # separate "combine" job merges every job's CSV into one Markdown report (see
