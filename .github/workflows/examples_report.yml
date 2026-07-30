@@ -22,12 +22,7 @@ jobs:
         with:
           cache-registries: "false"
       - name: Run simulations
-        # spatial runs use 4 threads (GitHub-hosted runners provide 4 cores) -- SINDBAD
-        # parallelizes the forward run across sites, and CMA-ES's multi_threading/
-        # parallel_evaluation (set in WROASTED's CMAEvolutionStrategy_CMAES.json) parallelizes
-        # cost evaluation during optimization. Pixel runs stay single-threaded (one site, no
-        # benefit).
-        shell: julia --project=examples/scripts -t ${{ matrix.mode == 'spatial' && 4 || 1 }} {0}
+        shell: julia --project=examples/scripts {0}
         run: |
           import Pkg
           Pkg.instantiate()
@@ -39,6 +34,13 @@ jobs:
           SIMULATION_SETUPS: ${{ matrix.setup }}
           SIMULATION_MODES: ${{ matrix.mode }}
           SIMULATION_REPORT_CSV: simulation_report_${{ matrix.os }}_${{ matrix.setup }}_${{ matrix.mode }}.csv
+          # spatial runs use 4 threads (GitHub-hosted runners provide 4 cores) -- SINDBAD
+          # parallelizes the forward run across sites, and CMA-ES's multi_threading/
+          # parallel_evaluation (set in WROASTED's CMAEvolutionStrategy_CMAES.json) parallelizes
+          # cost evaluation during optimization. Pixel runs stay single-threaded (one site, no
+          # benefit). Julia reads JULIA_NUM_THREADS automatically at startup; `shell:` itself
+          # can't use matrix expressions, so this has to be set here instead of via `-t`.
+          JULIA_NUM_THREADS: ${{ matrix.mode == 'spatial' && 4 || 1 }}
       - uses: actions/upload-artifact@v7
         with:
           name: simulation-report-${{ matrix.os }}-${{ matrix.setup }}-${{ matrix.mode }}
