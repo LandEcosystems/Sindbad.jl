@@ -96,7 +96,7 @@ Then load/use `Sindbad` normally; the extension will be picked up automatically.
 
 ## Simulation Report (manual CI)
 
-`.github/workflows/TestSimulations.yml` ("Execution Report") is a manually-triggered workflow
+`.github/workflows/TestSimulations.yml` ("Test Simulations") is a manually-triggered workflow
 (`workflow_dispatch`, run from the Actions tab), pinned to the latest Julia only. It runs one job
 per `{ubuntu,macOS,windows} x {LUE,WROASTED} x {pixel,spatial}` combination (12 jobs, in
 parallel), named so it's clear at a glance what each is running -- e.g. "LUE x pixel x F+O x
