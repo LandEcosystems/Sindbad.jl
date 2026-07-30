@@ -24,7 +24,10 @@ jobs:
         run: |
           import Pkg
           Pkg.instantiate()
-          include(joinpath("examples", "scripts", "simulation_report.jl"))
+          # `include` resolves relative paths against the calling file's directory, not the
+          # process's working directory -- and the calling "file" here is this run block's own
+          # generated temp script (under runner.temp), not the checkout. Use $GITHUB_WORKSPACE.
+          include(joinpath(ENV["GITHUB_WORKSPACE"], "examples", "scripts", "simulation_report.jl"))
         env:
           SIMULATION_REPORT_CSV: simulation_report_${{ matrix.os }}.csv
       - uses: actions/upload-artifact@v4
@@ -52,6 +55,6 @@ jobs:
         run: |
           import Pkg
           Pkg.instantiate()
-          include(joinpath("examples", "scripts", "combine_simulation_reports.jl"))
+          include(joinpath(ENV["GITHUB_WORKSPACE"], "examples", "scripts", "combine_simulation_reports.jl"))
         env:
           SIMULATION_REPORT_DIR: reports
