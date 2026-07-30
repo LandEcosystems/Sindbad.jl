@@ -19,7 +19,7 @@ using Printf
 # Markdown table it would otherwise contribute to the combined report.
 
 site_index = 1
-n_sites = 205
+n_sites = 16 # spatial mode uses sites 1:n_sites, not all 205, to keep test runs fast
 
 setups = split(get(ENV, "SIMULATION_SETUPS", "LUE,WROASTED"), ",")
 modes = Symbol.(split(get(ENV, "SIMULATION_MODES", "pixel,spatial"), ","))
@@ -31,7 +31,10 @@ function buildReplaceInfo(mode, kind, output_path)
     subset_site = mode == :pixel ? [site_index] : collect(1:n_sites)
     replace_info = Dict{String,Any}(
         "forcing.subset.site" => subset_site,
-        "experiment.model_output.path" => output_path,
+        "experiment.model_output.path" => output_path, # root; SINDBAD creates its own output_<domain>_<name> subfolder inside
+        # override the setup's own domain (normally "FLUXNET") so the auto-generated output
+        # subfolder name reflects what kind of run this is instead.
+        "experiment.basics.domain" => "$(kind)_$(mode)",
     )
     if kind == :optimization
         replace_info["experiment.flags.run_optimization"] = true

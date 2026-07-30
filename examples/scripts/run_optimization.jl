@@ -8,16 +8,20 @@ using CMAEvolutionStrategy; # required: the CMAES optimizer used by both setups'
 # --------------------------------------------------------------------------------------
 # `setup`      : "LUE" or "WROASTED" -- which examples/setups/<setup> to run.
 # `mode`       : :pixel   -- optimize a single site; `forcing.subset.site` is a 1-element vector.
-#                :spatial -- optimize all sites jointly; `forcing.subset.site` is a vector of every index.
+#                :spatial -- optimize the first `n_sites` sites jointly (1:n_sites); `forcing.subset.site`
+#                            is a vector of those indices. Kept well below the full 205 by default
+#                            to keep runs fast -- bump `n_sites` for a larger spatial domain.
 # `site_index` : which site to use when `mode == :pixel` (1..205).
 setup = "LUE";
 mode = :pixel;
 site_index = 1;
 
-n_sites = 205;
+n_sites = 16;
 subset_site = mode == :pixel ? [site_index] : collect(1:n_sites);
 
 experiment_json = joinpath(@__DIR__, "..", "setups", setup, "experiment.json");
+# Root directory SINDBAD writes into -- it creates its own subfolder inside based on
+# `experiment.basics.domain`/`name` (e.g. `output_path/output_<domain>_<name>/...`).
 output_path = joinpath(@__DIR__, "..", "output_$(setup)_optimization_$(mode)");
 
 # The setups' forcing.json/optimization.json already point `data_path` at the shared
@@ -25,6 +29,9 @@ output_path = joinpath(@__DIR__, "..", "output_$(setup)_optimization_$(mode)");
 replace_info = Dict{String,Any}(
     "forcing.subset.site" => subset_site,
     "experiment.model_output.path" => output_path,
+    # override the setup's own domain (normally "FLUXNET") so the auto-generated output
+    # subfolder name reflects what kind of run this is instead.
+    "experiment.basics.domain" => "optimization_$(mode)",
     # optimization mode: run the optimizer, skip the plain forward/cost-only paths
     # (this is what `runExperimentOpti` sets for you via the internal `setExperimentMode!`)
     "experiment.flags.run_optimization" => true,
