@@ -1,0 +1,57 @@
+name: Examples report
+on:
+  workflow_dispatch:
+
+jobs:
+  simulate:
+    name: Simulate (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: julia-actions/setup-julia@v3
+        with:
+          version: '1'
+      - uses: julia-actions/cache@v3
+        with:
+          cache-registries: "false"
+      - name: Run simulations
+        shell: julia --project=examples/scripts {0}
+        run: |
+          import Pkg
+          Pkg.instantiate()
+          include(joinpath("examples", "scripts", "simulation_report.jl"))
+        env:
+          SIMULATION_REPORT_CSV: simulation_report_${{ matrix.os }}.csv
+      - uses: actions/upload-artifact@v4
+        with:
+          name: simulation-report-${{ matrix.os }}
+          path: simulation_report_${{ matrix.os }}.csv
+
+  combine:
+    name: Combine reports
+    needs: simulate
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: simulation-report-*
+          path: reports
+          merge-multiple: true
+      - uses: julia-actions/setup-julia@v3
+        with:
+          version: '1'
+      - name: Combine into one report
+        shell: julia --project=examples/scripts {0}
+        run: |
+          import Pkg
+          Pkg.instantiate()
+          include(joinpath("examples", "scripts", "combine_simulation_reports.jl"))
+        env:
+          SIMULATION_REPORT_DIR: reports
