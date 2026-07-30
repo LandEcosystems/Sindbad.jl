@@ -9,12 +9,12 @@
 ## Checklist
 
 - [ ] If this PR changes `examples/`, `src/`, or anything else that could affect the example
-      setups' forward/optimization runs: ran the manually-triggered "Examples report" workflow
-      (Actions tab -> Examples report -> Run workflow) against this branch, and pasted the
+      setups' forward/optimization runs: ran the manually-triggered "Execution Report" workflow
+      (Actions tab -> Execution Report -> Run workflow) against this branch, and pasted the
       resulting report table below (or linked the workflow run).
 
 <details>
-<summary>Examples report</summary>
+<summary>Execution Report</summary>
 
 <!-- Paste the report table here, or a link to the workflow run. -->
 
