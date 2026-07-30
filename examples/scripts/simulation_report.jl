@@ -6,8 +6,8 @@ using Printf
 
 # Runs every {LUE,WROASTED} x {pixel,spatial} x {forward,optimization} combination against
 # examples/setups/ on the current OS/Julia version, and writes a CSV of wall time, memory
-# allocated, and mean simulated GPP for each. `.github/workflows/examples_report.yml` ("Simulation
-# Tests") runs one job per {OS} x {setup} x {mode} (each job runs both {forward,optimization}
+# allocated, and mean simulated GPP for each. `.github/workflows/examples_report.yml` ("Execution
+# Report") runs one job per {OS} x {setup} x {mode} (each job runs both {forward,optimization}
 # kinds), restricted via the SIMULATION_SETUPS/SIMULATION_MODES environment variables below; a
 # separate "combine" job merges every job's CSV into one Markdown report (see
 # combine_simulation_reports.jl) -- but this script also works standalone locally, defaulting to
@@ -26,6 +26,7 @@ modes = Symbol.(split(get(ENV, "SIMULATION_MODES", "pixel,spatial"), ","))
 kinds = (:forward, :optimization)
 
 os_name = get(ENV, "RUNNER_OS", Sys.iswindows() ? "Windows" : Sys.isapple() ? "macOS" : "Linux")
+@info "julia threads" Threads.nthreads()
 
 function buildReplaceInfo(mode, kind, output_path)
     subset_site = mode == :pixel ? [site_index] : collect(1:n_sites)
