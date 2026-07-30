@@ -4,6 +4,11 @@ This part of the repo is being trimmed down to a small, canonical set of example
 runs against the currently released Sindbad.jl. Individual research experiments are moving out
 to their own repos over time.
 
+- Documentation: [www.sindbad-mdi.org](https://www.sindbad-mdi.org)
+- More experiment scripts: [SindbadTutorials.jl](https://github.com/LandEcosystems/SindbadTutorials.jl)
+  is where additional scripts for running different experiments are maintained and developed
+  going forward.
+
 - `setups/` -- model + data configuration for each example model structure.
 - `scripts/` -- runnable workflows (data prep, forward run, optimization run) that operate on
   any setup in `setups/`.
@@ -72,26 +77,6 @@ Both scripts also end with a commented-out one-line equivalent (`runExperimentFo
 `runExperimentOpti`) -- the convenience wrapper that does the same steps in one call (plus
 saving output cubes, and for optimization, a default-vs-optimized loss table).
 
-## Examples report (manual CI)
-
-`.github/workflows/examples_report.yml` is a manually-triggered workflow (`workflow_dispatch`,
-run from the Actions tab), pinned to the latest Julia only, that runs on ubuntu, macOS, and
-windows runners in parallel. Each OS runs `scripts/simulation_report.jl`, which executes all 8
-combinations of `{LUE,WROASTED} x {pixel,spatial} x {forward,optimization}` and writes a CSV of
-status, wall time, memory allocated, mean simulated GPP, and (for optimization runs) the total
-optimized cost for each. A final `combine` job
-downloads all three OSes' CSVs and merges them into one Markdown table (OS and Julia version
-included per row) written to the workflow run's job summary, via
-`scripts/combine_simulation_reports.jl`.
-
-`simulation_report.jl` also works standalone locally:
-
-```sh
-julia --project=examples/scripts examples/scripts/simulation_report.jl
-```
-
-which writes `examples/output_simulation_report_<os>.csv` and `.md` (both git-ignored).
-
-The PR template (`.github/PULL_REQUEST_TEMPLATE.md`) includes a checklist item requiring this
-report to be run and pasted/linked in the PR whenever the change could affect the example
-setups' forward/optimization runs -- reviewers should check for it before approving.
+These examples are not to be modified as they serve as the basis for testing if the Sindbad
+simulations are running as expected when new changes are pulled into main. See `CONTRIBUTING.md`
+for details.
