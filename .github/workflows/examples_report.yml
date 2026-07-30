@@ -1,16 +1,18 @@
-name: Examples report
+name: Simulation Tests
 on:
   workflow_dispatch:
 
 jobs:
   simulate:
-    name: Simulate (${{ matrix.os }})
+    name: ${{ matrix.os }} x ${{ matrix.setup }} x ${{ matrix.mode }} (forward + optimization)
     runs-on: ${{ matrix.os }}
     timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
+        setup: [LUE, WROASTED]
+        mode: [pixel, spatial]
     steps:
       - uses: actions/checkout@v6
       - uses: julia-actions/setup-julia@v3
@@ -29,11 +31,13 @@ jobs:
           # generated temp script (under runner.temp), not the checkout. Use $GITHUB_WORKSPACE.
           include(joinpath(ENV["GITHUB_WORKSPACE"], "examples", "scripts", "simulation_report.jl"))
         env:
-          SIMULATION_REPORT_CSV: simulation_report_${{ matrix.os }}.csv
+          SIMULATION_SETUPS: ${{ matrix.setup }}
+          SIMULATION_MODES: ${{ matrix.mode }}
+          SIMULATION_REPORT_CSV: simulation_report_${{ matrix.os }}_${{ matrix.setup }}_${{ matrix.mode }}.csv
       - uses: actions/upload-artifact@v4
         with:
-          name: simulation-report-${{ matrix.os }}
-          path: simulation_report_${{ matrix.os }}.csv
+          name: simulation-report-${{ matrix.os }}-${{ matrix.setup }}-${{ matrix.mode }}
+          path: simulation_report_${{ matrix.os }}_${{ matrix.setup }}_${{ matrix.mode }}.csv
 
   combine:
     name: Combine reports

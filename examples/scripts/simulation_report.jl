@@ -4,12 +4,14 @@ using Dates
 using Statistics
 using Printf
 
-# Runs every {LUE,WROASTED} x {pixel,spatial} x {forward,optimization} combination (8 total)
-# against examples/setups/ on the current OS/Julia version, and writes a CSV of wall time,
-# memory allocated, and mean simulated GPP for each. Intended to be run once per OS by
-# .github/workflows/examples_report.yml (ubuntu/macOS/windows, latest Julia), whose separate
-# "combine" job merges each OS's CSV into one Markdown report (see combine_simulation_reports.jl)
-# -- but this script also works standalone locally:
+# Runs every {LUE,WROASTED} x {pixel,spatial} x {forward,optimization} combination against
+# examples/setups/ on the current OS/Julia version, and writes a CSV of wall time, memory
+# allocated, and mean simulated GPP for each. `.github/workflows/examples_report.yml` ("Simulation
+# Tests") runs one job per {OS} x {setup} x {mode} (each job runs both {forward,optimization}
+# kinds), restricted via the SIMULATION_SETUPS/SIMULATION_MODES environment variables below; a
+# separate "combine" job merges every job's CSV into one Markdown report (see
+# combine_simulation_reports.jl) -- but this script also works standalone locally, defaulting to
+# every setup/mode:
 #
 #   julia --project=examples/scripts examples/scripts/simulation_report.jl
 #
@@ -19,8 +21,8 @@ using Printf
 site_index = 1
 n_sites = 205
 
-setups = ("LUE", "WROASTED")
-modes = (:pixel, :spatial)
+setups = split(get(ENV, "SIMULATION_SETUPS", "LUE,WROASTED"), ",")
+modes = Symbol.(split(get(ENV, "SIMULATION_MODES", "pixel,spatial"), ","))
 kinds = (:forward, :optimization)
 
 os_name = get(ENV, "RUNNER_OS", Sys.iswindows() ? "Windows" : Sys.isapple() ? "macOS" : "Linux")
