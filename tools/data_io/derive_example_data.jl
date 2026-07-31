@@ -18,7 +18,7 @@ if isnothing(source_path)
 end
 source_path = joinpath(source_path, "FLUXNET_v2023_12_1D_REPLACED_Noise003_v1.zarr")
 
-dest_path = joinpath(@__DIR__, "..", "data", "synthetic_data_examples.zarr")
+dest_path = joinpath(@__DIR__, "..", "..", "examples", "data", "synthetic_data_examples.zarr")
 
 date_begin = DateTime(2015, 1, 1)
 date_end = DateTime(2015, 12, 31)
