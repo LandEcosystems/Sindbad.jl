@@ -121,7 +121,10 @@ own, targeted at whatever actually changed, instead of always paying for the ful
 What each workflow actually runs:
 
 - **`Sindbad.yml` / `SindbadTEM.yml` full matrix**: the same tests as the quick check, across all
-  three OSes (`ubuntu`/`macOS`/`windows`) x both Julia versions (6 jobs each).
+  three OSes (`ubuntu`/`macOS`/`windows`) x both Julia versions (6 jobs each). Each job writes a
+  one-row CSV of its pass/fail status and wall time; when triggered on-demand (`workflow_dispatch`,
+  e.g. via `/compile-os`), a final `report` job downloads all 6 jobs' CSVs and posts a Markdown
+  table (OS, Julia version, status, time) on the PR alongside the overall result.
 - **`Documenter.yml`**: builds the docs (no PR preview deploy; see `docs/make.jl`'s
   `push_preview = false`).
 - **`TestSimulations.yml`** ("Test Simulations"): runs one job per

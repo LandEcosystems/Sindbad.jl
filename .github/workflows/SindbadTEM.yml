@@ -120,19 +120,42 @@ jobs:
       - uses: julia-actions/cache@v3
       - name: Develop and test SindbadTEM
         shell: julia --project=SindbadTEM {0}
+        env:
+          MATRIX_OS: ${{ matrix.os }}
+          MATRIX_VERSION: ${{ matrix.version }}
+          TEST_REPORT_CSV: test_report_${{ matrix.os }}_${{ matrix.version }}.csv
         run: |
           using Pkg
           # CI should not rely on developer-local Manifests that point to /Users/... paths.
           # (When running with `--project=SindbadTEM`, the manifest lives in `SindbadTEM/Manifest.toml`.)
           rm(joinpath("SindbadTEM","Manifest.toml"); force=true)
           Pkg.instantiate()
-          Pkg.test("SindbadTEM"; coverage=true)
+          # Timed and try/catch'd (rather than a bare Pkg.test call) so the elapsed time and
+          # pass/fail status get written to CSV -- and picked up as a build artifact -- even when
+          # tests fail; `error(err)` at the end still fails this step/job so CI signal is
+          # unchanged.
+          ok, err = true, ""
+          elapsed = @elapsed try
+              Pkg.test("SindbadTEM"; coverage=true)
+          catch e
+              ok, err = false, replace(sprint(showerror, e), "\n" => " ", "," => ";")
+          end
+          open(ENV["TEST_REPORT_CSV"], "w") do io
+              println(io, "os,julia,ok,time_s,error")
+              println(io, "$(ENV["MATRIX_OS"]),$(ENV["MATRIX_VERSION"]),$(ok),$(round(elapsed, digits=1)),$(err)")
+          end
+          !ok && error(err)
       - uses: julia-actions/julia-processcoverage@v1
         with:
           directories: SindbadTEM/src
       - uses: codecov/codecov-action@v7
         with:
           files: lcov.info
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: sindbadtem-test-report-${{ matrix.os }}-${{ matrix.version }}
+          path: test_report_${{ matrix.os }}_${{ matrix.version }}.csv
 
   # Posts/updates a sticky comment on the PR whose branch this was dispatched against, so the
   # result of an on-demand full-matrix run shows up in the PR without manual copy/paste.
@@ -145,6 +168,29 @@ jobs:
       pull-requests: write
     steps:
       - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: sindbadtem-test-report-*
+          path: reports
+          merge-multiple: true
+      - name: Build timing table
+        run: |
+          shopt -s nullglob
+          csvs=(reports/*.csv)
+          {
+            if [ ${#csvs[@]} -eq 0 ]; then
+              echo "_No timing data available._"
+            else
+              echo "| OS | Julia | Status | Time (s) |"
+              echo "|---|---|---|---|"
+              for f in "${csvs[@]}"; do
+                tail -n +2 "$f"
+              done | while IFS=, read -r os version ok time_s error; do
+                status=$( [ "$ok" = "true" ] && echo "OK" || echo "FAILED" )
+                printf "| %s | %s | %s | %s |\n" "$os" "$version" "$status" "$time_s"
+              done
+            fi
+          } > /tmp/timing_table.md
       - name: Post result to PR
         env:
           GH_TOKEN: ${{ github.token }}
@@ -159,6 +205,8 @@ jobs:
           {
             echo "<!-- ci-comment-marker: sindbadtem-full-matrix -->"
             echo "### SindbadTEM.jl full OS matrix: $RESULT"
+            echo ""
+            cat /tmp/timing_table.md
             echo ""
             echo "[View run]($RUN_URL) (Julia lts/1 x ubuntu/macOS/windows)"
           } > /tmp/comment_body.md
