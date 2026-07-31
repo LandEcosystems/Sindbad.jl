@@ -52,6 +52,12 @@ julia tools/benchmark/compare_julia_versions.jl \
     [--out=path/to/report.md]
 ```
 
+To benchmark against a spatial (multi-site) run instead of the setup's default, pass
+`--replace-info=tools/benchmark/replace_info_spatial_WROASTED.json` — it overrides
+`forcing.subset.site` to a 16-site subset (same convention as
+`examples/scripts/run_forward.jl`'s `:spatial` mode) rather than the full 205 sites,
+to keep runs fast.
+
 - `--experiment` — path to the experiment's `experiment.json`.
 - `--project` — optional. A Pkg environment whose `Project.toml` lists any *extra*
   dependencies your experiment needs beyond `Sindbad` + `BenchmarkTools` (which are
