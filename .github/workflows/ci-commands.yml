@@ -17,7 +17,7 @@ jobs:
     if: >
       github.event.issue.pull_request != null &&
       contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) &&
-      (contains(github.event.comment.body, '/run-full-matrix') || contains(github.event.comment.body, '/run-simulations') || contains(github.event.comment.body, '/run-docs'))
+      (contains(github.event.comment.body, '/run-checks') || contains(github.event.comment.body, '/run-simulations'))
     runs-on: ubuntu-latest
     permissions:
       actions: write
@@ -39,13 +39,14 @@ jobs:
           gh api "repos/${GITHUB_REPOSITORY}/issues/comments/${{ github.event.comment.id }}/reactions" \
             -f content=rocket >/dev/null
 
-      - name: Dispatch full matrix
-        if: contains(github.event.comment.body, '/run-full-matrix')
+      - name: Dispatch full matrix + docs
+        if: contains(github.event.comment.body, '/run-checks')
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh workflow run Sindbad.yml --repo "$GITHUB_REPOSITORY" --ref "${{ steps.pr.outputs.branch }}"
           gh workflow run SindbadTEM.yml --repo "$GITHUB_REPOSITORY" --ref "${{ steps.pr.outputs.branch }}"
+          gh workflow run Documenter.yml --repo "$GITHUB_REPOSITORY" --ref "${{ steps.pr.outputs.branch }}"
 
       - name: Dispatch test simulations
         if: contains(github.event.comment.body, '/run-simulations')
@@ -53,13 +54,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh workflow run TestSimulations.yml --repo "$GITHUB_REPOSITORY" --ref "${{ steps.pr.outputs.branch }}"
-
-      - name: Dispatch docs build
-        if: contains(github.event.comment.body, '/run-docs')
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh workflow run Documenter.yml --repo "$GITHUB_REPOSITORY" --ref "${{ steps.pr.outputs.branch }}"
 
       - name: Confirm
         env:
