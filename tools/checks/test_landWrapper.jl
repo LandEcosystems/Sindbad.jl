@@ -2,14 +2,14 @@ using Revise
 using Sindbad
 
 toggle_type_abbrev_in_stacktrace()
-experiment_json = "../exp_landWrapper/settings_landWrapper/experiment.json"
+experiment_json = "../../examples/setups/WROASTED/experiment.json"
 begin_year = "1979"
 end_year = "2017"
 
 domain = "DE-Hai"
 # domain = "MY-PSO"
 path_input = "$(getSindbadDataDepot())/fn/$(domain).1979.2017.daily.nc"
-forcing_config = "forcing_erai.json"
+forcing_config = "forcing.json"
 
 path_observation = path_input
 optimize_it = true
@@ -34,7 +34,7 @@ replace_info = Dict("experiment.basics.time.date_begin" => begin_year * "-01-01"
     "experiment.model_output.format" => "nc",
     "experiment.model_output.save_single_file" => true,
     "experiment.exe_rules.parallelization" => parallelization_lib,
-    "optimization.algorithm_optimization" => "opti_algorithms/CMAEvolutionStrategy_CMAES.json",
+    "optimization.algorithm_optimization" => "CMAEvolutionStrategy_CMAES.json",
     "optimization.observations.default_observation.data_path" => path_observation);
 
 info = getExperimentInfo(experiment_json; replace_info=replace_info); # note that this will modify information from json with the replace_info
