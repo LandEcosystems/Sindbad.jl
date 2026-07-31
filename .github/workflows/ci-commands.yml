@@ -7,18 +7,30 @@ permissions:
   contents: read
 
 jobs:
-  # Lets maintainers trigger every on-demand CI workflow at once by commenting `/check-pr` on a
-  # PR, instead of going to the Actions tab (both work -- see Sindbad.yml/SindbadTEM.yml/
-  # Documenter.yml/TestSimulations.yml). Meant as the one comprehensive check to re-run right
-  # before merging, including after new commits land on top of an earlier /check-pr run. Gated
-  # to comments on PRs, from users with write access -- this only dispatches other workflows
-  # against the PR's branch, the same trust level as a maintainer manually clicking "Run
-  # workflow"; it never checks out or runs PR code itself.
+  # Lets maintainers trigger on-demand CI workflows by commenting on a PR, instead of going to
+  # the Actions tab (both work -- see Sindbad.yml/SindbadTEM.yml/Documenter.yml/
+  # TestSimulations.yml). Gated to comments on PRs, from users with write access -- this only
+  # dispatches other workflows against the PR's branch, the same trust level as a maintainer
+  # manually clicking "Run workflow"; it never checks out or runs PR code itself.
+  #
+  # Commands (any combination in one comment is fine); see CONTRIBUTING.md's "Continuous
+  # Integration" section for what each actually covers (coverage is uneven, e.g. /compile-os
+  # doesn't exercise every ext/* extension):
+  #   /check-pr          everything below -- the one comprehensive check to re-run right before
+  #                       merging, including after new commits land on top of an earlier run.
+  #   /build-docs         Documenter.yml only.
+  #   /compile-os         Sindbad.yml + SindbadTEM.yml full OS matrix only.
+  #   /test-simulation    TestSimulations.yml only.
   dispatch:
     if: >
       github.event.issue.pull_request != null &&
       contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) &&
-      contains(github.event.comment.body, '/check-pr')
+      (
+        contains(github.event.comment.body, '/check-pr') ||
+        contains(github.event.comment.body, '/build-docs') ||
+        contains(github.event.comment.body, '/compile-os') ||
+        contains(github.event.comment.body, '/test-simulation')
+      )
     runs-on: ubuntu-latest
     permissions:
       actions: write
@@ -40,18 +52,75 @@ jobs:
           gh api "repos/${GITHUB_REPOSITORY}/issues/comments/${{ github.event.comment.id }}/reactions" \
             -f content=rocket >/dev/null
 
-      - name: Dispatch everything
+      - name: Work out which workflows to dispatch
+        id: workflows
+        env:
+          COMMENT_BODY: ${{ github.event.comment.body }}
+        run: |
+          describe() {
+            case "$1" in
+              Sindbad.yml) echo "Sindbad.jl full OS matrix" ;;
+              SindbadTEM.yml) echo "SindbadTEM.jl full OS matrix" ;;
+              Documenter.yml) echo "the docs build" ;;
+              TestSimulations.yml) echo "Test Simulations" ;;
+            esac
+          }
+          workflows=()
+
+          if [[ "$COMMENT_BODY" == *"/check-pr"* ]]; then
+            workflows+=(Sindbad.yml SindbadTEM.yml Documenter.yml TestSimulations.yml)
+          fi
+          if [[ "$COMMENT_BODY" == *"/build-docs"* ]]; then
+            workflows+=(Documenter.yml)
+          fi
+          if [[ "$COMMENT_BODY" == *"/compile-os"* ]]; then
+            workflows+=(Sindbad.yml SindbadTEM.yml)
+          fi
+          if [[ "$COMMENT_BODY" == *"/test-simulation"* ]]; then
+            workflows+=(TestSimulations.yml)
+          fi
+
+          # De-dup while preserving first-seen order (a comment may combine commands that
+          # overlap, e.g. `/check-pr` with `/build-docs`).
+          unique=()
+          for w in "${workflows[@]}"; do
+            if [[ ! " ${unique[*]-} " == *" $w "* ]]; then
+              unique+=("$w")
+            fi
+          done
+
+          printf '%s\n' "${unique[@]}" > /tmp/workflows.txt
+
+          descriptions=()
+          for w in "${unique[@]}"; do
+            descriptions+=("$(describe "$w")")
+          done
+
+          count=${#descriptions[@]}
+          if (( count == 1 )); then
+            joined="${descriptions[0]}"
+          elif (( count == 2 )); then
+            joined="${descriptions[0]} and ${descriptions[1]}"
+          else
+            last=${descriptions[$((count - 1))]}
+            head=("${descriptions[@]:0:count-1}")
+            head_joined=$(printf ', %s' "${head[@]}")
+            joined="${head_joined:2}, and $last"
+          fi
+          echo "description=$joined" >> "$GITHUB_OUTPUT"
+
+      - name: Dispatch workflows
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh workflow run Sindbad.yml --repo "$GITHUB_REPOSITORY" --ref "${{ steps.pr.outputs.branch }}"
-          gh workflow run SindbadTEM.yml --repo "$GITHUB_REPOSITORY" --ref "${{ steps.pr.outputs.branch }}"
-          gh workflow run Documenter.yml --repo "$GITHUB_REPOSITORY" --ref "${{ steps.pr.outputs.branch }}"
-          gh workflow run TestSimulations.yml --repo "$GITHUB_REPOSITORY" --ref "${{ steps.pr.outputs.branch }}"
+          while read -r workflow; do
+            [[ -z "$workflow" ]] && continue
+            gh workflow run "$workflow" --repo "$GITHUB_REPOSITORY" --ref "${{ steps.pr.outputs.branch }}"
+          done < /tmp/workflows.txt
 
       - name: Confirm
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh pr comment "${{ github.event.issue.number }}" --repo "$GITHUB_REPOSITORY" --body \
-            "Triggered: Sindbad.jl full OS matrix, SindbadTEM.jl full OS matrix, the docs build, and Test Simulations on \`${{ steps.pr.outputs.branch }}\`. Each will post its own comment here when it starts and again when it finishes; see the [Actions tab](${{ github.server_url }}/${{ github.repository }}/actions) for live progress in the meantime."
+            "Triggered: ${{ steps.workflows.outputs.description }} on \`${{ steps.pr.outputs.branch }}\`. Each will post its own comment here when it starts and again when it finishes; see the [Actions tab](${{ github.server_url }}/${{ github.repository }}/actions) for live progress in the meantime."

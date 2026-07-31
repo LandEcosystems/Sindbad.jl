@@ -4,13 +4,22 @@
 
 ## On-demand checks
 
-Every PR runs a fast, ubuntu-only check automatically on every push (required to merge).
+Automatically, every PR runs a fast, ubuntu-only check on every push to aid the developer.
+
+As the last check before merging, run additional test and checks **when the change are complete** by commenting:**
+
+- `/check-pr` to run the full suite of tests and checks (recommended)
+
+Or, if certain, run just what's relevant to the changes:
+
+- `/build-docs`: docstring or new-function changes
+- `/compile-os`: changes under `src/`, `SindbadTEM/src/`, or `Project.toml` dependencies
+- `/test-simulation`: changes to the core simulation run path (forward/optimization)
 
 
-**When everything is ready, run `/check-pr` to run the full tests required before merging**:
-- full OS matrix (Sindbad.jl + SindbadTEM.jl), the docs build, and Test Simulations. 
+The results post automatically back to the comment in this PR as comments.
 
-Results post back to this PR as comments automatically. Re-run it after new commits; it's the last
-check before merging.
+*** Note that these workflows can also be run any time on any branch through:***
 
-(or Actions tab -> pick a workflow -> Run workflow -> select this branch, to run just one)
+```Actions tab -> pick a workflow -> Run workflow -> select this branch```
+
