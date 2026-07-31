@@ -4,7 +4,6 @@ on:
     branches:
       - main
     tags: ['*']
-  pull_request:
   workflow_dispatch:
 
 # Add permissions for GitHub Actions to push to gh-pages
