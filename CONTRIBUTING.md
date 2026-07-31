@@ -94,20 +94,30 @@ Then load/use `Sindbad` normally; the extension will be picked up automatically.
 - **Create an extension file** under `ext/` (e.g. `SindbadMyPkgExt.jl`) that defines methods for the relevant hooks/types in `Sindbad`.
 - **Avoid hard dependencies**: keep imports of the optional package inside the extension module only.
 
-## Simulation Report (manual CI)
+## Continuous Integration
 
-`.github/workflows/TestSimulations.yml` ("Test Simulations") is a manually-triggered workflow
-(`workflow_dispatch`, run from the Actions tab), pinned to the latest Julia only. It runs one job
-per `{ubuntu,macOS,windows} x {LUE,WROASTED} x {pixel,spatial}` combination (12 jobs, in
-parallel), named so it's clear at a glance what each is running -- e.g. "LUE x pixel x F+O x
-ubuntu-latest" (F+O = runs both forward and optimization). Each job runs
-`examples/scripts/simulation_report.jl` restricted
-to its one setup/mode (via the `SIMULATION_SETUPS`/`SIMULATION_MODES` environment variables), for
-both `forward` and `optimization` kinds, and writes a CSV of status, wall time, memory allocated,
-mean simulated GPP, and (for optimization runs) the total optimized cost for each (see
-`examples/README.md` for what the LUE/WROASTED setups are). A final `combine` job downloads all
-12 jobs' CSVs and merges them into one Markdown table (OS and Julia version included per row)
-written to the workflow run's job summary, via `examples/scripts/combine_simulation_reports.jl`.
+Every PR automatically runs a "quick" check on every push: `Sindbad.yml` and `SindbadTEM.yml`,
+ubuntu-only, Julia `lts` + `1` (4 jobs total). This is required to merge and is intentionally
+narrow, so pushing to a PR stays fast.
+
+For everything else, comment `/check-pr` on the PR (or trigger each workflow individually from
+the Actions tab) once it's ready to merge, and again after any new commits -- it's meant as the
+last check before merging, not something to run on every push:
+
+- **`Sindbad.yml` / `SindbadTEM.yml` full matrix**: the same tests as the quick check, across all
+  three OSes (`ubuntu`/`macOS`/`windows`) x both Julia versions (6 jobs each).
+- **`Documenter.yml`**: builds the docs (no PR preview deploy; see `docs/make.jl`'s
+  `push_preview = false`).
+- **`TestSimulations.yml`** ("Test Simulations"): runs one job per
+  `{ubuntu,macOS,windows} x {LUE,WROASTED} x {pixel,spatial}` combination (12 jobs, in parallel),
+  named so it's clear at a glance what each is running -- e.g. "LUE x pixel x F+O x ubuntu-latest"
+  (F+O = runs both forward and optimization). Each job runs `examples/scripts/simulation_report.jl`
+  restricted to its one setup/mode (via the `SIMULATION_SETUPS`/`SIMULATION_MODES` environment
+  variables), for both `forward` and `optimization` kinds, and writes a CSV of status, wall time,
+  memory allocated, mean simulated GPP, and (for optimization runs) the total optimized cost for
+  each (see `examples/README.md` for what the LUE/WROASTED setups are). A final `combine` job
+  downloads all 12 jobs' CSVs and merges them into one Markdown table (OS and Julia version
+  included per row), via `examples/scripts/combine_simulation_reports.jl`.
 
 `simulation_report.jl` also works standalone locally:
 
@@ -117,9 +127,11 @@ julia --project=examples/scripts examples/scripts/simulation_report.jl
 
 which writes `examples/output_simulation_report_<os>.csv` and `.md` (both git-ignored).
 
-The PR template (`.github/PULL_REQUEST_TEMPLATE.md`) includes a checklist item requiring this
-report to be run and pasted/linked in the PR whenever the change could affect the example
-setups' forward/optimization runs -- reviewers should check for it before approving.
+Each on-demand workflow posts its own progress to the PR as a comment automatically -- an
+"in progress" comment naming what's running as soon as it starts, updated with the result once
+it finishes (see `.github/scripts/upsert_pr_comment.sh`). `/check-pr` itself is handled by
+`.github/workflows/ci-commands.yml`, gated to commenters with write access; it only dispatches
+the other workflows against the PR's branch, it never checks out or runs any PR code itself.
 
 ## Governance
 
