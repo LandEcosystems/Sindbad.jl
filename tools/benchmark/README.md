@@ -1,4 +1,4 @@
-# benchmark/
+# tools/benchmark/
 
 A small self-contained tool for comparing Sindbad's runtime performance across
 different Julia versions *before* switching your default Julia version. It grew
@@ -43,7 +43,7 @@ options), it falls back to benchmarking `prepTEM` + `runTEM!` alone.
 ## Usage
 
 ```sh
-julia benchmark/compare_julia_versions.jl \
+julia tools/benchmark/compare_julia_versions.jl \
     --experiment=examples/exp_graf/settings_graf/experiment.json \
     --versions=1.11.9,1.12.6 \
     [--project=path/to/env] \
@@ -68,7 +68,7 @@ julia benchmark/compare_julia_versions.jl \
 - `--threads` — Julia threads per run (`-t`), applied identically to every version
   for a fair comparison. Defaults to half the machine's CPU count.
 - `--out` — where to write the report. Defaults to
-  `benchmark/tmp_<experiment-file-basename>.md`.
+  `tools/benchmark/tmp_<experiment-file-basename>.md`.
 
 The report includes the experiment file's path, the full raw `experiment.json`
 content, per-version environment metadata (Julia version, thread count), and the

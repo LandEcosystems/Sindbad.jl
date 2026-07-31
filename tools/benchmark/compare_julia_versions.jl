@@ -23,10 +23,10 @@
 # from scratch, which is enough for the benchmark cascade itself.
 #
 # For each version this script builds its own throwaway env under
-# benchmark/.jlbench_envs/ and instantiates it -- your real environment (if any was
-# given via --project) is never modified, and a Manifest.toml resolved under one
+# tools/benchmark/.jlbench_envs/ and instantiates it -- your real environment (if any
+# was given via --project) is never modified, and a Manifest.toml resolved under one
 # Julia version never has to be reused/corrupted by another. Default report path is
-# benchmark/tmp_<experiment file name>.md.
+# tools/benchmark/tmp_<experiment file name>.md.
 
 function parse_args(args)
     opts = Dict{String,String}()
@@ -74,7 +74,7 @@ println()
 # entirely and makes repeated runs reproducible regardless of what was run before.
 envs_root = joinpath(@__DIR__, ".jlbench_envs")
 mkpath(envs_root)
-sindbad_root = normpath(joinpath(@__DIR__, ".."))
+sindbad_root = normpath(joinpath(@__DIR__, "..", ".."))
 env_label = project_path === nothing ? "minimal" : basename(project_path)
 
 results = Dict{String,String}()  # version => csv path
