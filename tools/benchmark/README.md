@@ -44,7 +44,7 @@ options), it falls back to benchmarking `prepTEM` + `runTEM!` alone.
 
 ```sh
 julia tools/benchmark/compare_julia_versions.jl \
-    --experiment=examples/exp_graf/settings_graf/experiment.json \
+    --experiment=examples/setups/WROASTED/experiment.json \
     --versions=1.11.9,1.12.6 \
     [--project=path/to/env] \
     [--replace-info=path/to/replace_info.json] \
