@@ -1,7 +1,7 @@
 
 using Sindbad
 
-info = getExperimentInfo("../exp_flare/settings_flare/experiment.json"); 
+info = getExperimentInfo("../../examples/setups/WROASTED/experiment.json");
 
 
 flare_json = namedTupleToFlareJSON(info)
