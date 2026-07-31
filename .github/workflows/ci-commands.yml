@@ -1,0 +1,61 @@
+name: CI commands
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+
+jobs:
+  # Lets maintainers trigger the on-demand CI workflows by commenting on a PR, instead of
+  # going to the Actions tab (both work -- see Sindbad.yml/SindbadTEM.yml/TestSimulations.yml).
+  # Gated to comments on PRs, from users with write access, matching a known command -- this
+  # only dispatches other workflows against the PR's branch, the same trust level as a
+  # maintainer manually clicking "Run workflow"; it never checks out or runs PR code itself.
+  dispatch:
+    if: >
+      github.event.issue.pull_request != null &&
+      contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) &&
+      (contains(github.event.comment.body, '/run-full-matrix') || contains(github.event.comment.body, '/run-simulations'))
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Resolve PR branch
+        id: pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          branch=$(gh pr view "${{ github.event.issue.number }}" --repo "$GITHUB_REPOSITORY" --json headRefName --jq .headRefName)
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+
+      - name: React to comment
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/${GITHUB_REPOSITORY}/issues/comments/${{ github.event.comment.id }}/reactions" \
+            -f content=rocket >/dev/null
+
+      - name: Dispatch full matrix
+        if: contains(github.event.comment.body, '/run-full-matrix')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run Sindbad.yml --repo "$GITHUB_REPOSITORY" --ref "${{ steps.pr.outputs.branch }}"
+          gh workflow run SindbadTEM.yml --repo "$GITHUB_REPOSITORY" --ref "${{ steps.pr.outputs.branch }}"
+
+      - name: Dispatch test simulations
+        if: contains(github.event.comment.body, '/run-simulations')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run TestSimulations.yml --repo "$GITHUB_REPOSITORY" --ref "${{ steps.pr.outputs.branch }}"
+
+      - name: Confirm
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh pr comment "${{ github.event.issue.number }}" --repo "$GITHUB_REPOSITORY" --body \
+            "Triggered the requested workflow(s) on \`${{ steps.pr.outputs.branch }}\`. Check the [Actions tab](${{ github.server_url }}/${{ github.repository }}/actions) for progress -- results will be posted back here when done."

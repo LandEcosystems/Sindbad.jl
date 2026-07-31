@@ -51,6 +51,8 @@ jobs:
     needs: simulate
     if: always()
     runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
     steps:
       - uses: actions/checkout@v7
       - uses: actions/download-artifact@v8
@@ -69,3 +71,23 @@ jobs:
           include(joinpath(ENV["GITHUB_WORKSPACE"], "examples", "scripts", "combine_simulation_reports.jl"))
         env:
           SIMULATION_REPORT_DIR: reports
+      # Runs even if the step above failed (some/all simulations errored) -- post whatever
+      # report was produced to the PR either way, rather than only reporting successes.
+      - name: Post result to PR
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          pr_number=$(gh pr list --repo "$GITHUB_REPOSITORY" --head "${{ github.ref_name }}" --state open --json number --jq '.[0].number')
+          if [ -z "$pr_number" ]; then
+            echo "No open PR for branch ${{ github.ref_name }}; skipping comment."
+            exit 0
+          fi
+          {
+            echo "<!-- ci-comment-marker: test-simulations -->"
+            echo "[View run]($RUN_URL)"
+            echo ""
+            cat output_simulation_report_combined.md
+          } > /tmp/comment_body.md
+          .github/scripts/upsert_pr_comment.sh "$pr_number" "test-simulations" /tmp/comment_body.md

@@ -77,8 +77,9 @@ if !isnothing(summary_path)
     open(summary_path, "a") do f
         println(f, report)
     end
-else
-    write("output_simulation_report_combined.md", report)
 end
+# Always written (in addition to GITHUB_STEP_SUMMARY when running in Actions) so a later
+# workflow step can pick this file up to post it as a PR comment.
+write("output_simulation_report_combined.md", report)
 
 any(row.ok != "true" for row in rows) && error("one or more example runs failed; see report above")

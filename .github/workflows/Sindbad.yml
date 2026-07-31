@@ -11,14 +11,58 @@ on:
       - '*'
     branches:
       - main
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
 jobs:
-  test:
-    name: Julia ${{ matrix.version }} - ${{ matrix.os }} - ${{ github.event_name }}
+  # Runs on every push to a PR -- ubuntu only, both Julia versions. Kept fast/cheap so it's
+  # reasonable to require before merge. For full OS coverage, use the "full-matrix" job below
+  # (Actions tab -> Run workflow, or comment `/run-full-matrix` on the PR -- see ci-commands.yml).
+  quick:
+    if: github.event_name == 'pull_request'
+    name: "Sindbad: Julia ${{ matrix.version }} - ${{ matrix.os }} - quick"
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    env:
+      JULIA_NUM_PRECOMPILE_TASKS: 1
+    strategy:
+      fail-fast: false
+      matrix:
+        version:
+          - 'lts'
+          - '1'
+        os:
+          - ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: julia-actions/setup-julia@v3
+        with:
+          version: ${{ matrix.version }}
+      - uses: julia-actions/cache@v3
+      - name: Develop and test Sindbad
+        shell: julia --project=. {0}
+        run: |
+          using Pkg
+          # CI should not rely on developer-local Manifests that point to /Users/... paths.
+          rm("Manifest.toml"; force=true)
+          Pkg.instantiate()  # Install all dependencies
+          Pkg.test("Sindbad"; coverage=true)
+      - uses: julia-actions/julia-processcoverage@v1
+        with:
+          directories: src
+      - uses: codecov/codecov-action@v7
+        with:
+          files: lcov.info
+
+  # Full OS x Julia-version matrix. Runs automatically after merge to main / on tag push, and
+  # on demand (workflow_dispatch) against any branch -- including an open PR's branch, so you
+  # can validate the full matrix before merging without paying for it on every commit.
+  full-matrix:
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    name: "Sindbad: Julia ${{ matrix.version }} - ${{ matrix.os }} - full"
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     continue-on-error: ${{ matrix.allow_failure }}
@@ -57,3 +101,35 @@ jobs:
       - uses: codecov/codecov-action@v7
         with:
           files: lcov.info
+
+  # Posts/updates a sticky comment on the PR whose branch this was dispatched against, so the
+  # result of an on-demand full-matrix run shows up in the PR without manual copy/paste.
+  # Only meaningful for workflow_dispatch -- push (post-merge/tag) has no PR to comment on.
+  report:
+    needs: full-matrix
+    if: always() && github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v7
+      - name: Post result to PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RESULT: ${{ needs.full-matrix.result }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          pr_number=$(gh pr list --repo "$GITHUB_REPOSITORY" --head "${{ github.ref_name }}" --state open --json number --jq '.[0].number')
+          if [ -z "$pr_number" ]; then
+            echo "No open PR for branch ${{ github.ref_name }}; skipping comment."
+            exit 0
+          fi
+          icon="✅"
+          if [ "$RESULT" != "success" ]; then icon="❌"; fi
+          {
+            echo "<!-- ci-comment-marker: sindbad-full-matrix -->"
+            echo "### $icon Sindbad.jl full OS matrix: $RESULT"
+            echo ""
+            echo "[View run]($RUN_URL) (Julia lts/1 x ubuntu/macOS/windows)"
+          } > /tmp/comment_body.md
+          .github/scripts/upsert_pr_comment.sh "$pr_number" "sindbad-full-matrix" /tmp/comment_body.md
