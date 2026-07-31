@@ -10,11 +10,24 @@ to their own repos over time.
   going forward.
 
 - `setups/` -- model + data configuration for each example model structure.
-- `scripts/` -- runnable workflows (data prep, forward run, optimization run) that operate on
-  any setup in `setups/`.
-- `exp_*` folders -- pre-existing, per-project experiments from before this reorganization.
-  They are untouched for now and will be migrated or removed in a follow-up change; don't take
-  them as the current template for new examples -- use `setups/`/`scripts/` instead.
+- `scripts/` -- runnable workflows (forward run, optimization run) that operate on any setup in
+  `setups/`. The data-prep script that derives `setups/`' sample dataset now lives in
+  `tools/data_io/derive_example_data.jl`.
+
+## Migrated experiments
+
+The pre-existing, per-project `exp_*` folders that used to live here have each been extracted
+(with git history preserved) into their own repo and are no longer developed in this repo:
+
+- `exp_OTB`: developed and maintained in [LandEcosystems/SINDBAD-OTB](https://github.com/LandEcosystems/SINDBAD-OTB)
+- `exp_steadyState`: developed and maintained in [LandEcosystems/SINDBAD-Spinup](https://github.com/LandEcosystems/SINDBAD-Spinup)
+- `exp_graf`: developed and maintained in [LandEcosystems/SINDBAD-GRAf](https://github.com/LandEcosystems/SINDBAD-GRAf)
+- `exp_global` (+ `exp_Trautmann2022`): developed and maintained in [LandEcosystems/SINDBAD-Global](https://github.com/LandEcosystems/SINDBAD-Global)
+- `exp_WROASTED`: developed and maintained in [LandEcosystems/SINDBAD-WROASTED](https://github.com/LandEcosystems/SINDBAD-WROASTED)
+
+A handful of feature/regression tests that used to live in `exp_WROASTED` and
+`exp_landWrapper` were kept in this repo instead, since they exercise SINDBAD features
+directly rather than being their own research experiments -- see `tools/features_test/`.
 
 ## Setups
 

@@ -7,17 +7,18 @@ permissions:
   contents: read
 
 jobs:
-  # Lets maintainers trigger the on-demand CI workflows by commenting on a PR, instead of
-  # going to the Actions tab (both work -- see Sindbad.yml/SindbadTEM.yml/TestSimulations.yml/
-  # Documenter.yml). Gated to comments on PRs, from users with write access, matching a known
-  # command -- this only dispatches other workflows against the PR's branch, the same trust
-  # level as a maintainer manually clicking "Run workflow"; it never checks out or runs PR code
-  # itself.
+  # Lets maintainers trigger every on-demand CI workflow at once by commenting `/check-pr` on a
+  # PR, instead of going to the Actions tab (both work -- see Sindbad.yml/SindbadTEM.yml/
+  # Documenter.yml/TestSimulations.yml). Meant as the one comprehensive check to re-run right
+  # before merging, including after new commits land on top of an earlier /check-pr run. Gated
+  # to comments on PRs, from users with write access -- this only dispatches other workflows
+  # against the PR's branch, the same trust level as a maintainer manually clicking "Run
+  # workflow"; it never checks out or runs PR code itself.
   dispatch:
     if: >
       github.event.issue.pull_request != null &&
       contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) &&
-      (contains(github.event.comment.body, '/check-pr') || contains(github.event.comment.body, '/run-simulations'))
+      contains(github.event.comment.body, '/check-pr')
     runs-on: ubuntu-latest
     permissions:
       actions: write
@@ -39,20 +40,13 @@ jobs:
           gh api "repos/${GITHUB_REPOSITORY}/issues/comments/${{ github.event.comment.id }}/reactions" \
             -f content=rocket >/dev/null
 
-      - name: Dispatch full matrix + docs
-        if: contains(github.event.comment.body, '/check-pr')
+      - name: Dispatch everything
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh workflow run Sindbad.yml --repo "$GITHUB_REPOSITORY" --ref "${{ steps.pr.outputs.branch }}"
           gh workflow run SindbadTEM.yml --repo "$GITHUB_REPOSITORY" --ref "${{ steps.pr.outputs.branch }}"
           gh workflow run Documenter.yml --repo "$GITHUB_REPOSITORY" --ref "${{ steps.pr.outputs.branch }}"
-
-      - name: Dispatch test simulations
-        if: contains(github.event.comment.body, '/run-simulations')
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
           gh workflow run TestSimulations.yml --repo "$GITHUB_REPOSITORY" --ref "${{ steps.pr.outputs.branch }}"
 
       - name: Confirm
@@ -60,4 +54,4 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh pr comment "${{ github.event.issue.number }}" --repo "$GITHUB_REPOSITORY" --body \
-            "Triggered the requested workflow(s) on \`${{ steps.pr.outputs.branch }}\`. Check the [Actions tab](${{ github.server_url }}/${{ github.repository }}/actions) for progress -- results will be posted back here when done."
+            "Triggered: Sindbad.jl full OS matrix, SindbadTEM.jl full OS matrix, the docs build, and Test Simulations on \`${{ steps.pr.outputs.branch }}\`. Each will post its own comment here when it starts and again when it finishes; see the [Actions tab](${{ github.server_url }}/${{ github.repository }}/actions) for live progress in the meantime."

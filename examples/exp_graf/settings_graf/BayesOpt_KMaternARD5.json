@@ -1,8 +1,0 @@
-{
-  "method": "KMaternARD5",
-  "options": {
-    "n_iterations": 50,
-    "show_trace": true
-  },
-  "package": "BayesOpt"
-}
