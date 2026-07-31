@@ -3,6 +3,35 @@ on:
   workflow_dispatch:
 
 jobs:
+  # Posts an immediate "in progress" comment naming what's running, before simulate (which can
+  # take a while) finishes -- runs in parallel with it, not blocking its start. `combine` below
+  # overwrites this same comment (same marker) with the final report once it's done.
+  start-report:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v7
+      - name: Post in-progress status to PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          pr_number=$(gh pr list --repo "$GITHUB_REPOSITORY" --head "${{ github.ref_name }}" --state open --json number --jq '.[0].number')
+          if [ -z "$pr_number" ]; then
+            echo "No open PR for branch ${{ github.ref_name }}; skipping comment."
+            exit 0
+          fi
+          {
+            echo "<!-- ci-comment-marker: test-simulations -->"
+            echo "### Test Simulations: in progress"
+            echo ""
+            echo "Running: LUE/WROASTED x pixel/spatial x forward+optimization x ubuntu/macos/windows (12 jobs)"
+            echo ""
+            echo "[View run]($RUN_URL)"
+          } > /tmp/comment_body.md
+          .github/scripts/upsert_pr_comment.sh "$pr_number" "test-simulations" /tmp/comment_body.md
+
   simulate:
     name: ${{ matrix.setup }} x ${{ matrix.mode }} x F+O x ${{ matrix.os }}
     runs-on: ${{ matrix.os }}

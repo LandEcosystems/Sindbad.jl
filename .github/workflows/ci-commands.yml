@@ -55,9 +55,25 @@ jobs:
         run: |
           gh workflow run TestSimulations.yml --repo "$GITHUB_REPOSITORY" --ref "${{ steps.pr.outputs.branch }}"
 
+      # Built from the same two conditions as the dispatch steps above, independently -- rather
+      # than a shared variable those steps set, which a comment matching both commands at once
+      # would have overwritten instead of accumulated.
       - name: Confirm
         env:
           GH_TOKEN: ${{ github.token }}
+          RAN_CHECKS: ${{ contains(github.event.comment.body, '/check-pr') }}
+          RAN_SIMULATIONS: ${{ contains(github.event.comment.body, '/run-simulations') }}
         run: |
+          dispatched=""
+          if [ "$RAN_CHECKS" = "true" ]; then
+            dispatched="Sindbad.jl full OS matrix, SindbadTEM.jl full OS matrix, and the docs build"
+          fi
+          if [ "$RAN_SIMULATIONS" = "true" ]; then
+            if [ -n "$dispatched" ]; then
+              dispatched="$dispatched and Test Simulations"
+            else
+              dispatched="Test Simulations"
+            fi
+          fi
           gh pr comment "${{ github.event.issue.number }}" --repo "$GITHUB_REPOSITORY" --body \
-            "Triggered the requested workflow(s) on \`${{ steps.pr.outputs.branch }}\`. Check the [Actions tab](${{ github.server_url }}/${{ github.repository }}/actions) for progress -- results will be posted back here when done."
+            "Triggered: ${dispatched} on \`${{ steps.pr.outputs.branch }}\`. Each will post its own comment here when it starts and again when it finishes; see the [Actions tab](${{ github.server_url }}/${{ github.repository }}/actions) for live progress in the meantime."
