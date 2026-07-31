@@ -8,7 +8,7 @@ using Sindbad.MachineLearning
 using Logging
 
 packages_list = (:Sindbad, :SindbadTEM)
-sindbad_modules = (:Types, :Setup, :DataLoaders, :Simulation, :ParameterOptimization, :MachineLearning, :Visualization)
+sindbad_modules = (:Types, :Setup, :DataLoaders, :Simulation, :ParameterOptimization, :MachineLearning, :Visualization, :Experiment)
 sindbadTEM_modules = (:TEMTypes, :Utils, :Variables)
 output_dir = joinpath(@__DIR__, "src/pages/code/api")
 mkpath(output_dir)

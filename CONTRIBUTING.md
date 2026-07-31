@@ -100,9 +100,25 @@ Every PR automatically runs a "quick" check on every push: `Sindbad.yml` and `Si
 ubuntu-only, Julia `lts` + `1` (4 jobs total). This is required to merge and is intentionally
 narrow, so pushing to a PR stays fast.
 
-For everything else, comment `/check-pr` on the PR (or trigger each workflow individually from
-the Actions tab) once it's ready to merge, and again after any new commits -- it's meant as the
-last check before merging, not something to run on every push:
+For everything else, comment on the PR (or trigger each workflow individually from the Actions
+tab). Any combination of these commands can go in one comment, and each can also be run on its
+own, targeted at whatever actually changed, instead of always paying for the full `/check-pr`:
+
+- **`/check-pr`**: everything below at once. Meant as the last, comprehensive check right before
+  merging, and again after any new commits land on top of an earlier run -- not something to run
+  on every push.
+- **`/build-docs`**: `Documenter.yml` only. Use after changes to any docstring, or when a new
+  function is introduced.
+- **`/compile-os`**: `Sindbad.yml` + `SindbadTEM.yml` full matrix only. Use after changes under
+  `src/`, `SindbadTEM/src/`, or `Project.toml` dependencies. Note that `test/Project.toml` only
+  pulls in a handful of the optional extensions under `ext/`, so this doesn't exercise all of
+  them -- prefer `/check-pr` (or a manual local check) if you're touching an extension outside
+  that set.
+- **`/test-simulation`**: `TestSimulations.yml` only. Use after changes to the core simulation
+  run path (forward/optimization execution). Does not cover ML or visualization code -- the
+  LUE/WROASTED setups it runs are neither hybrid-ML nor plotting paths.
+
+What each workflow actually runs:
 
 - **`Sindbad.yml` / `SindbadTEM.yml` full matrix**: the same tests as the quick check, across all
   three OSes (`ubuntu`/`macOS`/`windows`) x both Julia versions (6 jobs each).
@@ -129,9 +145,10 @@ which writes `examples/output_simulation_report_<os>.csv` and `.md` (both git-ig
 
 Each on-demand workflow posts its own progress to the PR as a comment automatically -- an
 "in progress" comment naming what's running as soon as it starts, updated with the result once
-it finishes (see `.github/scripts/upsert_pr_comment.sh`). `/check-pr` itself is handled by
-`.github/workflows/ci-commands.yml`, gated to commenters with write access; it only dispatches
-the other workflows against the PR's branch, it never checks out or runs any PR code itself.
+it finishes (see `.github/scripts/upsert_pr_comment.sh`). The comment commands themselves are
+handled by `.github/workflows/ci-commands.yml`, gated to commenters with write access; it only
+dispatches the other workflows against the PR's branch, it never checks out or runs any PR code
+itself.
 
 ## Governance
 

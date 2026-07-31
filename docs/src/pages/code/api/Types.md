@@ -3,6 +3,13 @@ Sindbad.Types
 ```
 ## Functions
 
+### requires_package
+```@docs
+requires_package
+```
+
+----
+
 ## Types
 
 ### ActivationType
@@ -29,20 +36,6 @@ ArrayTypes
 ### ArrayView
 ```@docs
 ArrayView
-```
-
-----
-
-### BackendNetcdf
-```@docs
-BackendNetcdf
-```
-
-----
-
-### BackendZarr
-```@docs
-BackendZarr
 ```
 
 ----
@@ -124,13 +117,6 @@ DataAggrOrder
 
 ----
 
-### DataFormatBackend
-```@docs
-DataFormatBackend
-```
-
-----
-
 ### DoAggrObs
 ```@docs
 DoAggrObs
@@ -187,6 +173,13 @@ DoNotRunForward
 
 ----
 
+### DoNotRunLazy
+```@docs
+DoNotRunLazy
+```
+
+----
+
 ### DoNotRunOptimization
 ```@docs
 DoNotRunOptimization
@@ -229,13 +222,6 @@ DoNotStoreSpinup
 
 ----
 
-### DoNotUseForwardDiff
-```@docs
-DoNotUseForwardDiff
-```
-
-----
-
 ### DoOutputAll
 ```@docs
 DoOutputAll
@@ -246,6 +232,13 @@ DoOutputAll
 ### DoRunForward
 ```@docs
 DoRunForward
+```
+
+----
+
+### DoRunLazy
+```@docs
+DoRunLazy
 ```
 
 ----
@@ -288,13 +281,6 @@ DoSpinupTEM
 ### DoStoreSpinup
 ```@docs
 DoStoreSpinup
-```
-
-----
-
-### DoUseForwardDiff
-```@docs
-DoUseForwardDiff
 ```
 
 ----
@@ -1121,6 +1107,20 @@ ThreadsParallelization
 ### TimeSpace
 ```@docs
 TimeSpace
+```
+
+----
+
+### VisualizationPlots
+```@docs
+VisualizationPlots
+```
+
+----
+
+### VisualizationTypes
+```@docs
+VisualizationTypes
 ```
 
 ----

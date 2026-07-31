@@ -442,15 +442,15 @@ function optimizeTEM(forcing::NamedTuple, observations, info::NamedTuple)
     return opti_helpers.parameter_table
 end
 
-function optimizeTEMYax(forcing::NamedTuple, output::NamedTuple, tem::NamedTuple, optim::NamedTuple, observations::NamedTuple; max_cache=1e9)
+function optimizeTEMYax(forcing::NamedTuple, observations::NamedTuple, info; max_cache=1e9)
     incubes = (forcing.data..., observations.data...)
     indims = (forcing.dims..., observations.dims...)
     forcing_vars = collect(forcing.variables)
-    outdims = output.parameter_dim
+    outdims = info.output.parameter_dim
     out = output.land_init
     obs_vars = collect(observations.variables)
 
-    params = mapCube(optimizeYax, (incubes...,); out=out, tem=tem, optim=optim, forcing_vars=forcing_vars, obs_vars=obs_vars, indims=indims, outdims=outdims, max_cache=max_cache)
+    params = mapCube(optimizeYax, (incubes...,); out=out, info=info, forcing_vars=forcing_vars, obs_vars=obs_vars, indims=indims, outdims=outdims, max_cache=max_cache)
     return params
 end
 ```
@@ -468,15 +468,15 @@ optimizeTEMYax
 :::details Code
 
 ```julia
-function optimizeTEMYax(forcing::NamedTuple, output::NamedTuple, tem::NamedTuple, optim::NamedTuple, observations::NamedTuple; max_cache=1e9)
+function optimizeTEMYax(forcing::NamedTuple, observations::NamedTuple, info; max_cache=1e9)
     incubes = (forcing.data..., observations.data...)
     indims = (forcing.dims..., observations.dims...)
     forcing_vars = collect(forcing.variables)
-    outdims = output.parameter_dim
+    outdims = info.output.parameter_dim
     out = output.land_init
     obs_vars = collect(observations.variables)
 
-    params = mapCube(optimizeYax, (incubes...,); out=out, tem=tem, optim=optim, forcing_vars=forcing_vars, obs_vars=obs_vars, indims=indims, outdims=outdims, max_cache=max_cache)
+    params = mapCube(optimizeYax, (incubes...,); out=out, info=info, forcing_vars=forcing_vars, obs_vars=obs_vars, indims=indims, outdims=outdims, max_cache=max_cache)
     return params
 end
 ```
@@ -495,19 +495,27 @@ optimizer
 
 ```julia
 function optimizer(::Any, default_values::Any, ::Any, ::Any, ::Any, x::ParameterOptimizationMethod)
-    error("
-    Optimizer `$(nameof(typeof(x)))` not implemented. 
-    
+    pkg = requires_package(typeof(x))
+    if !isnothing(pkg)
+        error("
+    Optimizer `$(nameof(typeof(x)))` requires the `$(pkg)` package to be loaded.
+
+    This algorithm is implemented in the `Sindbad$(pkg)Ext` extension, which activates automatically once you run `using $(pkg)` in your session (alongside `using Sindbad`).
+    ")
+    else
+        error("
+    Optimizer `$(nameof(typeof(x)))` not implemented.
+
     To implement a new optimizer:
-    
-    - First add a new type as a subtype of `ParameterOptimizationMethod` in `src/Types/ParameterOptimizationTypes.jl`. 
-    
+
+    - First add a new type as a subtype of `ParameterOptimizationMethod` in `src/Types/ParameterOptimizationTypes.jl`.
+
     - Then, add a corresponding method:
-      - if it can be implemented as an internal Sindbad method without additional dependencies, implement the method in `src/ParameterOptimization/optimizer.jl`.     
+      - if it can be implemented as an internal Sindbad method without additional dependencies, implement the method in `src/ParameterOptimization/optimizer.jl`.
       - if it requires additional dependencies, implement the method in `ext/<extension_name>/ParameterOptimizationOptimizer.jl` extension.
 
-
     ")
+    end
     return
 end
 ```

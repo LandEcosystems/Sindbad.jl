@@ -95,14 +95,26 @@ Pkg.develop(path="path/to/SINDBAD")
 Some functionality is enabled via Julia package extensions (see `Project.toml` `[weakdeps]` + `[extensions]` and `ext/`):
 
 - **`NLsolve`**: enables parts of the spinup workflow (`SindbadNLsolveExt`)
+- **`DifferentialEquations`**: enables ODE-based spinup solvers (`SindbadDifferentialEquationsExt`)
 - **`Optimization`**: enables SciML Optimization-based optimizers (`SindbadOptimizationExt`)
 - **`CMAEvolutionStrategy`**: enables CMA-ES optimizer bridge (`SindbadCMAEvolutionStrategyExt`)
+- **`Enzyme`**: enables Enzyme-based gradients for hybrid ML (`SindbadEnzymeExt`)
+- **`ForwardDiff`**: enables ForwardDiff-based gradients for hybrid ML (`SindbadForwardDiffExt`)
+- **`PolyesterForwardDiff`**: enables threaded ForwardDiff-based gradients for hybrid ML (`SindbadPolyesterForwardDiffExt`)
+- **`FiniteDiff`**: enables FiniteDiff-based gradients for hybrid ML (`SindbadFiniteDiffExt`)
+- **`FiniteDifferences`**: enables FiniteDifferences-based gradients for hybrid ML (`SindbadFiniteDifferencesExt`)
+- **`Zygote`**: enables Zygote-based gradients for hybrid ML (`SindbadZygoteExt`)
+- **`Flux`**: enables Flux-based ML models for hybrid ML (`SindbadFluxExt`)
+- **`Lux`**: enables Lux-based ML models for hybrid ML (`SindbadLuxExt`)
+- **`Optimisers`**: enables Optimisers.jl-based ML model updates (`SindbadOptimisersExt`)
+- **`PreallocationTools`**: enables cache-based ML output handling (`SindbadPreallocationToolsExt`)
+- **`Plots`**: enables Plots.jl-based visualization (`SindbadPlotsExt`)
 
 To enable an extension, add the corresponding package **in the same environment** where you use `Sindbad`:
 
 ```julia
 using Pkg
-Pkg.add("NLsolve")  # or "Optimization", "CMAEvolutionStrategy"
+Pkg.add("NLsolve")  # or any of the other extension trigger packages listed above
 ```
 
 For development setup and usage instructions, see [CONTRIBUTING.md](./CONTRIBUTING.md).
