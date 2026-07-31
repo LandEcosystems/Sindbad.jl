@@ -9,10 +9,8 @@
 ## On-demand checks
 
 Every PR runs a fast, ubuntu-only check automatically on every push (required to merge).
-For full OS coverage, the example setups, or the docs build, trigger the on-demand checks
-before merging -- results post back to this PR as comments automatically:
+Comment `/check-pr` to run everything else -- full OS matrix (Sindbad.jl + SindbadTEM.jl),
+the docs build, and Test Simulations -- before merging. Results post back to this PR as
+comments automatically. Re-run it after new commits; it's the last check before merging.
 
-- `/check-pr` -- Sindbad.jl + SindbadTEM.jl across all OSes, plus the docs build
-- `/run-simulations` -- Test Simulations
-
-(or Actions tab -> pick the workflow -> Run workflow -> select this branch)
+(or Actions tab -> pick a workflow -> Run workflow -> select this branch, to run just one)
