@@ -1,5 +1,5 @@
 {
-  "algorithm_optimization": "opti_algorithms/CMAEvolutionStrategy_CMAES.json",
+  "algorithm_optimization": "CMAEvolutionStrategy_CMAES.json",
   "algorithm_sensitivity_analysis": null,
   "model_parameter_default": {
     "distribution": ["normal", [0.0, 1.0]],

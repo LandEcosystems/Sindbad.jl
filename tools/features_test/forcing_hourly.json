@@ -7,7 +7,7 @@
     "default_forcing": {
       "additive_unit_conversion": false,
       "bounds": [],
-      "data_path": "../data/BE-Vie.1979.2017.daily.nc",
+      "data_path": "https://s3.bgc-jena.mpg.de:9000/sindbad/synthetic_data_examples_hourly.zarr",
       "depth_dimension": null,
       "is_categorical": false,
       "standard_name": null,

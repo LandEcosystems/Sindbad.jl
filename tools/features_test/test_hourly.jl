@@ -5,40 +5,28 @@ using Plots
 using Plots: cm
 
 toggle_type_abbrev_in_stacktrace()
-experiment_json = "../exp_WROASTED/settings_WROASTED/experiment.json"
+experiment_json = "../../examples/setups/WROASTED/experiment.json"
+
+# NOTE: hourly synthetic data is not published yet -- forcing_hourly.json's data_path is a
+# placeholder (https://s3.bgc-jena.mpg.de:9000/sindbad/synthetic_data_examples_hourly.zarr)
+# pointing at a dataset that doesn't exist yet. begin_year/end_year and forcing_hourly.json's
+# variable mapping are carried over from the old site-level setup as a starting point and will
+# need revisiting once the real cube (and its variable/site layout) is available.
 begin_year = "1999"
 end_year = "2010"
 
-domain = "CA-Obs"
-path_input = nothing
-forcing_config = nothing
-mod_step = "day"
-mod_step = "hour"
-# foreach(["day", "hour"]) do mod_step
-if mod_step == "day"
-    path_input = "$(getSindbadDataDepot())/fn/$(domain).1979.2017.daily.nc"
-    forcing_config = "forcing_erai.json"
-else
-    mod_step
-    path_input = "$(getSindbadDataDepot())/CA-Obs.1999.2010.hourly_for_Sindbad.nc"
-    forcing_config = "forcing_hourly.json"
-end
-
-path_observation = path_input
+site_index = 1
 optimize_it = false
-# optimize_it = false
 path_output = nothing
-
 
 parallelization_lib = "threads"
 model_array_type = "static_array"
 replace_info = Dict("experiment.basics.time.date_begin" => begin_year * "-01-01",
-    "experiment.basics.config_files.forcing" => forcing_config,
-    "experiment.basics.domain" => domain,
-    "experiment.basics.name" => "WROASTED_$mod_step",
-    "experiment.basics.time.temporal_resolution" => mod_step,
-    "forcing.default_forcing.data_path" => path_input,
+    "experiment.basics.config_files.forcing" => joinpath(@__DIR__, "forcing_hourly.json"),
+    "experiment.basics.name" => "WROASTED_hour",
+    "experiment.basics.time.temporal_resolution" => "hour",
     "experiment.basics.time.date_end" => end_year * "-12-31",
+    "forcing.subset.site" => [site_index],
     "experiment.flags.run_optimization" => optimize_it,
     "experiment.flags.calc_cost" => true,
     "experiment.flags.catch_model_errors" => false,
@@ -49,8 +37,7 @@ replace_info = Dict("experiment.basics.time.date_begin" => begin_year * "-01-01"
     "experiment.model_output.format" => "nc",
     "experiment.model_output.save_single_file" => true,
     "experiment.exe_rules.parallelization" => parallelization_lib,
-    "optimization.algorithm_optimization" => "opti_algorithms/CMAEvolutionStrategy_CMAES.json",
-    "optimization.observations.default_observation.data_path" => path_observation)
+    "optimization.algorithm_optimization" => "CMAEvolutionStrategy_CMAES.json")
 
 info = getExperimentInfo(experiment_json; replace_info=replace_info); # note that this will modify information from json with the replace_info
 
@@ -90,7 +77,7 @@ end
 default(titlefont=(20, "times"), legendfontsize=18, tickfont=(15, :blue))
 forc_vars = forcing.variables
 for (o, v) in enumerate(forc_vars)
-    println("plot forc-model => domain: $domain, variable: $v")
+    println("plot forc-model => domain: $(info.experiment.basics.domain), variable: $v")
     def_var = forcing.data[o]
     plot_data = nothing
     xdata = [info.helpers.dates.range...]

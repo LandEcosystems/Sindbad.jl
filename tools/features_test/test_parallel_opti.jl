@@ -6,27 +6,17 @@ using Plots
 
 
 toggle_type_abbrev_in_stacktrace()
-experiment_json = "../exp_WROASTED/settings_WROASTED/experiment.json"
-begin_year = "2000"
-end_year = "2017"
+experiment_json = "../../examples/setups/WROASTED/experiment.json"
 
-domain = "US-SRM"
-# domain = "MY-PSO"
-path_input = "$(getSindbadDataDepot())/fn/$(domain).1979.2017.daily.nc"
-forcing_config = "forcing_erai.json"
-
-path_observation = path_input
+site_index = 1
 optimize_it = true
 # optimize_it = false
 path_output = nothing
 
 parallelization_lib = "threads"
 model_array_type = "static_array"
-replace_info = Dict("experiment.basics.time.date_begin" => begin_year * "-01-01",
-    "experiment.basics.config_files.forcing" => forcing_config,
-    "experiment.basics.domain" => domain,
-    "forcing.default_forcing.data_path" => path_input,
-    "experiment.basics.time.date_end" => end_year * "-12-31",
+replace_info = Dict("experiment.basics.name" => "WROASTED_parallel_opti",
+    "forcing.subset.site" => [site_index],
     "experiment.flags.run_optimization" => optimize_it,
     "experiment.flags.calc_cost" => false,
     "experiment.flags.catch_model_errors" => false,
@@ -37,10 +27,9 @@ replace_info = Dict("experiment.basics.time.date_begin" => begin_year * "-01-01"
     "experiment.model_output.format" => "nc",
     "experiment.model_output.save_single_file" => true,
     "experiment.exe_rules.parallelization" => parallelization_lib,
-    "optimization.algorithm_optimization" => "opti_algorithms/CMAEvolutionStrategy_CMAES_mt.json",
+    "optimization.algorithm_optimization" => joinpath(@__DIR__, "opti_algorithms", "CMAEvolutionStrategy_CMAES_mt.json"),
     "optimization.optimization_cost_method" => "CostModelObsMT",
-    "optimization.optimization_cost_threaded"  => true,
-    "optimization.observations.default_observation.data_path" => path_observation);
+    "optimization.optimization_cost_threaded"  => true);
 
 info = getExperimentInfo(experiment_json; replace_info=replace_info); # note that this will modify information from json with the replace_info
 forcing = getForcing(info);
