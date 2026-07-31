@@ -18,7 +18,7 @@ replace_info_spatial = Dict("experiment.basics.domain" => domain * "_spatial",
     "model_structure.sindbad_models" => Trautmann2022_models
     );
 
-experiment_json = "../exp_Trautmann2022/settings_Trautmann2022/experiment.json";
+experiment_json = "settings_Trautmann2022/experiment.json";
 
 info = getExperimentInfo(experiment_json; replace_info=replace_info_spatial); # note that this will modify information from json with the replace_info
 forcing = getForcing(info);
