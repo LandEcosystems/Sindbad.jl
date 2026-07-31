@@ -68,7 +68,7 @@ jobs:
           workflows=()
 
           if [[ "$COMMENT_BODY" == *"/check-pr"* ]]; then
-            workflows+=(Sindbad.yml SindbadTEM.yml Documenter.yml TestSimulations.yml)
+            workflows+=(Documenter.yml SindbadTEM.yml Sindbad.yml TestSimulations.yml)
           fi
           if [[ "$COMMENT_BODY" == *"/build-docs"* ]]; then
             workflows+=(Documenter.yml)
