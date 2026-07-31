@@ -108,5 +108,10 @@ jobs:
             echo "### Docs build: $RESULT"
             echo ""
             echo "[View run]($RUN_URL)"
+            echo ""
+            # push_preview=false in docs/make.jl means this on-demand build doesn't deploy a
+            # PR-specific preview -- these links are the live site, which only reflects this
+            # branch's changes once merged to main (dev) or tagged (stable).
+            echo "Docs (live site, updates on merge/tag): [dev](https://landecosystems.github.io/Sindbad.jl/dev/) · [stable](https://landecosystems.github.io/Sindbad.jl/stable/)"
           } > /tmp/comment_body.md
           .github/scripts/upsert_pr_comment.sh "$pr_number" "docs-build" /tmp/comment_body.md
