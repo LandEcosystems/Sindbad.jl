@@ -6,16 +6,13 @@
 
 <!-- How did you verify this works? -->
 
-## Checklist
+## On-demand checks
 
-- [ ] If this PR changes `examples/`, `src/`, or anything else that could affect the example
-      setups' forward/optimization runs: ran the manually-triggered "Test Simulations" workflow
-      (Actions tab -> Test Simulations -> Run workflow) against this branch, and pasted the
-      resulting report table below (or linked the workflow run).
+Every PR runs a fast, ubuntu-only check automatically on every push (required to merge).
+For full OS coverage, the example setups, or the docs build, trigger the on-demand checks
+before merging -- results post back to this PR as comments automatically:
 
-<details>
-<summary>Test Simulations</summary>
+- `/check-pr` -- Sindbad.jl + SindbadTEM.jl across all OSes, plus the docs build
+- `/run-simulations` -- Test Simulations
 
-<!-- Paste the report table here, or a link to the workflow run. -->
-
-</details>
+(or Actions tab -> pick the workflow -> Run workflow -> select this branch)

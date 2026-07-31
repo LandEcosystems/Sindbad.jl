@@ -4,7 +4,6 @@ on:
     branches:
       - main
     tags: ['*']
-  pull_request:
   workflow_dispatch:
 
 # Add permissions for GitHub Actions to push to gh-pages
@@ -48,7 +47,38 @@ jobs:
         id: julia-cache-save
         if: cancelled() || failure()
         uses: actions/cache/save@v6
-        with: 
+        with:
           path: |
             ${{ steps.julia-cache.outputs.cache-paths }}
           key: ${{ steps.julia-cache.outputs.cache-key }}
+
+  # Posts/updates a sticky comment on the PR whose branch this was dispatched against, so the
+  # docs build result shows up alongside the /check-pr matrix report instead of only as the
+  # separate documenter/deploy status check. Only meaningful for workflow_dispatch -- push
+  # (post-merge/tag) has no PR to comment on.
+  report:
+    needs: build
+    if: always() && github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v7
+      - name: Post result to PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RESULT: ${{ needs.build.result }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          pr_number=$(gh pr list --repo "$GITHUB_REPOSITORY" --head "${{ github.ref_name }}" --state open --json number --jq '.[0].number')
+          if [ -z "$pr_number" ]; then
+            echo "No open PR for branch ${{ github.ref_name }}; skipping comment."
+            exit 0
+          fi
+          {
+            echo "<!-- ci-comment-marker: docs-build -->"
+            echo "### Docs build: $RESULT"
+            echo ""
+            echo "[View run]($RUN_URL)"
+          } > /tmp/comment_body.md
+          .github/scripts/upsert_pr_comment.sh "$pr_number" "docs-build" /tmp/comment_body.md
