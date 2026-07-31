@@ -124,11 +124,9 @@ jobs:
             echo "No open PR for branch ${{ github.ref_name }}; skipping comment."
             exit 0
           fi
-          icon="✅"
-          if [ "$RESULT" != "success" ]; then icon="❌"; fi
           {
             echo "<!-- ci-comment-marker: sindbad-full-matrix -->"
-            echo "### $icon Sindbad.jl full OS matrix: $RESULT"
+            echo "### Sindbad.jl full OS matrix: $RESULT"
             echo ""
             echo "[View run]($RUN_URL) (Julia lts/1 x ubuntu/macOS/windows)"
           } > /tmp/comment_body.md
