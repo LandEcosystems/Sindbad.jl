@@ -44,6 +44,9 @@ function getExperimentInfo(sindbad_experiment::String; replace_info=Dict())
 
     info = setupInfo(info)
 
+    print_info(getExperimentInfo, @__FILE__, @__LINE__, "checking IO structure of the selected model structure...", n_m=1)
+    checkIOModelStructure(info)
+
     print_info(getExperimentInfo, @__FILE__, @__LINE__, "plotting IO signatures in the selected model structure...", n_m=1)
     for model_func in (:define, :precompute, :compute,)
         Base.moduleroot(@__MODULE__).Visualization.plotIOModelStructure(info, model_func)

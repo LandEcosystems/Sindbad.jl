@@ -8,6 +8,7 @@ module Utils
     import SindbadTEM.TEMTypes: LandEcosystem
     import SindbadTEM.DataStructures: DataStructures
 
+    export checkIOModelStructure
     export getInOutModel
     export getInOutModels
     export getSindbadModelOrder
@@ -86,11 +87,15 @@ function getInOutModel(model::LandEcosystem; verbose=true)
 end
 
 
-function getInOutModel(model::LandEcosystem, model_funcs::Tuple)
+function getInOutModel(model::LandEcosystem, model_funcs::Tuple; verbose=false)
     mo_in_out=SindbadTEM.DataStructures.OrderedDict()
-    println("   collecting I/O/P of: $(nameof(typeof(model))).jl")
+    if verbose
+        println("   collecting I/O/P of: $(nameof(typeof(model))).jl")
+    end
     for func in model_funcs
-        println("   ...$(func)...")
+        if verbose
+            println("   ...$(func)...")
+        end
         io_func = getInOutModel(model, func)
         if length(model_funcs) == 2 && :parameters in model_funcs
             if func !== :parameters
@@ -300,12 +305,12 @@ function getInOutModels(models::Tuple)
     return mod_vars
 end
 
-function getInOutModels(models, model_funcs::Tuple)
+function getInOutModels(models, model_funcs::Tuple; verbose=false)
     mod_vars = SindbadTEM.DataStructures.OrderedDict()
     for (mi, _mod) in enumerate(models)
         mod_name = string(nameof(supertype(typeof(_mod))))
         mod_name_sym=Symbol(mod_name)
-        mod_io = getInOutModel(_mod, model_funcs)
+        mod_io = getInOutModel(_mod, model_funcs; verbose=verbose)
         mod_vars[mod_name_sym] = mod_io
     end
     return mod_vars
@@ -320,6 +325,85 @@ function getInOutModels(models, model_func::Symbol)
         mod_vars[dict_key_name] = getInOutModel(_mod, model_func)
     end
     return mod_vars
+end
+
+"""
+    checkIOModelStructure(info; model_funcs=(:define, :precompute, :compute))
+
+Validates the input/output (I/O) structure of the models selected in `info.models.forward`,
+independently of any plotting/visualization backend. Runs `getInOutModels` internally so the
+checks below are always performed, whether or not a plot is ever produced.
+
+# Arguments
+- `info`: A `NamedTuple` containing experiment information, including `info.models.forward`.
+- `model_funcs`: The model functions to analyze, given in their execution order (default:
+  `(:define, :precompute, :compute)`). `:update` is intentionally excluded because it is not
+  currently invoked anywhere in the SINDBAD run loop.
+
+# Conventions checked (warnings only, via `@warn`; never errors):
+1. **Single-writer convention**: an output variable `land.<namespace>.<variable>` may be written
+   by more than one *distinct* model only if `namespace` is `:pools`, `:states`, or
+   `:diagnostics`. Any other namespace written by more than one model is flagged, since it
+   indicates more than one model approach is competing to produce the same variable.
+2. **Valid-input convention**: a variable used as input must be one of:
+    - a forcing (`:forcing` namespace),
+    - a `:pools`/`:states`/`:diagnostics` variable (these are exempt from the ordering check:
+      `pools`/`states` persist across timesteps/iterations and are seeded from initial
+      conditions, while `diagnostics` is commonly written by more than one model),
+    - the output of a strictly earlier model in `info.models.forward`, or
+    - the output of an earlier function of the *same* model, following `model_funcs` order.
+
+  Any other input is flagged as having no valid earlier producer, which typically indicates
+  either a model-ordering bug or a genuinely undefined/orphaned variable.
+
+# Returns
+- `nothing`.
+"""
+function checkIOModelStructure(info; model_funcs=(:define, :precompute, :compute))
+    models = info.models.forward
+    model_names = [Symbol(nameof(supertype(typeof(m)))) for m in models]
+    in_out = getInOutModels(models, model_funcs)
+    func_rank = Dict(f => i for (i, f) in enumerate(model_funcs))
+    exempt_namespaces = (:pools, :states, :diagnostics)
+
+    # registry: (namespace, variable) => [(model_index, func_rank), ...]
+    producers = Dict{Tuple{Symbol,Symbol}, Vector{Tuple{Int,Int}}}()
+    for (m_i, m_name) in enumerate(model_names)
+        for f in model_funcs
+            for (ns, var) in in_out[m_name][f][:output]
+                push!(get!(producers, (ns, var), Tuple{Int,Int}[]), (m_i, func_rank[f]))
+            end
+        end
+    end
+
+    # convention 1: single-writer unless pools/states/diagnostics
+    for ((ns, var), locs) in producers
+        if ns ∉ exempt_namespaces
+            distinct_models = unique(first.(locs))
+            if length(distinct_models) > 1
+                writer_names = join(unique(model_names[m_i] for m_i in distinct_models), ", ")
+                @warn "I/O convention violation: `land.$(ns).$(var)` is output by more than one model ($writer_names). Only variables in `land.pools`/`land.states`/`land.diagnostics` may be written by multiple models."
+            end
+        end
+    end
+
+    # convention 2: every input must have a valid earlier producer
+    for (m_i, m_name) in enumerate(model_names)
+        for f in model_funcs
+            for (ns, var) in in_out[m_name][f][:input]
+                (ns === :forcing || ns ∈ exempt_namespaces) && continue
+                locs = get(producers, (ns, var), Tuple{Int,Int}[])
+                has_valid_producer = any(locs) do (p_m, p_f)
+                    p_m < m_i || (p_m == m_i && p_f < func_rank[f])
+                end
+                if !has_valid_producer
+                    @warn "I/O convention violation: `land.$(ns).$(var)` is used as input in `$(f)` of `$(m_name)` (model #$(m_i) of $(length(model_names))) but has no valid earlier producer. Inputs must be a forcing, a `pools`/`states`/`diagnostics` variable, an output of an earlier model, or an output of an earlier function of the same model (order: $(join(model_funcs, ", ")))."
+                end
+            end
+        end
+    end
+
+    return nothing
 end
 
 """
