@@ -2,11 +2,11 @@
 
 <!-- What does this PR change, and why? -->
 
-## On-demand checks
+## Automatic tests
 
 Automatically, every PR runs a fast, ubuntu-only check on every push to aid the developer.
 
-As the last step before merging, run additional tests/ checks **when the change are final** by commenting:**
+As the last step before merging, run additional tests/ checks **when the change are final** that run on-demand triggered by the following comments in the PR:
 
 - `/check-pr` to run the full suite of tests and checks (recommended)
 

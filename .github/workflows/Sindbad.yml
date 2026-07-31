@@ -138,9 +138,12 @@ jobs:
           catch e
               ok, err = false, replace(sprint(showerror, e), "\n" => " ", "," => ";")
           end
+          # matrix.version is the label passed to setup-julia ("lts"/"1"); VERSION is the
+          # concrete Julia version that label actually resolved to on this runner.
+          julia_label = "$(ENV["MATRIX_VERSION"]): $(VERSION)"
           open(ENV["TEST_REPORT_CSV"], "w") do io
               println(io, "os,julia,ok,time_s,error")
-              println(io, "$(ENV["MATRIX_OS"]),$(ENV["MATRIX_VERSION"]),$(ok),$(round(elapsed, digits=1)),$(err)")
+              println(io, "$(ENV["MATRIX_OS"]),$(julia_label),$(ok),$(round(elapsed, digits=1)),$(err)")
           end
           !ok && error(err)
       - uses: julia-actions/julia-processcoverage@v1

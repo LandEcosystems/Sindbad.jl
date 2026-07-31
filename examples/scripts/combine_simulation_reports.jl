@@ -53,14 +53,35 @@ isempty(csv_paths) && error("no CSV files found in $(report_dir)")
 
 rows = reduce(vcat, readCsv.(csv_paths))
 
+# Group rows by (mode, setup, kind) -- each such group holds one row per OS -- and order both
+# the groups and the OS rows within each group predictably, rather than relying on whatever
+# order `readdir` happened to glob the per-job CSVs in (which groups by OS first, interleaving
+# mode/setup/kind). `setup` is sorted plain-alphabetically since new example setups can be added
+# over time; `mode`/`kind`/`os` have a small fixed vocabulary, so those get an explicit order.
+mode_rank(m) = get(Dict("pixel" => 1, "spatial" => 2), m, 99)
+kind_rank(k) = get(Dict("forward" => 1, "optimization" => 2), k, 99)
+os_rank(o) = get(Dict("macOS" => 1, "Linux" => 2, "Windows" => 3), o, 99)
+sort!(rows, by = row -> (mode_rank(row.mode), row.setup, kind_rank(row.kind), os_rank(row.os)))
+
 io = IOBuffer()
 println(io, "## Simulation report")
 println(io, "")
 println(io, "$(Dates.format(now(), "yyyy-mm-dd HH:MM")) UTC")
 println(io, "")
-println(io, "| OS | Julia | Setup | Mode | Kind | Status | Time (s) | Memory (MB) | Mean GPP (gC m⁻² day⁻¹) | Cost |")
-println(io, "|---|---|---|---|---|---|---|---|---|---|")
+n_cols = 10
+header_cells = ("OS", "Julia", "Setup", "Mode", "Kind", "Status", "Time (s)", "Memory (MB)", "Mean GPP (gC m⁻² day⁻¹)", "Cost")
+println(io, "| " * join(header_cells, " | ") * " |")
+println(io, "|" * "---|"^n_cols)
+# A real blank line would terminate a GFM table, so an all-blank row is used instead to
+# visually separate (setup, mode, kind) groups without breaking the table.
+spacer_row = "|" * " |"^n_cols
+prev_group = nothing
 for row in rows
+    group = (row.setup, row.mode, row.kind)
+    if !isnothing(prev_group) && group != prev_group
+        println(io, spacer_row)
+    end
+    global prev_group = group
     ok = row.ok == "true"
     status = ok ? "OK" : "FAILED: $(row.error)"
     time_str = ok ? @sprintf("%.1f", parse(Float64, row.time_s)) : "--"
