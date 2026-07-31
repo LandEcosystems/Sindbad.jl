@@ -3,6 +3,76 @@ Sindbad.DataLoaders
 ```
 ## Functions
 
+### applyQCBound
+```@docs
+applyQCBound
+```
+
+:::details Code
+
+```julia
+function applyQCBound(_data, data_qc, bounds_qc, _data_fill)
+    _data_out = _data
+    if data_qc < first(bounds_qc) || data_qc > last(bounds_qc)
+        _data_out = _data_fill
+    end
+    return _data_out
+end
+```
+
+:::
+
+
+----
+
+### applyUnitConversion
+```@docs
+applyUnitConversion
+```
+
+:::details Code
+
+```julia
+function applyUnitConversion(_data, conversion, isadditive=false)
+    if isadditive
+        _data_out = _data + conversion
+    else
+        _data_out = _data * conversion
+    end
+    return _data_out
+end
+```
+
+:::
+
+
+----
+
+### cleanData
+```@docs
+cleanData
+```
+
+:::details Code
+
+```julia
+function cleanData(_data, _data_fill, _data_info, ::Val{T}) where {T}
+    _data = replace_invalid_number(_data, _data_fill)
+    _data = applyUnitConversion(_data, _data_info.source_to_sindbad_unit,
+        _data_info.additive_unit_conversion)
+    bounds = _data_info.bounds
+    if !isnothing(bounds)
+        _data = clamp(_data, first(bounds), last(bounds))
+    end
+    return T(_data)
+end
+```
+
+:::
+
+
+----
+
 ### getData
 ```@docs
 getData
@@ -104,15 +174,14 @@ function getForcing(info::NamedTuple)
     if !isnothing(data_path)
         data_path = getAbsDataPath(info, data_path)
         print_info(getForcing, @__FILE__, @__LINE__, "default_data_path: `$(data_path)`")
-        nc_default = loadDataFile(data_path)
+        nc_default = YAXArrays.open_dataset(data_path)
     end
-    data_backend = getfield(Types, to_uppercase_first(info.helpers.run.input_data_backend, "Backend"))()
 
     forcing_mask = nothing
     if :sel_mask ∈ keys(forcing_data_settings)
         if !isnothing(forcing_data_settings.forcing_mask.data_path)
             mask_path = getAbsDataPath(info, forcing_data_settings.forcing_mask.data_path)
-            _, forcing_mask = getYaxFromSource(nothing, mask_path, nothing, forcing_data_settings.forcing_mask.source_variable, info, data_backend)
+            _, forcing_mask = getYaxFromSource(nothing, mask_path, nothing, forcing_data_settings.forcing_mask.source_variable)
             forcing_mask = positive_mask(forcing_mask)
         end
     end
@@ -129,7 +198,7 @@ function getForcing(info::NamedTuple)
         nc = nc_default
         vinfo = merge_namedtuple_prefer_nonempty(default_info, forcing_data_settings.variables[k])
         data_path_v = getAbsDataPath(info, getfield(vinfo, :data_path))
-        nc, yax = getYaxFromSource(nc, data_path, data_path_v, vinfo.source_variable, info, data_backend)
+        nc, yax = getYaxFromSource(nc, data_path, data_path_v, vinfo.source_variable)
         incube = subsetAndProcessYax(yax, forcing_mask, tar_dims, vinfo, info, num_type)
         v_op = vinfo.additive_unit_conversion ? " + " : " * "
         v_op = v_op * "$(vinfo.source_to_sindbad_unit)"
@@ -204,9 +273,7 @@ getObservation
 function getObservation(info::NamedTuple, forcing_helpers::NamedTuple)
     observation_data_settings = info.experiment.data_settings.optimization
     forcing_data_settings = info.experiment.data_settings.forcing
-    exe_rules_settings = info.experiment.exe_rules
     data_path = observation_data_settings.observations.default_observation.data_path
-    data_backend = getfield(Types, to_uppercase_first(exe_rules_settings.input_data_backend, "Backend"))()
     default_info = observation_data_settings.observations.default_observation
     tar_dims = getTargetDimensionOrder(info)
 
@@ -215,7 +282,7 @@ function getObservation(info::NamedTuple, forcing_helpers::NamedTuple)
     if !isnothing(data_path)
         data_path = getAbsDataPath(info, data_path)
         print_info(getObservation, @__FILE__, @__LINE__, "default_observation_data_path: `$(data_path)`")
-        nc_default = loadDataFile(data_path)
+        nc_default = YAXArrays.open_dataset(data_path)
     end
 
     varnames = Symbol.(observation_data_settings.observational_constraints)
@@ -224,7 +291,7 @@ function getObservation(info::NamedTuple, forcing_helpers::NamedTuple)
     if :one_sel_mask ∈ keys(observation_data_settings)
         if !isnothing(observation_data_settings.one_sel_mask)
             mask_path = getAbsDataPath(info, observation_data_settings.one_sel_mask)
-            _, yax_mask = getYaxFromSource(nothing, mask_path, nothing, "mask", info, data_backend)
+            _, yax_mask = getYaxFromSource(nothing, mask_path, nothing, "mask")
             yax_mask = positive_mask(yax_mask)
         end
     end
@@ -240,17 +307,17 @@ function getObservation(info::NamedTuple, forcing_helpers::NamedTuple)
 
         src_var = vinfo.data.source_variable
         nc = nc_default
-        nc, yax, vinfo_data, bounds_data = getAllConstraintData(nc, data_backend, data_path, default_info, vinfo, :data, info)
+        nc, yax, vinfo_data, bounds_data = getAllConstraintData(nc, data_path, default_info, vinfo, :data, info)
 
         # get quality flags data and use it later to mask observations. Set to value of 1 when :qflag field is not given for a data stream or all are turned off by setting optimizatio.optimization.observations.use_quality_flag to false
-        nc_qc, yax_qc, vinfo_qc, bounds_qc = getAllConstraintData(nc, data_backend, data_path, default_info, vinfo, :qflag, info; yax=yax, use_data_sub=observation_data_settings.observations.use_quality_flag)
+        nc_qc, yax_qc, vinfo_qc, bounds_qc = getAllConstraintData(nc, data_path, default_info, vinfo, :qflag, info; yax=yax, use_data_sub=observation_data_settings.observations.use_quality_flag)
 
         # get uncertainty data and add to observations. Set to value of 1 when :unc field is not given for a data stream or all are turned off by setting observation_data_settings.use_uncertainty to false
-        nc_unc, yax_unc, vinfo_unc, bounds_unc = getAllConstraintData(nc, data_backend, data_path, default_info, vinfo, :unc, info; yax=yax, use_data_sub=observation_data_settings.observations.use_uncertainty)
+        nc_unc, yax_unc, vinfo_unc, bounds_unc = getAllConstraintData(nc, data_path, default_info, vinfo, :unc, info; yax=yax, use_data_sub=observation_data_settings.observations.use_uncertainty)
 
-        nc_wgt, yax_wgt, vinfo_wgt, bounds_wgt = getAllConstraintData(nc, data_backend, data_path, default_info, vinfo, :weight, info; yax=yax, use_data_sub=observation_data_settings.observations.use_spatial_weight)
+        nc_wgt, yax_wgt, vinfo_wgt, bounds_wgt = getAllConstraintData(nc, data_path, default_info, vinfo, :weight, info; yax=yax, use_data_sub=observation_data_settings.observations.use_spatial_weight)
 
-        _, yax_mask_v, vinfo_mask, bounds_mask = getAllConstraintData(nc, data_backend, data_path, default_info, vinfo, :sel_mask, info; yax=yax)
+        _, yax_mask_v, vinfo_mask, bounds_mask = getAllConstraintData(nc, data_path, default_info, vinfo, :sel_mask, info; yax=yax)
         yax_mask_v = positive_mask(yax_mask_v)
         if !isnothing(yax_mask)
             yax_mask_v .= yax_mask .* yax_mask_v
@@ -285,10 +352,9 @@ function getObservation(info::NamedTuple, forcing_helpers::NamedTuple)
         push!(varnames_all, Symbol(string(v) * "_mask"))
         push!(varnames_all, Symbol(string(v) * "_weight"))
     end
-    input_array_type = getfield(Types, to_uppercase_first(exe_rules_settings.input_array_type, "Input"))()
     print_info_separator()
 
-    return (; data=getInputArrayOfType(obscubes, input_array_type), dims=indims, variables=Tuple(varnames_all))
+    return (; data=getInputArrayOfType(obscubes, info.helpers.run.input_array_type), dims=indims, variables=Tuple(varnames_all))
 end
 ```
 
@@ -382,16 +448,19 @@ function subsetAndProcessYax(yax, forcing_mask, tar_dims, _data_info, info, ::Va
     end
 
     #todo mean of the data instead of zero or nan
-    vfill = 0.0
-    if fill_nan
-        vfill = NaN
-    end
-    vNT = Val{num_type}()
-    if clean_data
-        yax = mapCleanData(yax, yax_qc, vfill, bounds_qc, _data_info, vNT)
-    else
-        yax = map(yax_point -> replace_invalid_number(yax_point, vfill), yax)
-        # yax = num_type.(yax)
+    # do a proper check on input type for forcing and if is not lazy do the cleanup
+    if info.experiment.exe_rules.land_output_type == "array"
+        vfill = 0.0
+        if fill_nan
+            vfill = NaN
+        end
+        vNT = Val{num_type}()
+        if clean_data
+            yax = mapCleanData(yax, yax_qc, vfill, bounds_qc, _data_info, vNT)
+        else
+            yax = map(yax_point -> replace_invalid_number(yax_point, vfill), yax)
+            yax = map(num_type, yax)
+        end
     end
     return yax
 end

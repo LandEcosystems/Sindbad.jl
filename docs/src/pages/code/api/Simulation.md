@@ -11,14 +11,26 @@ TEMYax
 :::details Code
 
 ```julia
-function TEMYax(map_cubes...;selected_models::Tuple, forcing_vars::AbstractArray, loc_land::NamedTuple, output_vars, tem::NamedTuple)
+function TEMYax(map_cubes...;selected_models::Tuple, forcing_vars, loc_land::NamedTuple, output_vars, tem::NamedTuple, clean_data)
+    # Make NaN check here instead of AllNaN filters
+    
+
     outputs, inputs = unpackYaxForward(map_cubes; output_vars, forcing_vars)
+    # What exactly should the NaN check be? 
+    # Do I check per variable, or for all variables together?
+    any(ismissing || isnan , inputs)
+
+    # ? apply clean_data fields to input data points
+    _data_fill, _forcing_default_info, _num_type, _forcing_vars_info = clean_data
+
+    inputs = map(enumerate(inputs)) do (i, in_forcing)
+        _data_info = merge_namedtuple(_forcing_default_info, _forcing_vars_info[i])
+        map(data_point -> cleanData(data_point, _data_fill, _data_info, _num_type), in_forcing)
+    end
     loc_forcing = (; Pair.(forcing_vars, inputs)...)
     land_out = coreTEMYax(selected_models, loc_forcing, loc_land, tem)
-
     i = 1
     foreach(output_vars) do var_pair
-        # @show i, var_pair
         data = land_out[first(var_pair)][last(var_pair)]
             fillOutputYax(outputs[i], data)
             i += 1
@@ -209,7 +221,7 @@ function getOutDims(info, forcing_helpers, ::OutputYAXArray)
         od = []
         for _dim in dim_pairs
             if first(_dim) ∉ space_dims
-                push!(od, YAXArrays.Dim{first(_dim)}(last(_dim)))
+                push!(od, DD.rebuild(DD.Dimensions.name2dim(first(_dim)),(last(_dim))))
             end
         end
         Tuple(od)
@@ -219,13 +231,14 @@ function getOutDims(info, forcing_helpers, ::OutputYAXArray)
         vname = string(last(vname_full))
         _properties = collectMetadata(info, vname_full)
         vdims = var_dims[v_index]
-        outformat = info.settings.experiment.model_output.format
+        # outformat = info.settings.experiment.model_output.format
+        outformat = info.output.format # ? test and see if this works, which it should!
         backend = outformat == "nc" ? :netcdf : :zarr
-        out_dim = YAXArrays.OutDims(vdims...;
+        out_dim = YAXArrays.XOutput(vdims...)#=;
         properties = _properties,
         path=info.output.file_info.file_prefix * "_$(vname).$(outformat)",
         backend=backend,
-        overwrite=true)
+        overwrite=true)=#
         v_index += 1
         out_dim
     end
@@ -620,22 +633,62 @@ function runTEMYax(selected_models::Tuple, forcing::NamedTuple, info::NamedTuple
     # forcing/input information
     incubes = forcing.data;
     indims = forcing.dims;
-    
     # information for running model
     run_helpers = prepTEM(forcing, info);
     loc_land = deepcopy(run_helpers.loc_land);
-
-    outcubes = mapCube(TEMYax,
-        (incubes...,);
-        selected_models=selected_models,
+    _data_fill = 0.0f0
+    _forcing_default_info = info.experiment.data_settings.forcing.default_forcing
+    _num_type = Val{info.helpers.numbers.num_type}()
+    _forcing_vars_info = info.experiment.data_settings.forcing.variables
+    #output = XOutput.(getproperty.(run_helpers.output_dims, :axisdesc))
+    output = run_helpers.output_dims
+    outcubes = xmap(TEMYax,
+        (incubes .⊘ indims)...;
+    function_kwargs = (selected_models=selected_models,
         forcing_vars=forcing.variables,
-        output_vars = run_helpers.output_vars,
+        output_vars=run_helpers.output_vars,
         loc_land=loc_land,
         tem=run_helpers.tem_info,
+        clean_data=(; _data_fill, _forcing_default_info, _num_type, _forcing_vars_info)),
+        output = output,
+        #outdims=run_helpers.output_dims,
+        #max_cache=info.experiment.exe_rules.yax_max_cache,
+        #ispar=false,
+        )
+    varnames = getUniqueVarNames(info.output.variables)
+    return Dataset(;zip(varnames, outcubes)...)
+end
+
+function runTEMYaxParameters(selected_models::Tuple, forcing::NamedTuple, in_cube_params, tbl_params, info::NamedTuple)
+
+    # forcing/input information
+    in_cubes_forcing = forcing.data
+    in_cubes_all = (in_cubes_forcing..., in_cube_params)
+    indims = forcing.dims
+    indims = (indims..., InDims((YAXArrays.ByName("parameter"),), Array, (AllNaN(),), missing))
+    param_to_index = getParameterIndices(selected_models, tbl_params)
+    # information for running model
+    run_helpers = prepTEM(forcing, info)
+    loc_land = deepcopy(run_helpers.loc_land)
+    _data_fill = 0.0f0
+    _forcing_default_info = info.experiment.data_settings.forcing.default_forcing
+    _num_type = Val{info.helpers.numbers.num_type}()
+    _forcing_vars_info = info.experiment.data_settings.forcing.variables
+
+    outcubes = mapCube(psTEMYax,
+        (in_cubes_all...,);
+        selected_models=selected_models,
+        param_to_index=param_to_index,
+        forcing_vars=forcing.variables,
+        output_vars=run_helpers.output_vars,
+        loc_land=loc_land,
+        tem=run_helpers.tem_info,
+        clean_data=(; _data_fill, _forcing_default_info, _num_type, _forcing_vars_info),
         indims=indims,
         outdims=run_helpers.output_dims,
-        max_cache=info.settings.experiment.exe_rules.yax_max_cache,
-        ispar=true)
+        max_cache=info.experiment.exe_rules.yax_max_cache,
+        ispar=true,
+        )
     return outcubes
 end
 ```
@@ -686,11 +739,11 @@ function setupOptiOutput(info::NamedTuple, output::NamedTuple, ::DoRunOptimizati
     paramaxis = YAXArrays.Dim{:parameter}(params)
     outformat = info.output.format
     backend = outformat == "nc" ? :netcdf : :zarr
-    od = YAXArrays.OutDims(paramaxis;
-        path=joinpath(info.output.dirs.optimization,
-            "optimized_parameters.$(outformat)"),
-        backend=backend,
-        overwrite=true)
+    od = YAXArrays.XOutput(paramaxis)
+        #path=joinpath(info.output.dirs.optimization,
+        #    "optimized_parameters.$(outformat)"),
+        #backend=backend,
+        #overwrite=true)
     # list of parameter
     output = set_namedtuple_field(output, (:parameter_dim, od))
     return output
@@ -702,11 +755,11 @@ function setupOptiOutput(info::NamedTuple, output::NamedTuple, ::DoRunOptimizati
     paramaxis = YAXArrays.Dim{:parameter}(params)
     outformat = info.output.format
     backend = outformat == "nc" ? :netcdf : :zarr
-    od = YAXArrays.OutDims(paramaxis;
-        path=joinpath(info.output.dirs.optimization,
-            "optimized_parameters.$(outformat)"),
-        backend=backend,
-        overwrite=true)
+    od = YAXArrays.XOutput(paramaxis)
+        #path=joinpath(info.output.dirs.optimization,
+        #    "optimized_parameters.$(outformat)"),
+        #backend=backend,
+        #overwrite=true)
     # list of parameter
     output = set_namedtuple_field(output, (:parameter_dim, od))
     return output
@@ -730,209 +783,22 @@ spinup
 :::details Code
 
 ```julia
-function spinup(::Any, ::Any, ::Any, land, ::Any, ::Any, x::SpinupMode)
-    @warn "
-    Spinup mode `$(nameof(typeof(x)))` not implemented. 
-    
-    To implement a new spinup mode:
-    
-    - First add a new type as a subtype of `SpinupMode` in `src/Types/SimulationTypes.jl`. 
-    
-    - Then, add a corresponding method.
-      - if it can be implemented as an internal Sindbad method without additional dependencies, implement the method in `src/Simulation/spinupTEM.jl`.     
-      - if it requires additional dependencies, implement the method in `ext/<extension_name>/SimulationSpinup.jl` extension.
+function spinupTEMYax end
 
-    
-    As a fallback, this function will return the land as is.
-
-    "
-    return land
+function spinupTEMYax(selected_models, loc_forcing, loc_forcing_t, land_prec, tem_info, ::DoSpinupTEM)
+    spinup_forcing = getAllSpinupForcing(loc_forcing, tem_info.spinup_sequence, tem_info);
+    land_spin = spinupTEM(selected_models, spinup_forcing, loc_forcing_t, land_prec, tem_info, tem_info.run.spinup_TEM)
+    return land_spin
 end
 
-function spinup(spinup_models, spinup_forcing, loc_forcing_t, land, tem_info, n_timesteps, ::SelSpinupModels)
-    land = timeLoopTEMSpinup(spinup_models, spinup_forcing, loc_forcing_t, land, tem_info, n_timesteps)
-    return land
+function spinupTEMYax(selected_models, loc_forcing, loc_forcing_t, land_prec, tem_info, ::DoSpinupTEM)
+    spinup_forcing = getAllSpinupForcing(loc_forcing, tem_info.spinup_sequence, tem_info);
+    land_spin = spinupTEM(selected_models, spinup_forcing, loc_forcing_t, land_prec, tem_info, tem_info.run.spinup_TEM)
+    return land_spin
 end
 
-function spinup(all_models, spinup_forcing, loc_forcing_t, land, tem_info, n_timesteps, ::AllForwardModels)
-    land = timeLoopTEMSpinup(all_models, spinup_forcing, loc_forcing_t, land, tem_info, n_timesteps)
-    return land
-end
-
-function spinup(_, _, _, land, helpers, _, ::EtaScaleAH)
-    @unpack_nt cEco ⇐ land.pools
-    helpers = helpers.model_helpers
-    cEco_prev = copy(cEco)
-    ηH = one(eltype(cEco))
-    if :ηH ∈ propertynames(land.diagnostics)
-        ηH = land.diagnostics.ηH
-    end
-    ηA = one(eltype(cEco))
-    if :ηA ∈ propertynames(land.diagnostics)
-        ηA = land.diagnostics.ηA
-    end
-    for cSoilZix ∈ helpers.pools.zix.cSoil
-        cSoilNew = cEco[cSoilZix] * ηH
-        @rep_elem cSoilNew ⇒ (cEco, cSoilZix, :cEco)
-    end
-    for cLitZix ∈ helpers.pools.zix.cLit
-        cLitNew = cEco[cLitZix] * ηH
-        @rep_elem cLitNew ⇒ (cEco, cLitZix, :cEco)
-    end
-    for cVegZix ∈ helpers.pools.zix.cVeg
-        cVegNew = cEco[cVegZix] * ηA
-        @rep_elem cVegNew ⇒ (cEco, cVegZix, :cEco)
-    end
-    @pack_nt cEco ⇒ land.pools
-    land = SindbadTEM.adjustPackPoolComponents(land, helpers, land.models.c_model)
-    @pack_nt cEco_prev ⇒ land.states
-    return land
-end
-
-function spinup(_, _, _, land, helpers, _, ::EtaScaleAHCWD)
-    @unpack_nt cEco ⇐ land.pools
-    helpers = helpers.model_helpers
-    cEco_prev = copy(cEco)
-    ηH = one(eltype(cEco))
-    if :ηH ∈ propertynames(land.diagnostics)
-        ηH = land.diagnostics.ηH
-    end
-    ηA = one(eltype(cEco))
-    if :ηA ∈ propertynames(land.diagnostics)
-        ηA = land.diagnostics.ηA
-    end
-    for cLitZix ∈ helpers.pools.zix.cLitSlow
-        cLitNew = cEco[cLitZix] * ηH
-        @rep_elem cLitNew ⇒ (cEco, cLitZix, :cEco)
-    end
-    for cVegZix ∈ helpers.pools.zix.cVeg
-        cVegNew = cEco[cVegZix] * ηA
-        @rep_elem cVegNew ⇒ (cEco, cVegZix, :cEco)
-    end
-    @pack_nt cEco ⇒ land.pools
-    land = SindbadTEM.adjustPackPoolComponents(land, helpers, land.models.c_model)
-    @pack_nt cEco_prev ⇒ land.states
-    return land
-end
-
-function spinup(_, _, _, land, helpers, _, ::EtaScaleA0H)
-    @unpack_nt cEco ⇐ land.pools
-    helpers = helpers.model_helpers
-    cEco_prev = copy(cEco)
-    ηH = one(eltype(cEco))
-    c_remain = one(eltype(cEco))
-    if :ηH ∈ propertynames(land.diagnostics)
-        ηH = land.diagnostics.ηH
-        c_remain = land.states.c_remain
-    end
-    for cSoilZix ∈ helpers.pools.zix.cSoil
-        cSoilNew = cEco[cSoilZix] * ηH
-        @rep_elem cSoilNew ⇒ (cEco, cSoilZix, :cEco)
-    end
-
-    for cLitZix ∈ helpers.pools.zix.cLit
-        cLitNew = cEco[cLitZix] * ηH
-        @rep_elem cLitNew ⇒ (cEco, cLitZix, :cEco)
-    end
-
-    for cVegZix ∈ helpers.pools.zix.cVeg
-        cLoss = at_least_zero(cEco[cVegZix] - c_remain)
-        cVegNew = cEco[cVegZix] - cLoss
-        @rep_elem cVegNew ⇒ (cEco, cVegZix, :cEco)
-    end
-
-    @pack_nt cEco ⇒ land.pools
-    land = SindbadTEM.adjustPackPoolComponents(land, helpers, land.models.c_model)
-    @pack_nt cEco_prev ⇒ land.states
-    return land
-end
-
-function spinup(_, _, _, land, helpers, _, ::EtaScaleA0HCWD)
-    @unpack_nt cEco ⇐ land.pools
-    helpers = helpers.model_helpers
-    cEco_prev = copy(cEco)
-    ηH = one(eltype(cEco))
-    c_remain = one(eltype(cEco))
-    if :ηH ∈ propertynames(land.diagnostics)
-        ηH = land.diagnostics.ηH
-        c_remain = land.states.c_remain
-    end
-
-    for cLitZix ∈ helpers.pools.zix.cLitSlow
-        cLitNew = cEco[cLitZix] * ηH
-        @rep_elem cLitNew ⇒ (cEco, cLitZix, :cEco)
-    end
-
-    for cVegZix ∈ helpers.pools.zix.cVeg
-        cLoss = at_least_zero(cEco[cVegZix] - c_remain)
-        cVegNew = cEco[cVegZix] - cLoss
-        @rep_elem cVegNew ⇒ (cEco, cVegZix, :cEco)
-    end
-
-    @pack_nt cEco ⇒ land.pools
-    land = SindbadTEM.adjustPackPoolComponents(land, helpers, land.models.c_model)
-    @pack_nt cEco_prev ⇒ land.states
-    return land
-end
-
-function spinupSequence(spinup_models, sel_forcing, loc_forcing_t, land, tem_info, n_timesteps, log_index, n_repeat, spinup_mode)
-    land = spinupSequenceLoop(spinup_models, sel_forcing, loc_forcing_t, land, tem_info, n_timesteps, log_index, n_repeat, spinup_mode)
-    # end
-    return land
-end
-
-function spinupSequenceLoop(spinup_models, sel_forcing, loc_forcing_t, land, tem_info, n_timesteps, log_loop, n_repeat, spinup_mode)
-    for loop_index ∈ 1:n_repeat
-        @debug "        Loop: $(loop_index)/$(n_repeat)"
-        land = spinup(spinup_models,
-            sel_forcing,
-            loc_forcing_t,
-            land,
-            tem_info,
-            n_timesteps,
-            spinup_mode)
-        land = setSpinupLog(land, log_loop, tem_info.run.store_spinup)
-        log_loop += 1
-    end
-    return land
-end
-
-function spinupTEM end
-
-function spinupTEM(selected_models, spinup_forcings, loc_forcing_t, land, tem_info, ::DoSpinupTEM)
-    land = setSpinupLog(land, 1, tem_info.run.store_spinup)
-    log_index = 2
-    for spin_seq ∈ tem_info.spinup_sequence
-        forc_name = spin_seq.forcing
-        n_timesteps = spin_seq.n_timesteps
-        n_repeat = spin_seq.n_repeat
-        spinup_mode = spin_seq.spinup_mode
-        @debug "Spinup: \n         spinup_mode: $(nameof(typeof(spinup_mode))), forcing: $(forc_name)"
-        sel_forcing = sequenceForcing(spinup_forcings, forc_name)
-        land = spinupSequence(selected_models, sel_forcing, loc_forcing_t, land, tem_info, n_timesteps, log_index, n_repeat, spinup_mode)
-        log_index += n_repeat
-    end
-    return land
-end
-
-function spinupTEM(selected_models, spinup_forcings, loc_forcing_t, land, tem_info, ::DoSpinupTEM)
-    land = setSpinupLog(land, 1, tem_info.run.store_spinup)
-    log_index = 2
-    for spin_seq ∈ tem_info.spinup_sequence
-        forc_name = spin_seq.forcing
-        n_timesteps = spin_seq.n_timesteps
-        n_repeat = spin_seq.n_repeat
-        spinup_mode = spin_seq.spinup_mode
-        @debug "Spinup: \n         spinup_mode: $(nameof(typeof(spinup_mode))), forcing: $(forc_name)"
-        sel_forcing = sequenceForcing(spinup_forcings, forc_name)
-        land = spinupSequence(selected_models, sel_forcing, loc_forcing_t, land, tem_info, n_timesteps, log_index, n_repeat, spinup_mode)
-        log_index += n_repeat
-    end
-    return land
-end
-
-function spinupTEM(selected_models, spinup_forcings, loc_forcing_t, land, tem_info, ::DoNotSpinupTEM)
-    return land
+function spinupTEMYax(_, _, _, land_prec, _, ::DoNotSpinupTEM)
+    return land_prec
 end
 ```
 
@@ -949,42 +815,22 @@ spinupTEM
 :::details Code
 
 ```julia
-function spinupTEM end
+function spinupTEMYax end
 
-function spinupTEM(selected_models, spinup_forcings, loc_forcing_t, land, tem_info, ::DoSpinupTEM)
-    land = setSpinupLog(land, 1, tem_info.run.store_spinup)
-    log_index = 2
-    for spin_seq ∈ tem_info.spinup_sequence
-        forc_name = spin_seq.forcing
-        n_timesteps = spin_seq.n_timesteps
-        n_repeat = spin_seq.n_repeat
-        spinup_mode = spin_seq.spinup_mode
-        @debug "Spinup: \n         spinup_mode: $(nameof(typeof(spinup_mode))), forcing: $(forc_name)"
-        sel_forcing = sequenceForcing(spinup_forcings, forc_name)
-        land = spinupSequence(selected_models, sel_forcing, loc_forcing_t, land, tem_info, n_timesteps, log_index, n_repeat, spinup_mode)
-        log_index += n_repeat
-    end
-    return land
+function spinupTEMYax(selected_models, loc_forcing, loc_forcing_t, land_prec, tem_info, ::DoSpinupTEM)
+    spinup_forcing = getAllSpinupForcing(loc_forcing, tem_info.spinup_sequence, tem_info);
+    land_spin = spinupTEM(selected_models, spinup_forcing, loc_forcing_t, land_prec, tem_info, tem_info.run.spinup_TEM)
+    return land_spin
 end
 
-function spinupTEM(selected_models, spinup_forcings, loc_forcing_t, land, tem_info, ::DoSpinupTEM)
-    land = setSpinupLog(land, 1, tem_info.run.store_spinup)
-    log_index = 2
-    for spin_seq ∈ tem_info.spinup_sequence
-        forc_name = spin_seq.forcing
-        n_timesteps = spin_seq.n_timesteps
-        n_repeat = spin_seq.n_repeat
-        spinup_mode = spin_seq.spinup_mode
-        @debug "Spinup: \n         spinup_mode: $(nameof(typeof(spinup_mode))), forcing: $(forc_name)"
-        sel_forcing = sequenceForcing(spinup_forcings, forc_name)
-        land = spinupSequence(selected_models, sel_forcing, loc_forcing_t, land, tem_info, n_timesteps, log_index, n_repeat, spinup_mode)
-        log_index += n_repeat
-    end
-    return land
+function spinupTEMYax(selected_models, loc_forcing, loc_forcing_t, land_prec, tem_info, ::DoSpinupTEM)
+    spinup_forcing = getAllSpinupForcing(loc_forcing, tem_info.spinup_sequence, tem_info);
+    land_spin = spinupTEM(selected_models, spinup_forcing, loc_forcing_t, land_prec, tem_info, tem_info.run.spinup_TEM)
+    return land_spin
 end
 
-function spinupTEM(selected_models, spinup_forcings, loc_forcing_t, land, tem_info, ::DoNotSpinupTEM)
-    return land
+function spinupTEMYax(_, _, _, land_prec, _, ::DoNotSpinupTEM)
+    return land_prec
 end
 ```
 

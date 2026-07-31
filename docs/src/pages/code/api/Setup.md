@@ -29,7 +29,7 @@ end
 function backScaleParameters(parameter_vector_scaled, parameter_table, ::ScaleBounds)
     ub = parameter_table.upper  # upper bounds
     lb = parameter_table.lower   # lower bounds
-    parameter_vector_scaled .= lb + (ub - lb) .* parameter_vector_scaled
+    parameter_vector_scaled .= lb .+ (ub .- lb) .* parameter_vector_scaled
     return parameter_vector_scaled
 end
 ```
@@ -75,6 +75,66 @@ function checkParameterBounds(p_names, parameter_values, lower_bounds, upper_bou
 
         end
     end
+end
+```
+
+:::
+
+
+----
+
+### convertParametersToNamedTuple
+```@docs
+convertParametersToNamedTuple
+```
+
+:::details Code
+
+```julia
+function convertParametersToNamedTuple(parameter_table, name_field::Symbol)
+    return convertParametersToNamedTuple(parameter_table, getproperty(parameter_table, name_field))
+end
+
+function convertParametersToNamedTuple(parameter_table, names::Union{AbstractVector,Tuple})
+    n_rows = length(parameter_table)
+    length(names) == n_rows || throw(ArgumentError("convertParametersToNamedTuple: got $(length(names)) names for $(n_rows) rows in parameter_table; they must match one-to-one."))
+    keys_sym = _sanitizeNamedTupleKey.(names)
+    rows_by_key = Dict{Symbol,Vector{Int}}()
+    for (row_ind, key) in enumerate(keys_sym)
+        push!(get!(rows_by_key, key, Int[]), row_ind)
+    end
+    duplicated_keys = filter(kv -> length(kv.second) > 1, rows_by_key)
+    if !isempty(duplicated_keys)
+        dup_msg = join(("  :$k <- rows $(row_inds)" for (k, row_inds) in duplicated_keys), "\n")
+        throw(ArgumentError("convertParametersToNamedTuple: names are not unique, so they cannot become NamedTuple fields (each key must map to exactly one row). Duplicated keys:\n$dup_msg\nPass a different name_field (or names) - e.g. a fully-qualified column such as `name_full` - to disambiguate."))
+    end
+    return NamedTuple{Tuple(keys_sym)}(Tuple(_concreteNamedTuple(parameter_table[row_ind]) for row_ind in 1:n_rows))
+end
+
+function convertParametersToNamedTuple(parameter_table, group_field::Symbol, name_field::Symbol)
+    n_rows = length(parameter_table)
+    group_values = getproperty(parameter_table, group_field)
+    name_values = getproperty(parameter_table, name_field)
+
+    exclude_fields = (group_field, name_field)
+    for redundant_field in (:name_full, :model_approach, :approach_func)
+        if redundant_field !== group_field && redundant_field !== name_field && hasproperty(parameter_table, redundant_field)
+            exclude_fields = (exclude_fields..., redundant_field)
+        end
+    end
+
+    rows_by_group = Dict{Symbol,Vector{Int}}()
+    for row_ind in 1:n_rows
+        push!(get!(rows_by_group, _sanitizeNamedTupleKey(group_values[row_ind]), Int[]), row_ind)
+    end
+    group_keys = Tuple(unique(_sanitizeNamedTupleKey.(group_values)))
+
+    group_nts = map(group_keys) do group_key
+        row_inds = rows_by_group[group_key]
+        name_keys = Tuple(_sanitizeNamedTupleKey.(name_values[row_inds]))
+        NamedTuple{name_keys}(Tuple(_concreteNamedTuple(drop_namedtuple_fields(parameter_table[row_ind], exclude_fields)) for row_ind in row_inds))
+    end
+    return NamedTuple{group_keys}(group_nts)
 end
 ```
 
@@ -607,7 +667,7 @@ function getConfiguration(sindbad_experiment::String; replace_info=Dict())
             info = replaceInfoFields(info, non_exp_dict)
         end
     end
-    if !haskey(info["experiment"]["basics"]["config_files"], "optimization")
+    if !haskey(info["experiment"]["basics"]["config_files"], "optimization") && (info["experiment"]["flags"]["run_optimization"] || info["experiment"]["flags"]["calc_cost"])
         @warn "The config files in experiment_json and changes in replace_info do not include optimization_json. But, the settings for flags to run_optimization [set as $(info["experiment"]["flags"]["run_optimization"])] and/or calc_cost [set as $(info["experiment"]["flags"]["calc_cost"])] are set to true. These flags will be set to false from now on. The experiment will not run as intended further downstream. Cannot run optimization or calculate cost without the optimization settings. "
         info["experiment"]["flags"]["run_optimization"] = false
         info["experiment"]["flags"]["calc_cost"] = false
@@ -885,8 +945,15 @@ function getExperimentInfo(sindbad_experiment::String; replace_info=Dict())
     info = getConfiguration(sindbad_experiment; replace_info=deepcopy(replace_info))
 
     info = setupInfo(info)
+
+    print_info(getExperimentInfo, @__FILE__, @__LINE__, "plotting IO signatures in the selected model structure...", n_m=1)
+    for model_func in (:define, :precompute, :compute,)
+        Base.moduleroot(@__MODULE__).Visualization.plotIOModelStructure(info, model_func)
+    end
+
     saveInfo(info, info.helpers.run.save_info)
     setDebugErrorCatcher(info.helpers.run.catch_model_errors)
+
     return info
 end
 ```
@@ -1691,7 +1758,8 @@ function setOptimization(info::NamedTuple)
     info = set_namedtuple_subfield(info, :optimization, (:observational_constraints, info.settings.optimization.observational_constraints))
 
     n_threads_cost = 1
-    if info.settings.optimization.optimization_cost_threaded > 0 && info.settings.experiment.flags.run_optimization
+    run_lazy =get(info.settings.experiment.flags, :run_lazy, false)
+    if info.settings.optimization.optimization_cost_threaded > 0 && info.settings.experiment.flags.run_optimization && !run_lazy
         n_threads_cost = info.settings.optimization.optimization_cost_threaded > 1 ? info.settings.optimization.optimization_cost_threaded : Threads.nthreads()
         # overwrite land array type when threaded optimization is set
         info = @set info.temp.helpers.run.land_output_type = PreAllocArrayMT()
@@ -2089,9 +2157,11 @@ function setupInfo(info::NamedTuple)
     land_init = createInitLand(info.pools, info.temp)
     info = (; info..., temp=(; info.temp..., helpers=(; info.temp.helpers..., land_init=land_init)))
 
+    data_settings = (; forcing = info.settings.forcing,)
     if (info.settings.experiment.flags.run_optimization || info.settings.experiment.flags.calc_cost) && hasproperty(info.settings.optimization, :algorithm_optimization)
         # @info "  setupInfo: setting ParameterOptimization and Observation info..."
         info = setOptimization(info)
+        data_settings = set_namedtuple_field(data_settings, (:optimization, info.settings.optimization))
     else
         parameter_table = info.temp.models.parameter_table
         checkParameterBounds(parameter_table.name, parameter_table.initial, parameter_table.lower, parameter_table.upper, ScaleNone(), p_units=parameter_table.units, show_info=true, model_names=parameter_table.model_approach)
@@ -2107,7 +2177,6 @@ function setupInfo(info::NamedTuple)
     end
 
     print_info(setupInfo, @__FILE__, @__LINE__, "Cleaning Info Fields...")
-    data_settings = (; forcing = info.settings.forcing, optimization = info.settings.optimization)
     exe_rules = info.settings.experiment.exe_rules
     info = drop_namedtuple_fields(info, (:model_structure, :experiment, :output, :pools))
     info = (; info..., info.temp...)
