@@ -1,9 +1,0 @@
-{
-  "method": "BBOadaptive",
-  "options": {
-    "autodiff": "forward",
-    "iterations": 500,
-    "show_trace": true
-  },
-  "package": "Optimization"
-}
