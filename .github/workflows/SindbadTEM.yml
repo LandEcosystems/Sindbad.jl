@@ -6,11 +6,6 @@ on:
       - '*.md'
     branches:
       - main
-  push:
-    tags:
-      - '*'
-    branches:
-      - main
   workflow_dispatch:
 
 concurrency:
@@ -88,11 +83,11 @@ jobs:
           } > /tmp/comment_body.md
           .github/scripts/upsert_pr_comment.sh "$pr_number" "sindbadtem-full-matrix" /tmp/comment_body.md
 
-  # Full OS x Julia-version matrix. Runs automatically after merge to main / on tag push, and
-  # on demand (workflow_dispatch) against any branch -- including an open PR's branch, so you
-  # can validate the full matrix before merging without paying for it on every commit.
+  # Full OS x Julia-version matrix. On-demand only (workflow_dispatch, e.g. via `/compile-os`)
+  # against any branch -- including an open PR's branch, so you can validate the full matrix
+  # before merging without paying for it on every commit or every push to main.
   full-matrix:
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch'
     name: "SindbadTEM: Julia ${{ matrix.version }} - ${{ matrix.os }} - full"
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
@@ -162,7 +157,6 @@ jobs:
 
   # Posts/updates a sticky comment on the PR whose branch this was dispatched against, so the
   # result of an on-demand full-matrix run shows up in the PR without manual copy/paste.
-  # Only meaningful for workflow_dispatch -- push (post-merge/tag) has no PR to comment on.
   report:
     needs: full-matrix
     if: always() && github.event_name == 'workflow_dispatch'

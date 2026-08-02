@@ -5,13 +5,6 @@ on:
       - 'src/**'
     branches:
       - main
-  push:
-    tags:
-      - '*'
-    branches:
-      - main
-    paths:
-      - 'src/**'
   workflow_dispatch:
 
 concurrency:

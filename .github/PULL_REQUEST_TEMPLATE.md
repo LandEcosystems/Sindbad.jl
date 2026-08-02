@@ -5,8 +5,10 @@
 ## Automatic tests
 
 Automatically, every PR runs a fast, ubuntu-only check on every push to aid the developer.
-`/test-simulation` (changes under `src/`) and `/test-tem` (changes under
-`SindbadTEM/src/Processes/`) also auto-run when relevant.
+`TestSimulations.yml` (changes under `src/`) and `SindbadTEM-benchmark.yml`'s `test-model` job
+(changes under `SindbadTEM/src/Processes/`, scoped to just the approach(es) that changed) also
+auto-run when relevant -- everything else, including `/test-tem`'s `test-tem`/`analyse-tem` jobs
+and `/compile-os`'s full OS matrix, is on-demand only (see below).
 
 As the last step before merging, run additional tests/ checks **when the change are final** that run on-demand triggered by the following comments in the PR:
 

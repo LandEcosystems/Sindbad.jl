@@ -9,15 +9,6 @@ on:
       - '.github/workflows/SindbadTEM-benchmark.yml'
     branches:
       - main
-  push:
-    # No `paths:` filter here (unlike pull_request above): a tag push is a release, and
-    # analyse-tem below needs to run for every release regardless of which paths its commit
-    # happens to touch -- paths filtering applies to the whole trigger, not per-job, so it can't
-    # be scoped to just the test-tem job without also scoping out analyse-tem.
-    tags:
-      - '*'
-    branches:
-      - main
   workflow_dispatch:
 
 concurrency:
@@ -35,8 +26,10 @@ jobs:
   #
   # A separate workflow file from SindbadTEM.yml (rather than a job in it) so it can be
   # comment-triggered on its own via `/test-tem` without also re-running SindbadTEM.yml's
-  # full-matrix job -- see ci-commands.yml.
+  # full-matrix job -- see ci-commands.yml. On-demand only (workflow_dispatch, e.g. via
+  # `/test-tem`) -- doesn't auto-run on a PR/push; see test-model below for the one that does.
   test-tem:
+    if: github.event_name == 'workflow_dispatch'
     name: "SindbadTEM: test-tem (process benchmark)"
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -74,11 +67,11 @@ jobs:
   # SindbadTEM/test/testApproaches.jl and README.md). Deliberately not part of
   # Pkg.test("SindbadTEM") (see SindbadTEM/test/runtests.jl's comment on why) -- pure Julia logic
   # with no OS-specific behavior, so it doesn't need its own 3-OS x 2-Julia-version matrix the
-  # way package compilation does. No `if:` here -- runs under the exact same conditions as
-  # test-tem above (relevant PR/push, release tag push, `/test-tem`, or manual), alongside it
-  # every time. For a fast, per-push, only-the-changed-approaches version of this same check, see
-  # test-model below.
+  # way package compilation does. On-demand only (workflow_dispatch, e.g. via `/test-tem`),
+  # alongside test-tem above -- for a fast, per-push, only-the-changed-approaches version of this
+  # same check that DOES run automatically, see test-model below.
   analyse-tem:
+    if: github.event_name == 'workflow_dispatch'
     name: "SindbadTEM: analyse-tem (approach checks, full catalog)"
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -110,8 +103,13 @@ jobs:
   # block merging, it also needs to be added as a required status check under the repo's branch
   # protection settings (Settings -> Branches) -- that's a separate, admin-only step; nothing in
   # this file makes a check "required" on its own.
+  #
+  # The only job in this workflow that auto-runs (on a relevant PR push) -- test-tem/analyse-tem
+  # above are on-demand only. Also runs on workflow_dispatch (e.g. `/test-tem`), though the
+  # changed-approaches diff below has no base commit to compare against outside a PR/push, so it
+  # no-ops (skips) in that case.
   test-model:
-    if: github.event_name == 'pull_request' || (github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/'))
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
     name: "SindbadTEM: test-model"
     runs-on: ubuntu-latest
     timeout-minutes: 15
