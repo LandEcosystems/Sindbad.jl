@@ -42,6 +42,10 @@ every push would be wasted cost. Run it directly instead:
 julia --project=SindbadTEM SindbadTEM/test/runApproachChecks.jl
 ```
 
+Or, from an already-running Julia session, `include("tools/dev_test.jl")` for `test_model(...)`,
+`analyse_tem()`, and `test_tem()` convenience functions that wrap the exact same commands CI
+runs -- see that file's own docstrings.
+
 In CI, the full-catalog version is the `analyse-tem` job in
 `.github/workflows/SindbadTEM-benchmark.yml` -- it runs alongside `test-tem` (the benchmark)
 under the exact same trigger: a PR/push touching `SindbadTEM/src/Processes/`, the
