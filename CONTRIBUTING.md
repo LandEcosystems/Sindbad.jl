@@ -100,10 +100,12 @@ Every PR automatically runs a "quick" check on every push: `Sindbad.yml` and `Si
 ubuntu-only, Julia `lts` + `1` (4 jobs total). This is required to merge and is intentionally
 narrow, so pushing to a PR stays fast. Two more workflows also run automatically, but only when
 they're relevant, since neither is required to merge and both are too expensive to run on every
-push regardless of what changed: `SindbadTEM-benchmark.yml` (informational only -- per-approach
-status/timing, not a pass/fail gate) on changes touching `SindbadTEM/src/Processes/`,
-`SindbadTEM/test/test_data/`, or `tools/benchmark/TestSindbadTEM/`; and `TestSimulations.yml`
-(12 jobs, up to 90 minutes each) on changes touching `src/`.
+push regardless of what changed: `SindbadTEM-benchmark.yml`'s `benchmark` job (informational
+only -- per-approach status/timing, not a pass/fail gate) on changes touching
+`SindbadTEM/src/Processes/`, `SindbadTEM/test/test_data/`, or `tools/benchmark/TestSindbadTEM/`;
+and `TestSimulations.yml` (12 jobs, up to 90 minutes each) on changes touching `src/`.
+`SindbadTEM-benchmark.yml`'s other job, `approach-checks`, doesn't auto-trigger on pushes at all
+-- see `/test-models` below.
 
 For everything else, comment on the PR (or trigger each workflow individually from the Actions
 tab). Any combination of these commands can go in one comment, and each can also be run on its
@@ -123,9 +125,13 @@ own, targeted at whatever actually changed, instead of always paying for the ful
   above); use this to also run it for changes elsewhere that still affect the core simulation
   run path (forward/optimization execution). Does not cover ML or visualization code -- the
   LUE/WROASTED setups it runs are neither hybrid-ML nor plotting paths.
-- **`/test-models`**: `SindbadTEM-benchmark.yml` only. Auto-triggered by changes under
-  `SindbadTEM/src/Processes/` (see above); use this to also run it for changes elsewhere that
-  still affect approach behavior, without also re-running `SindbadTEM.yml`'s full OS matrix.
+- **`/test-models`**: `SindbadTEM-benchmark.yml` only (both its jobs). The `benchmark` job is
+  auto-triggered by changes under `SindbadTEM/src/Processes/` (see above); use this to also run
+  it for changes elsewhere that still affect approach behavior, without also re-running
+  `SindbadTEM.yml`'s full OS matrix. The `approach-checks` job doesn't auto-trigger on pushes at
+  all (only on a release tag push) -- pure Julia logic with no OS-specific behavior, so it isn't
+  worth its own 3-OS matrix or running on every push; use `/test-models` to run it before a
+  release, or any other time you want it.
 
 What each workflow actually runs:
 
@@ -136,10 +142,13 @@ What each workflow actually runs:
   table (OS, Julia version, status, time) on the PR alongside the overall result.
 - **`Documenter.yml`**: builds the docs (no PR preview deploy; see `docs/make.jl`'s
   `push_preview = false`).
-- **`SindbadTEM-benchmark.yml`**: runs every approach's `define`/`precompute`/`compute`/`update`
-  once against the committed test data in `SindbadTEM/test/test_data/` (see
-  `SindbadTEM/test/README.md`) and reports status/time/allocations per approach, both as a job
-  summary and as a downloadable HTML artifact.
+- **`SindbadTEM-benchmark.yml`**: two independent jobs, both against the committed test data in
+  `SindbadTEM/test/test_data/` (see `SindbadTEM/test/README.md`). `benchmark` runs every
+  approach's `define`/`precompute`/`compute`/`update` and reports status/time/allocations per
+  approach, both as a job summary and as a downloadable HTML artifact. `approach-checks` runs
+  `SindbadTEM/test/testApproaches.jl` directly (type-stability + `NaN`/`Inf` checks,
+  informational only) -- only on a release tag push or `/test-models`, never on an ordinary PR
+  push.
 - **`TestSimulations.yml`** ("Test Simulations"): runs one job per
   `{ubuntu,macOS,windows} x {LUE,WROASTED} x {pixel,spatial}` combination (12 jobs, in parallel),
   named so it's clear at a glance what each is running -- e.g. "LUE x pixel x F+O x ubuntu-latest"

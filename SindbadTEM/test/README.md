@@ -10,11 +10,12 @@ needs to be added here when someone adds a new `*.jl` file under `SindbadTEM/src
 
 ```
 SindbadTEM/test/
-  runtests.jl          entry point (what `Pkg.test("SindbadTEM")` runs)
-  testDataCoverage.jl  static check: does test_data have every variable an approach reads?
-  testApproaches.jl    the actual approach tests (type hierarchy + define/precompute/compute/update)
-  test_data/           generated fixtures (forcing.jl, land.jl, helpers.jl, referenceApproaches.jl)
-  _archive/            old, no-longer-run tests kept for reference only
+  runtests.jl           entry point (what `Pkg.test("SindbadTEM")` runs)
+  testDataCoverage.jl   static check: does test_data have every variable an approach reads?
+  testApproaches.jl     the per-approach checks (type hierarchy + define/precompute/compute/update)
+  runApproachChecks.jl  standalone entry point for testApproaches.jl -- NOT run by Pkg.test, see below
+  test_data/            generated fixtures (forcing.jl, land.jl, helpers.jl, referenceApproaches.jl)
+  _archive/             old, no-longer-run tests kept for reference only
 ```
 
 `tools/benchmark/TestSindbadTEM/` (outside `SindbadTEM/`, alongside the rest of the repo's
@@ -24,14 +25,26 @@ that reports timing/allocations per approach using the same test data -- see
 
 ## What's tested
 
-`runtests.jl` includes, in order:
+`runtests.jl` (what `Pkg.test("SindbadTEM")` runs) includes, in order:
 
 1. **SindbadTEM smoke** -- the package and its key submodules (`LandEcosystem`, `TEMTypes`,
    `Utils`, `Variables`, `Processes`) actually loaded. Fails fast with a clear message if
    package structure itself is broken, instead of as a confusing crash deep in the approach
    tests.
 2. **Test data coverage** (`testDataCoverage.jl`) -- static check, no simulation involved.
-3. **All approaches** (`testApproaches.jl`) -- the real per-approach tests.
+
+`testApproaches.jl` -- the actual per-approach checks -- deliberately is **not** included by
+`runtests.jl`, so it doesn't run as part of `Pkg.test`. It's pure Julia logic with no
+OS-specific behavior, so running it across `Pkg.test`'s full 3-OS x 2-Julia-version CI matrix on
+every push would be wasted cost. Run it directly instead:
+
+```sh
+julia --project=SindbadTEM SindbadTEM/test/runApproachChecks.jl
+```
+
+In CI, it's the `approach-checks` job in `.github/workflows/SindbadTEM-benchmark.yml` --
+triggered only by a release tag push or the `/test-models` PR comment, never on an ordinary
+PR/push (see that workflow and `CONTRIBUTING.md`'s CI section).
 
 ### All approaches (`testApproaches.jl`)
 
@@ -51,31 +64,34 @@ unchanged for that step (a warning is logged) rather than aborting the whole run
 
 Four checks, in this order:
 
-| Testset | What it checks | Needs simulation? |
-|---|---|---|
-| `Process/approach type hierarchy` | Every process is a `LandEcosystem` subtype; every one of its approaches is a concrete subtype of that specific process | No -- pure reflection |
-| `define+precompute (sequential)` | Every approach's `define` then `precompute`, `@inferred` (type-stable) and free of `NaN`/`Inf` | Yes |
-| `compute (sequential)` | Every approach's `compute`, same checks, against the land built up through the real `define`+`precompute` sequence | Yes |
-| `update` | Every approach's `update`, against the fully-built final land state (not chained -- `update` is a separate, optional per-timestep path, only invoked when `inline_update` is set in `experiment.json`) | Yes |
+| Check | What it checks | Needs simulation? | `Pkg.test`-style gate? |
+|---|---|---|---|
+| `Process/approach type hierarchy` | Every process is a `LandEcosystem` subtype; every one of its approaches is a concrete subtype of that specific process | No -- pure reflection | Yes -- a real `@test`, always either holds or signals an actual structural bug |
+| `define+precompute (sequential)` | Every approach's `define` then `precompute`, `@inferred` (type-stable) and free of `NaN`/`Inf` | Yes | No -- `@info`/`@warn` only |
+| `compute (sequential)` | Every approach's `compute`, same checks, against the land built up through the real `define`+`precompute` sequence | Yes | No -- `@info`/`@warn` only |
+| `update` | Every approach's `update`, against the fully-built final land state (not chained -- `update` is a separate, optional per-timestep path, only invoked when `inline_update` is set in `experiment.json`) | Yes | No -- `@info`/`@warn` only |
+
+The three simulation-driving checks are deliberately *not* `@test`-gated: many "failures" are
+inherent, mutually exclusive structural requirements between approaches of the same process
+(e.g. `soilWBase_smax1Layer` hard-requires exactly 1 soil layer while `soilWBase_smax2Layer`
+requires 2 -- the shared reference `land`/`helpers` can only match one of them at a time), not
+bugs -- hard-failing on them would make this permanently red. Each phase logs one consolidated
+`@warn` (approach name -> problem description) if anything failed/errored, or one `@info` line
+if everything passed -- see [What the results mean](#what-the-results-mean).
 
 **`update` is excluded by default** -- most approaches don't override it (they inherit the
 no-op default), so testing it by default mostly just measures how many approaches happen to
 inherit that default against a land state most of them were never designed to see. Which
-functions actually get tested is customizable via the `SINDBADTEM_TEST_FUNCTIONS` environment
+functions actually get checked is customizable via the `SINDBADTEM_TEST_FUNCTIONS` environment
 variable (comma-separated):
 
 ```sh
 # default
-SINDBADTEM_TEST_FUNCTIONS="define,precompute,compute" julia --project=SindbadTEM -e 'using Pkg; Pkg.test("SindbadTEM")'
+SINDBADTEM_TEST_FUNCTIONS="define,precompute,compute" julia --project=SindbadTEM SindbadTEM/test/runApproachChecks.jl
 
-# also test update
-SINDBADTEM_TEST_FUNCTIONS="define,precompute,compute,update" julia --project=SindbadTEM -e 'using Pkg; Pkg.test("SindbadTEM")'
+# also check update
+SINDBADTEM_TEST_FUNCTIONS="define,precompute,compute,update" julia --project=SindbadTEM SindbadTEM/test/runApproachChecks.jl
 ```
-
-All four testsets are nested under one shared outer `@testset "All approaches"` so that a
-failure/error in one doesn't abort the others -- `Test.jl` only throws when the *outermost*
-testset in a file finishes with failures; a nested one just records them and lets its
-siblings run.
 
 ### Test data coverage (`testDataCoverage.jl`)
 
@@ -106,19 +122,27 @@ julia --project=SindbadTEM tools/benchmark/TestSindbadTEM/scanApproachVariables.
 
 ## What the results mean
 
-- **Pass** -- ran, type-stable, no `NaN`/`Inf`. Nothing to do.
-- **Fail** (`@test` returned `false`, e.g. `NaN`/`Inf` found, or `missing.forcing` non-empty)
-  -- a concrete, actionable problem: either a real bug in that approach, or test data missing
-  a variable it needs.
-- **Error** (an exception was thrown) -- the approach crashed outright. Common causes seen so
-  far: a genuine bug in the approach's own source (e.g. a stray bitwise `&`/`|` instead of
-  `&&`/`||`, which silently changes both behavior *and* type), a type instability caught by
-  `@inferred`, or the reference-approach chain not having produced a `land` shape this
-  particular approach expects (check whether the *reference* approach for that process is a
-  reasonable stand-in -- see `test_data/referenceApproaches.jl`).
-- A `@warn "Reference approach failed while advancing the sequential chain..."` during the run
-  means the *reference* approach for some process errored, so `land` wasn't advanced for that
-  step -- expect knock-on failures in whatever reads that process's normal output.
+- **`Process/approach type hierarchy` fails** -- an actual structural bug (a process or approach
+  doesn't subtype what it should). This is the one real `@test` gate; it should never fail in
+  practice.
+- **`@info "<phase>: all N approaches OK"`** -- every approach in that phase ran, was
+  type-stable, and produced no `NaN`/`Inf`. Nothing to do.
+- **`@warn "<phase>: M/N approaches failed/errored..."`** -- prints a `Dict` of approach name ->
+  problem description. Each entry is one of:
+  - `"did not return a NamedTuple"` -- the approach's return value itself is wrong.
+  - `"NaN/Inf at <path>, ..."` -- one or more output fields are invalid; the dotted path names
+    exactly which.
+  - `"errored: ..."` -- the approach crashed outright. Common causes seen so far: a genuine bug
+    in the approach's own source (e.g. a stray bitwise `&`/`|` instead of `&&`/`||`, which
+    silently changes both behavior *and* type), a type instability caught by `@inferred`, an
+    inherent structural requirement the shared test data can't satisfy for every approach at
+    once (e.g. a hard-coded soil-layer count), or the reference-approach chain not having
+    produced a `land` shape this particular approach expects (check whether the *reference*
+    approach for that process is a reasonable stand-in -- see `test_data/referenceApproaches.jl`).
+  Not a `Pkg.test` failure either way -- treat this as a triage list, not a red/green signal.
+- A separate `@warn "Reference approach failed while advancing the sequential chain..."` during
+  the run means the *reference* approach for some process errored, so `land` wasn't advanced for
+  that step -- expect knock-on failures in whatever reads that process's normal output.
 
 None of this is a hand-checked "is the math correct" assertion (see the note in this
 repo's git history if curious why) -- it's a smoke test: does every approach run, stay
@@ -193,7 +217,9 @@ If `testDataCoverage.jl` (or the scanner) reports an approach needs a forcing va
    variable (e.g. there's no rooting-depth or soil-water-capacity field) -- picking a
    reasonable proxy (the way `f_AWC` reuses `SLTPPT_SoilGrids`, scaled) is a domain judgment
    call, not something to guess at automatically.
-3. Regenerate test data (see above) and rerun `Pkg.test("SindbadTEM")`.
+3. Regenerate test data (see above), then rerun `Pkg.test("SindbadTEM")` (for the
+   `testDataCoverage.jl` check) and `julia --project=SindbadTEM SindbadTEM/test/runApproachChecks.jl`
+   (to confirm the approach that needed the variable now actually runs).
 
 ## `_archive/`
 
