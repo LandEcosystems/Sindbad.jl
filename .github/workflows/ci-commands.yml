@@ -13,9 +13,9 @@ jobs:
   # dispatches other workflows against the PR's branch, the same trust level as a maintainer
   # manually clicking "Run workflow"; it never checks out or runs PR code itself.
   #
-  # Commands (any combination in one comment is fine); see CONTRIBUTING.md's "Continuous
-  # Integration" section for what each actually covers (coverage is uneven, e.g. /compile-os
-  # doesn't exercise every ext/* extension):
+  # Commands (any combination in one comment is fine); see .github/README.md for what each
+  # actually covers (coverage is uneven, e.g. /compile-os doesn't exercise every ext/*
+  # extension):
   #   /check-pr          everything below -- the one comprehensive check to re-run right before
   #                       merging, including after new commits land on top of an earlier run.
   #   /build-docs         Documenter.yml only.
