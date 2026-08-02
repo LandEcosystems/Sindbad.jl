@@ -1,0 +1,42 @@
+{
+  "default_model": {
+    "implicit_t_repeat": 1,
+    "use_in_spinup": true
+  },
+  "models": {
+  },
+  "pools": {
+    "carbon": {
+      "combine": "cEco",
+      "components": {
+        "cVeg": {
+          "Root": [1, 25.0],
+          "Wood": [1, 25.0],
+          "Leaf": [1, 25.0],
+          "Reserve": [1, 10.0]
+        },
+        "cLit": {
+          "Fast": [1, 100.0],
+          "Slow": [1, 250.0]
+        },
+        "cSoil": {
+          "Slow": [1, 500.0],
+          "Old": [1, 1000.0]
+        }
+      },
+      "state_variables": {}
+    },
+    "water": {
+      "combine": "TWS",
+      "components": {
+        "soilW": [[50.0, 200.0, 750.0, 1000.0], 100.0],
+        "groundW": [1, 1000.0],
+        "snowW": [1, 0.01],
+        "surfaceW": [1, 0.01]
+      },
+      "state_variables": {
+        "Δ": 0.0
+      }
+    }
+  }
+}

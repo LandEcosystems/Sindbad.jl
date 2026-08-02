@@ -1,0 +1,537 @@
+<title>SINDBAD Process Benchmark</title>
+<style>
+  :root {
+    --bg: #f5f7f3;
+    --surface: #ffffff;
+    --surface-2: #edf1ec;
+    --text: #182420;
+    --text-muted: #5c6b62;
+    --border: #dbe3dc;
+    --accent: #1f6f5c;
+    --accent-soft: #e2efe9;
+    --ok: #2f8f4e;
+    --ok-soft: #e5f3e8;
+    --error: #b8402a;
+    --error-soft: #fbeae6;
+    --warn: #a8721f;
+    --warn-soft: #f7ecd9;
+    --muted-chip: #8a978f;
+    --muted-soft: #eef1ee;
+    --shadow: 0 1px 2px rgba(24, 36, 32, 0.06), 0 8px 24px -12px rgba(24, 36, 32, 0.18);
+    --radius: 10px;
+    --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --font-data: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #10140f;
+      --surface: #171f19;
+      --surface-2: #1e2721;
+      --text: #e7ede8;
+      --text-muted: #93a89c;
+      --border: #29332c;
+      --accent: #55d1a8;
+      --accent-soft: #17352c;
+      --ok: #63c885;
+      --ok-soft: #163326;
+      --error: #ff8266;
+      --error-soft: #3a1f19;
+      --warn: #e5b459;
+      --warn-soft: #35290f;
+      --muted-chip: #5f6d65;
+      --muted-soft: #1c231e;
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px -12px rgba(0, 0, 0, 0.5);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #10140f; --surface: #171f19; --surface-2: #1e2721; --text: #e7ede8; --text-muted: #93a89c;
+    --border: #29332c; --accent: #55d1a8; --accent-soft: #17352c; --ok: #63c885; --ok-soft: #163326;
+    --error: #ff8266; --error-soft: #3a1f19; --warn: #e5b459; --warn-soft: #35290f;
+    --muted-chip: #5f6d65; --muted-soft: #1c231e;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px -12px rgba(0, 0, 0, 0.5);
+  }
+  :root[data-theme="light"] {
+    --bg: #f5f7f3; --surface: #ffffff; --surface-2: #edf1ec; --text: #182420; --text-muted: #5c6b62;
+    --border: #dbe3dc; --accent: #1f6f5c; --accent-soft: #e2efe9; --ok: #2f8f4e; --ok-soft: #e5f3e8;
+    --error: #b8402a; --error-soft: #fbeae6; --warn: #a8721f; --warn-soft: #f7ecd9;
+    --muted-chip: #8a978f; --muted-soft: #eef1ee;
+    --shadow: 0 1px 2px rgba(24, 36, 32, 0.06), 0 8px 24px -12px rgba(24, 36, 32, 0.18);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-ui);
+    line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 40px 24px 80px;
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
+  }
+
+  header.top {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  header.top .eyebrow {
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+  header.top h1 {
+    font-size: 30px;
+    font-weight: 700;
+    letter-spacing: -0.015em;
+    margin: 0;
+    text-wrap: balance;
+  }
+  header.top p.sub {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 14.5px;
+    max-width: 62ch;
+  }
+  header.top p.sub code {
+    font-family: var(--font-data);
+    background: var(--surface-2);
+    padding: 1px 5px;
+    border-radius: 4px;
+    font-size: 0.92em;
+  }
+
+  .summary {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 10px;
+  }
+  .stat {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+    box-shadow: var(--shadow);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .stat .n {
+    font-family: var(--font-data);
+    font-variant-numeric: tabular-nums;
+    font-size: 24px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  .stat .l {
+    font-size: 12px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 600;
+  }
+  .stat.defined .n { color: var(--accent); }
+  .stat.ok .n { color: var(--ok); }
+  .stat.error .n { color: var(--error); }
+  .stat.invalid_number .n { color: var(--warn); }
+
+  .controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    position: sticky;
+    top: 0;
+    background: var(--bg);
+    padding: 10px 0;
+    z-index: 5;
+  }
+  .controls input[type="search"] {
+    flex: 1 1 240px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 9px 12px;
+    font-size: 14px;
+    color: var(--text);
+    font-family: var(--font-ui);
+  }
+  .controls input[type="search"]:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+  .chip {
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text-muted);
+    border-radius: 999px;
+    padding: 7px 13px;
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    user-select: none;
+  }
+  .chip .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+  .chip[aria-pressed="true"] {
+    color: var(--text);
+    background: var(--accent-soft);
+    border-color: var(--accent);
+  }
+  .chip.f-ok { color: var(--ok); }
+  .chip.f-error { color: var(--error); }
+  .chip.f-invalid_number { color: var(--warn); }
+  .chip.f-not_defined { color: var(--muted-chip); }
+  .chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  #count-line {
+    font-size: 12.5px;
+    color: var(--text-muted);
+    margin-left: auto;
+    font-family: var(--font-data);
+    font-variant-numeric: tabular-nums;
+  }
+
+  details.process {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    overflow: hidden;
+  }
+  details.process + details.process { margin-top: 10px; }
+  details.process summary {
+    list-style: none;
+    cursor: pointer;
+    padding: 13px 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  details.process summary::-webkit-details-marker { display: none; }
+  details.process summary .caret {
+    width: 14px; height: 14px;
+    flex: none;
+    color: var(--text-muted);
+    transition: transform 0.15s ease;
+  }
+  details.process[open] summary .caret { transform: rotate(90deg); }
+  details.process summary .pname {
+    font-weight: 650;
+    font-size: 15px;
+  }
+  details.process summary .pcount {
+    color: var(--text-muted);
+    font-size: 12.5px;
+    font-family: var(--font-data);
+    font-variant-numeric: tabular-nums;
+  }
+  details.process summary .status-dots {
+    margin-left: auto;
+    display: flex;
+    gap: 5px;
+  }
+  details.process summary .status-dots span {
+    width: 8px; height: 8px; border-radius: 50%;
+  }
+
+  .approach-table-wrap { overflow-x: auto; border-top: 1px solid var(--border); }
+  table.approach-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  table.approach-table th, table.approach-table td {
+    padding: 9px 12px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  table.approach-table th {
+    background: var(--surface-2);
+    color: var(--text-muted);
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    position: sticky;
+    top: 0;
+  }
+  table.approach-table tr:last-child td { border-bottom: none; }
+  table.approach-table td.approach-name {
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  .cell {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 108px;
+  }
+  .cell .status-label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    width: fit-content;
+    padding: 1px 7px 1px 6px;
+    border-radius: 999px;
+  }
+  .cell .status-label .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .cell.st-ok .status-label { color: var(--ok); background: var(--ok-soft); }
+  .cell.st-error .status-label { color: var(--error); background: var(--error-soft); }
+  .cell.st-invalid_number .status-label { color: var(--warn); background: var(--warn-soft); }
+  .cell.st-not_defined .status-label { color: var(--muted-chip); background: var(--muted-soft); }
+  .cell .metrics {
+    font-family: var(--font-data);
+    font-variant-numeric: tabular-nums;
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+  .cell .metrics b { color: var(--text); font-weight: 600; }
+  .cell .errmsg {
+    font-size: 11.5px;
+    color: var(--error);
+    max-width: 260px;
+    white-space: normal;
+    word-break: break-word;
+  }
+  .cell .invalid-paths {
+    font-size: 11.5px;
+    color: var(--warn);
+    font-family: var(--font-data);
+    max-width: 260px;
+    white-space: normal;
+    word-break: break-word;
+  }
+  .cell .invalid-paths b { font-weight: 700; }
+  .cell .loc {
+    font-size: 11px;
+    color: var(--text-muted);
+    font-family: var(--font-data);
+    max-width: 260px;
+    white-space: normal;
+    word-break: break-all;
+  }
+
+  footer.note {
+    color: var(--text-muted);
+    font-size: 12.5px;
+    max-width: 74ch;
+    border-top: 1px solid var(--border);
+    padding-top: 18px;
+  }
+
+  .empty-state {
+    padding: 40px 16px;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 14px;
+  }
+
+  @media (max-width: 720px) {
+    .summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+</style>
+
+<div class="page">
+  <header class="top">
+    <div class="eyebrow">SindbadTEM &middot; test/Processes</div>
+    <h1>Process &amp; approach benchmark</h1>
+    <p class="sub">
+      Every <code>define</code> / <code>precompute</code> / <code>compute</code> / <code>update</code> method,
+      for every approach across every process group, run once against the generated WROASTED fixture
+      (site 1, one time step). Timing and allocation are single warm-call measurements &mdash; indicative,
+      not statistically robust like a proper benchmark suite.
+    </p>
+  </header>
+
+  <div class="summary" id="summary"></div>
+
+  <div class="controls">
+    <input type="search" id="search" placeholder="Filter by process or approach&hellip;" autocomplete="off" />
+    <button class="chip f-ok" data-filter="ok" aria-pressed="false"><span class="dot"></span>Success</button>
+    <button class="chip f-error" data-filter="error" aria-pressed="false"><span class="dot"></span>Error</button>
+    <button class="chip f-invalid_number" data-filter="invalid_number" aria-pressed="false"><span class="dot"></span>Invalid number</button>
+    <button class="chip f-not_defined" data-filter="not_defined" aria-pressed="false"><span class="dot"></span>Not defined</button>
+    <span id="count-line"></span>
+  </div>
+
+  <div id="processes"></div>
+
+  <footer class="note">
+    Generated from <code>tools/data_io/benchmarkApproaches.jl</code> +
+    <code>tools/data_io/renderBenchmarkReport.jl</code>. &ldquo;Not defined&rdquo;
+    means the approach doesn&rsquo;t override that method (it falls back to the no-op default on
+    <code>LandEcosystem</code>), not that it failed. Error and invalid-variable cells show the
+    specific exception/variable inline.
+  </footer>
+</div>
+
+<script id="benchmark-data" type="application/json">__DATA_JSON__</script>
+<script>
+(function () {
+  "use strict";
+  var payload = JSON.parse(document.getElementById("benchmark-data").textContent);
+  var processes = payload.processes;
+  var methods = payload.methods;
+  var totals = payload.totals;
+
+  var STATUS_LABEL = { ok: "Success", error: "Error", invalid_number: "Invalid #", not_defined: "—" };
+
+  function fmtTime(ms) {
+    if (ms === null || ms === undefined) return "";
+    if (ms < 0.001) return (ms * 1000000).toFixed(0) + " ns";
+    if (ms < 1) return (ms * 1000).toFixed(1) + " µs";
+    if (ms < 1000) return ms.toFixed(2) + " ms";
+    return (ms / 1000).toFixed(2) + " s";
+  }
+  function fmtBytes(b) {
+    if (b === null || b === undefined) return "";
+    if (b < 1024) return b + " B";
+    if (b < 1024 * 1024) return (b / 1024).toFixed(1) + " KB";
+    return (b / (1024 * 1024)).toFixed(2) + " MB";
+  }
+  function fmtAllocs(a) {
+    if (a === null || a === undefined) return "";
+    return a + (a === 1 ? " alloc" : " allocs");
+  }
+
+  function renderSummary() {
+    var el = document.getElementById("summary");
+    var total = totals.ok + totals.error + totals.invalid_number + totals.not_defined;
+    var definedTotal = totals.ok + totals.error + totals.invalid_number;
+    // "Not defined" (the approach simply doesn't override that method) isn't a problem, so it
+    // doesn't get a card here -- only methods that ARE defined are worth summarizing by outcome.
+    var cards = [
+      { key: "total", label: "Method calls", n: total },
+      { key: "defined", label: "Defined methods", n: definedTotal },
+      { key: "ok", label: "Success", n: totals.ok },
+      { key: "error", label: "Error", n: totals.error },
+      { key: "invalid_number", label: "Invalid number", n: totals.invalid_number },
+    ];
+    el.innerHTML = cards.map(function (c) {
+      return '<div class="stat ' + c.key + '"><div class="n">' + c.n + '</div><div class="l">' + c.label + '</div></div>';
+    }).join("");
+  }
+
+  function methodCellHTML(m) {
+    if (!m) return '<div class="cell st-not_defined"><span class="status-label"><span class="dot"></span>' + STATUS_LABEL.not_defined + "</span></div>";
+    var cls = "cell st-" + m.status;
+    var html = '<div class="' + cls + '">';
+    html += '<span class="status-label"><span class="dot"></span>' + STATUS_LABEL[m.status] + "</span>";
+    if (m.status === "ok" || m.status === "invalid_number") {
+      html += '<span class="metrics"><b>' + fmtTime(m.t) + "</b> &middot; " + fmtBytes(m.b) + " &middot; " + fmtAllocs(m.a) + "</span>";
+      if (m.paths && m.paths.length) {
+        html += '<span class="invalid-paths">' + m.paths.map(function (p) { return "<b>" + escapeHtml(p) + "</b>"; }).join(", ") + "</span>";
+      }
+    } else if (m.status === "error" && m.err) {
+      if (m.loc) html += '<span class="loc">at ' + escapeHtml(m.loc) + "</span>";
+      html += '<span class="errmsg">' + escapeHtml(m.err) + "</span>";
+    }
+    html += "</div>";
+    return html;
+  }
+
+  function escapeHtml(s) {
+    return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+
+  function statusDots(process) {
+    var seen = {};
+    process.approaches.forEach(function (a) { seen[a.status] = true; });
+    var order = ["error", "invalid_number", "not_defined", "ok"];
+    var colors = { ok: "var(--ok)", error: "var(--error)", invalid_number: "var(--warn)", not_defined: "var(--muted-chip)" };
+    return order.filter(function (s) { return seen[s]; }).map(function (s) {
+      return '<span style="background:' + colors[s] + '" title="' + s + '"></span>';
+    }).join("");
+  }
+
+  function renderProcesses(filterText, activeFilters) {
+    var root = document.getElementById("processes");
+    var ft = filterText.trim().toLowerCase();
+    var frag = document.createDocumentFragment();
+    var shownApproaches = 0;
+
+    processes.forEach(function (process) {
+      var matchingApproaches = process.approaches.filter(function (a) {
+        var textMatch = !ft || process.name.toLowerCase().indexOf(ft) !== -1 || a.name.toLowerCase().indexOf(ft) !== -1;
+        var statusMatch = activeFilters.length === 0 || activeFilters.indexOf(a.status) !== -1;
+        return textMatch && statusMatch;
+      });
+      if (matchingApproaches.length === 0) return;
+      shownApproaches += matchingApproaches.length;
+
+      var det = document.createElement("details");
+      det.className = "process";
+      if (ft || activeFilters.length) det.open = true;
+
+      var summary = document.createElement("summary");
+      summary.innerHTML =
+        '<svg class="caret" viewBox="0 0 16 16" fill="none"><path d="M6 3l5 5-5 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>' +
+        '<span class="pname">' + escapeHtml(process.name) + "</span>" +
+        '<span class="pcount">' + matchingApproaches.length + (matchingApproaches.length === 1 ? " approach" : " approaches") + "</span>" +
+        '<span class="status-dots">' + statusDots(process) + "</span>";
+      det.appendChild(summary);
+
+      var wrap = document.createElement("div");
+      wrap.className = "approach-table-wrap";
+      var table = document.createElement("table");
+      table.className = "approach-table";
+      var thead = "<thead><tr><th>Approach</th>" + methods.map(function (m) { return "<th>" + m + "</th>"; }).join("") + "</tr></thead>";
+      var rows = matchingApproaches.map(function (a) {
+        return "<tr><td class=\"approach-name\">" + escapeHtml(a.name) + "</td>" +
+          methods.map(function (m) { return "<td>" + methodCellHTML(a.methods[m]) + "</td>"; }).join("") +
+          "</tr>";
+      }).join("");
+      table.innerHTML = thead + "<tbody>" + rows + "</tbody>";
+      wrap.appendChild(table);
+      det.appendChild(wrap);
+      frag.appendChild(det);
+    });
+
+    root.innerHTML = "";
+    if (shownApproaches === 0) {
+      root.innerHTML = '<div class="empty-state">No approaches match the current filter.</div>';
+    } else {
+      root.appendChild(frag);
+    }
+    document.getElementById("count-line").textContent = shownApproaches + " approach" + (shownApproaches === 1 ? "" : "es") + " shown";
+  }
+
+  var activeFilters = [];
+  var searchInput = document.getElementById("search");
+
+  document.querySelectorAll(".chip[data-filter]").forEach(function (chip) {
+    chip.addEventListener("click", function () {
+      var f = chip.getAttribute("data-filter");
+      var idx = activeFilters.indexOf(f);
+      if (idx === -1) { activeFilters.push(f); chip.setAttribute("aria-pressed", "true"); }
+      else { activeFilters.splice(idx, 1); chip.setAttribute("aria-pressed", "false"); }
+      renderProcesses(searchInput.value, activeFilters);
+    });
+  });
+  searchInput.addEventListener("input", function () {
+    renderProcesses(searchInput.value, activeFilters);
+  });
+
+  renderSummary();
+  renderProcesses("", activeFilters);
+})();
+</script>
