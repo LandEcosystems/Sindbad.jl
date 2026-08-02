@@ -13,7 +13,8 @@ when opening a PR. This file is the detail behind it.
 | `SindbadTEM.yml` (`quick`) | every PR push | Yes |
 | `Sindbad.yml` + `SindbadTEM.yml` (`full-matrix`) | push to `main`/tag, `/compile-os`, or manual | No |
 | `SindbadTEM-benchmark.yml` (`test-tem`) | PR/push touching `SindbadTEM/src/Processes/` (see below), `/test-models`, or manual | No |
-| `SindbadTEM-benchmark.yml` (`test-model`) | release tag push, `/test-models`, or manual | No |
+| `SindbadTEM-benchmark.yml` (`test-model`) | every PR/push touching `SindbadTEM/src/Processes/` (same trigger as `test-tem`) | No |
+| `SindbadTEM-benchmark.yml` (`analyse-tem`) | release tag push, `/test-models`, or manual | No |
 | `TestSimulations.yml` | PR/push touching `src/`, `/test-simulation`, or manual | No |
 | `Documenter.yml` | push to `main`/tag, `/build-docs`, or manual (never on PRs directly) | No |
 | `ci-commands.yml` | PR comments (dispatches the workflows above) | n/a |
@@ -49,13 +50,14 @@ out or runs any PR code itself):
   below); use this to also run it for changes elsewhere that still affect the core simulation
   run path (forward/optimization execution). Does not cover ML or visualization code -- the
   LUE/WROASTED setups it runs are neither hybrid-ML nor plotting paths.
-- **`/test-models`**: `SindbadTEM-benchmark.yml` only (both its jobs). The `test-tem` job is
-  auto-triggered by changes under `SindbadTEM/src/Processes/` (see below); use this to also run
-  it for changes elsewhere that still affect approach behavior, without also re-running
-  `SindbadTEM.yml`'s full OS matrix. The `test-model` job doesn't auto-trigger on pushes at
-  all (only on a release tag push) -- pure Julia logic with no OS-specific behavior, so it isn't
-  worth its own 3-OS matrix or running on every push; use `/test-models` to run it before a
-  release, or any other time you want it.
+- **`/test-models`**: `SindbadTEM-benchmark.yml`'s `test-tem` and `analyse-tem` jobs (not
+  `test-model` -- see below, it needs a real commit diff, which a manual dispatch
+  doesn't have). `test-tem` is auto-triggered by changes under `SindbadTEM/src/Processes/` (see
+  below); use `/test-models` to also run it for changes elsewhere that still affect approach
+  behavior, without also re-running `SindbadTEM.yml`'s full OS matrix. `analyse-tem` doesn't
+  auto-trigger on pushes at all (only on a release tag push) -- pure Julia logic with no
+  OS-specific behavior, so it isn't worth its own 3-OS matrix or running on every push; use
+  `/test-models` to run it before a release, or any other time you want it.
 
 Each on-demand workflow posts its own progress to the PR as a comment automatically -- an
 "in progress" comment naming what's running as soon as it starts, updated with the result once
@@ -71,14 +73,25 @@ it finishes (see `.github/scripts/upsert_pr_comment.sh`).
 - **`Documenter.yml`**: builds the docs (no PR preview deploy; see `docs/make.jl`'s
   `push_preview = false`). Only runs on push to `main`/tag or manually -- never automatically on
   a PR, since there's nowhere to preview-deploy it to.
-- **`SindbadTEM-benchmark.yml`**: two independent jobs, both against the committed test data in
-  `SindbadTEM/test/test_data/` (see `SindbadTEM/test/README.md`). `test-tem`, the comprehensive
-  one, runs every approach's `define`/`precompute`/`compute`/`update` multiple times each (for
-  accurate timing/allocation measurement) and reports status/time/allocations per approach, both
-  as a job summary and as a downloadable HTML artifact. `test-model`, the quick one, runs
-  `SindbadTEM/test/testApproaches.jl` directly -- one call per approach, type-stability +
-  `NaN`/`Inf` checks, informational only -- only on a release tag push or `/test-models`, never
-  on an ordinary PR push.
+- **`SindbadTEM-benchmark.yml`**: three independent jobs, all against the committed test data in
+  `SindbadTEM/test/test_data/` (see `SindbadTEM/test/README.md`).
+  - `test-tem`, the comprehensive one, runs every approach's
+    `define`/`precompute`/`compute`/`update` multiple times each (for accurate timing/allocation
+    measurement) and reports status/time/allocations per approach, both as a job summary and as
+    a downloadable HTML artifact.
+  - `test-model` is the fast, per-push version of the check below: `git diff`s the base
+    and head commits for `.jl` files under `SindbadTEM/src/Processes/`, maps each one to its
+    approach struct name (the filename always matches, e.g. `soilProperties_Saxton1986.jl`
+    defines `soilProperties_Saxton1986`) via `SINDBADTEM_TEST_APPROACHES`, and runs
+    `SindbadTEM/test/testApproaches.jl` scoped to just those approaches. Runs on every PR/push
+    touching `SindbadTEM/src/Processes/` (same trigger as `test-tem`); silently does nothing if
+    the changed files don't map to a specific approach (e.g. only a process's shared
+    abstract-type file, or `SindbadTEM/src/Processes.jl`, changed) -- run `analyse-tem` or
+    `test-tem` for that.
+  - `analyse-tem`, the full-catalog version of the same check, runs
+    `SindbadTEM/test/testApproaches.jl` directly with no filter -- one call per approach,
+    type-stability + `NaN`/`Inf` checks, informational only -- only on a release tag push or
+    `/test-models`, never on an ordinary PR push.
 - **`TestSimulations.yml`** ("Test Simulations"): runs one job per
   `{ubuntu,macOS,windows} x {LUE,WROASTED} x {pixel,spatial}` combination (12 jobs, in parallel),
   named so it's clear at a glance what each is running -- e.g. "LUE x pixel x F+O x ubuntu-latest"

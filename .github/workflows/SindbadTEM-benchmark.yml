@@ -11,9 +11,9 @@ on:
       - main
   push:
     # No `paths:` filter here (unlike pull_request above): a tag push is a release, and
-    # test-model below needs to run for every release regardless of which paths its commit
+    # analyse-tem below needs to run for every release regardless of which paths its commit
     # happens to touch -- paths filtering applies to the whole trigger, not per-job, so it can't
-    # be scoped to just the test-tem job without also scoping out test-model.
+    # be scoped to just the test-tem job without also scoping out analyse-tem.
     tags:
       - '*'
     branches:
@@ -69,16 +69,17 @@ jobs:
           name: sindbad-process-benchmark
           path: tools/benchmark/TestSindbadTEM/benchmark_output/benchmark_report.html
 
-  # The quick check: runs testApproaches.jl (define/precompute/compute/update type-stability +
-  # NaN/Inf checks, one call per approach, informational only -- see
+  # The quick, full-catalog check: runs testApproaches.jl (define/precompute/compute/update
+  # type-stability + NaN/Inf checks, one call per approach, informational only -- see
   # SindbadTEM/test/testApproaches.jl and README.md) on demand only: deliberately not part of
   # Pkg.test("SindbadTEM") (see SindbadTEM/test/runtests.jl's comment on why), and not on every
   # PR/push either -- pure Julia logic with no OS-specific behavior, so running it on demand for
   # releases plus `/test-models` is enough; it doesn't need its own 3-OS x 2-Julia-version matrix
-  # the way package compilation does.
-  test-model:
+  # the way package compilation does. For a fast, per-push, only-the-changed-approaches version
+  # of this same check, see test-model below.
+  analyse-tem:
     if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/'))
-    name: "SindbadTEM: test-model (approach checks)"
+    name: "SindbadTEM: analyse-tem (approach checks, full catalog)"
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -94,4 +95,64 @@ jobs:
           rm(joinpath("SindbadTEM", "Manifest.toml"); force=true)
           Pkg.instantiate()
       - name: Run approach checks
+        run: julia --project=SindbadTEM SindbadTEM/test/runApproachChecks.jl
+
+  # The fast, per-push, targeted version of analyse-tem above: only the approaches whose own
+  # file changed, so an ordinary PR push gets quick feedback without paying for the full ~240
+  # approach catalog every time. Maps each changed SindbadTEM/src/Processes/**/*.jl file to its
+  # approach struct name via the filename == struct name convention (holds for every approach
+  # file in the repo; verified when this job was added). A changed shared file that isn't itself
+  # one approach's file (e.g. a process's own abstract-type file, or SindbadTEM/src/Processes.jl)
+  # doesn't map to anything here and is silently skipped -- run analyse-tem or test-tem for that.
+  test-model:
+    if: github.event_name == 'pull_request' || (github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/'))
+    name: "SindbadTEM: test-model"
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Find changed approaches
+        id: changed
+        env:
+          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          if [ -z "$BASE_SHA" ] || [ "$BASE_SHA" = "0000000000000000000000000000000000000000" ]; then
+            echo "No usable base commit (new branch or first push) -- skipping."
+            echo "approaches=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          approaches=""
+          for f in $(git diff --name-only "$BASE_SHA" "$HEAD_SHA" -- SindbadTEM/src/Processes/); do
+            case "$f" in
+              *.jl) ;;
+              *) continue ;;
+            esac
+            name=$(basename "$f" .jl)
+            dir=$(basename "$(dirname "$f")")
+            [ "$name" = "$dir" ] && continue  # the process's own abstract-type file, not an approach
+            approaches="$approaches,$name"
+          done
+          approaches="${approaches#,}"
+          echo "Changed approaches: ${approaches:-none}"
+          echo "approaches=$approaches" >> "$GITHUB_OUTPUT"
+      - uses: julia-actions/setup-julia@v3
+        if: steps.changed.outputs.approaches != ''
+        with:
+          version: '1'
+      - uses: julia-actions/cache@v3
+        if: steps.changed.outputs.approaches != ''
+      - name: Instantiate SindbadTEM
+        if: steps.changed.outputs.approaches != ''
+        shell: julia --project=SindbadTEM {0}
+        run: |
+          using Pkg
+          rm(joinpath("SindbadTEM", "Manifest.toml"); force=true)
+          Pkg.instantiate()
+      - name: Run changed-approach checks
+        if: steps.changed.outputs.approaches != ''
+        env:
+          SINDBADTEM_TEST_APPROACHES: ${{ steps.changed.outputs.approaches }}
         run: julia --project=SindbadTEM SindbadTEM/test/runApproachChecks.jl

@@ -9,6 +9,16 @@ import SindbadTEM.Processes as SM
 const DEFAULT_TESTED_FUNCTIONS = "define,precompute,compute"
 const TESTED_FUNCTIONS = Set(Symbol.(split(get(ENV, "SINDBADTEM_TEST_FUNCTIONS", DEFAULT_TESTED_FUNCTIONS), ",")))
 
+# Which approaches to actually test, customizable via SINDBADTEM_TEST_APPROACHES (comma-separated
+# approach struct names, e.g. "soilProperties_Saxton1986,soilWBase_smax1Layer"). Unset/empty
+# (the default) means no filter -- test every approach, same as always. Used by the
+# test-model CI job to scope a run down to just the approaches whose own file changed in a given
+# push, instead of the full catalog test-tem/analyse-tem always run -- see
+# .github/workflows/SindbadTEM-benchmark.yml.
+const TESTED_APPROACHES_RAW = strip(get(ENV, "SINDBADTEM_TEST_APPROACHES", ""))
+const TESTED_APPROACHES = isempty(TESTED_APPROACHES_RAW) ? nothing : Set(Symbol.(split(TESTED_APPROACHES_RAW, ",")))
+wantedApproach(T) = TESTED_APPROACHES === nothing || nameof(T) in TESTED_APPROACHES
+
 # `leafSubtypes` is already defined globally by scanApproachVariables.jl, included via
 # testDataCoverage.jl before this file runs (see runtests.jl) -- reused as-is rather than
 # redefined here, which used to silently overwrite that definition (harmless since both were
@@ -115,6 +125,7 @@ function runDefinePrecomputePhase(land0)
     for step in reference_sequence
         if test_this_phase
             for T in leafSubtypes(step.process_type)
+                wantedApproach(T) || continue
                 n_total += 1
                 reason = approachOutcome(checkDefinePrecompute, T, tmp_forcing, deepcopy(land), tmp_helpers)
                 reason === nothing || (problems[string(nameof(T))] = reason)
@@ -139,6 +150,7 @@ function runComputePhase(land0)
     for step in reference_sequence
         if test_this_phase
             for T in leafSubtypes(step.process_type)
+                wantedApproach(T) || continue
                 n_total += 1
                 reason = approachOutcome(checkCompute, T, tmp_forcing, deepcopy(land), tmp_helpers)
                 reason === nothing || (problems[string(nameof(T))] = reason)
@@ -176,7 +188,7 @@ land_after_compute = runComputePhase(deepcopy(land_after_definePrecompute))
 # default (see TESTED_FUNCTIONS at the top of this file).
 if :update in TESTED_FUNCTIONS
     problems = Dict{String,String}()
-    approaches = leafSubtypes(LandEcosystem)
+    approaches = filter(wantedApproach, leafSubtypes(LandEcosystem))
     for T in approaches
         reason = approachOutcome(checkUpdate, T, tmp_forcing, deepcopy(land_after_compute), tmp_helpers)
         reason === nothing || (problems[string(nameof(T))] = reason)

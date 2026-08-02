@@ -42,9 +42,13 @@ every push would be wasted cost. Run it directly instead:
 julia --project=SindbadTEM SindbadTEM/test/runApproachChecks.jl
 ```
 
-In CI, it's the `approach-checks` job in `.github/workflows/SindbadTEM-benchmark.yml` --
-triggered only by a release tag push or the `/test-models` PR comment, never on an ordinary
-PR/push (see that workflow and `CONTRIBUTING.md`'s CI section).
+In CI, the full-catalog version is the `analyse-tem` job in
+`.github/workflows/SindbadTEM-benchmark.yml` -- triggered only by a release tag push or the
+`/test-models` PR comment, never on an ordinary PR/push. That same workflow's
+`test-model` job runs a scoped version of the same check automatically on every PR/push
+touching `SindbadTEM/src/Processes/`, filtered down to just the approaches whose own file
+changed (via `SINDBADTEM_TEST_APPROACHES`, see below) -- see that workflow and
+[`.github/README.md`](../../.github/README.md) for the full detail.
 
 ### All approaches (`testApproaches.jl`)
 
@@ -91,6 +95,15 @@ SINDBADTEM_TEST_FUNCTIONS="define,precompute,compute" julia --project=SindbadTEM
 
 # also check update
 SINDBADTEM_TEST_FUNCTIONS="define,precompute,compute,update" julia --project=SindbadTEM SindbadTEM/test/runApproachChecks.jl
+```
+
+**Which approaches get checked is customizable too**, via `SINDBADTEM_TEST_APPROACHES`
+(comma-separated approach struct names). Unset/empty (the default) means no filter -- check
+every approach, same as `analyse-tem` in CI. This is what `test-model` uses to scope a
+run down to just the approaches whose own file changed in a push:
+
+```sh
+SINDBADTEM_TEST_APPROACHES="soilProperties_Saxton1986,soilWBase_smax1Layer" julia --project=SindbadTEM SindbadTEM/test/runApproachChecks.jl
 ```
 
 ### Test data coverage (`testDataCoverage.jl`)
