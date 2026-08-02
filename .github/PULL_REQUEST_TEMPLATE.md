@@ -5,6 +5,8 @@
 ## Automatic tests
 
 Automatically, every PR runs a fast, ubuntu-only check on every push to aid the developer.
+`/test-simulation` (changes under `src/`) and `/test-models` (changes under
+`SindbadTEM/src/Processes/`) also auto-run when relevant.
 
 As the last step before merging, run additional tests/ checks **when the change are final** that run on-demand triggered by the following comments in the PR:
 
@@ -14,7 +16,8 @@ Or, if certain, run just what's relevant to the changes:
 
 - `/build-docs`: docstring or new-function changes
 - `/compile-os`: changes under `src/`, `SindbadTEM/src/`, or `Project.toml` dependencies
-- `/test-simulation`: changes to the core simulation run path (forward/optimization)
+- `/test-simulation`: changes to the core simulation run path (forward/optimization) outside `src/`
+- `/test-models`: changes to approach behavior outside `SindbadTEM/src/Processes/`
 
 
 The results post automatically back to the comment in this PR as comments.

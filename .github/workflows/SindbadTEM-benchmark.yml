@@ -1,0 +1,71 @@
+name: SindbadTEM.jl benchmark
+on:
+  pull_request:
+    paths:
+      - 'SindbadTEM/src/Processes/**'
+      - 'SindbadTEM/src/Processes.jl'
+      - 'SindbadTEM/test/test_data/**'
+      - 'tools/benchmark/TestSindbadTEM/**'
+      - '.github/workflows/SindbadTEM-benchmark.yml'
+    branches:
+      - main
+  push:
+    tags:
+      - '*'
+    branches:
+      - main
+    paths:
+      - 'SindbadTEM/src/Processes/**'
+      - 'SindbadTEM/src/Processes.jl'
+      - 'SindbadTEM/test/test_data/**'
+      - 'tools/benchmark/TestSindbadTEM/**'
+      - '.github/workflows/SindbadTEM-benchmark.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  # Runs every approach's define/precompute/compute/update once against the committed
+  # TestSindbadTEM-derived test data and reports status/time/allocations. Not a pass/fail gate --
+  # approaches outside the test data's own model structure are *expected* to error/not-apply, so
+  # this job never fails the build on their account (only a genuine bug in the benchmark/render
+  # scripts themselves would). Regenerate the test data via
+  # tools/benchmark/TestSindbadTEM/derive_sindbadTEM_test_data.jl if they go stale.
+  #
+  # A separate workflow file from SindbadTEM.yml (rather than a job in it) so it can be
+  # comment-triggered on its own via `/test-models` without also re-running SindbadTEM.yml's
+  # full-matrix job -- see ci-commands.yml.
+  benchmark:
+    name: "SindbadTEM: process benchmark"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: julia-actions/setup-julia@v3
+        with:
+          version: '1'
+      - uses: julia-actions/cache@v3
+      - name: Instantiate SindbadTEM
+        shell: julia --project=SindbadTEM {0}
+        run: |
+          using Pkg
+          rm(joinpath("SindbadTEM", "Manifest.toml"); force=true)
+          Pkg.instantiate()
+      - name: Run benchmark
+        run: julia --project=SindbadTEM tools/benchmark/TestSindbadTEM/benchmarkApproaches.jl tools/benchmark/TestSindbadTEM/benchmark_output/benchmark_results.psv
+      - name: Render report
+        run: |
+          julia --project=SindbadTEM tools/benchmark/TestSindbadTEM/renderBenchmarkReport.jl \
+            tools/benchmark/TestSindbadTEM/benchmark_output/benchmark_results.psv \
+            tools/benchmark/TestSindbadTEM/benchmark_output/benchmark_report.html \
+            tools/benchmark/TestSindbadTEM/benchmark_output/benchmark_summary.md
+      - name: Add to job summary
+        if: always()
+        run: cat tools/benchmark/TestSindbadTEM/benchmark_output/benchmark_summary.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: sindbad-process-benchmark
+          path: tools/benchmark/TestSindbadTEM/benchmark_output/benchmark_report.html

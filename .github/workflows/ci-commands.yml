@@ -21,6 +21,7 @@ jobs:
   #   /build-docs         Documenter.yml only.
   #   /compile-os         Sindbad.yml + SindbadTEM.yml full OS matrix only.
   #   /test-simulation    TestSimulations.yml only.
+  #   /test-models        SindbadTEM-benchmark.yml only.
   dispatch:
     if: >
       github.event.issue.pull_request != null &&
@@ -29,7 +30,8 @@ jobs:
         contains(github.event.comment.body, '/check-pr') ||
         contains(github.event.comment.body, '/build-docs') ||
         contains(github.event.comment.body, '/compile-os') ||
-        contains(github.event.comment.body, '/test-simulation')
+        contains(github.event.comment.body, '/test-simulation') ||
+        contains(github.event.comment.body, '/test-models')
       )
     runs-on: ubuntu-latest
     permissions:
@@ -63,12 +65,13 @@ jobs:
               SindbadTEM.yml) echo "SindbadTEM.jl full OS matrix" ;;
               Documenter.yml) echo "the docs build" ;;
               TestSimulations.yml) echo "Test Simulations" ;;
+              SindbadTEM-benchmark.yml) echo "SindbadTEM process benchmark" ;;
             esac
           }
           workflows=()
 
           if [[ "$COMMENT_BODY" == *"/check-pr"* ]]; then
-            workflows+=(Documenter.yml SindbadTEM.yml Sindbad.yml TestSimulations.yml)
+            workflows+=(Documenter.yml SindbadTEM.yml Sindbad.yml TestSimulations.yml SindbadTEM-benchmark.yml)
           fi
           if [[ "$COMMENT_BODY" == *"/build-docs"* ]]; then
             workflows+=(Documenter.yml)
@@ -78,6 +81,9 @@ jobs:
           fi
           if [[ "$COMMENT_BODY" == *"/test-simulation"* ]]; then
             workflows+=(TestSimulations.yml)
+          fi
+          if [[ "$COMMENT_BODY" == *"/test-models"* ]]; then
+            workflows+=(SindbadTEM-benchmark.yml)
           fi
 
           # De-dup while preserving first-seen order (a comment may combine commands that

@@ -98,7 +98,12 @@ Then load/use `Sindbad` normally; the extension will be picked up automatically.
 
 Every PR automatically runs a "quick" check on every push: `Sindbad.yml` and `SindbadTEM.yml`,
 ubuntu-only, Julia `lts` + `1` (4 jobs total). This is required to merge and is intentionally
-narrow, so pushing to a PR stays fast.
+narrow, so pushing to a PR stays fast. Two more workflows also run automatically, but only when
+they're relevant, since neither is required to merge and both are too expensive to run on every
+push regardless of what changed: `SindbadTEM-benchmark.yml` (informational only -- per-approach
+status/timing, not a pass/fail gate) on changes touching `SindbadTEM/src/Processes/`,
+`SindbadTEM/test/test_data/`, or `tools/benchmark/TestSindbadTEM/`; and `TestSimulations.yml`
+(12 jobs, up to 90 minutes each) on changes touching `src/`.
 
 For everything else, comment on the PR (or trigger each workflow individually from the Actions
 tab). Any combination of these commands can go in one comment, and each can also be run on its
@@ -114,9 +119,13 @@ own, targeted at whatever actually changed, instead of always paying for the ful
   pulls in a handful of the optional extensions under `ext/`, so this doesn't exercise all of
   them -- prefer `/check-pr` (or a manual local check) if you're touching an extension outside
   that set.
-- **`/test-simulation`**: `TestSimulations.yml` only. Use after changes to the core simulation
+- **`/test-simulation`**: `TestSimulations.yml` only. Auto-triggered by changes under `src/` (see
+  above); use this to also run it for changes elsewhere that still affect the core simulation
   run path (forward/optimization execution). Does not cover ML or visualization code -- the
   LUE/WROASTED setups it runs are neither hybrid-ML nor plotting paths.
+- **`/test-models`**: `SindbadTEM-benchmark.yml` only. Auto-triggered by changes under
+  `SindbadTEM/src/Processes/` (see above); use this to also run it for changes elsewhere that
+  still affect approach behavior, without also re-running `SindbadTEM.yml`'s full OS matrix.
 
 What each workflow actually runs:
 
@@ -127,6 +136,10 @@ What each workflow actually runs:
   table (OS, Julia version, status, time) on the PR alongside the overall result.
 - **`Documenter.yml`**: builds the docs (no PR preview deploy; see `docs/make.jl`'s
   `push_preview = false`).
+- **`SindbadTEM-benchmark.yml`**: runs every approach's `define`/`precompute`/`compute`/`update`
+  once against the committed test data in `SindbadTEM/test/test_data/` (see
+  `SindbadTEM/test/README.md`) and reports status/time/allocations per approach, both as a job
+  summary and as a downloadable HTML artifact.
 - **`TestSimulations.yml`** ("Test Simulations"): runs one job per
   `{ubuntu,macOS,windows} x {LUE,WROASTED} x {pixel,spatial}` combination (12 jobs, in parallel),
   named so it's clear at a glance what each is running -- e.g. "LUE x pixel x F+O x ubuntu-latest"
