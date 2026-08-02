@@ -1,24 +1,5 @@
 import SindbadTEM.Processes as SM
 
-# Which of define/precompute/compute/update to actually test, customizable via
-# SINDBADTEM_TEST_FUNCTIONS (comma-separated, e.g. "define,precompute,compute,update").
-# `update` is excluded by default: it's a separate, optional per-timestep path (only invoked
-# when `inline_update` is set in experiment.json) that most approaches don't override, so
-# testing it by default mostly just measures how many approaches happen to inherit the no-op
-# default against a land state most of them were never designed to see.
-const DEFAULT_TESTED_FUNCTIONS = "define,precompute,compute"
-const TESTED_FUNCTIONS = Set(Symbol.(split(get(ENV, "SINDBADTEM_TEST_FUNCTIONS", DEFAULT_TESTED_FUNCTIONS), ",")))
-
-# Which approaches to actually test, customizable via SINDBADTEM_TEST_APPROACHES (comma-separated
-# approach struct names, e.g. "soilProperties_Saxton1986,soilWBase_smax1Layer"). Unset/empty
-# (the default) means no filter -- test every approach, same as always. Used by the
-# test-model CI job to scope a run down to just the approaches whose own file changed in a given
-# push, instead of the full catalog test-tem/analyse-tem always run -- see
-# .github/workflows/SindbadTEM-benchmark.yml.
-const TESTED_APPROACHES_RAW = strip(get(ENV, "SINDBADTEM_TEST_APPROACHES", ""))
-const TESTED_APPROACHES = isempty(TESTED_APPROACHES_RAW) ? nothing : Set(Symbol.(split(TESTED_APPROACHES_RAW, ",")))
-wantedApproach(T) = TESTED_APPROACHES === nothing || nameof(T) in TESTED_APPROACHES
-
 # `leafSubtypes` is already defined globally by scanApproachVariables.jl, included via
 # testDataCoverage.jl before this file runs (see runtests.jl) -- reused as-is rather than
 # redefined here, which used to silently overwrite that definition (harmless since both were
@@ -51,6 +32,10 @@ _collectInvalid!(invalid, x, path) = nothing
 # few processes it doesn't select) at every process slot, and at each slot ALSO test every one of that process's
 # approaches against the same, correctly-built-up upstream `land` -- without letting the tested
 # approach's own output feed forward (only the reference approach's output advances the chain).
+#
+# A plain top-level assignment (not `const`), so re-`include`-ing this file (e.g. once per
+# interactive session via tools/dev_test.jl, rather than once per subprocess) doesn't trigger
+# Julia's redefinition warnings the way re-including a `const` would.
 reference_sequence = map(SM.standard_sindbad_model) do p
     process_type = getfield(SM, p)
     ref_type = getfield(SM, getproperty(reference_approaches, p))
@@ -75,9 +60,9 @@ end
 # call whose allocations are measured. `define` is excluded -- it legitimately allocates (it's
 # creating pools/arrays) -- but a well-written `precompute`/`compute` should allocate ~0 once
 # compiled, so the tolerance here is exactly 0 bytes. Only checked in scoped runs (test-model,
-# or a local SINDBADTEM_TEST_APPROACHES run) and only once the correctness check for the same
-# approach has already passed (see the call sites below) -- no point measuring allocations on an
-# approach that doesn't even run correctly.
+# or a local `approaches` run) and only once the correctness check for the same approach has
+# already passed (see the call sites below) -- no point measuring allocations on an approach
+# that doesn't even run correctly.
 function checkPrecomputeAllocation(T, forcing, land, helpers)
     try
         params = T()
@@ -108,11 +93,12 @@ function checkComputeAllocation(T, forcing, land, helpers)
     end
 end
 
-# Per-approach results are informational, not a `Pkg.test` gate: many "failures" here are
-# inherent, mutually exclusive structural requirements between approaches of the same process
-# (e.g. soilWBase_smax1Layer hard-requires exactly 1 soil layer while soilWBase_smax2Layer
-# requires 2 -- the shared reference land/helpers can only match one of them at a time), not
-# bugs, so hard-failing `Pkg.test` on them would make the required CI check permanently red.
+# Per-approach results are informational, not a hard gate, UNLESS running scoped (`approaches`
+# passed to runApproachTests) -- see runApproachTests's docstring. Many "failures" across the
+# full, unscoped catalog are inherent, mutually exclusive structural requirements between
+# approaches of the same process (e.g. soilWBase_smax1Layer hard-requires exactly 1 soil layer
+# while soilWBase_smax2Layer requires 2 -- the shared reference land/helpers can only match one
+# of them at a time), not bugs.
 # Returns `nothing` on success, or a short problem description otherwise.
 function approachOutcome(check_fn, T, forcing, land, helpers)
     try
@@ -125,10 +111,6 @@ function approachOutcome(check_fn, T, forcing, land, helpers)
         return "errored: " * sprint(showerror, e)
     end
 end
-
-# Each phase is wrapped in a function (rather than reassigning `land` in a top-level `for` loop)
-# to avoid Julia's top-level "soft scope" ambiguity, where an assignment to an existing global
-# from inside a `for` loop silently creates a new loop-local shadow instead of updating it.
 
 # The reference approach picked for a process is usually TestSindbadTEM's own model_structure.json
 # selection (known-good), but for the handful of processes it doesn't select at all, it's an arbitrary fallback (see
@@ -145,42 +127,32 @@ function advanceReference(f, ref, forcing, land, helpers, step_label)
     end
 end
 
-# When running scoped (TESTED_APPROACHES set -- the test-model CI job, or a local
-# SINDBADTEM_TEST_APPROACHES run), problems found among the *targeted* approaches are collected
-# here and turned into a hard failure (nonzero exit) at the end of this file. Unlike the general,
-# unscoped per-approach checks above (deliberately informational -- see approachOutcome's
-# docstring for why: many "failures" are pre-existing structural conflicts between unrelated
-# approaches, not something a given change caused), a scoped run is specifically about the
-# approach(es) a change touched, so hard-failing on a genuine problem there is a reliable,
-# actionable signal instead of noise.
-const SCOPED_PROBLEMS = Dict{String,String}()
-
-function reportOutcome(phase_label, problems, n_total)
+function reportOutcome(phase_label, problems, n_total, scoped, scoped_problems)
     n_ok = n_total - length(problems)
     if isempty(problems)
         @info "$phase_label: all $n_total approaches OK"
     else
-        @warn "$phase_label: $(length(problems))/$n_total approaches failed/errored -- informational only, not a Pkg.test failure (see SindbadTEM/test/README.md)" n_ok problems
-        if TESTED_APPROACHES !== nothing
+        @warn "$phase_label: $(length(problems))/$n_total approaches failed/errored -- informational only, not a hard failure unless scoped (see SindbadTEM/test/README.md)" n_ok problems
+        if scoped
             for (name, reason) in problems
-                SCOPED_PROBLEMS["$phase_label: $name"] = reason
+                scoped_problems["$phase_label: $name"] = reason
             end
         end
     end
 end
 
-function runDefinePrecomputePhase(land0)
+function runDefinePrecomputePhase(land0, tested_functions, wanted, scoped, scoped_problems)
     land = land0
-    test_this_phase = :define in TESTED_FUNCTIONS || :precompute in TESTED_FUNCTIONS
+    test_this_phase = :define in tested_functions || :precompute in tested_functions
     problems = Dict{String,String}()
     n_total = 0
     for step in reference_sequence
         if test_this_phase
             for T in leafSubtypes(step.process_type)
-                wantedApproach(T) || continue
+                wanted(T) || continue
                 n_total += 1
                 reason = approachOutcome(checkDefinePrecompute, T, tmp_forcing, deepcopy(land), tmp_helpers)
-                if reason === nothing && TESTED_APPROACHES !== nothing
+                if reason === nothing && scoped
                     reason = checkPrecomputeAllocation(T, tmp_forcing, deepcopy(land), tmp_helpers)
                 end
                 reason === nothing || (problems[string(nameof(T))] = reason)
@@ -193,22 +165,22 @@ function runDefinePrecomputePhase(land0)
         land = advanceReference(SM.define, ref, tmp_forcing, land, tmp_helpers, (step.process, :define))
         land = advanceReference(SM.precompute, ref, tmp_forcing, land, tmp_helpers, (step.process, :precompute))
     end
-    test_this_phase && reportOutcome("define+precompute (sequential)", problems, n_total)
+    test_this_phase && reportOutcome("define+precompute (sequential)", problems, n_total, scoped, scoped_problems)
     return land
 end
 
-function runComputePhase(land0)
+function runComputePhase(land0, tested_functions, wanted, scoped, scoped_problems)
     land = land0
-    test_this_phase = :compute in TESTED_FUNCTIONS
+    test_this_phase = :compute in tested_functions
     problems = Dict{String,String}()
     n_total = 0
     for step in reference_sequence
         if test_this_phase
             for T in leafSubtypes(step.process_type)
-                wantedApproach(T) || continue
+                wanted(T) || continue
                 n_total += 1
                 reason = approachOutcome(checkCompute, T, tmp_forcing, deepcopy(land), tmp_helpers)
-                if reason === nothing && TESTED_APPROACHES !== nothing
+                if reason === nothing && scoped
                     reason = checkComputeAllocation(T, tmp_forcing, deepcopy(land), tmp_helpers)
                 end
                 reason === nothing || (problems[string(nameof(T))] = reason)
@@ -216,49 +188,92 @@ function runComputePhase(land0)
         end
         land = advanceReference(SM.compute, step.ref_type(), tmp_forcing, land, tmp_helpers, (step.process, :compute))
     end
-    test_this_phase && reportOutcome("compute (sequential)", problems, n_total)
+    test_this_phase && reportOutcome("compute (sequential)", problems, n_total, scoped, scoped_problems)
     return land
 end
 
-# Pure type-hierarchy check, no simulation involved: every process in standard_sindbad_model is
-# an abstract LandEcosystem subtype, and every one of its leaf approaches is a concrete subtype
-# of that specific process (not just of LandEcosystem in general). Unlike the per-approach
-# define/precompute/compute/update checks above, this one is a real, reliable `@test` gate --
-# it's pure reflection, always either holds or signals an actual structural bug.
-@testset "Process/approach type hierarchy" verbose = true begin
-    for step in reference_sequence
-        @test step.process_type <: LandEcosystem
-        @testset "$(step.process)" begin
-            for T in leafSubtypes(step.process_type)
-                @test T <: step.process_type
-                @test !isabstracttype(T)
+"""
+    runApproachTests(; functions=("define", "precompute", "compute"), approaches=nothing)
+
+Run every check in `SindbadTEM/test/testApproaches.jl` -- see `SindbadTEM/test/README.md` for
+what each one means -- and return `nothing`, or throw if running **scoped**
+(`approaches !== nothing`) and something targeted failed.
+
+- `functions`: which of `"define"`/`"precompute"`/`"compute"`/`"update"` to check. `update` is
+  excluded by default -- it's a separate, optional per-timestep path (only invoked when
+  `inline_update` is set in `experiment.json`) that most approaches don't override, so checking
+  it by default mostly just measures how many approaches happen to inherit the no-op default
+  against a land state most of them were never designed to see.
+- `approaches`: `nothing` (the default) checks every approach, informationally (logs `@info`/
+  `@warn`, never throws on a per-approach problem -- see `approachOutcome`'s docstring for why).
+  Passing approach struct names (as `AbstractString`s or `Symbol`s) scopes the run to just those
+  and makes it a hard gate: throws if any of them fails correctness (errors, isn't type-stable,
+  produces `NaN`/`Inf`) *or* allocates on a warm `precompute`/`compute` call.
+
+This is what CI's `test-model` (scoped) and `analyse-tem` (unscoped) jobs both run, and what
+`tools/dev_test.jl`'s `test_model`/`analyse_tem` call directly, in-process.
+"""
+function runApproachTests(; functions=("define", "precompute", "compute"), approaches=nothing)
+    tested_functions = Set(Symbol.(functions))
+    tested_approaches = approaches === nothing ? nothing : Set(Symbol.(approaches))
+    scoped = tested_approaches !== nothing
+    wanted(T) = tested_approaches === nothing || nameof(T) in tested_approaches
+    scoped_problems = Dict{String,String}()
+
+    # Pure type-hierarchy check, no simulation involved: every process in standard_sindbad_model
+    # is an abstract LandEcosystem subtype, and every one of its leaf approaches is a concrete
+    # subtype of that specific process (not just of LandEcosystem in general). Unlike the
+    # per-approach define/precompute/compute/update checks below, this one is a real, reliable
+    # `@test` gate -- it's pure reflection, always either holds or signals an actual structural
+    # bug -- so it always runs, scoped or not.
+    @testset "Process/approach type hierarchy" verbose = true begin
+        for step in reference_sequence
+            @test step.process_type <: LandEcosystem
+            @testset "$(step.process)" begin
+                for T in leafSubtypes(step.process_type)
+                    @test T <: step.process_type
+                    @test !isabstracttype(T)
+                end
             end
         end
     end
-end
 
-land_after_definePrecompute = runDefinePrecomputePhase(deepcopy(land))
-land_after_compute = runComputePhase(deepcopy(land_after_definePrecompute))
+    land_after_definePrecompute = runDefinePrecomputePhase(deepcopy(land), tested_functions, wanted, scoped, scoped_problems)
+    land_after_compute = runComputePhase(deepcopy(land_after_definePrecompute), tested_functions, wanted, scoped, scoped_problems)
 
-# `update` is a separate, optional per-timestep path (only invoked when `inline_update` is set in
-# experiment.json), not part of the base define/precompute/compute pipeline above -- tested
-# independently per approach against the fully-built final land state, not chained. Excluded by
-# default (see TESTED_FUNCTIONS at the top of this file).
-if :update in TESTED_FUNCTIONS
-    problems = Dict{String,String}()
-    approaches = filter(wantedApproach, leafSubtypes(LandEcosystem))
-    for T in approaches
-        reason = approachOutcome(checkUpdate, T, tmp_forcing, deepcopy(land_after_compute), tmp_helpers)
-        reason === nothing || (problems[string(nameof(T))] = reason)
+    # `update` is a separate, optional per-timestep path (only invoked when `inline_update` is
+    # set in experiment.json), not part of the base define/precompute/compute pipeline above --
+    # tested independently per approach against the fully-built final land state, not chained.
+    if :update in tested_functions
+        problems = Dict{String,String}()
+        approaches_to_test = filter(wanted, leafSubtypes(LandEcosystem))
+        for T in approaches_to_test
+            reason = approachOutcome(checkUpdate, T, tmp_forcing, deepcopy(land_after_compute), tmp_helpers)
+            reason === nothing || (problems[string(nameof(T))] = reason)
+        end
+        reportOutcome("update", problems, length(approaches_to_test), scoped, scoped_problems)
     end
-    reportOutcome("update", problems, length(approaches))
+
+    # Scoped runs hard-fail here if anything targeted failed/errored. Unscoped runs (analyse-tem,
+    # or `approaches=nothing`) never reach this: `scoped` is false, so scoped_problems is never
+    # populated in the first place.
+    if scoped && !isempty(scoped_problems)
+        details = join(("$k -- $v" for (k, v) in scoped_problems), "\n  ")
+        error("$(length(scoped_problems)) check(s) failed for the tested approach(es):\n  $details")
+    end
+    return nothing
 end
 
-# Scoped runs (TESTED_APPROACHES set) hard-fail here if anything targeted failed/errored --
-# see SCOPED_PROBLEMS's docstring above. Unscoped runs (analyse-tem, or a plain local run) never
-# reach this: TESTED_APPROACHES is nothing, so SCOPED_PROBLEMS is never populated in the first
-# place.
-if TESTED_APPROACHES !== nothing && !isempty(SCOPED_PROBLEMS)
-    details = join(("$k -- $v" for (k, v) in SCOPED_PROBLEMS), "\n  ")
-    error("test-model: $(length(SCOPED_PROBLEMS)) check(s) failed for the changed approach(es):\n  $details")
+# Script-mode entry point: when included directly (by runtests.jl -> runApproachChecks.jl, i.e.
+# every CI job), run once using the same SINDBADTEM_TEST_FUNCTIONS/SINDBADTEM_TEST_APPROACHES
+# environment variables as before, so CI/subprocess behavior is unchanged from a plain
+# `julia --project=SindbadTEM SindbadTEM/test/runApproachChecks.jl` run. Skipped when this file
+# is included just to pick up the function/`reference_sequence` definitions for interactive,
+# in-process use (tools/dev_test.jl sets SINDBADTEM_SKIP_AUTORUN=true before including it, then
+# calls runApproachTests directly, possibly many times with different arguments in one session).
+if get(ENV, "SINDBADTEM_SKIP_AUTORUN", "false") != "true"
+    default_functions = split(get(ENV, "SINDBADTEM_TEST_FUNCTIONS", "define,precompute,compute"), ",")
+    approaches_raw = strip(get(ENV, "SINDBADTEM_TEST_APPROACHES", ""))
+    default_approaches = isempty(approaches_raw) ? nothing : split(approaches_raw, ",")
+    runApproachTests(; functions=default_functions, approaches=default_approaches)
 end

@@ -42,9 +42,13 @@ every push would be wasted cost. Run it directly instead:
 julia --project=SindbadTEM SindbadTEM/test/runApproachChecks.jl
 ```
 
-Or, from an already-running Julia session, `include("tools/dev_test.jl")` for `test_model(...)`,
-`analyse_tem()`, and `test_tem()` convenience functions that wrap the exact same commands CI
-runs -- see that file's own docstrings.
+Or, from an already-running Julia session (started under `--project=SindbadTEM`),
+`include("tools/dev_test.jl")` for `test_model(...)` and `analyse_tem()` functions that call
+`runApproachTests` (below) directly, in-process -- no subprocess, so repeat calls in the same
+session (e.g. after editing an approach, under Revise) skip Julia's startup cost entirely. That
+file also has `test_tem()`, which does spawn a subprocess (matching `benchmarkApproaches.jl`,
+which isn't scoped/parameterized the way `testApproaches.jl` is). See that file's own
+docstrings.
 
 In CI, the full-catalog version is the `analyse-tem` job in
 `.github/workflows/SindbadTEM-benchmark.yml` -- it runs alongside `test-tem` (the benchmark)
