@@ -88,7 +88,14 @@ When run **scoped** to specific approaches (`SINDBADTEM_TEST_APPROACHES` set -- 
 in CI does, filtered to just the approaches a push actually changed), a problem among *those*
 approaches is a reliable, actionable signal instead of catalog-wide noise, so the whole run
 exits nonzero (a plain Julia `error(...)`, printing every failing check and why) if any of them
-failed or errored. See [What the results mean](#what-the-results-mean).
+failed or errored.
+
+**Scoped `precompute`/`compute` checks also enforce zero allocations.** `define` is excluded --
+it legitimately allocates (it's creating pools/arrays) -- but a well-written `precompute`/
+`compute` should allocate ~0 bytes once compiled, so scoped runs measure a warm (post-compile)
+call's allocations and fail if it's anything above 0. Only checked once the correctness check for
+that approach already passed (no point measuring allocations on something that doesn't even run).
+See [What the results mean](#what-the-results-mean).
 
 **`update` is excluded by default** -- most approaches don't override it (they inherit the
 no-op default), so testing it by default mostly just measures how many approaches happen to
@@ -167,8 +174,18 @@ julia --project=SindbadTEM tools/benchmark/TestSindbadTEM/scanApproachVariables.
 - **Scoped runs** (`SINDBADTEM_TEST_APPROACHES` set, e.g. `test-model` in CI) additionally throw
   `ERROR: test-model: N check(s) failed for the changed approach(es): ...` and exit nonzero if
   any *targeted* approach failed/errored -- one line per failing `phase: approach` pair with its
-  reason, same wording as the `@warn` entries above. This is the one case where a problem here
-  should actually block something: it's specific to the approach(es) a change touched.
+  reason, same wording as the `@warn` entries above, plus (for `precompute`/`compute` only) two
+  more possible reasons:
+  - `"precompute allocated <N> bytes on a hot call (expected 0)"` / the `compute` equivalent --
+    the approach runs correctly but isn't allocation-free once compiled. Look for the specific
+    thing that allocates on every call: growing a `Vector` instead of using a fixed-size
+    `SVector`, a closure that captures by boxing, string interpolation/formatting in a hot path,
+    etc.
+  - `"precompute allocation check errored: ..."` / the `compute` equivalent -- the allocation
+    check itself crashed (rare, since the correctness check already passed with the same
+    inputs); the message is the underlying exception.
+  This is the one case where a problem here should actually block something: it's specific to
+  the approach(es) a change touched.
 
 None of this is a hand-checked "is the math correct" assertion (see the note in this
 repo's git history if curious why) -- it's a smoke test: does every approach run, stay

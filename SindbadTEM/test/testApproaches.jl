@@ -71,6 +71,43 @@ function checkUpdate(::Type{T}, forcing, land, helpers) where {T <: LandEcosyste
     return @inferred SM.update(T(), forcing, land, helpers)
 end
 
+# Zero-allocation checks: warm-up call (JIT-compiles, discarded), then a second, identical-input
+# call whose allocations are measured. `define` is excluded -- it legitimately allocates (it's
+# creating pools/arrays) -- but a well-written `precompute`/`compute` should allocate ~0 once
+# compiled, so the tolerance here is exactly 0 bytes. Only checked in scoped runs (test-model,
+# or a local SINDBADTEM_TEST_APPROACHES run) and only once the correctness check for the same
+# approach has already passed (see the call sites below) -- no point measuring allocations on an
+# approach that doesn't even run correctly.
+function checkPrecomputeAllocation(T, forcing, land, helpers)
+    try
+        params = T()
+        land_defined = SM.define(params, forcing, land, helpers)
+        SM.precompute(params, forcing, land_defined, helpers)  # warm-up
+        # The result must be captured (not discarded) inside the @allocated expression -- an
+        # unused, side-effect-free call's allocation can otherwise be eliminated entirely by the
+        # compiler, under-reporting real allocations. See benchmarkApproaches.jl's measureCall
+        # for the same pattern.
+        local result
+        bytes = @allocated (result = SM.precompute(params, forcing, land_defined, helpers))
+        bytes == 0 && return nothing
+        return "precompute allocated $bytes bytes on a hot call (expected 0)"
+    catch e
+        return "precompute allocation check errored: " * sprint(showerror, e)
+    end
+end
+function checkComputeAllocation(T, forcing, land, helpers)
+    try
+        params = T()
+        SM.compute(params, forcing, land, helpers)  # warm-up
+        local result
+        bytes = @allocated (result = SM.compute(params, forcing, land, helpers))
+        bytes == 0 && return nothing
+        return "compute allocated $bytes bytes on a hot call (expected 0)"
+    catch e
+        return "compute allocation check errored: " * sprint(showerror, e)
+    end
+end
+
 # Per-approach results are informational, not a `Pkg.test` gate: many "failures" here are
 # inherent, mutually exclusive structural requirements between approaches of the same process
 # (e.g. soilWBase_smax1Layer hard-requires exactly 1 soil layer while soilWBase_smax2Layer
@@ -143,6 +180,9 @@ function runDefinePrecomputePhase(land0)
                 wantedApproach(T) || continue
                 n_total += 1
                 reason = approachOutcome(checkDefinePrecompute, T, tmp_forcing, deepcopy(land), tmp_helpers)
+                if reason === nothing && TESTED_APPROACHES !== nothing
+                    reason = checkPrecomputeAllocation(T, tmp_forcing, deepcopy(land), tmp_helpers)
+                end
                 reason === nothing || (problems[string(nameof(T))] = reason)
             end
         end
@@ -168,6 +208,9 @@ function runComputePhase(land0)
                 wantedApproach(T) || continue
                 n_total += 1
                 reason = approachOutcome(checkCompute, T, tmp_forcing, deepcopy(land), tmp_helpers)
+                if reason === nothing && TESTED_APPROACHES !== nothing
+                    reason = checkComputeAllocation(T, tmp_forcing, deepcopy(land), tmp_helpers)
+                end
                 reason === nothing || (problems[string(nameof(T))] = reason)
             end
         end

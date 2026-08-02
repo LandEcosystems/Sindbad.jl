@@ -97,7 +97,9 @@ it finishes (see `.github/scripts/upsert_pr_comment.sh`).
     as `test-tem`/`analyse-tem`); silently does nothing if the changed files don't map to a
     specific approach (e.g. only a process's shared abstract-type file, or
     `SindbadTEM/src/Processes.jl`, changed) -- `analyse-tem`/`test-tem` cover that case instead.
-    Unlike `analyse-tem`, a problem in a *targeted* approach here fails the job -- see
+    Unlike `analyse-tem`, a problem in a *targeted* approach here fails the job: correctness
+    (runs, type-stable, no `NaN`/`Inf`) same as `analyse-tem`, *plus* zero-allocation on a warm
+    `precompute`/`compute` call (`define` is excluded -- it legitimately allocates) -- see
     [Required checks](#required-checks) above for what it'd take to make that actually block
     merging.
 - **`TestSimulations.yml`** ("Test Simulations"): runs one job per
