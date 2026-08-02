@@ -34,7 +34,7 @@ jobs:
   # tools/benchmark/TestSindbadTEM/derive_sindbadTEM_test_data.jl if they go stale.
   #
   # A separate workflow file from SindbadTEM.yml (rather than a job in it) so it can be
-  # comment-triggered on its own via `/test-models` without also re-running SindbadTEM.yml's
+  # comment-triggered on its own via `/test-tem` without also re-running SindbadTEM.yml's
   # full-matrix job -- see ci-commands.yml.
   test-tem:
     name: "SindbadTEM: test-tem (process benchmark)"
@@ -75,7 +75,7 @@ jobs:
   # Pkg.test("SindbadTEM") (see SindbadTEM/test/runtests.jl's comment on why) -- pure Julia logic
   # with no OS-specific behavior, so it doesn't need its own 3-OS x 2-Julia-version matrix the
   # way package compilation does. No `if:` here -- runs under the exact same conditions as
-  # test-tem above (relevant PR/push, release tag push, `/test-models`, or manual), alongside it
+  # test-tem above (relevant PR/push, release tag push, `/test-tem`, or manual), alongside it
   # every time. For a fast, per-push, only-the-changed-approaches version of this same check, see
   # test-model below.
   analyse-tem:

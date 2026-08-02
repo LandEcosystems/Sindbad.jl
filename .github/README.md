@@ -12,7 +12,7 @@ when opening a PR. This file is the detail behind it.
 | `Sindbad.yml` (`quick`) | every PR push | Yes |
 | `SindbadTEM.yml` (`quick`) | every PR push | Yes |
 | `Sindbad.yml` + `SindbadTEM.yml` (`full-matrix`) | push to `main`/tag, `/compile-os`, or manual | No |
-| `SindbadTEM-benchmark.yml` (`test-tem`, `analyse-tem`) | PR/push touching `SindbadTEM/src/Processes/` (see below), `/test-models`, or manual -- both run together, always | No |
+| `SindbadTEM-benchmark.yml` (`test-tem`, `analyse-tem`) | PR/push touching `SindbadTEM/src/Processes/` (see below), `/test-tem`, or manual -- both run together, always | No |
 | `SindbadTEM-benchmark.yml` (`test-model`) | every PR/push touching `SindbadTEM/src/Processes/` (same trigger as `test-tem`) | No |
 | `TestSimulations.yml` | PR/push touching `src/`, `/test-simulation`, or manual | No |
 | `Documenter.yml` | push to `main`/tag, `/build-docs`, or manual (never on PRs directly) | No |
@@ -49,10 +49,10 @@ out or runs any PR code itself):
   below); use this to also run it for changes elsewhere that still affect the core simulation
   run path (forward/optimization execution). Does not cover ML or visualization code -- the
   LUE/WROASTED setups it runs are neither hybrid-ML nor plotting paths.
-- **`/test-models`**: `SindbadTEM-benchmark.yml`'s `test-tem` and `analyse-tem` jobs, which
+- **`/test-tem`**: `SindbadTEM-benchmark.yml`'s `test-tem` and `analyse-tem` jobs, which
   always run together (not `test-model` -- see below, it needs a real commit diff, which a
   manual dispatch doesn't have). Both are auto-triggered by changes under
-  `SindbadTEM/src/Processes/` (see below); use `/test-models` to also run them for changes
+  `SindbadTEM/src/Processes/` (see below); use `/test-tem` to also run them for changes
   elsewhere that still affect approach behavior, without also re-running `SindbadTEM.yml`'s
   full OS matrix, or any other time you want them (e.g. before a release).
 

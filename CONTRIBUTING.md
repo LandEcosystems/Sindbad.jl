@@ -98,7 +98,7 @@ Then load/use `Sindbad` normally; the extension will be picked up automatically.
 
 Every PR automatically runs a required "quick" check on every push (fast, ubuntu-only). Opening
 a PR shows the on-demand comment commands (`/check-pr`, `/build-docs`, `/compile-os`,
-`/test-simulation`, `/test-models`) available before merging, via the PR template. For the full
+`/test-simulation`, `/test-tem`) available before merging, via the PR template. For the full
 detail -- what each CI workflow actually runs, what triggers it automatically, and whether it's
 required to merge -- see [`.github/README.md`](.github/README.md).
 
