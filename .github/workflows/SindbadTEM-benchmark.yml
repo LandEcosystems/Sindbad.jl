@@ -11,9 +11,9 @@ on:
       - main
   push:
     # No `paths:` filter here (unlike pull_request above): a tag push is a release, and
-    # approach-checks below needs to run for every release regardless of which paths its commit
+    # test-model below needs to run for every release regardless of which paths its commit
     # happens to touch -- paths filtering applies to the whole trigger, not per-job, so it can't
-    # be scoped to just the benchmark job without also scoping out approach-checks.
+    # be scoped to just the test-tem job without also scoping out test-model.
     tags:
       - '*'
     branches:
@@ -25,7 +25,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # Runs every approach's define/precompute/compute/update once against the committed
+  # The comprehensive, detailed check: runs every approach's define/precompute/compute/update
+  # multiple times each (for accurate timing/allocation measurement) against the committed
   # TestSindbadTEM-derived test data and reports status/time/allocations. Not a pass/fail gate --
   # approaches outside the test data's own model structure are *expected* to error/not-apply, so
   # this job never fails the build on their account (only a genuine bug in the benchmark/render
@@ -35,8 +36,8 @@ jobs:
   # A separate workflow file from SindbadTEM.yml (rather than a job in it) so it can be
   # comment-triggered on its own via `/test-models` without also re-running SindbadTEM.yml's
   # full-matrix job -- see ci-commands.yml.
-  benchmark:
-    name: "SindbadTEM: process benchmark"
+  test-tem:
+    name: "SindbadTEM: test-tem (process benchmark)"
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -68,15 +69,16 @@ jobs:
           name: sindbad-process-benchmark
           path: tools/benchmark/TestSindbadTEM/benchmark_output/benchmark_report.html
 
-  # Runs testApproaches.jl (define/precompute/compute/update type-stability + NaN/Inf checks,
-  # informational only -- see SindbadTEM/test/testApproaches.jl and README.md) on demand only:
-  # deliberately not part of Pkg.test("SindbadTEM") (see SindbadTEM/test/runtests.jl's comment on
-  # why), and not on every PR/push either -- pure Julia logic with no OS-specific behavior, so
-  # running it on demand for releases plus `/test-models` is enough; it doesn't need its own
-  # 3-OS x 2-Julia-version matrix the way package compilation does.
-  approach-checks:
+  # The quick check: runs testApproaches.jl (define/precompute/compute/update type-stability +
+  # NaN/Inf checks, one call per approach, informational only -- see
+  # SindbadTEM/test/testApproaches.jl and README.md) on demand only: deliberately not part of
+  # Pkg.test("SindbadTEM") (see SindbadTEM/test/runtests.jl's comment on why), and not on every
+  # PR/push either -- pure Julia logic with no OS-specific behavior, so running it on demand for
+  # releases plus `/test-models` is enough; it doesn't need its own 3-OS x 2-Julia-version matrix
+  # the way package compilation does.
+  test-model:
     if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/'))
-    name: "SindbadTEM: approach checks"
+    name: "SindbadTEM: test-model (approach checks)"
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
