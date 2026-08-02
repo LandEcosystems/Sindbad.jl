@@ -70,35 +70,51 @@ actually sees -- it's the land some *other* upstream choice of approaches would 
 
 So this file replays the real sequence with one **reference approach** per process (from
 `test_data/referenceApproaches.jl` -- normally `TestSindbadTEM/model_structure.json`'s own
-selection, see [Test data](#test-data)), and at each process slot *also* runs every one of
-that process's approaches against the same, correctly-built-up upstream `land` -- without
-letting the tested approach's own output feed forward (only the reference approach's output
-advances the chain). If the reference approach itself errors at some step, `land` is left
-unchanged for that step (a warning is logged) rather than aborting the whole run.
+selection, see [Test data](#test-data)), in two separate passes matching the real pipeline
+(all processes' `define`+`precompute` first, then all processes' `compute`), and at each process
+slot in each pass *also* tests every one of that process's approaches against the same,
+correctly-built-up upstream `land`. The tested approach's own output never feeds the *shared*
+chain (only the reference approach's output advances what the next process sees), so testing one
+approach can't contaminate another's -- except for its own `compute` check, which chains that
+same approach's own `define`->`precompute`->`compute` on top of the shared upstream `land` (see
+`checkComputeChain`), so `compute` sees exactly what its own `precompute` would hand it in a real
+run, not whatever the *reference* approach for that process happened to produce. If the reference
+approach itself errors at some step, `land` is left unchanged for that step (a warning is logged)
+rather than aborting the whole run.
 
 Four checks, in this order:
 
 | Check | What it checks | Needs simulation? | Hard-fails the run? |
 |---|---|---|---|
 | `Process/approach type hierarchy` | Every process is a `LandEcosystem` subtype; every one of its approaches is a concrete subtype of that specific process | No -- pure reflection | Always -- a real `@test`, always either holds or signals an actual structural bug |
-| `define+precompute (sequential)` | Every approach's `define` then `precompute`, `@inferred` (type-stable) and free of `NaN`/`Inf` | Yes | Only when scoped (see below) |
-| `compute (sequential)` | Every approach's `compute`, same checks, against the land built up through the real `define`+`precompute` sequence | Yes | Only when scoped |
-| `update` | Every approach's `update`, against the fully-built final land state (not chained -- `update` is a separate, optional per-timestep path, only invoked when `inline_update` is set in `experiment.json`) | Yes | Only when scoped |
+| `define+precompute (sequential)` | Every approach's `define` then `precompute`, `@inferred` (type-stable) and free of `NaN`/`Inf` | Yes | Only when scoped, and only `:bug`-severity results (see below) |
+| `compute (sequential)` | Every approach's own `define`->`precompute`->`compute` chain, same checks, against upstream `land` built from earlier processes | Yes | Only when scoped, and only `:bug`-severity results |
+| `update` | Every approach's `update`, against the fully-built final land state (not chained -- `update` is a separate, optional per-timestep path, only invoked when `inline_update` is set in `experiment.json`) | Yes | Only when scoped, and only `:bug`-severity results |
 
-The three simulation-driving checks are `@info`/`@warn` only (not `@test`-gated) when run
-**unscoped** (the default, and what `analyse-tem` in CI always does): many "failures" across
-the full catalog are inherent, mutually exclusive structural requirements between approaches of
-different processes (e.g. `soilWBase_smax1Layer` hard-requires exactly 1 soil layer while
-`soilWBase_smax2Layer` requires 2 -- the shared reference `land`/`helpers` can only match one of
-them at a time), not bugs -- hard-failing `Pkg.test` on them would make it permanently red. Each
-phase logs one consolidated `@warn` (approach name -> problem description) if anything
-failed/errored, or one `@info` line if everything passed.
+Every per-approach result is tagged one of two severities (see `outcomeFromException`):
+- **`:incompatible`** -- the approach failed on a *missing field* (`land.<namespace>` genuinely
+  doesn't have something it reads). This almost always means the approach legitimately depends on
+  a *different* approach for some *other* process (e.g. a specific `soilWBase` variant) than the
+  one the fixed test reference happens to select for that process -- not a bug in the approach
+  under test (e.g. `soilWBase_smax1Layer` hard-requires exactly 1 soil layer while
+  `soilWBase_smax2Layer` requires 2; the shared reference `land`/`helpers` can only match one of
+  them at a time). **Always informational, scoped or not** -- it can never hard-fail a run, since
+  it isn't a defect in the approach the run is actually about.
+- **`:bug`** -- anything else (crashed some other way, type instability, `NaN`/`Inf`, non-zero
+  allocation). Reflects the approach's own code. Informational when run **unscoped** (the default,
+  and what `analyse-tem` in CI always does) -- hard-failing `Pkg.test` on the full catalog's
+  pre-existing issues would make it permanently red -- but hard-fails when run **scoped**.
+
+Each phase logs one consolidated `@info` (approach name -> reason) for `:incompatible` results and
+one consolidated `@warn` (approach name -> reason) for `:bug` results, or one `@info` line if
+everything passed.
 
 When run **scoped** to specific approaches (`SINDBADTEM_TEST_APPROACHES` set -- what `test-model`
-in CI does, filtered to just the approaches a push actually changed), a problem among *those*
-approaches is a reliable, actionable signal instead of catalog-wide noise, so the whole run
-exits nonzero (a plain Julia `error(...)`, printing every failing check and why) if any of them
-failed or errored.
+in CI does, filtered to just the approaches a push actually changed), a `:bug` among *those*
+approaches is a reliable, actionable signal instead of catalog-wide noise, so the whole run exits
+nonzero (a plain Julia `error(...)`, printing every failing check and why) if any of them failed
+or errored with `:bug` severity. `:incompatible` results among the scoped approaches are still
+logged, but never make the run exit nonzero.
 
 **Scoped `precompute`/`compute` checks also enforce zero allocations.** `define` is excluded --
 it legitimately allocates (it's creating pools/arrays) -- but a well-written `precompute`/
@@ -165,25 +181,32 @@ julia --project=SindbadTEM tools/benchmark/TestSindbadTEM/scanApproachVariables.
   practice.
 - **`@info "<phase>: all N approaches OK"`** -- every approach in that phase ran, was
   type-stable, and produced no `NaN`/`Inf`. Nothing to do.
+- **`@info "<phase>: M/N approaches skipped -- incompatible upstream data..."`** -- prints a
+  `Dict` of approach name -> reason, all `:incompatible` severity (see above): the approach hit a
+  missing `land.<namespace>` field, almost always because it needs a different upstream approach
+  (for some *other* process) than this test's fixed reference selects. Not a bug, never a hard
+  failure even scoped -- check whether the *reference* approach for the relevant upstream process
+  is a reasonable stand-in if you want to investigate further (see
+  `test_data/referenceApproaches.jl`).
 - **`@warn "<phase>: M/N approaches failed/errored..."`** -- prints a `Dict` of approach name ->
-  problem description. Each entry is one of:
+  problem description, all `:bug` severity. Each entry is one of:
   - `"did not return a NamedTuple"` -- the approach's return value itself is wrong.
   - `"NaN/Inf at <path>, ..."` -- one or more output fields are invalid; the dotted path names
     exactly which.
-  - `"errored: ..."` -- the approach crashed outright. Common causes seen so far: a genuine bug
-    in the approach's own source (e.g. a stray bitwise `&`/`|` instead of `&&`/`||`, which
-    silently changes both behavior *and* type), a type instability caught by `@inferred`, an
-    inherent structural requirement the shared test data can't satisfy for every approach at
-    once (e.g. a hard-coded soil-layer count), or the reference-approach chain not having
-    produced a `land` shape this particular approach expects (check whether the *reference*
-    approach for that process is a reasonable stand-in -- see `test_data/referenceApproaches.jl`).
-  Not a `Pkg.test` failure either way -- treat this as a triage list, not a red/green signal.
+  - `"errored: ..."` -- the approach crashed on something other than a missing field. Common
+    causes seen so far: a genuine bug in the approach's own source (e.g. a stray bitwise `&`/`|`
+    instead of `&&`/`||`, which silently changes both behavior *and* type; forgetting to
+    `@unpack_nt` a variable the approach's code goes on to use, which throws `UndefVarError`, not
+    a missing-field error, so it stays `:bug`-severity rather than being reclassified as
+    `:incompatible`), or a type instability caught by `@inferred`.
+  Not a `Pkg.test` failure either way when unscoped -- treat this as a triage list, not a
+  red/green signal.
 - A separate `@warn "Reference approach failed while advancing the sequential chain..."` during
   the run means the *reference* approach for some process errored, so `land` wasn't advanced for
   that step -- expect knock-on failures in whatever reads that process's normal output.
 - **Scoped runs** (`SINDBADTEM_TEST_APPROACHES` set, e.g. `test-model` in CI) additionally throw
-  `ERROR: test-model: N check(s) failed for the changed approach(es): ...` and exit nonzero if
-  any *targeted* approach failed/errored -- one line per failing `phase: approach` pair with its
+  `ERROR: N check(s) failed for the tested approach(es): ...` and exit nonzero if any *targeted*
+  approach had a `:bug`-severity result -- one line per failing `phase: approach` pair with its
   reason, same wording as the `@warn` entries above, plus (for `precompute`/`compute` only) two
   more possible reasons:
   - `"precompute allocated <N> bytes on a hot call (expected 0)"` / the `compute` equivalent --
