@@ -34,8 +34,8 @@ _collectInvalid!(invalid, x, path) = nothing
 # approach's own output feed forward (only the reference approach's output advances the chain).
 #
 # A plain top-level assignment (not `const`), so re-`include`-ing this file (e.g. once per
-# interactive session via tools/dev_test.jl, rather than once per subprocess) doesn't trigger
-# Julia's redefinition warnings the way re-including a `const` would.
+# interactive session via SindbadTEM's Test package extension, rather than once per subprocess)
+# doesn't trigger Julia's redefinition warnings the way re-including a `const` would.
 reference_sequence = map(SM.standard_sindbad_model) do p
     process_type = getfield(SM, p)
     ref_type = getfield(SM, getproperty(reference_approaches, p))
@@ -211,7 +211,8 @@ what each one means -- and return `nothing`, or throw if running **scoped**
   produces `NaN`/`Inf`) *or* allocates on a warm `precompute`/`compute` call.
 
 This is what CI's `test-model` (scoped) and `analyse-tem` (unscoped) jobs both run, and what
-`tools/dev_test.jl`'s `test_model`/`analyse_tem` call directly, in-process.
+`SindbadTEM`'s exported `test_model`/`analyse_tem` (see `SindbadTEM/src/DevTools.jl` and
+`SindbadTEM/ext/SindbadTEMTestExt.jl`) call directly, in-process.
 """
 function runApproachTests(; functions=("define", "precompute", "compute"), approaches=nothing)
     tested_functions = Set(Symbol.(functions))
@@ -269,8 +270,9 @@ end
 # environment variables as before, so CI/subprocess behavior is unchanged from a plain
 # `julia --project=SindbadTEM SindbadTEM/test/runApproachChecks.jl` run. Skipped when this file
 # is included just to pick up the function/`reference_sequence` definitions for interactive,
-# in-process use (tools/dev_test.jl sets SINDBADTEM_SKIP_AUTORUN=true before including it, then
-# calls runApproachTests directly, possibly many times with different arguments in one session).
+# in-process use (SindbadTEM/ext/SindbadTEMTestExt.jl sets SINDBADTEM_SKIP_AUTORUN=true before
+# including it, then calls runApproachTests directly, possibly many times with different
+# arguments in one session).
 if get(ENV, "SINDBADTEM_SKIP_AUTORUN", "false") != "true"
     default_functions = split(get(ENV, "SINDBADTEM_TEST_FUNCTIONS", "define,precompute,compute"), ",")
     approaches_raw = strip(get(ENV, "SINDBADTEM_TEST_APPROACHES", ""))
