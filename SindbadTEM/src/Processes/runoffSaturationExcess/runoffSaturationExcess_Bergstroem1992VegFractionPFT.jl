@@ -40,7 +40,7 @@ function compute(params::runoffSaturationExcess_Bergstroem1992VegFractionPFT, fo
     ## unpack parameters and forcing
     #@needscheck
     @unpack_runoffSaturationExcess_Bergstroem1992VegFractionPFT params
-    @unpack_nt PFT ⇐ forcing
+    @unpack_nt f_pft ⇐ forcing
 
     ## unpack land variables
     @unpack_nt begin

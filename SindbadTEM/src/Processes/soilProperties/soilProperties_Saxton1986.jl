@@ -145,12 +145,12 @@ function calcPropsSaxton1986(params::soilProperties_Saxton1986, land, helpers, s
     # air entry pressure [kPa]
     ψ_e = abs(n100 * (d1 + d2 * θ_s))
     # θ = ones(typeof(clay), size(clay))
-    θ = o_one
-    if (ψ >= n10 & ψ <= n1500)
+    θ = oftype(A, o_one)
+    if (ψ >= n10 && ψ <= n1500)
         θ = ψ / A^(o_one / B)
     end
     # clear ndx
-    if (ψ >= ψ_e & ψ < n10)
+    if (ψ >= ψ_e && ψ < n10)
         # θ at 10 kPa [m^3/m^3]
         θ_10 = exp((f1 - log(A)) / B)
         # ---------------------------------------------------------------------
@@ -159,7 +159,7 @@ function calcPropsSaxton1986(params::soilProperties_Saxton1986, land, helpers, s
         θ = θ_10 + (n10 - ψ) * (θ_s - θ_10) / (n10 - ψ_e)
     end
     # clear ndx
-    if (ψ >=z_zero& ψ < ψ_e)
+    if (ψ >= z_zero && ψ < ψ_e)
         θ = θ_s
     end
     # clear ndx
