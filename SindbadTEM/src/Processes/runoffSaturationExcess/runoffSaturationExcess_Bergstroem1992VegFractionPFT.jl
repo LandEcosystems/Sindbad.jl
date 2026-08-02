@@ -22,12 +22,15 @@ function define(params::runoffSaturationExcess_Bergstroem1992VegFractionPFT, for
     ## unpack parameters and forcing
     #@needscheck
     @unpack_runoffSaturationExcess_Bergstroem1992VegFractionPFT params
+    @unpack_nt f_pft ⇐ forcing
+    @unpack_nt frac_vegetation ⇐ land.states
 
     # get the PFT data & assign parameters
-    β_veg = eval("β_PFT" * string(PFT))
+    β_PFTs = (β_PFT0, β_PFT1, β_PFT2, β_PFT3, β_PFT4, β_PFT5, β_PFT6, β_PFT7, β_PFT8, β_PFT9, β_PFT10, β_PFT11)
+    β_veg = β_PFTs[Int(f_pft) + 1]
 
     # get the berg parameters according the vegetation fraction
-    β_veg = max(β_min, β_veg * frac_vegetation) # do this?
+    β_veg = max(β_min, β_veg * frac_vegetation)
 
     ## pack land variables
     @pack_nt begin
