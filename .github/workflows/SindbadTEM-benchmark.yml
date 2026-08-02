@@ -71,14 +71,14 @@ jobs:
 
   # The quick, full-catalog check: runs testApproaches.jl (define/precompute/compute/update
   # type-stability + NaN/Inf checks, one call per approach, informational only -- see
-  # SindbadTEM/test/testApproaches.jl and README.md) on demand only: deliberately not part of
-  # Pkg.test("SindbadTEM") (see SindbadTEM/test/runtests.jl's comment on why), and not on every
-  # PR/push either -- pure Julia logic with no OS-specific behavior, so running it on demand for
-  # releases plus `/test-models` is enough; it doesn't need its own 3-OS x 2-Julia-version matrix
-  # the way package compilation does. For a fast, per-push, only-the-changed-approaches version
-  # of this same check, see test-model below.
+  # SindbadTEM/test/testApproaches.jl and README.md). Deliberately not part of
+  # Pkg.test("SindbadTEM") (see SindbadTEM/test/runtests.jl's comment on why) -- pure Julia logic
+  # with no OS-specific behavior, so it doesn't need its own 3-OS x 2-Julia-version matrix the
+  # way package compilation does. No `if:` here -- runs under the exact same conditions as
+  # test-tem above (relevant PR/push, release tag push, `/test-models`, or manual), alongside it
+  # every time. For a fast, per-push, only-the-changed-approaches version of this same check, see
+  # test-model below.
   analyse-tem:
-    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/'))
     name: "SindbadTEM: analyse-tem (approach checks, full catalog)"
     runs-on: ubuntu-latest
     timeout-minutes: 30

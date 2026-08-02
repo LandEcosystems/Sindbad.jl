@@ -43,11 +43,11 @@ julia --project=SindbadTEM SindbadTEM/test/runApproachChecks.jl
 ```
 
 In CI, the full-catalog version is the `analyse-tem` job in
-`.github/workflows/SindbadTEM-benchmark.yml` -- triggered only by a release tag push or the
-`/test-models` PR comment, never on an ordinary PR/push. That same workflow's
-`test-model` job runs a scoped version of the same check automatically on every PR/push
-touching `SindbadTEM/src/Processes/`, filtered down to just the approaches whose own file
-changed (via `SINDBADTEM_TEST_APPROACHES`, see below) -- see that workflow and
+`.github/workflows/SindbadTEM-benchmark.yml` -- it runs alongside `test-tem` (the benchmark)
+under the exact same trigger: a PR/push touching `SindbadTEM/src/Processes/`, the
+`/test-models` PR comment, or manually. That same workflow's `test-model` job runs a scoped
+version of the same check on the same trigger, filtered down to just the approaches whose own
+file changed (via `SINDBADTEM_TEST_APPROACHES`, see below) -- see that workflow and
 [`.github/README.md`](../../.github/README.md) for the full detail.
 
 ### All approaches (`testApproaches.jl`)
