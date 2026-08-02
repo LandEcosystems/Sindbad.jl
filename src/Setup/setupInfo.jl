@@ -322,7 +322,7 @@ Validates and sets the absolute path for the restart file used in spinup.
 - The updated `info` NamedTuple with the absolute restart file path set.
 """
 function setRestartFilePath(info::NamedTuple)
-    restart_file_in = info.settings.experiment.model_spinup.restart_file
+    restart_file_in = get(info.settings.experiment.model_spinup, :restart_file, nothing)
     restart_file = nothing
 
     if !isnothing(restart_file_in)
@@ -402,9 +402,11 @@ function setSpinupInfo(info)
     info = setRestartFilePath(info)
     infospin = info.settings.experiment.model_spinup
     # change spinup sequence dispatch variables to Val, get the temporal aggregators
-    seqq = infospin.sequence
-    seqq_typed = getSpinupSequenceWithTypes(seqq, info.temp.helpers.dates)
-    infospin = set_namedtuple_field(infospin, (:sequence, [_s for _s in seqq_typed]))
+    seqq = get(infospin, :sequence, nothing)
+    if !isnothing(seqq)
+        seqq_typed = getSpinupSequenceWithTypes(seqq, info.temp.helpers.dates)
+        infospin = set_namedtuple_field(infospin, (:sequence, [_s for _s in seqq_typed]))
+    end
     info = set_namedtuple_subfield(info, :temp, (:spinup, infospin))
     return info
 end
@@ -484,14 +486,19 @@ function setupInfo(info::NamedTuple)
     land_init = createInitLand(info.pools, info.temp)
     info = (; info..., temp=(; info.temp..., helpers=(; info.temp.helpers..., land_init=land_init)))
 
-    data_settings = (; forcing = info.settings.forcing,)
+    data_settings = (;)
+    if hasproperty(info.settings, :forcing)
+        data_settings = set_namedtuple_field(data_settings, (:forcing, info.settings.forcing))
+    end
     if (info.settings.experiment.flags.run_optimization || info.settings.experiment.flags.calc_cost) && hasproperty(info.settings.optimization, :algorithm_optimization)
         # @info "  setupInfo: setting ParameterOptimization and Observation info..."
         info = setOptimization(info)
         data_settings = set_namedtuple_field(data_settings, (:optimization, info.settings.optimization))
     else
-        parameter_table = info.temp.models.parameter_table
-        checkParameterBounds(parameter_table.name, parameter_table.initial, parameter_table.lower, parameter_table.upper, ScaleNone(), p_units=parameter_table.units, show_info=true, model_names=parameter_table.model_approach)
+        parameter_table = get(info.temp.models, :parameter_table, nothing)
+        if !isnothing(parameter_table)
+            checkParameterBounds(parameter_table.name, parameter_table.initial, parameter_table.lower, parameter_table.upper, ScaleNone(), p_units=parameter_table.units, show_info=true, model_names=parameter_table.model_approach)
+        end
      end
 
     if hasproperty(info.settings, :hybrid)
