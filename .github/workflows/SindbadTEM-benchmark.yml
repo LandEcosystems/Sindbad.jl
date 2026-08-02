@@ -104,6 +104,12 @@ jobs:
   # file in the repo; verified when this job was added). A changed shared file that isn't itself
   # one approach's file (e.g. a process's own abstract-type file, or SindbadTEM/src/Processes.jl)
   # doesn't map to anything here and is silently skipped -- run analyse-tem or test-tem for that.
+  #
+  # Unlike analyse-tem, this one hard-fails (nonzero exit) if a *targeted* approach fails/errors
+  # -- see SINDBADTEM_TEST_APPROACHES in SindbadTEM/test/testApproaches.jl. To actually make this
+  # block merging, it also needs to be added as a required status check under the repo's branch
+  # protection settings (Settings -> Branches) -- that's a separate, admin-only step; nothing in
+  # this file makes a check "required" on its own.
   test-model:
     if: github.event_name == 'pull_request' || (github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/'))
     name: "SindbadTEM: test-model"

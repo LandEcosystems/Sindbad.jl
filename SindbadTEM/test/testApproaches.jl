@@ -108,12 +108,27 @@ function advanceReference(f, ref, forcing, land, helpers, step_label)
     end
 end
 
+# When running scoped (TESTED_APPROACHES set -- the test-model CI job, or a local
+# SINDBADTEM_TEST_APPROACHES run), problems found among the *targeted* approaches are collected
+# here and turned into a hard failure (nonzero exit) at the end of this file. Unlike the general,
+# unscoped per-approach checks above (deliberately informational -- see approachOutcome's
+# docstring for why: many "failures" are pre-existing structural conflicts between unrelated
+# approaches, not something a given change caused), a scoped run is specifically about the
+# approach(es) a change touched, so hard-failing on a genuine problem there is a reliable,
+# actionable signal instead of noise.
+const SCOPED_PROBLEMS = Dict{String,String}()
+
 function reportOutcome(phase_label, problems, n_total)
     n_ok = n_total - length(problems)
     if isempty(problems)
         @info "$phase_label: all $n_total approaches OK"
     else
         @warn "$phase_label: $(length(problems))/$n_total approaches failed/errored -- informational only, not a Pkg.test failure (see SindbadTEM/test/README.md)" n_ok problems
+        if TESTED_APPROACHES !== nothing
+            for (name, reason) in problems
+                SCOPED_PROBLEMS["$phase_label: $name"] = reason
+            end
+        end
     end
 end
 
@@ -194,4 +209,13 @@ if :update in TESTED_FUNCTIONS
         reason === nothing || (problems[string(nameof(T))] = reason)
     end
     reportOutcome("update", problems, length(approaches))
+end
+
+# Scoped runs (TESTED_APPROACHES set) hard-fail here if anything targeted failed/errored --
+# see SCOPED_PROBLEMS's docstring above. Unscoped runs (analyse-tem, or a plain local run) never
+# reach this: TESTED_APPROACHES is nothing, so SCOPED_PROBLEMS is never populated in the first
+# place.
+if TESTED_APPROACHES !== nothing && !isempty(SCOPED_PROBLEMS)
+    details = join(("$k -- $v" for (k, v) in SCOPED_PROBLEMS), "\n  ")
+    error("test-model: $(length(SCOPED_PROBLEMS)) check(s) failed for the changed approach(es):\n  $details")
 end

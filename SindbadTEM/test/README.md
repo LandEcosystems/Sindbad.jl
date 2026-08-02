@@ -68,20 +68,27 @@ unchanged for that step (a warning is logged) rather than aborting the whole run
 
 Four checks, in this order:
 
-| Check | What it checks | Needs simulation? | `Pkg.test`-style gate? |
+| Check | What it checks | Needs simulation? | Hard-fails the run? |
 |---|---|---|---|
-| `Process/approach type hierarchy` | Every process is a `LandEcosystem` subtype; every one of its approaches is a concrete subtype of that specific process | No -- pure reflection | Yes -- a real `@test`, always either holds or signals an actual structural bug |
-| `define+precompute (sequential)` | Every approach's `define` then `precompute`, `@inferred` (type-stable) and free of `NaN`/`Inf` | Yes | No -- `@info`/`@warn` only |
-| `compute (sequential)` | Every approach's `compute`, same checks, against the land built up through the real `define`+`precompute` sequence | Yes | No -- `@info`/`@warn` only |
-| `update` | Every approach's `update`, against the fully-built final land state (not chained -- `update` is a separate, optional per-timestep path, only invoked when `inline_update` is set in `experiment.json`) | Yes | No -- `@info`/`@warn` only |
+| `Process/approach type hierarchy` | Every process is a `LandEcosystem` subtype; every one of its approaches is a concrete subtype of that specific process | No -- pure reflection | Always -- a real `@test`, always either holds or signals an actual structural bug |
+| `define+precompute (sequential)` | Every approach's `define` then `precompute`, `@inferred` (type-stable) and free of `NaN`/`Inf` | Yes | Only when scoped (see below) |
+| `compute (sequential)` | Every approach's `compute`, same checks, against the land built up through the real `define`+`precompute` sequence | Yes | Only when scoped |
+| `update` | Every approach's `update`, against the fully-built final land state (not chained -- `update` is a separate, optional per-timestep path, only invoked when `inline_update` is set in `experiment.json`) | Yes | Only when scoped |
 
-The three simulation-driving checks are deliberately *not* `@test`-gated: many "failures" are
-inherent, mutually exclusive structural requirements between approaches of the same process
-(e.g. `soilWBase_smax1Layer` hard-requires exactly 1 soil layer while `soilWBase_smax2Layer`
-requires 2 -- the shared reference `land`/`helpers` can only match one of them at a time), not
-bugs -- hard-failing on them would make this permanently red. Each phase logs one consolidated
-`@warn` (approach name -> problem description) if anything failed/errored, or one `@info` line
-if everything passed -- see [What the results mean](#what-the-results-mean).
+The three simulation-driving checks are `@info`/`@warn` only (not `@test`-gated) when run
+**unscoped** (the default, and what `analyse-tem` in CI always does): many "failures" across
+the full catalog are inherent, mutually exclusive structural requirements between approaches of
+different processes (e.g. `soilWBase_smax1Layer` hard-requires exactly 1 soil layer while
+`soilWBase_smax2Layer` requires 2 -- the shared reference `land`/`helpers` can only match one of
+them at a time), not bugs -- hard-failing `Pkg.test` on them would make it permanently red. Each
+phase logs one consolidated `@warn` (approach name -> problem description) if anything
+failed/errored, or one `@info` line if everything passed.
+
+When run **scoped** to specific approaches (`SINDBADTEM_TEST_APPROACHES` set -- what `test-model`
+in CI does, filtered to just the approaches a push actually changed), a problem among *those*
+approaches is a reliable, actionable signal instead of catalog-wide noise, so the whole run
+exits nonzero (a plain Julia `error(...)`, printing every failing check and why) if any of them
+failed or errored. See [What the results mean](#what-the-results-mean).
 
 **`update` is excluded by default** -- most approaches don't override it (they inherit the
 no-op default), so testing it by default mostly just measures how many approaches happen to
@@ -99,8 +106,9 @@ SINDBADTEM_TEST_FUNCTIONS="define,precompute,compute,update" julia --project=Sin
 
 **Which approaches get checked is customizable too**, via `SINDBADTEM_TEST_APPROACHES`
 (comma-separated approach struct names). Unset/empty (the default) means no filter -- check
-every approach, same as `analyse-tem` in CI. This is what `test-model` uses to scope a
-run down to just the approaches whose own file changed in a push:
+every approach, unscoped, same as `analyse-tem` in CI. Setting it scopes the run *and* makes it
+hard-fail on a problem (see the table above) -- this is what `test-model` uses to check just the
+approaches whose own file changed in a push:
 
 ```sh
 SINDBADTEM_TEST_APPROACHES="soilProperties_Saxton1986,soilWBase_smax1Layer" julia --project=SindbadTEM SindbadTEM/test/runApproachChecks.jl
@@ -156,6 +164,11 @@ julia --project=SindbadTEM tools/benchmark/TestSindbadTEM/scanApproachVariables.
 - A separate `@warn "Reference approach failed while advancing the sequential chain..."` during
   the run means the *reference* approach for some process errored, so `land` wasn't advanced for
   that step -- expect knock-on failures in whatever reads that process's normal output.
+- **Scoped runs** (`SINDBADTEM_TEST_APPROACHES` set, e.g. `test-model` in CI) additionally throw
+  `ERROR: test-model: N check(s) failed for the changed approach(es): ...` and exit nonzero if
+  any *targeted* approach failed/errored -- one line per failing `phase: approach` pair with its
+  reason, same wording as the `@warn` entries above. This is the one case where a problem here
+  should actually block something: it's specific to the approach(es) a change touched.
 
 None of this is a hand-checked "is the math correct" assertion (see the note in this
 repo's git history if curious why) -- it's a smoke test: does every approach run, stay

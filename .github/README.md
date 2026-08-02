@@ -13,7 +13,7 @@ when opening a PR. This file is the detail behind it.
 | `SindbadTEM.yml` (`quick`) | every PR push | Yes |
 | `Sindbad.yml` + `SindbadTEM.yml` (`full-matrix`) | push to `main`/tag, `/compile-os`, or manual | No |
 | `SindbadTEM-benchmark.yml` (`test-tem`, `analyse-tem`) | PR/push touching `SindbadTEM/src/Processes/` (see below), `/test-tem`, or manual -- both run together, always | No |
-| `SindbadTEM-benchmark.yml` (`test-model`) | every PR/push touching `SindbadTEM/src/Processes/` (same trigger as `test-tem`) | No |
+| `SindbadTEM-benchmark.yml` (`test-model`) | every PR/push touching `SindbadTEM/src/Processes/` (same trigger as `test-tem`) | No -- but see below |
 | `TestSimulations.yml` | PR/push touching `src/`, `/test-simulation`, or manual | No |
 | `Documenter.yml` | push to `main`/tag, `/build-docs`, or manual (never on PRs directly) | No |
 | `ci-commands.yml` | PR comments (dispatches the workflows above) | n/a |
@@ -26,8 +26,15 @@ works for any of these at any time, on any branch.
 
 `Sindbad.yml`'s and `SindbadTEM.yml`'s `quick` jobs run automatically on every push to an open
 PR: ubuntu-only, Julia `lts` + `1` (4 jobs total). Kept fast and narrow on purpose so pushing to
-a PR doesn't get slow. This is the only thing required to merge -- everything else below is
-on-demand or path-triggered, informational, or both.
+a PR doesn't get slow. This is the only thing *actually configured as* required to merge in the
+repo's branch protection settings -- everything else below is on-demand or path-triggered,
+informational, or both.
+
+`test-model` (see below) is the one exception worth calling out: unlike every other job here,
+it's *capable* of hard-failing (nonzero exit) on a genuine problem, specifically in whichever
+approach a push touched -- see `SindbadTEM/test/README.md`. Making it actually block merging
+still needs an admin to add "SindbadTEM: test-model" under Settings -> Branches -> branch
+protection rules -> required status checks; nothing in this repo's files can do that on its own.
 
 ## On-demand comment commands
 
@@ -90,6 +97,9 @@ it finishes (see `.github/scripts/upsert_pr_comment.sh`).
     as `test-tem`/`analyse-tem`); silently does nothing if the changed files don't map to a
     specific approach (e.g. only a process's shared abstract-type file, or
     `SindbadTEM/src/Processes.jl`, changed) -- `analyse-tem`/`test-tem` cover that case instead.
+    Unlike `analyse-tem`, a problem in a *targeted* approach here fails the job -- see
+    [Required checks](#required-checks) above for what it'd take to make that actually block
+    merging.
 - **`TestSimulations.yml`** ("Test Simulations"): runs one job per
   `{ubuntu,macOS,windows} x {LUE,WROASTED} x {pixel,spatial}` combination (12 jobs, in parallel),
   named so it's clear at a glance what each is running -- e.g. "LUE x pixel x F+O x ubuntu-latest"
