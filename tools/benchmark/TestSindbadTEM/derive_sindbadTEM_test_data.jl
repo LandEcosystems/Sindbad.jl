@@ -103,7 +103,7 @@ test_data_dir = joinpath(@__DIR__, "..", "..", "..", "SindbadTEM", "test", "test
 mkpath(test_data_dir)
 
 # --------------------------------------------------------------------------------------
-# land + reference approach sequence, for the sequential test harness (testApproaches.jl).
+# land + reference approaches, for the sequential test harness (checkApproaches.jl).
 #
 # The real flow (runTEMOne -> definePrecomputeTEM then computeTEM, SindbadTEM/src/Methods.jl)
 # is: for each process in the selected model structure, in order: define, then precompute
@@ -117,35 +117,17 @@ mkpath(test_data_dir)
 # for every process in standard_sindbad_model unless the model structure selects all of them --
 # every missing one gets an empty NamedTuple added here.
 # --------------------------------------------------------------------------------------
-function leafSubtypes(T)
-    subs = subtypes(T)
-    isempty(subs) && return [T]
-    return reduce(vcat, (isabstracttype(S) ? leafSubtypes(S) : [S] for S in subs))
-end
-
 land_raw = info.helpers.land_init
 missing_process_fields = [p => NamedTuple() for p in standard_sindbad_model if !hasproperty(land_raw, p)]
 land = (; pairs(land_raw)..., missing_process_fields...)
 
-# Reference approach per process, in standard_sindbad_model order: this experiment's own
-# selection (TestSindbadTEM/model_structure.json is a real, working model structure) where it
-# has one. For the handful of processes it doesn't select at all, prefer a `_none` or
-# `_constant` variant if one exists -- those are trivial/no-op by convention and least likely
-# to need a forcing field our test data doesn't have -- otherwise fall back to the first approach
-# alphabetically. It just needs to be *some* working default so the sequential chain can
-# proceed through every process; it's not meant to be a canonically "correct" choice.
-selected_by_process = Dict(nameof(supertype(typeof(m))) => nameof(typeof(m)) for m in info.models.forward)
-reference_approaches_pairs = map(standard_sindbad_model) do p
-    default = get(selected_by_process, p, nothing)
-    if default === nothing
-        process_type = getfield(SindbadTEM.Processes, p)
-        candidates = sort(nameof.(leafSubtypes(process_type)))
-        trivial = filter(n -> endswith(string(n), "_none") || endswith(string(n), "_constant"), candidates)
-        default = isempty(trivial) ? first(candidates) : first(trivial)
-    end
-    p => default
-end
-reference_approaches = (; reference_approaches_pairs...)
+# The reference approach set is exactly this experiment's own model structure selection
+# (TestSindbadTEM/model_structure.json -- a real, working, internally-consistent set of models) --
+# nothing invented for processes it doesn't select; checkApproaches.jl just doesn't advance `land`
+# for those (see its own comments). Add more models to model_structure.json (and rerun this
+# script) to extend coverage over time, the same way new forcing variables get added to
+# forcing.json.
+reference_approaches = nameof.(typeof.(info.models.forward))
 
 writeTestData(joinpath(test_data_dir, "forcing.jl"), "tmp_forcing", tmp_forcing)
 writeTestData(joinpath(test_data_dir, "helpers.jl"), "tmp_helpers", tmp_helpers)
