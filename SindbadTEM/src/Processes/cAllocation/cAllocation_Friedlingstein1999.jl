@@ -23,7 +23,7 @@ function define(params::cAllocation_Friedlingstein1999, forcing, land, helpers)
     cVeg_zix = []
     land_pools = getfield(land, :pools)
     for cpName ∈ cVeg_names
-        zix = getZix(getfield(land_pools, cpName), cEcoZix, cpName)
+        zix = getZix(getfield(land_pools, cpName), getfield(cEcoZix, cpName))
         nZix = oftype(first(c_allocation), length(zix))
         push!(cVeg_nzix, nZix)
         push!(cVeg_zix, zix)
