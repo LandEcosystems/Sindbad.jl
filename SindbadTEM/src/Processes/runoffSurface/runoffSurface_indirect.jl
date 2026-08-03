@@ -12,7 +12,7 @@ function compute(params::runoffSurface_indirect, forcing, land, helpers)
 
     ## unpack land variables
     @unpack_nt begin
-        surfaceW ⇐ land.pools
+        (surfaceW, ΔsurfaceW) ⇐ land.pools
         overland_runoff ⇐ land.fluxes
         n_surfaceW = surfaceW ⇐ helpers.pools.n_layers
     end

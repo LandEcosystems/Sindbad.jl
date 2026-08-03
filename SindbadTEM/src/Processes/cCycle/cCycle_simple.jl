@@ -12,6 +12,7 @@ function define(params::cCycle_simple, forcing, land, helpers)
     ## Instantiate variables
     c_eco_flow = zero(cEco)
     c_eco_out = zero(cEco)
+    c_eco_efflux = zero(cEco)
     c_eco_influx = zero(cEco)
     zero_c_eco_flow = zero(c_eco_flow)
     zero_c_eco_influx = zero(c_eco_influx)
@@ -43,7 +44,7 @@ function compute(params::cCycle_simple, forcing, land, helpers)
         (c_eco_efflux, c_eco_flow, c_eco_influx, c_eco_out, c_eco_npp, zero_c_eco_flow, zero_c_eco_influx) ⇐ land.fluxes
         cEco_prev ⇐ land.states
         cEco ⇐ land.pools
-        (c_flow_A_vec, c_eco_k) ⇐ land.diagnostics
+        (c_flow_A_vec, c_eco_k, c_allocation) ⇐ land.diagnostics
         ΔcEco ⇐ land.pools
         gpp ⇐ land.fluxes
         (c_giver, c_taker) ⇐ land.constants

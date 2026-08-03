@@ -26,7 +26,7 @@ function compute(params::gppDemand_min, forcing, land, helpers)
     ## unpack land variables
     @unpack_nt begin
         fAPAR ⇐ land.states
-        (gpp_f_cloud, gpp_potential, gpp_f_light, gpp_climate_stressors, gpp_f_airT) ⇐ land.diagnostics
+        (gpp_f_cloud, gpp_potential, gpp_f_light, gpp_climate_stressors, gpp_f_airT, gpp_f_vpd) ⇐ land.diagnostics
     end
 
     # set 3d scalar matrix with current scalars

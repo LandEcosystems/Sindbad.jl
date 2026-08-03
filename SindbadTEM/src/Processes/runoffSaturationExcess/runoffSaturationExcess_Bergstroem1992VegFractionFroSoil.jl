@@ -21,6 +21,7 @@ function compute(params::runoffSaturationExcess_Bergstroem1992VegFractionFroSoil
         soilW ⇐ land.pools
         ΔsoilW ⇐ land.pools
         (z_zero, o_one) ⇐ land.constants
+        tolerance ⇐ helpers.numbers
     end
 
     # scale the input frozen soil fraction; maximum is 1
