@@ -19,6 +19,7 @@ struct Row
     method::String
     defined::Bool
     status::String
+    severity::String
     time_ms::Union{Float64,Nothing}
     bytes::Union{Int,Nothing}
     n_allocs::Union{Int,Nothing}
@@ -32,13 +33,13 @@ function parseRows(path)
     open(path) do io
         readline(io)  # header
         for line in eachline(io)
-            parts = split(line, "|"; limit=11)
-            process, approach, method, defined_s, status, time_s, bytes_s, allocs_s, paths_s, location, errmsg = parts
+            parts = split(line, "|"; limit=12)
+            process, approach, method, defined_s, status, severity, time_s, bytes_s, allocs_s, paths_s, location, errmsg = parts
             time_ms = time_s == "NaN" ? nothing : parse(Float64, time_s)
             bytes = bytes_s == "-1" ? nothing : parse(Int, bytes_s)
             n_allocs = allocs_s == "-1" ? nothing : parse(Int, allocs_s)
             invalid_paths = isempty(paths_s) ? String[] : split(paths_s, ";") .|> String
-            push!(rows, Row(process, approach, method, defined_s == "true", status,
+            push!(rows, Row(process, approach, method, defined_s == "true", status, severity,
                 time_ms, bytes, n_allocs, invalid_paths, location, errmsg))
         end
     end
@@ -100,7 +101,7 @@ function buildPayload(rows)
                 if haskey(methods, m)
                     r = methods[m]
                     method_dict[m] = Dict(
-                        "defined" => r.defined, "status" => r.status,
+                        "defined" => r.defined, "status" => r.status, "sev" => r.severity,
                         "t" => r.time_ms, "b" => r.bytes, "a" => r.n_allocs,
                         "paths" => r.invalid_paths, "loc" => r.location, "err" => r.errmsg,
                     )
@@ -125,33 +126,43 @@ function writeHTML(payload, template_path, out_path)
 end
 
 function writeMarkdownSummary(rows, out_path)
-    totals = Dict("ok" => 0, "error" => 0, "invalid_number" => 0, "not_defined" => 0)
+    totals = Dict("ok" => 0, "bug" => 0, "incompatible" => 0, "invalid_number" => 0, "not_defined" => 0)
     for r in rows
-        totals[r.status] += 1
+        # `severity` (bug/incompatible) is only set on status=="error" rows -- see
+        # benchmarkApproaches.jl's errorResult/isMissingFieldError. Everything else keys directly
+        # off status.
+        key = r.status == "error" ? r.severity : r.status
+        totals[key] += 1
     end
     mkpath(dirname(out_path))
     open(out_path, "w") do io
         println(io, "## SindbadTEM process benchmark")
         println(io)
-        defined_total = totals["ok"] + totals["error"] + totals["invalid_number"]
+        defined_total = totals["ok"] + totals["bug"] + totals["incompatible"] + totals["invalid_number"]
         println(io, "$(length(rows)) method calls across every approach, $(defined_total) defined ",
             "(the rest fall back to the no-op default, not a problem): ",
-            "$(totals["ok"]) success &middot; $(totals["error"]) error &middot; ",
+            "$(totals["ok"]) success &middot; $(totals["bug"]) bug &middot; ",
+            "$(totals["incompatible"]) incompatible (expected -- missing/mismatched upstream data ",
+            "for this test's reference selection, not a bug) &middot; ",
             "$(totals["invalid_number"]) invalid-number")
         println(io)
 
+        # Bugs sort first -- they're the ones worth looking at; incompatible rows are expected
+        # noise (see the classification comment above) and invalid_number rows come last.
+        sevRank(r) = r.status == "error" ? (r.severity == "bug" ? 0 : 1) : 2
         problems = filter(r -> r.status in ("error", "invalid_number"), rows)
         if isempty(problems)
             println(io, "No errors or invalid-number results.")
         else
-            println(io, "| Process | Approach | Method | Status | Location | Detail |")
+            println(io, "| Process | Approach | Method | Severity | Location | Detail |")
             println(io, "|---|---|---|---|---|---|")
-            for r in sort(problems; by=r -> (r.process, r.approach, r.method))
+            for r in sort(problems; by=r -> (sevRank(r), r.process, r.approach, r.method))
                 detail = r.status == "error" ? first(split(r.errmsg, " / ")) : join(r.invalid_paths, ", ")
                 detail = replace(detail, "|" => "\\|")
                 length(detail) > 90 && (detail = first(detail, 87) * "...")
                 loc = isempty(r.location) ? "" : "`$(r.location)`"
-                println(io, "| $(r.process) | $(r.approach) | $(r.method) | $(r.status) | $loc | $detail |")
+                severity_label = r.status == "error" ? r.severity : "invalid_number"
+                println(io, "| $(r.process) | $(r.approach) | $(r.method) | $(severity_label) | $loc | $detail |")
             end
         end
         println(io)

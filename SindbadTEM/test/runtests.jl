@@ -18,8 +18,9 @@ include(joinpath("test_data", "helpers.jl"))
 # provides tmp_forcing, land, reference_approaches, tmp_helpers
 
 include("testDataCoverage.jl")
-# testApproaches.jl (every approach's define/precompute/compute/update, run against the real
-# process sequence) deliberately isn't included here: it's pure Julia logic with no OS-specific
-# behavior, so running it across Pkg.test's full 3-OS x 2-Julia-version matrix on every push is
-# wasted cost -- it runs on demand instead, via SindbadTEM/test/runApproachChecks.jl (see
-# .github/workflows/SindbadTEM-benchmark.yml's approach-checks job, and SindbadTEM/test/README.md).
+# checkApproaches.jl (every approach's define/precompute/compute -- update is opt-in, off by
+# default -- run against the real process sequence) deliberately isn't included here: it's pure
+# Julia logic with no OS-specific behavior, so running it across Pkg.test's full 3-OS x
+# 2-Julia-version matrix on every push is wasted cost -- it runs on demand instead, via
+# SindbadTEM/test/runApproachChecks.jl (see .github/workflows/SindbadTEM-benchmark.yml's
+# approach-checks job, and SindbadTEM/test/README.md).

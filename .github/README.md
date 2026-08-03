@@ -88,18 +88,18 @@ it finishes (see `.github/scripts/upsert_pr_comment.sh`).
   `SindbadTEM/test/test_data/` (see `SindbadTEM/test/README.md`). `test-tem` and `analyse-tem`
   are on-demand only (`workflow_dispatch`, e.g. via `/test-tem`) and always run together;
   `test-model` is the only one that auto-triggers, on a narrower, path-filtered PR trigger.
-  - `test-tem`, the comprehensive one, runs every approach's
-    `define`/`precompute`/`compute`/`update` multiple times each (for accurate timing/allocation
-    measurement) and reports status/time/allocations per approach, both as a job summary and as
+  - `test-tem`, the comprehensive one, runs every approach's `define`/`precompute`/`compute`
+    multiple times each (for accurate timing/allocation measurement; `update` is opt-in, off by
+    default) and reports status/time/allocations per approach, both as a job summary and as
     a downloadable HTML artifact.
-  - `analyse-tem`, the quick full-catalog one, runs `SindbadTEM/test/testApproaches.jl` directly
+  - `analyse-tem`, the quick full-catalog one, runs `SindbadTEM/test/checkApproaches.jl` directly
     with no filter -- one call per approach, type-stability + `NaN`/`Inf` checks, informational
     only.
   - `test-model` is the fast, per-push, *scoped* version of the same check as `analyse-tem`:
     `git diff`s the base and head commits for `.jl` files under `SindbadTEM/src/Processes/`,
     maps each one to its approach struct name (the filename always matches, e.g.
     `soilProperties_Saxton1986.jl` defines `soilProperties_Saxton1986`) via
-    `SINDBADTEM_TEST_APPROACHES`, and runs `SindbadTEM/test/testApproaches.jl` scoped to just
+    `SINDBADTEM_TEST_APPROACHES`, and runs `SindbadTEM/test/checkApproaches.jl` scoped to just
     those approaches. Runs automatically on every PR push touching
     `SindbadTEM/src/Processes/` (and on manual `workflow_dispatch`, where it no-ops -- there's no
     base commit to diff against outside a PR/push); silently does nothing if the changed files

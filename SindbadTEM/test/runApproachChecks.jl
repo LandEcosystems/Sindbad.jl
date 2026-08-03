@@ -1,4 +1,4 @@
-# Standalone entry point for testApproaches.jl -- deliberately NOT included by runtests.jl (see
+# Standalone entry point for checkApproaches.jl -- deliberately NOT included by runtests.jl (see
 # the comment there for why). Run directly:
 #
 #   julia --project=SindbadTEM SindbadTEM/test/runApproachChecks.jl
@@ -14,5 +14,5 @@ cd(@__DIR__) do
     include(joinpath("test_data", "referenceApproaches.jl"))
     include(joinpath("test_data", "helpers.jl"))
     include("testDataCoverage.jl")
-    include("testApproaches.jl")
+    include("checkApproaches.jl")
 end

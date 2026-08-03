@@ -62,9 +62,9 @@ jobs:
           name: sindbad-process-benchmark
           path: tools/benchmark/TestSindbadTEM/benchmark_output/benchmark_report.html
 
-  # The quick, full-catalog check: runs testApproaches.jl (define/precompute/compute/update
-  # type-stability + NaN/Inf checks, one call per approach, informational only -- see
-  # SindbadTEM/test/testApproaches.jl and README.md). Deliberately not part of
+  # The quick, full-catalog check: runs checkApproaches.jl (define/precompute/compute
+  # type-stability + NaN/Inf checks, one call per approach, informational only; update is opt-in,
+  # off by default -- see SindbadTEM/test/checkApproaches.jl and README.md). Deliberately not part of
   # Pkg.test("SindbadTEM") (see SindbadTEM/test/runtests.jl's comment on why) -- pure Julia logic
   # with no OS-specific behavior, so it doesn't need its own 3-OS x 2-Julia-version matrix the
   # way package compilation does. On-demand only (workflow_dispatch, e.g. via `/test-tem`),
@@ -99,7 +99,7 @@ jobs:
   # doesn't map to anything here and is silently skipped -- run analyse-tem or test-tem for that.
   #
   # Unlike analyse-tem, this one hard-fails (nonzero exit) if a *targeted* approach fails/errors
-  # -- see SINDBADTEM_TEST_APPROACHES in SindbadTEM/test/testApproaches.jl. To actually make this
+  # -- see SINDBADTEM_TEST_APPROACHES in SindbadTEM/test/checkApproaches.jl. To actually make this
   # block merging, it also needs to be added as a required status check under the repo's branch
   # protection settings (Settings -> Branches) -- that's a separate, admin-only step; nothing in
   # this file makes a check "required" on its own.

@@ -31,7 +31,7 @@ function _ensure_loaded()
     Base.include(@__MODULE__, joinpath(test_dir, "test_data", "referenceApproaches.jl"))
     Base.include(@__MODULE__, joinpath(test_dir, "test_data", "helpers.jl"))
     Base.include(@__MODULE__, joinpath(test_dir, "testDataCoverage.jl"))
-    Base.include(@__MODULE__, joinpath(test_dir, "testApproaches.jl"))  # defines runApproachTests
+    Base.include(@__MODULE__, joinpath(test_dir, "checkApproaches.jl"))  # defines runApproachTests
     _EXT_LOADED[] = true
     return nothing
 end

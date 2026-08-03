@@ -11,7 +11,7 @@ using SindbadTEM.Utils: getInOutModel
 #     pool name seen under the `:pools` category implies helpers.pools.{zix,zeros,ones,n_layers}
 #     for that pool must exist.
 #   - It only recognizes the @unpack_nt/@pack_nt convention; code bypassing it triggers a
-#     @warn from getInOutModel itself, and would still be caught at runtime by testApproaches.jl.
+#     @warn from getInOutModel itself, and would still be caught at runtime by checkApproaches.jl.
 #
 # Run with: julia --project=SindbadTEM tools/benchmark/TestSindbadTEM/scanApproachVariables.jl
 

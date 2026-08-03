@@ -12,8 +12,8 @@ needs to be added here when someone adds a new `*.jl` file under `SindbadTEM/src
 SindbadTEM/test/
   runtests.jl           entry point (what `Pkg.test("SindbadTEM")` runs)
   testDataCoverage.jl   static check: does test_data have every variable an approach reads?
-  testApproaches.jl     the per-approach checks (type hierarchy + define/precompute/compute/update)
-  runApproachChecks.jl  standalone entry point for testApproaches.jl -- NOT run by Pkg.test, see below
+  checkApproaches.jl    the per-approach checks (type hierarchy + define/precompute/compute; update is opt-in)
+  runApproachChecks.jl  standalone entry point for checkApproaches.jl -- NOT run by Pkg.test, see below
   test_data/            generated fixtures (forcing.jl, land.jl, helpers.jl, referenceApproaches.jl)
   _archive/             old, no-longer-run tests kept for reference only
 ```
@@ -33,7 +33,7 @@ that reports timing/allocations per approach using the same test data -- see
    tests.
 2. **Test data coverage** (`testDataCoverage.jl`) -- static check, no simulation involved.
 
-`testApproaches.jl` -- the actual per-approach checks -- deliberately is **not** included by
+`checkApproaches.jl` -- the actual per-approach checks -- deliberately is **not** included by
 `runtests.jl`, so it doesn't run as part of `Pkg.test`. It's pure Julia logic with no
 OS-specific behavior, so running it across `Pkg.test`'s full 3-OS x 2-Julia-version CI matrix on
 every push would be wasted cost. Run it directly instead:
@@ -49,7 +49,7 @@ and `analyse_tem()` call `runApproachTests` (below) directly, in-process -- no s
 repeat calls in the same session (e.g. after editing an approach, under Revise) skip Julia's
 startup cost entirely. `test_tem()` is always available (no `Test` needed) and does spawn a
 subprocess (matching `benchmarkApproaches.jl`, which isn't scoped/parameterized the way
-`testApproaches.jl` is). All three need a dev-linked checkout of this monorepo -- see their
+`checkApproaches.jl` is). All three need a dev-linked checkout of this monorepo -- see their
 docstrings (`?test_model` etc.).
 
 In CI, the full-catalog version is the `analyse-tem` job in
@@ -60,7 +60,7 @@ version of the same check on the same trigger, filtered down to just the approac
 file changed (via `SINDBADTEM_TEST_APPROACHES`, see below) -- see that workflow and
 [`.github/README.md`](../../.github/README.md) for the full detail.
 
-### All approaches (`testApproaches.jl`)
+### All approaches (`checkApproaches.jl`)
 
 Real SINDBAD runs (`runTEMOne` -> `definePrecomputeTEM`, then `computeTEM`; see
 `SindbadTEM/src/Methods.jl`) call every process's `define`+`precompute` in sequence first
@@ -235,7 +235,7 @@ provide four top-level bindings, `include`d by `runtests.jl`:
 | `forcing.jl` | `tmp_forcing` | One location's forcing, averaged over the whole loaded period for time-varying variables (rather than pinned to one arbitrary day) |
 | `helpers.jl` | `tmp_helpers` | The `(dates, run, numbers, pools)`-shaped `helpers` `define`/`precompute`/`compute` actually receive (note: *not* the same as `getRunTEMInfo`'s own return value -- that's a wrapper; this is its `.model_helpers` field) |
 | `land.jl` | `land` | The minimal, pre-processing land (`info.helpers.land_init`, with an empty `NamedTuple` placeholder added for every process in `standard_sindbad_model` that the model structure doesn't already select) |
-| `referenceApproaches.jl` | `reference_approaches` | One approach per process, used to advance `land` through the real sequence in `testApproaches.jl` -- see [All approaches](#all-approaches-testapproachesjl) |
+| `referenceApproaches.jl` | `reference_approaches` | One approach per process, used to advance `land` through the real sequence in `checkApproaches.jl` -- see [All approaches](#all-approaches-checkapproachesjl) |
 
 All four are generated from a real run of `tools/benchmark/TestSindbadTEM/`'s own setup
 (`experiment.json` + `forcing.json` + `model_structure.json`) -- not tied to any one specific
