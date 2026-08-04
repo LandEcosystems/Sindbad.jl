@@ -9,3 +9,6 @@ PolyesterForwardDiff = "98d1487c-24ca-40b6-b7ab-df2af84e126b"
 PreallocationTools = "d236fae5-4411-538c-8e31-a6e3d9e00b46"
 Sindbad = "36c3e672-7dee-4606-99b5-7e5d8d85a313"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[compat]
+ForwardDiff = "1.4.3"
