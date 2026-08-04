@@ -39,5 +39,5 @@ tmp_forcing = (;
     f_RDmax = 50.0f0,
     f_RDeff = 40.0f0,
     f_SWCmax = 55.0f0,
-    frac_frozen_soil = 0.0f0
+    f_frac_frozen_soil = 0.0f0
 )

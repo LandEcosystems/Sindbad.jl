@@ -23,7 +23,7 @@
       "approach": "none"
     },
     "cAllocationRadiation": {
-      "approach": "RgPot"
+        "approach": "gpp"
     },
     "cAllocationSoilT": {
       "approach": "gpp"
@@ -37,14 +37,11 @@
     "capillaryFlow": {
       "approach": "VanDijk2010"
     },
-    "cBiomass": {
-      "approach": "treeGrass_cVegReserveScaling"
-    },
     "cCycle": {
       "approach": "GSI"
     },
     "cCycleBase": {
-      "approach": "GSI_PlantForm_LargeKReserve"
+        "approach": "GSI_PlantForm"
     },
     "cCycleConsistency": {
       "approach": "simple"
@@ -53,8 +50,20 @@
       "approach": "forcing",
       "use_in_spinup": false
     },
+      "cFireBurnedArea": {
+        "approach": "forcing",
+        "use_in_spinup": false
+      },
+      "cFireCombustionCompleteness": {
+        "approach": "vanDerWerf2006",
+        "use_in_spinup": false
+      },
+      "cFireMortality": {
+        "approach": "vanDerWerf2004",
+        "use_in_spinup": false
+      },
     "cCycleDisturbance": {
-      "approach": "WROASTED",
+        "approach": "WROASTEDMortality",
       "use_in_spinup": false
     },
     "cFlow": {
@@ -84,6 +93,9 @@
     "cTauVegProperties": {
       "approach": "none"
     },
+      "cBiomass": {
+        "approach": "treeGrass"
+      },
     "drainage": {
       "approach": "dos"
     },
@@ -98,6 +110,9 @@
     },
     "fAPAR": {
       "approach": "cVegLeafBareFrac"
+    },
+    "frozenFraction": {
+      "approach": "forcing"
     },
     "getPools": {
       "approach": "simple"
@@ -135,6 +150,18 @@
     "LAI": {
       "approach": "cVegLeaf"
     },
+    "EVI": {
+      "approach": "forcing"
+    },
+    "NDVI": {
+      "approach": "forcing"
+    },
+    "NIRv": {
+      "approach": "forcing"
+    },
+    "NDWI": {
+      "approach": "forcing"
+    },
     "percolation": {
       "approach": "WBP"
     },
@@ -146,6 +173,9 @@
     },
     "rainSnow": {
       "approach": "Tair"
+    },
+    "rainIntensity": {
+      "approach": "simple"
     },
     "rootMaximumDepth": {
       "approach": "fracSoilD"
@@ -162,6 +192,12 @@
     "runoffBase": {
       "approach": "Zhang2008"
     },
+    "runoffInterflow": {
+      "approach": "none"
+    },
+    "runoffInfiltrationExcess": {
+      "approach": "none"
+    },
     "runoffOverland": {
       "approach": "Sat"
     },
@@ -170,6 +206,9 @@
     },
     "runoffSurface": {
       "approach": "all"
+    },
+    "saturatedFraction": {
+      "approach": "none"
     },
     "snowFraction": {
       "approach": "HTESSEL"
@@ -188,6 +227,9 @@
     },
     "transpiration": {
       "approach": "coupled"
+    },
+    "transpirationDemand": {
+      "approach": "PET"
     },
     "transpirationSupply": {
       "approach": "wAWC"

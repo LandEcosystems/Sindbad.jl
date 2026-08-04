@@ -289,7 +289,7 @@
       "source_variable": "f_pft",
       "space_time_type": "spatial"
     },
-    "frac_frozen_soil": {
+    "f_frac_frozen_soil": {
       "bounds": [0.0, 1.0],
       "standard_name": "Fraction of frozen soil",
       "sindbad_unit": "-",
