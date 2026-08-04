@@ -16,7 +16,7 @@ function compute(params::drainage_wFC, forcing, land, helpers)
     ## unpack land variables
     @unpack_nt begin
         drainage ⇐ land.fluxes
-        (p_nsoilLayers, w_fc) ⇐ land.properties
+        (w_fc, w_sat) ⇐ land.properties
         soilW ⇐ land.pools
         ΔsoilW ⇐ land.pools
         z_zero ⇐ land.constants
