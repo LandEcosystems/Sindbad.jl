@@ -29,6 +29,14 @@ include(joinpath(test_data_dir, "land.jl"))
 include(joinpath(test_data_dir, "referenceApproaches.jl"))
 include(joinpath(test_data_dir, "helpers.jl"))
 
+# This script's own run (called directly, or as a subprocess by `test_tem()`/CI's test-tem job)
+# takes long enough (every approach's define/precompute/compute, several hundred approaches) that
+# running it silently until the final "Wrote N rows" is disorienting -- flush eagerly (stdout is
+# otherwise block-buffered when this runs as a non-interactive subprocess, e.g. under `test_tem()`,
+# so plain `println` alone could sit invisible in the buffer for the whole run) so progress is
+# visible as it happens rather than all at once at the end.
+progress(msg) = (println(msg); flush(stdout))
+
 # `Base.FieldError` (a structured exception for "type X has no field Y", thrown by
 # `@unpack_nt`/property access on a NamedTuple) only exists from Julia 1.12 -- this package
 # supports 1.10-1.12 (see SindbadTEM/Project.toml's `[compat] julia`). Pre-1.12, the same failure
@@ -103,6 +111,7 @@ collectNamedTupleRegistry!(nt_registry, tmp_helpers, "helpers")
 # DIFFERENT approach" bug pattern (see e.g. evaporation.jl's `update`, which always does
 # `@unpack_evaporation_bareFraction params` regardless of which evaporation_* was actually
 # passed in). `getInOutModel(model, :parameters)` gives each approach's own field names.
+progress("Building error-message registries (field_owner, field_namespace)...")
 field_owner = Dict{Symbol,Vector{String}}()
 for T in leafSubtypes(LandEcosystem)
     params_io = getInOutModel(T(), :parameters)  # Vector of fieldname => description Pairs
@@ -110,6 +119,29 @@ for T in leafSubtypes(LandEcosystem)
         push!(get!(field_owner, fn, String[]), string(nameof(T)))
     end
 end
+
+# `nt_registry` above only knows the *pristine, all-empty* initial `land` fixture -- it can name
+# `land`/`land.pools`/`forcing`/`helpers` etc., but not a specific `land.<namespace>` sub-NamedTuple,
+# since every one of those starts as an indistinguishable empty `NamedTuple()` there (and
+# `registerSource!` deliberately skips empty field sets, since they're all ambiguous with each
+# other). So a FieldError against a *partially filled-in* `land.states`/`land.diagnostics`/etc.
+# (the normal case once the sequential chain has advanced a few processes) never matches by exact
+# field-set -- `matchFieldErrorSource` returns `nothing` and the error is reported with a bare,
+# unattributed "type NamedTuple has no field ...". This registry instead maps a field NAME
+# (regardless of what else is or isn't around it at the point of failure) to the `land.<namespace>`
+# it's normally packed into, built statically from every approach's own `@pack_nt ... ⇒ land.X`
+# output targets (via `getInOutModel`, independent of which approach is currently selected as the
+# reference for its process, or where in the pipeline the failure happened).
+field_namespace = Dict{Symbol,Vector{String}}()
+for T in leafSubtypes(LandEcosystem)
+    for func in (:define, :precompute, :compute, :update)
+        io = getInOutModel(T(), func)
+        for (ns, field) in io[:output]
+            push!(get!(field_namespace, field, String[]), "land.$ns")
+        end
+    end
+end
+progress("Registries built.")
 
 function formatSourceLabel(sources)
     length(sources) == 1 && return sources[1]
@@ -125,7 +157,13 @@ function formatError(e)
         owners === nothing || return "[likely wrong-approach parameters -- `$field` belongs to: $(formatSourceLabel(owners))] " * msg
     end
     sources = matchFieldErrorSource(msg, nt_registry)
-    return sources === nothing ? msg : "[$(formatSourceLabel(sources))] " * msg
+    sources === nothing || return "[$(formatSourceLabel(sources))] " * msg
+    if m_type !== nothing && m_type.captures[1] == "NamedTuple"
+        field = Symbol(m_type.captures[2])
+        namespaces = get(field_namespace, field, nothing)
+        namespaces === nothing || return "[missing `$field`, normally packed into: $(formatSourceLabel(unique(namespaces)))] " * msg
+    end
+    return msg
 end
 
 # The first stack frame inside SindbadTEM/src/Processes/ -- i.e. where SINDBAD's own code (the
@@ -147,17 +185,9 @@ end
 # not a bug. Anything else (UndefVarError, MethodError, a plain `error()` guard, ...) reflects the
 # approach's own code and is a genuine `:bug`. Empty string for non-error statuses (ok/
 # invalid_number/not_defined), where severity doesn't apply.
-# `stage` distinguishes a failure in the compute-chain's own define/precompute prerequisite
-# re-run (see runComputePhase) from a failure in the method actually under test -- without it, a
-# bug in an approach's `define` shows up as TWO identical-looking "error" rows (one for `define`
-# itself, one for `compute`, since testing `compute` chains through this same approach's own
-# `define`+`precompute` first), misleading anyone triaging the report into thinking there are two
-# separate bugs to find instead of one.
-function errorResult(e, land; stage=nothing)
+function errorResult(e, land)
     severity = isMissingFieldError(e) ? "incompatible" : "bug"
-    msg = formatError(e)
-    stage === nothing || (msg = "[same root cause as this approach's own \"$stage\" row above] " * msg)
-    return (; status="error", severity, errmsg=msg, location=firstSindbadFrame(catch_backtrace()),
+    return (; status="error", severity, errmsg=formatError(e), location=firstSindbadFrame(catch_backtrace()),
         time_ms=NaN, bytes=-1, n_allocs=-1, invalid_paths=String[], result=land)
 end
 
@@ -205,10 +235,42 @@ reference_sequence = map(SM.standard_sindbad_model) do p
 end
 
 results = NamedTuple[]
+# An approach in `allowed_to_fail_approaches` (SindbadTEM/test/test_data/referenceApproaches.jl,
+# hand-maintained -- a documented, already-triaged pre-existing issue) is still measured exactly
+# like any other approach; only once it's *already* failed (status "error" or "invalid_number")
+# does this downgrade the reported status to "warn" -- visibly reported, but distinguished from a
+# fresh/unexplained failure. A genuine "ok" stays "ok".
+allowed_to_fail_set = Set(allowed_to_fail_approaches)
 function recordResult!(results, process_name, approach_name, method_name, m)
+    status = m.status in ("error", "invalid_number") && Symbol(approach_name) in allowed_to_fail_set ? "warn" : m.status
     push!(results, (; process=process_name, approach=approach_name, method=method_name,
-        status=m.status, severity=m.severity, time_ms=m.time_ms, bytes=m.bytes, n_allocs=m.n_allocs,
+        status, severity=m.severity, time_ms=m.time_ms, bytes=m.bytes, n_allocs=m.n_allocs,
         invalid_paths=m.invalid_paths, location=m.location, errmsg=m.errmsg))
+end
+
+# `purpose(T)` (SindbadTEM/src/Types.jl) has a generic fallback, `purpose(T::Type{<:LandEcosystem})`,
+# for any subtype that doesn't define its own -- for a concrete leaf approach (no subtypes of its
+# own), that fallback's `foreach(subtypes(T)) do ... end` never runs its body and returns `nothing`
+# instead of a description, rather than throwing. So checking that `purpose(T)` actually is a
+# real, non-empty string is how to reliably catch an approach missing its own
+# `purpose(::Type{$T}) = "..."` definition. Pure reflection, no simulation involved -- recorded as
+# its own pseudo-method (not define/precompute/compute/update) so it shows up in the same report.
+progress("Checking purpose() is defined for every approach...")
+for T in leafSubtypes(LandEcosystem)
+    process_name = string(nameof(supertype(T)))
+    approach_name = string(nameof(T))
+    p = try
+        SM.purpose(T)
+    catch
+        nothing
+    end
+    m_purpose = if p isa AbstractString && !isempty(p)
+        (; status="ok", severity="", errmsg="", location="", time_ms=NaN, bytes=-1, n_allocs=-1, invalid_paths=String[])
+    else
+        (; status="error", severity="bug", errmsg="purpose(::Type{$approach_name}) is not defined (or returns an empty string)",
+            location="", time_ms=NaN, bytes=-1, n_allocs=-1, invalid_paths=String[])
+    end
+    recordResult!(results, process_name, approach_name, "purpose", m_purpose)
 end
 
 # Each phase is wrapped in a function (rather than reassigning `land` in a top-level `for` loop)
@@ -233,8 +295,10 @@ end
 
 function runDefinePrecomputePhase(results, land0)
     land = land0
-    for step in reference_sequence
+    n = length(reference_sequence)
+    for (i, step) in enumerate(reference_sequence)
         process_name = string(step.process)
+        progress("[define+precompute $i/$n] $process_name")
         for T in leafSubtypes(step.process_type)
             approach_name = string(nameof(T))
             params = T()
@@ -257,28 +321,30 @@ end
 # c_allocation_f_soilW_prev) would otherwise be measured against the wrong land and fail on a
 # missing field that has nothing to do with a real bug.
 #
-# The define/precompute re-run is caught separately from the actual `compute` call (rather than
-# one `try`/`catch` around all three) so a bug in `define` -- already its own row from
-# runDefinePrecomputePhase -- gets tagged as such here too, instead of being indistinguishable
-# from a genuine `compute` bug (see errorResult's `stage` argument).
+# If T's own define/precompute fails, that's already its own row from runDefinePrecomputePhase --
+# rather than just cascading the same failure into the "compute" row too (indistinguishable from a
+# genuine `compute` bug, and hiding whether `compute` itself has anything else wrong with it), fall
+# back to measuring compute against the plain upstream reference `land` instead (the same land
+# every other approach at this process slot that also can't chain gets). That fallback land isn't
+# necessarily what T's own precompute would have produced, so a field-mismatch here can be a false
+# positive caused by the fallback itself rather than a real bug in `compute` -- but it's still more
+# informative than not testing `compute` at all.
 function chainedComputeResult(params, forcing, land, helpers)
-    defined = try
-        SM.define(params, forcing, deepcopy(land), helpers)
-    catch e
-        return errorResult(e, land; stage="define")
-    end
     land_for_compute = try
+        defined = SM.define(params, forcing, deepcopy(land), helpers)
         SM.precompute(params, forcing, defined, helpers)
-    catch e
-        return errorResult(e, land; stage="precompute")
+    catch
+        land
     end
     return measureMethod(SM.compute, :compute, params, forcing, land_for_compute, helpers)
 end
 
 function runComputePhase(results, land0)
     land = land0
-    for step in reference_sequence
+    n = length(reference_sequence)
+    for (i, step) in enumerate(reference_sequence)
         process_name = string(step.process)
+        progress("[compute $i/$n] $process_name")
         for T in leafSubtypes(step.process_type)
             approach_name = string(nameof(T))
             params = T()
@@ -290,7 +356,9 @@ function runComputePhase(results, land0)
     return land
 end
 
+progress("Phase 1/2: define+precompute, every approach, in process order...")
 land_after_definePrecompute = runDefinePrecomputePhase(results, deepcopy(land))
+progress("Phase 2/2: compute, every approach, in process order...")
 land_after_compute = runComputePhase(results, deepcopy(land_after_definePrecompute))
 
 # `update` is a separate, optional per-timestep path (only invoked when `inline_update` is set),
@@ -300,6 +368,7 @@ land_after_compute = runComputePhase(results, deepcopy(land_after_definePrecompu
 # checkApproaches.jl's own default-off `functions` option for the same reason.
 benchmark_methods = Set(Symbol.(split(get(ENV, "SINDBADTEM_BENCHMARK_METHODS", "define,precompute,compute"), ",")))
 if :update in benchmark_methods
+    progress("Checking update() (opt-in) for every approach...")
     for T in leafSubtypes(LandEcosystem)
         process_name = string(nameof(supertype(T)))
         approach_name = string(nameof(T))

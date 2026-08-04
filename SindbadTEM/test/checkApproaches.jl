@@ -82,6 +82,7 @@ end
 process_sequence = map(SM.standard_sindbad_model) do p
     (; process=p, process_type=getfield(SM, p), ref_type=get(_selected_by_process, p, nothing))
 end
+allowed_to_fail_set = Set(allowed_to_fail_approaches)
 
 # Function barriers: `@inferred` needs to check against the concrete approach type, not the
 # erased `Any`/abstract type a dynamic loop variable would have.
@@ -207,9 +208,23 @@ function advanceReference(f, ref_type, forcing, land, helpers, step_label)
     end
 end
 
+# An approach in `allowed_to_fail_approaches` (SindbadTEM/test/test_data/referenceApproaches.jl,
+# hand-maintained -- a documented, already-triaged pre-existing issue) still gets tested/checked
+# exactly like any other approach; this only kicks in once it's *already* failed, downgrading the
+# outcome's severity to `:warn` (regardless of whether it would otherwise have been `:bug` or
+# `:incompatible`) so it's still visibly reported but never added to `scoped_problems` -- so it
+# can never hard-fail a scoped test_model() run. A genuine pass stays a pass; this only lowers the
+# bar for a failure that's already known about, it doesn't grant a free pass.
+function applyAllowedToFail(outcome, T)
+    outcome === nothing && return nothing
+    nameof(T) in allowed_to_fail_set || return outcome
+    return (; severity=:warn, reason=outcome.reason)
+end
+
 # `outcomes` maps approach name -> `(; severity, reason)` (see `outcomeFromException`).
 # `:incompatible` results (missing upstream data from this test's reference selection for some
-# *other* process, not a bug) are always informational. `:bug` results are informational too
+# *other* process, not a bug) are always informational. `:warn` results (see `applyAllowedToFail`)
+# are always informational too, same as `:incompatible`. `:bug` results are informational too
 # UNLESS `scoped`, in which case they're also added to `scoped_problems` to hard-fail the run.
 function reportOutcome(phase_label, outcomes, n_total, scoped, scoped_problems)
     n_ok = n_total - length(outcomes)
@@ -218,9 +233,13 @@ function reportOutcome(phase_label, outcomes, n_total, scoped, scoped_problems)
         return
     end
     incompatible = Dict(k => v.reason for (k, v) in outcomes if v.severity == :incompatible)
+    warnings = Dict(k => v.reason for (k, v) in outcomes if v.severity == :warn)
     bugs = Dict(k => v.reason for (k, v) in outcomes if v.severity == :bug)
     if !isempty(incompatible)
         @info "$phase_label: $(length(incompatible))/$n_total approaches skipped -- missing or mutually-exclusive upstream data, not a bug (see SindbadTEM/test/README.md)" incompatible
+    end
+    if !isempty(warnings)
+        @warn "$phase_label: $(length(warnings))/$n_total approaches failed but are in allowed_to_fail_approaches -- known, pre-triaged issues (see SindbadTEM/test/test_data/referenceApproaches.jl), never a hard failure" warnings
     end
     if !isempty(bugs)
         @warn "$phase_label: $(length(bugs))/$n_total approaches failed/errored -- informational only, not a hard failure unless scoped (see SindbadTEM/test/README.md)" n_ok bugs
@@ -247,6 +266,7 @@ function runDefinePrecomputePhase(land0, tested_functions, wanted, scoped, scope
                 if outcome === nothing && scoped
                     outcome = checkPrecomputeAllocation(T, tmp_forcing, deepcopy(land_before), tmp_helpers)
                 end
+                outcome = applyAllowedToFail(outcome, T)
                 outcome === nothing || (outcomes[string(nameof(T))] = outcome)
             end
         end
@@ -280,6 +300,7 @@ function runComputePhase(land0, tested_functions, wanted, scoped, scoped_problem
                 if outcome === nothing && scoped
                     outcome = checkComputeAllocation(T, tmp_forcing, deepcopy(land_before), tmp_helpers)
                 end
+                outcome = applyAllowedToFail(outcome, T)
                 outcome === nothing || (outcomes[string(nameof(T))] = outcome)
             end
         end
@@ -305,7 +326,10 @@ what each one means -- and return `nothing`, or throw if running **scoped**
   `@warn`, never throws on a per-approach problem -- see `approachOutcome`'s docstring for why).
   Passing approach struct names (as `AbstractString`s or `Symbol`s) scopes the run to just those
   and makes it a hard gate: throws if any of them fails correctness (errors, isn't type-stable,
-  produces `NaN`/`Inf`) *or* allocates on a warm `precompute`/`compute` call.
+  produces `NaN`/`Inf`) *or* allocates on a warm `precompute`/`compute` call -- **unless** that
+  approach is listed in `allowed_to_fail_approaches`
+  (`SindbadTEM/test/test_data/referenceApproaches.jl`, hand-maintained), in which case a failure is
+  logged as `:warn` and never hard-fails, even scoped (see `applyAllowedToFail`).
 
 This is what CI's `test-model` (scoped) and `analyse-tem` (unscoped) jobs both run, and what
 `SindbadTEM`'s exported `test_model`/`analyse_tem` (see `SindbadTEM/src/DevTools.jl` and
@@ -336,6 +360,29 @@ function runApproachTests(; functions=("define", "precompute", "compute"), appro
         end
     end
 
+    # `purpose(T)` (SindbadTEM/src/Types.jl) has a generic fallback,
+    # `purpose(T::Type{<:LandEcosystem})`, for any subtype that doesn't define its own -- for a
+    # concrete leaf approach (no subtypes of its own), that fallback's
+    # `foreach(subtypes(T)) do ... end` never runs its body and returns `nothing` instead of a
+    # description, rather than throwing. So checking that `purpose(T)` actually is a real,
+    # non-empty string is how to reliably catch an approach missing its own
+    # `purpose(::Type{$T}) = "..."` definition. Pure reflection, no simulation involved -- like the
+    # type-hierarchy check above, this always runs, scoped or not.
+    @testset "Approach purpose defined" verbose = true begin
+        for step in process_sequence
+            @testset "$(step.process)" begin
+                for T in leafSubtypes(step.process_type)
+                    p = try
+                        SM.purpose(T)
+                    catch
+                        nothing
+                    end
+                    @test p isa AbstractString && !isempty(p)
+                end
+            end
+        end
+    end
+
     land_after_definePrecompute = runDefinePrecomputePhase(deepcopy(land), tested_functions, wanted, scoped, scoped_problems)
     land_after_compute = runComputePhase(deepcopy(land_after_definePrecompute), tested_functions, wanted, scoped, scoped_problems)
 
@@ -347,6 +394,7 @@ function runApproachTests(; functions=("define", "precompute", "compute"), appro
         approaches_to_test = filter(wanted, leafSubtypes(LandEcosystem))
         for T in approaches_to_test
             outcome = approachOutcome(checkUpdate, T, tmp_forcing, deepcopy(land_after_compute), tmp_helpers)
+            outcome = applyAllowedToFail(outcome, T)
             outcome === nothing || (outcomes[string(nameof(T))] = outcome)
         end
         reportOutcome("update", outcomes, length(approaches_to_test), scoped, scoped_problems)

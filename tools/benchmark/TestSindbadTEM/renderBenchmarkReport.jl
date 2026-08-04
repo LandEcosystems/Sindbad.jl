@@ -9,8 +9,11 @@ in_path = length(ARGS) >= 1 ? ARGS[1] : joinpath(@__DIR__, "benchmark_output", "
 out_html = length(ARGS) >= 2 ? ARGS[2] : joinpath(@__DIR__, "benchmark_output", "benchmark_report.html")
 out_md = length(ARGS) >= 3 ? ARGS[3] : joinpath(@__DIR__, "benchmark_output", "benchmark_summary.md")
 
-const METHODS = ("define", "precompute", "compute", "update")
-const RANK = Dict("error" => 3, "invalid_number" => 2, "ok" => 1, "not_defined" => 0)
+const METHODS = ("purpose", "define", "precompute", "compute", "update")
+# "warn" (a failure on an approach listed in allowed_to_fail_approaches -- see
+# benchmarkApproaches.jl's recordResult!) ranks below a real error/invalid_number (still worth
+# surfacing over a plain "ok", but explicitly not as urgent as an unexplained failure).
+const RANK = Dict("error" => 4, "invalid_number" => 3, "warn" => 2, "ok" => 1, "not_defined" => 0)
 worstStatus(statuses) = statuses[argmax(get.(Ref(RANK), statuses, 0))]
 
 struct Row
@@ -84,7 +87,7 @@ function buildPayload(rows)
         ad[r.method] = r
     end
 
-    totals = Dict("ok" => 0, "error" => 0, "invalid_number" => 0, "not_defined" => 0)
+    totals = Dict("ok" => 0, "error" => 0, "invalid_number" => 0, "warn" => 0, "not_defined" => 0)
     for r in rows
         totals[r.status] += 1
     end
@@ -126,11 +129,12 @@ function writeHTML(payload, template_path, out_path)
 end
 
 function writeMarkdownSummary(rows, out_path)
-    totals = Dict("ok" => 0, "bug" => 0, "incompatible" => 0, "invalid_number" => 0, "not_defined" => 0)
+    totals = Dict("ok" => 0, "bug" => 0, "incompatible" => 0, "invalid_number" => 0, "warn" => 0, "not_defined" => 0)
     for r in rows
         # `severity` (bug/incompatible) is only set on status=="error" rows -- see
         # benchmarkApproaches.jl's errorResult/isMissingFieldError. Everything else keys directly
-        # off status.
+        # off status (including "warn" -- a failure on an approach listed in
+        # allowed_to_fail_approaches, see recordResult!, kept separate from an unexplained bug).
         key = r.status == "error" ? r.severity : r.status
         totals[key] += 1
     end
@@ -138,30 +142,35 @@ function writeMarkdownSummary(rows, out_path)
     open(out_path, "w") do io
         println(io, "## SindbadTEM process benchmark")
         println(io)
-        defined_total = totals["ok"] + totals["bug"] + totals["incompatible"] + totals["invalid_number"]
+        defined_total = totals["ok"] + totals["bug"] + totals["incompatible"] + totals["invalid_number"] + totals["warn"]
         println(io, "$(length(rows)) method calls across every approach, $(defined_total) defined ",
             "(the rest fall back to the no-op default, not a problem): ",
             "$(totals["ok"]) success &middot; $(totals["bug"]) bug &middot; ",
             "$(totals["incompatible"]) incompatible (expected -- missing/mismatched upstream data ",
             "for this test's reference selection, not a bug) &middot; ",
-            "$(totals["invalid_number"]) invalid-number")
+            "$(totals["invalid_number"]) invalid-number &middot; ",
+            "$(totals["warn"]) warn (known, pre-triaged issue -- see allowed_to_fail_approaches)")
         println(io)
 
-        # Bugs sort first -- they're the ones worth looking at; incompatible rows are expected
+        # Bugs sort first -- they're the ones worth looking at; incompatible/warn rows are expected
         # noise (see the classification comment above) and invalid_number rows come last.
-        sevRank(r) = r.status == "error" ? (r.severity == "bug" ? 0 : 1) : 2
-        problems = filter(r -> r.status in ("error", "invalid_number"), rows)
+        sevRank(r) = r.status == "error" ? (r.severity == "bug" ? 0 : 1) : (r.status == "warn" ? 2 : 3)
+        problems = filter(r -> r.status in ("error", "invalid_number", "warn"), rows)
         if isempty(problems)
             println(io, "No errors or invalid-number results.")
         else
             println(io, "| Process | Approach | Method | Severity | Location | Detail |")
             println(io, "|---|---|---|---|---|---|")
             for r in sort(problems; by=r -> (sevRank(r), r.process, r.approach, r.method))
-                detail = r.status == "error" ? first(split(r.errmsg, " / ")) : join(r.invalid_paths, ", ")
+                # A "warn" row can have originated from either an "error" (errmsg populated,
+                # invalid_paths empty) or an "invalid_number" (invalid_paths populated, errmsg
+                # empty) result -- see recordResult! -- so key off which one is actually populated
+                # rather than off status.
+                detail = !isempty(r.errmsg) ? first(split(r.errmsg, " / ")) : join(r.invalid_paths, ", ")
                 detail = replace(detail, "|" => "\\|")
                 length(detail) > 90 && (detail = first(detail, 87) * "...")
                 loc = isempty(r.location) ? "" : "`$(r.location)`"
-                severity_label = r.status == "error" ? r.severity : "invalid_number"
+                severity_label = r.status == "error" ? r.severity : r.status
                 println(io, "| $(r.process) | $(r.approach) | $(r.method) | $(severity_label) | $loc | $detail |")
             end
         end
