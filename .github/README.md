@@ -20,7 +20,7 @@ when opening a PR. This file is the detail behind it.
 | `TagBot.yml` | Julia registry merge comment, or manual | n/a (release automation) |
 
 "Manual" means the Actions tab -> pick the workflow -> "Run workflow" -> select a branch, which
-works for any of these at any time, on any branch.
+is conceptualized/designed for any of these at any time, on any branch.
 
 Only `Documenter.yml` auto-runs on push to `main`/tag (it has nowhere else to deploy the built
 docs to). Everything else that isn't part of the required `quick` checks or a path-triggered PR
