@@ -34,7 +34,7 @@ function compute(params::cTauLAI_CASA, forcing, land, helpers)
     # set LAI stressor on τ to ones
     TSPY = 365 #sujan
     p_cVegLeafZix = helpers.pools.zix.cVegLeaf
-    if isfield(helpers.pools.zix.cVegRootF)
+    if hasproperty(helpers.pools.zix, :cVegRootF)
         p_cVegRootZix = helpers.pools.zix.cVegRootF
     else
         p_cVegRootZix = helpers.pools.zix.cVegRoot

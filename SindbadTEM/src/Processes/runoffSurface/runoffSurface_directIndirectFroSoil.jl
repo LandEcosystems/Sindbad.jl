@@ -13,7 +13,7 @@ function compute(params::runoffSurface_directIndirectFroSoil, forcing, land, hel
 
     ## unpack land variables
     @unpack_nt begin
-        frac_frozen ⇐ land.runoffSaturationExcess
+        frac_frozen_soil ⇐ land.states
         surfaceW ⇐ land.pools
         ΔsurfaceW ⇐ land.pools
         overland_runoff ⇐ land.fluxes
@@ -21,7 +21,7 @@ function compute(params::runoffSurface_directIndirectFroSoil, forcing, land, hel
         n_surfaceW = surfaceW ⇐ helpers.pools.n_layers
     end
     # fraction of overland runoff that flows out directly
-    fracFastQ = (o_one - rf) * (o_one - frac_frozen) + frac_frozen
+    fracFastQ = (o_one - rf) * (o_one - frac_frozen_soil) + frac_frozen_soil
 
     surface_runoff_direct = fracFastQ * overland_runoff
 
@@ -33,8 +33,8 @@ function compute(params::runoffSurface_directIndirectFroSoil, forcing, land, hel
     surface_runoff = surface_runoff_direct + surface_runoff_indirect
 
     # update the delta storage
-    ΔsurfaceW[1] = ΔsurfaceW[1] + suw_recharge # assumes all the recharge supplies the first surface water layer
-    ΔsurfaceW .= ΔsurfaceW .- surface_runoff_indirect / n_surfaceW # assumes all layers contribute equally to indirect component of surface runoff
+    @add_to_elem suw_recharge ⇒ (ΔsurfaceW, 1, :surfaceW) # assumes all the recharge supplies the first surface water layer
+    ΔsurfaceW = addToEachElem(ΔsurfaceW, - surface_runoff_indirect / n_surfaceW)
 
     ## pack land variables
     @pack_nt begin

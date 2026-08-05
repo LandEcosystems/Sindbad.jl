@@ -27,7 +27,7 @@ function compute(params::snowMelt_Tair, forcing, land, helpers)
     snow_melt = min(totalS(snowW, ΔsnowW), Tterm * frac_snow)
 
     # divide snowmelt loss equally from all layers
-    ΔsnowW .= ΔsnowW .- snow_melt / n_snowW
+    ΔsnowW = addToEachElem(ΔsnowW, snow_melt / n_snowW)
 
     # a Water Balance Pool variable that tracks how much water is still "available" | ""
     WBP = WBP + snow_melt

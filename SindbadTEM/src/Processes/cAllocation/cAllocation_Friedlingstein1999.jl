@@ -23,7 +23,7 @@ function define(params::cAllocation_Friedlingstein1999, forcing, land, helpers)
     cVeg_zix = []
     land_pools = getfield(land, :pools)
     for cpName ∈ cVeg_names
-        zix = getZix(getfield(land_pools, cpName), cEcoZix, cpName)
+        zix = getZix(getfield(land_pools, cpName), getfield(cEcoZix, cpName))
         nZix = oftype(first(c_allocation), length(zix))
         push!(cVeg_nzix, nZix)
         push!(cVeg_zix, zix)
@@ -44,17 +44,18 @@ function compute(params::cAllocation_Friedlingstein1999, forcing, land, helpers)
 
     ## unpack land variables
     @unpack_nt begin
-        c_allocation ⇐ land.states
+        c_allocation ⇐ land.diagnostics
         (cVeg_names, cVeg_nzix, cVeg_zix, c_allocation_to_veg) ⇐ land.cAllocation
         c_allocation_f_W_N ⇐ land.diagnostics
         c_allocation_f_LAI ⇐ land.diagnostics
         (z_zero, o_one) ⇐ land.constants
+        (cVegRoot, cVegWood, cVegLeaf) ⇐ land.pools
     end
     ## unpack land variables
     # allocation to root; wood & leaf
     a_cVegRoot = ro * (rel_Y + o_one) * c_allocation_f_LAI / (c_allocation_f_LAI + rel_Y * c_allocation_f_W_N)
     a_cVegWood = so * (rel_Y + o_one) * c_allocation_f_W_N / (rel_Y * c_allocation_f_LAI + c_allocation_f_W_N)
-    a_cVegLeaf = o_one - cVegRoot - cVegWood
+    a_cVegLeaf = o_one - a_cVegRoot - a_cVegWood
 
     @rep_elem a_cVegRoot ⇒ (c_allocation_to_veg, 1, :cEco)
     @rep_elem a_cVegWood ⇒ (c_allocation_to_veg, 2, :cEco)

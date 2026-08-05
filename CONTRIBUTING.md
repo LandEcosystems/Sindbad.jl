@@ -96,62 +96,11 @@ Then load/use `Sindbad` normally; the extension will be picked up automatically.
 
 ## Continuous Integration
 
-Every PR automatically runs a "quick" check on every push: `Sindbad.yml` and `SindbadTEM.yml`,
-ubuntu-only, Julia `lts` + `1` (4 jobs total). This is required to merge and is intentionally
-narrow, so pushing to a PR stays fast.
-
-For everything else, comment on the PR (or trigger each workflow individually from the Actions
-tab). Any combination of these commands can go in one comment, and each can also be run on its
-own, targeted at whatever actually changed, instead of always paying for the full `/check-pr`:
-
-- **`/check-pr`**: everything below at once. Meant as the last, comprehensive check right before
-  merging, and again after any new commits land on top of an earlier run -- not something to run
-  on every push.
-- **`/build-docs`**: `Documenter.yml` only. Use after changes to any docstring, or when a new
-  function is introduced.
-- **`/compile-os`**: `Sindbad.yml` + `SindbadTEM.yml` full matrix only. Use after changes under
-  `src/`, `SindbadTEM/src/`, or `Project.toml` dependencies. Note that `test/Project.toml` only
-  pulls in a handful of the optional extensions under `ext/`, so this doesn't exercise all of
-  them -- prefer `/check-pr` (or a manual local check) if you're touching an extension outside
-  that set.
-- **`/test-simulation`**: `TestSimulations.yml` only. Use after changes to the core simulation
-  run path (forward/optimization execution). Does not cover ML or visualization code -- the
-  LUE/WROASTED setups it runs are neither hybrid-ML nor plotting paths.
-
-What each workflow actually runs:
-
-- **`Sindbad.yml` / `SindbadTEM.yml` full matrix**: the same tests as the quick check, across all
-  three OSes (`ubuntu`/`macOS`/`windows`) x both Julia versions (6 jobs each). Each job writes a
-  one-row CSV of its pass/fail status and wall time; when triggered on-demand (`workflow_dispatch`,
-  e.g. via `/compile-os`), a final `report` job downloads all 6 jobs' CSVs and posts a Markdown
-  table (OS, Julia version, status, time) on the PR alongside the overall result.
-- **`Documenter.yml`**: builds the docs (no PR preview deploy; see `docs/make.jl`'s
-  `push_preview = false`).
-- **`TestSimulations.yml`** ("Test Simulations"): runs one job per
-  `{ubuntu,macOS,windows} x {LUE,WROASTED} x {pixel,spatial}` combination (12 jobs, in parallel),
-  named so it's clear at a glance what each is running -- e.g. "LUE x pixel x F+O x ubuntu-latest"
-  (F+O = runs both forward and optimization). Each job runs `examples/scripts/simulation_report.jl`
-  restricted to its one setup/mode (via the `SIMULATION_SETUPS`/`SIMULATION_MODES` environment
-  variables), for both `forward` and `optimization` kinds, and writes a CSV of status, wall time,
-  memory allocated, mean simulated GPP, and (for optimization runs) the total optimized cost for
-  each (see `examples/README.md` for what the LUE/WROASTED setups are). A final `combine` job
-  downloads all 12 jobs' CSVs and merges them into one Markdown table (OS and Julia version
-  included per row), via `examples/scripts/combine_simulation_reports.jl`.
-
-`simulation_report.jl` also works standalone locally:
-
-```sh
-julia --project=examples/scripts examples/scripts/simulation_report.jl
-```
-
-which writes `examples/output_simulation_report_<os>.csv` and `.md` (both git-ignored).
-
-Each on-demand workflow posts its own progress to the PR as a comment automatically -- an
-"in progress" comment naming what's running as soon as it starts, updated with the result once
-it finishes (see `.github/scripts/upsert_pr_comment.sh`). The comment commands themselves are
-handled by `.github/workflows/ci-commands.yml`, gated to commenters with write access; it only
-dispatches the other workflows against the PR's branch, it never checks out or runs any PR code
-itself.
+Every PR automatically runs a required "quick" check on every push (fast, ubuntu-only). Opening
+a PR shows the on-demand comment commands (`/check-pr`, `/build-docs`, `/compile-os`,
+`/test-simulation`, `/test-tem`) available before merging, via the PR template. For the full
+detail -- what each CI workflow actually runs, what triggers it automatically, and whether it's
+required to merge -- see [`.github/README.md`](.github/README.md).
 
 ## Governance
 

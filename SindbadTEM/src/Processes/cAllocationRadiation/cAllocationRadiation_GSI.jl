@@ -10,6 +10,7 @@ end
 
 function define(params::cAllocationRadiation_GSI, forcing, land, helpers)
     ## unpack helper
+    @unpack_cAllocationRadiation_GSI params
 
     ## calculate variables
     # assume the initial c_allocation_c_allocation_f_cloud as one

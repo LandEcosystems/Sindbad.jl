@@ -3348,7 +3348,7 @@ runoffSaturationExcess_satFraction
 **Calculated using:**
 
 ```julia
-Inputs: :states => :WBP, :states => :satFrac
+Inputs: :states => :WBP, :states => :frac_saturation
 Outputs: :fluxes => :sat_excess_runoff, :states => :WBP
 ```
 

@@ -23,6 +23,19 @@ StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 StaticArraysCore = "1e83bf80-4336-4d27-bf5d-d5a4f845583c"
 StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
 
+[weakdeps]
+Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[extensions]
+# Both listed as triggers (not just Test) so the extension's own dependency sandbox includes
+# Dates -- an extension can only reliably `using` a package that's one of its *own* triggers when
+# loaded as a nested dependency (not when SindbadTEM itself is the active project, which is more
+# lenient). Dates is already a transitive dependency of SindbadTEM itself (via Accessors), so it's
+# always loaded by the time `using SindbadTEM` runs -- this doesn't change the practical
+# `using SindbadTEM, Test` trigger for end users.
+SindbadTEMTestExt = ["Test", "Dates"]
+
 [compat]
 Accessors = "0.1.43"
 CodeTracking = "3.0.0"
@@ -37,9 +50,3 @@ StaticArrays = "1"
 StaticArraysCore = "1"
 StatsBase = "0.34.9"
 julia = "1.10, 1.11, 1.12"
-
-[extras]
-Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
-
-[targets]
-test = ["Test"]

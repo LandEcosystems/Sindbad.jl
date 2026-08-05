@@ -15,7 +15,7 @@ function define(params::rootWaterEfficiency_k2Layer, forcing, land, helpers)
 
     # check if the number of soil layers is equal to 2
     if length(soilW) != 2
-        error("rootWaterEfficiency_k2Layer approach works for 2 soil layers only.")
+        @warn "rootWaterEfficiency_k2Layer approach is conceptualized/designed for 2 soil layers only, but model has $(length(soilW)) layers. This approach will just update the first two layers of root water efficiency. Please check your model structure."
     end
     # create the arrays to fill in the soil properties
     root_water_efficiency = one.(soilW)

@@ -6,6 +6,23 @@ export vegFraction_scaledfAPAR
 end
 #! format: on
 
+function define(params::vegFraction_scaledfAPAR, forcing, land, helpers)
+    ## unpack parameters
+    @unpack_vegFraction_scaledfAPAR params
+
+    ## unpack land variables
+    @unpack_nt begin
+        z_zero ⇐ land.constants
+    end
+
+    ## calculate variables
+    fAPAR = z_zero
+
+    ## pack land variables
+    @pack_nt fAPAR ⇒ land.states
+    return land
+end
+
 function compute(params::vegFraction_scaledfAPAR, forcing, land, helpers)
     ## unpack parameters
     @unpack_vegFraction_scaledfAPAR params

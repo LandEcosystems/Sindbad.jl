@@ -20,8 +20,8 @@ function compute(params::groundWRecharge_fraction, forcing, land, helpers)
     # calculate recharge
     gw_recharge = rf * (soilW[end] + ΔsoilW[end])
 
-    ΔgroundW .= ΔgroundW .+ gw_recharge / n_groundW
-    ΔsoilW[end] = ΔsoilW[end] - gw_recharge
+    ΔgroundW = addToEachElem(ΔgroundW, gw_recharge / n_groundW)
+    @add_to_elem -gw_recharge ⇒ (ΔsoilW, lastindex(ΔsoilW), :soilW)
 
     ## pack land variables
     @pack_nt begin

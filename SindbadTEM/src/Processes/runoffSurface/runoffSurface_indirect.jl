@@ -12,7 +12,7 @@ function compute(params::runoffSurface_indirect, forcing, land, helpers)
 
     ## unpack land variables
     @unpack_nt begin
-        surfaceW ⇐ land.pools
+        (surfaceW, ΔsurfaceW) ⇐ land.pools
         overland_runoff ⇐ land.fluxes
         n_surfaceW = surfaceW ⇐ helpers.pools.n_layers
     end
@@ -24,8 +24,8 @@ function compute(params::runoffSurface_indirect, forcing, land, helpers)
     surface_runoff = dc * sum(surfaceW)
 
     # update the delta storage
-    ΔsurfaceW[1] = ΔsurfaceW[1] + suw_recharge # assumes all the recharge supplies the first surface water layer
-    ΔsurfaceW .= ΔsurfaceW .- surface_runoff / n_surfaceW # assumes all layers contribute equally to indirect component of surface runoff
+    @add_to_elem suw_recharge ⇒ (ΔsurfaceW, 1, :surfaceW) # assumes all the recharge supplies the first surface water layer
+    ΔsurfaceW = addToEachElem(ΔsurfaceW, - surface_runoff / n_surfaceW)
 
     ## pack land variables
     @pack_nt begin

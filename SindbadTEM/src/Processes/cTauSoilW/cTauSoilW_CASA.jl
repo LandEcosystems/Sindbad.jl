@@ -8,13 +8,17 @@ end
 
 function define(params::cTauSoilW_CASA, forcing, land, helpers)
     @unpack_cTauSoilW_CASA params
-    @unpack_nt cEco ⇐ land.pools
+    @unpack_nt (soilW, cEco) ⇐ land.pools
+    @unpack_nt o_one ⇐ land.constants
 
     ## Instantiate variables
     c_eco_k_f_soilW = one.(cEco)
-
+    soilW_prev = zero(soilW)
+    fsoilW_prev = o_one
     ## pack land variables
-    @pack_nt c_eco_k_f_soilW ⇒ land.diagnostics
+    @pack_nt (c_eco_k_f_soilW, fsoilW_prev) ⇒ land.diagnostics
+    @pack_nt soilW_prev ⇒ land.pools
+
     return land
 end
 
@@ -64,9 +68,12 @@ function compute(params::cTauSoilW_CASA, forcing, land, helpers)
     fsoilW = BGME
     # set the same moisture stress to all carbon pools
     c_eco_k_f_soilW[helpers.pools.zix.cEco] = fsoilW
+    soilW_prev = soilW
+    fsoilW_prev = fsoilW
 
     ## pack land variables
-    @pack_nt fsoilW ⇒ land.diagnostics
+    @pack_nt (fsoilW, fsoilW_prev) ⇒ land.diagnostics
+    @pack_nt soilW_prev ⇒ land.pools
     return land
 end
 

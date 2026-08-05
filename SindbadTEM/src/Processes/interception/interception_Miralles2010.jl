@@ -18,7 +18,7 @@ function compute(params::interception_Miralles2010, forcing, land, helpers)
     @unpack_nt begin
         (WBP, fAPAR) ⇐ land.states
         rain ⇐ land.fluxes
-        rainInt ⇐ land.states
+        rain_int ⇐ land.states
     end
     tmp = 1.0
     canopy_storage = canopy_storage * tmp
@@ -27,7 +27,7 @@ function compute(params::interception_Miralles2010, forcing, land, helpers)
     trunk_capacity = trunk_capacity * tmp
     pd = pd * tmp
     #catch for division by zero
-    valids = rainInt > 0.0 & fAPAR > 0.0
+    valids = rain_int > 0.0 & fAPAR > 0.0
     Pgc = 0.0
     Pgt = 0.0
     Ic = 0.0
@@ -37,24 +37,24 @@ function compute(params::interception_Miralles2010, forcing, land, helpers)
     It = 0.0
     #f_rain intensity must be larger than evap rate
     #adjusting evap rate:
-    v = rainInt < evap_rate & valids == 1
-    evap_rate[v] = rainInt[v]
+    v = rain_int < evap_rate & valids == 1
+    evap_rate[v] = rain_int[v]
     #Pgc: amount of gross rainfall necessary to saturate the canopy
     Pgc =
         -1 *
-        (rainInt * canopy_storage / ((1.0 - fte) * evap_rate)) *
-        log(1.0 - ((1.0 - fte) * evap_rate / rainInt))
+        (rain_int * canopy_storage / ((1.0 - fte) * evap_rate)) *
+        log(1.0 - ((1.0 - fte) * evap_rate / rain_int))
     #Pgt: amount of gross rainfall necessary to saturate the trunks
-    Pgt = Pgc + rainInt * trunk_capacity / (pd * fAPAR * (rainInt - evap_rate * (1.0 - fte)))
+    Pgt = Pgc + rain_int * trunk_capacity / (pd * fAPAR * (rain_int - evap_rate * (1.0 - fte)))
     #Ic: interception loss from canopy
     Ic1 = fAPAR * rain #Pg < Pgc
-    Ic2 = fAPAR * (Pgc + ((1.0 - fte) * evap_rate / rainInt) * (rain - Pgc)) #Pg > Pgc
+    Ic2 = fAPAR * (Pgc + ((1.0 - fte) * evap_rate / rain_int) * (rain - Pgc)) #Pg > Pgc
     v = rain <= Pgc & valids == 1
     Ic[v] = Ic1[v]
     Ic[v==0] = Ic2[v==0]
     #It: interception loss from trunks
     #It1 = trunk_capacity;# Pg < Pgt
-    It2 = pd * fAPAR * (1.0 - (1.0 - fte) * evap_rate / rainInt) * (rain - Pgc)#Pg > Pgt
+    It2 = pd * fAPAR * (1.0 - (1.0 - fte) * evap_rate / rain_int) * (rain - Pgc)#Pg > Pgt
     v = rain <= Pgt
     It[v] = trunk_capacity[v]
     It[v==0] = It2[v==0]
