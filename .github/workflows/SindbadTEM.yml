@@ -39,19 +39,45 @@ jobs:
       - uses: julia-actions/cache@v3
       - name: Develop and test SindbadTEM
         shell: julia --project=SindbadTEM {0}
+        env:
+          MATRIX_OS: ${{ matrix.os }}
+          MATRIX_VERSION: ${{ matrix.version }}
+          TEST_REPORT_CSV: test_report_${{ matrix.os }}_${{ matrix.version }}.csv
         run: |
           using Pkg
           # CI should not rely on developer-local Manifests that point to /Users/... paths.
           # (When running with `--project=SindbadTEM`, the manifest lives in `SindbadTEM/Manifest.toml`.)
           rm(joinpath("SindbadTEM","Manifest.toml"); force=true)
           Pkg.instantiate()
-          Pkg.test("SindbadTEM"; coverage=true)
+          # Timed and try/catch'd (rather than a bare Pkg.test call) so the elapsed time and
+          # pass/fail status get written to CSV -- and picked up as a build artifact -- even when
+          # tests fail; `error(err)` at the end still fails this step/job so CI signal is
+          # unchanged. Same pattern as the full-matrix job below.
+          ok, err = true, ""
+          elapsed = @elapsed try
+              Pkg.test("SindbadTEM"; coverage=true)
+          catch e
+              ok, err = false, replace(sprint(showerror, e), "\n" => " ", "," => ";")
+          end
+          # matrix.version is the label passed to setup-julia ("lts"/"1"); VERSION is the
+          # concrete Julia version that label actually resolved to on this runner.
+          julia_label = "$(ENV["MATRIX_VERSION"]): $(VERSION)"
+          open(ENV["TEST_REPORT_CSV"], "w") do io
+              println(io, "os,julia,ok,time_s,error")
+              println(io, "$(ENV["MATRIX_OS"]),$(julia_label),$(ok),$(round(elapsed, digits=1)),$(err)")
+          end
+          !ok && error(err)
       - uses: julia-actions/julia-processcoverage@v1
         with:
           directories: SindbadTEM/src
       - uses: codecov/codecov-action@v7
         with:
           files: lcov.info
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: sindbadtem-test-report-quick-${{ matrix.os }}-${{ matrix.version }}
+          path: test_report_${{ matrix.os }}_${{ matrix.version }}.csv
 
   # Posts an immediate "in progress" comment naming what's running, before full-matrix (which
   # can take a while) finishes -- runs in parallel with it, not blocking its start. The `report`

@@ -87,11 +87,12 @@ Four checks, in this order:
 | Check | What it checks | Needs simulation? | Hard-fails the run? |
 |---|---|---|---|
 | `Process/approach type hierarchy` | Every process is a `LandEcosystem` subtype; every one of its approaches is a concrete subtype of that specific process | No -- pure reflection | Always -- a real `@test`, always either holds or signals an actual structural bug |
-| `define+precompute (sequential)` | Every approach's `define` then `precompute`, `@inferred` (type-stable) and free of `NaN`/`Inf` | Yes | Only when scoped, and only `:bug`-severity results (see below) |
+| `define+precompute (sequential)` | Every approach's `define` (type instability there is `:define_unstable`, see below) then `precompute` (`@inferred`-equivalent, hard `:bug` if unstable), both free of `NaN`/`Inf` | Yes | Only when scoped, and only `:bug`-severity results (see below) |
 | `compute (sequential)` | Every approach's own `define`->`precompute`->`compute` chain, same checks, against upstream `land` built from earlier processes | Yes | Only when scoped, and only `:bug`-severity results |
 | `update` | Every approach's `update`, against the fully-built final land state (not chained -- `update` is a separate, optional per-timestep path, only invoked when `inline_update` is set in `experiment.json`) | Yes | Only when scoped, and only `:bug`-severity results |
 
-Every per-approach result is tagged one of two severities (see `outcomeFromException`):
+Every per-approach result is tagged one of three severities (see `outcomeFromException` and
+`approachOutcome`):
 - **`:incompatible`** -- the approach failed on a *missing field* (`land.<namespace>` genuinely
   doesn't have something it reads). This almost always means the approach legitimately depends on
   a *different* approach for some *other* process (e.g. a specific `soilWBase` variant) than the
@@ -100,10 +101,17 @@ Every per-approach result is tagged one of two severities (see `outcomeFromExcep
   `soilWBase_smax2Layer` requires 2; the shared reference `land`/`helpers` can only match one of
   them at a time). **Always informational, scoped or not** -- it can never hard-fail a run, since
   it isn't a defect in the approach the run is actually about.
-- **`:bug`** -- anything else (crashed some other way, type instability, `NaN`/`Inf`, non-zero
-  allocation). Reflects the approach's own code. Informational when run **unscoped** (the default,
-  and what `analyse-tem` in CI always does) -- hard-failing `Pkg.test` on the full catalog's
-  pre-existing issues would make it permanently red -- but hard-fails when run **scoped**.
+- **`:define_unstable`** -- `define`'s own return type didn't fully infer (see
+  `runAndCheckInferred`). `define` runs once per model, not the hot per-timestep path, so this
+  costs nothing at runtime -- and it doesn't imply `precompute`/`compute` are unstable either,
+  since Julia values always have a concrete runtime type regardless of how well `define`'s code
+  inferred, so the `land` handed onward is exactly as usable as any other. **Always informational,
+  scoped or not** -- it can never hard-fail a run.
+- **`:bug`** -- anything else (crashed some other way, a type instability in `precompute`/
+  `compute`/`update` specifically, `NaN`/`Inf`, non-zero allocation). Reflects the approach's own
+  code. Informational when run **unscoped** (the default, and what `analyse-tem` in CI always
+  does) -- hard-failing `Pkg.test` on the full catalog's pre-existing issues would make it
+  permanently red -- but hard-fails when run **scoped**.
 
 Each phase logs one consolidated `@info` (approach name -> reason) for `:incompatible` results and
 one consolidated `@warn` (approach name -> reason) for `:bug` results, or one `@info` line if
@@ -188,6 +196,14 @@ julia --project=SindbadTEM tools/benchmark/TestSindbadTEM/scanApproachVariables.
   failure even scoped -- check whether the *reference* approach for the relevant upstream process
   is a reasonable stand-in if you want to investigate further (see
   `test_data/referenceApproaches.jl`).
+- **`@info "<phase>: M/N approaches have a type instability confined to define..."`** -- prints a
+  `Dict` of approach name -> a one-line diagnosis pinpointing the single diverging field/index
+  (e.g. `` "define is not type-stable at `cCycleDisturbance.c_lose_to_zix_vec`: concrete type at
+  runtime is Tuple{...}, but inference only produced Tuple" ``), all `:define_unstable` severity
+  (see above). Never a `Pkg.test` failure, scoped or not -- `define` runs once per model, so this
+  is worth cleaning up for its own sake (usually a `Vector`-to-`Tuple` conversion whose length
+  Julia can't pin down statically -- type it as concretely as possible, e.g. avoid building it via
+  untyped `push!` into `[]`) but never blocks anything.
 - **`@warn "<phase>: M/N approaches failed/errored..."`** -- prints a `Dict` of approach name ->
   problem description, all `:bug` severity. Each entry is one of:
   - `"did not return a NamedTuple"` -- the approach's return value itself is wrong.
@@ -198,7 +214,10 @@ julia --project=SindbadTEM tools/benchmark/TestSindbadTEM/scanApproachVariables.
     instead of `&&`/`||`, which silently changes both behavior *and* type; forgetting to
     `@unpack_nt` a variable the approach's code goes on to use, which throws `UndefVarError`, not
     a missing-field error, so it stays `:bug`-severity rather than being reclassified as
-    `:incompatible`), or a type instability caught by `@inferred`.
+    `:incompatible`), or -- for `precompute`/`compute`/`update` only, never `define` (see
+    `:define_unstable` above) -- a type instability caught by the `@inferred`-equivalent check,
+    reported as `"<fn> is not type-stable at \`<field.path>\`: ..."` naming the one diverging
+    field rather than dumping the whole (often huge, deeply nested) return type.
   Not a `Pkg.test` failure either way when unscoped -- treat this as a triage list, not a
   red/green signal.
 - A separate `@warn "Reference approach failed while advancing the sequential chain..."` during

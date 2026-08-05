@@ -84,32 +84,106 @@ process_sequence = map(SM.standard_sindbad_model) do p
 end
 allowed_to_fail_set = Set(allowed_to_fail_approaches)
 
-# Function barriers: `@inferred` needs to check against the concrete approach type, not the
-# erased `Any`/abstract type a dynamic loop variable would have.
-function checkDefinePrecompute(::Type{T}, forcing, land, helpers) where {T <: LandEcosystem}
+# `@inferred`'s own failure message prints the *entire* return type on both sides -- for a
+# process's `land`, that's every field of every process's namespace, often thousands of
+# characters, with the one field that actually diverges buried somewhere in the middle (see
+# cCycleDisturbance_cFlow/cCycleDisturbance_WROASTED for real examples). This walks the concrete
+# result type and the inferred type together, field by field (NamedTuple) / element by element
+# (Tuple), and returns only the first path where they actually diverge -- `nothing` if they don't.
+function firstUnstablePath(concrete::Type, inferred::Type, path::Vector{Any}=Any[])
+    isconcretetype(inferred) || return (path, concrete, inferred)
+    if concrete <: NamedTuple && inferred <: NamedTuple
+        cnames, inames = fieldnames(concrete), fieldnames(inferred)
+        cnames == inames || return (path, concrete, inferred)
+        cfields, ifields = fieldtypes(concrete), fieldtypes(inferred)
+        for i in eachindex(cnames)
+            hit = firstUnstablePath(cfields[i], ifields[i], [path; cnames[i]])
+            hit === nothing || return hit
+        end
+        return nothing
+    elseif concrete <: Tuple && inferred <: Tuple
+        cparams, iparams = concrete.parameters, inferred.parameters
+        length(cparams) == length(iparams) || return (path, concrete, inferred)
+        for i in eachindex(cparams)
+            hit = firstUnstablePath(cparams[i], iparams[i], [path; i])
+            hit === nothing || return hit
+        end
+        return nothing
+    end
+    return concrete === inferred ? nothing : (path, concrete, inferred)
+end
+
+# One-line description of a type instability, pinpointing the single diverging field/index (see
+# `firstUnstablePath`) instead of dumping the full, deeply nested type on both sides.
+function describeInstability(label, concrete::Type, inferred::Type)
+    hit = firstUnstablePath(concrete, inferred)
+    path, c, i = hit === nothing ? (Any[], concrete, inferred) : hit
+    if isempty(path) && !isconcretetype(i) && c <: NamedTuple
+        # Inference gave up completely at the top level -- e.g. an `if` whose branches only
+        # sometimes reassign a variable (`land = f(...)` inside the `if`, untouched in the
+        # implicit `else`) produces two differently-typed values for it, so there's no field-level
+        # structure left on the inferred side to localize into. Naming the top-level fields is
+        # still far shorter than the full (often huge, deeply nested) concrete type.
+        return "$label is not type-stable: inference gave up completely (inferred type is plain `$(i)`, not concrete) -- often caused by a variable only conditionally reassigned across a branch (e.g. `if ...; land = f(...); end` with no `else`); top-level fields of the actual result: $(join(fieldnames(c), ", "))"
+    end
+    loc = isempty(path) ? "the return value itself" : join(path, ".")
+    return "$label is not type-stable at `$loc`: concrete type at runtime is $(c), but inference only produced $(i)"
+end
+
+# Runs `f` and separately checks whether its return type is fully inferred for these argument
+# types -- like `@inferred`, but always returns the actual (concrete, regardless of how well it
+# inferred) result rather than throwing, and records a short diagnosis (see `describeInstability`)
+# into `warn_ref` instead of failing. Used only for `define`: it runs once per model, not on the
+# hot per-timestep path, so a type instability confined to `define` costs nothing at runtime and
+# is a warning, never a hard failure -- unlike precompute/compute/update below, which do run every
+# timestep and use `checkInferredHard` instead. Note this only checks `f`'s *own* inference: since
+# Julia values always have a concrete runtime type, the concrete `land` this returns still lets
+# precompute/compute infer cleanly against it even when `define` itself didn't.
+function runAndCheckInferred(label, warn_ref, f, args...)
+    result = f(args...)
+    inferred = only(Base.return_types(f, typeof.(args)))
+    (isconcretetype(inferred) && typeof(result) === inferred) && return result
+    warn_ref[] = describeInstability(label, typeof(result), inferred)
+    return result
+end
+
+# Hard-failing counterpart of `runAndCheckInferred`, for the hot-path functions (precompute,
+# compute, update) where a type instability is a real bug, not just compiler noise -- same
+# `@inferred`-equivalent check, but `error`s with the short `describeInstability` message instead
+# of `@inferred`'s full-type dump.
+function checkInferredHard(label, f, args...)
+    result = f(args...)
+    inferred = only(Base.return_types(f, typeof.(args)))
+    (isconcretetype(inferred) && typeof(result) === inferred) || error(describeInstability(label, typeof(result), inferred))
+    return result
+end
+
+# Function barriers: the inference checks above need to check against the concrete approach type,
+# not the erased `Any`/abstract type a dynamic loop variable would have.
+function checkDefinePrecompute(::Type{T}, forcing, land, helpers, warn_ref) where {T <: LandEcosystem}
     params = T()
-    land = @inferred SM.define(params, forcing, land, helpers)
-    return @inferred SM.precompute(params, forcing, land, helpers)
+    land = runAndCheckInferred("define", warn_ref, SM.define, params, forcing, land, helpers)
+    return checkInferredHard("precompute", SM.precompute, params, forcing, land, helpers)
 end
 # `land` here is the upstream state *before* this process (built via the reference chain) --
 # define/precompute/compute are chained for T itself, so compute sees exactly what T's own
 # precompute would hand it in a real run, not some other approach's.
-function checkComputeChain(::Type{T}, forcing, land, helpers) where {T <: LandEcosystem}
+function checkComputeChain(::Type{T}, forcing, land, helpers, warn_ref) where {T <: LandEcosystem}
     params = T()
     land = try
-        @inferred SM.define(params, forcing, land, helpers)
+        runAndCheckInferred("define", warn_ref, SM.define, params, forcing, land, helpers)
     catch e
         throw(StagedError(:define, e))
     end
     land = try
-        @inferred SM.precompute(params, forcing, land, helpers)
+        checkInferredHard("precompute", SM.precompute, params, forcing, land, helpers)
     catch e
         throw(StagedError(:precompute, e))
     end
-    return @inferred SM.compute(params, forcing, land, helpers)
+    return checkInferredHard("compute", SM.compute, params, forcing, land, helpers)
 end
-function checkUpdate(::Type{T}, forcing, land, helpers) where {T <: LandEcosystem}
-    return @inferred SM.update(T(), forcing, land, helpers)
+function checkUpdate(::Type{T}, forcing, land, helpers, warn_ref) where {T <: LandEcosystem}
+    return checkInferredHard("update", SM.update, T(), forcing, land, helpers)
 end
 
 # Zero-allocation checks: warm-up call (JIT-compiles, discarded), then a second, identical-input
@@ -179,14 +253,21 @@ end
 # between approaches of the same process (e.g. soilWBase_smax1Layer hard-requires exactly 1 soil
 # layer while soilWBase_smax2Layer requires 2 -- the shared reference land/helpers can only match
 # one of them at a time), not bugs.
-# Returns `nothing` on success, or `(; severity, reason)` otherwise.
+# Returns `nothing` on success, or `(; severity, reason)` otherwise. `warn_ref` is how
+# `checkDefinePrecompute`/`checkComputeChain` report a type instability confined to `define`
+# (see `runAndCheckInferred`) without throwing -- it doesn't fail the check, but still needs to
+# surface as `:define_unstable` (never `:bug`) rather than silently vanishing into a plain pass.
 function approachOutcome(check_fn, T, forcing, land, helpers)
+    warn_ref = Ref{Union{Nothing,String}}(nothing)
     try
-        result = check_fn(T, forcing, land, helpers)
+        result = check_fn(T, forcing, land, helpers, warn_ref)
         result isa NamedTuple || return (; severity=:bug, reason="did not return a NamedTuple")
         invalid_paths = findInvalidNumbers(result)
-        isempty(invalid_paths) && return nothing
-        return (; severity=:bug, reason="NaN/Inf at " * join((join(p, ".") for p in invalid_paths), ", "))
+        if !isempty(invalid_paths)
+            return (; severity=:bug, reason="NaN/Inf at " * join((join(p, ".") for p in invalid_paths), ", "))
+        end
+        warn_ref[] === nothing && return nothing
+        return (; severity=:define_unstable, reason=warn_ref[])
     catch e
         return outcomeFromException(e, "check")
     end
@@ -217,15 +298,22 @@ end
 # bar for a failure that's already known about, it doesn't grant a free pass.
 function applyAllowedToFail(outcome, T)
     outcome === nothing && return nothing
+    # `:define_unstable` is already unconditionally non-blocking (see `runAndCheckInferred`) with
+    # its own accurate message -- don't relabel it as an allow-listed `:warn`, which would claim
+    # it's a pre-triaged issue from `allowed_to_fail_approaches` when it isn't.
+    outcome.severity == :define_unstable && return outcome
     nameof(T) in allowed_to_fail_set || return outcome
     return (; severity=:warn, reason=outcome.reason)
 end
 
 # `outcomes` maps approach name -> `(; severity, reason)` (see `outcomeFromException`).
 # `:incompatible` results (missing upstream data from this test's reference selection for some
-# *other* process, not a bug) are always informational. `:warn` results (see `applyAllowedToFail`)
-# are always informational too, same as `:incompatible`. `:bug` results are informational too
-# UNLESS `scoped`, in which case they're also added to `scoped_problems` to hard-fail the run.
+# *other* process, not a bug) are always informational. `:define_unstable` results (see
+# `runAndCheckInferred`) are always informational too -- a type instability confined to `define`
+# doesn't cost anything at runtime (`define` runs once per model, not the hot per-timestep path).
+# `:warn` results (see `applyAllowedToFail`) are always informational too, same as
+# `:incompatible`. `:bug` results are informational too UNLESS `scoped`, in which case they're
+# also added to `scoped_problems` to hard-fail the run.
 function reportOutcome(phase_label, outcomes, n_total, scoped, scoped_problems)
     n_ok = n_total - length(outcomes)
     if isempty(outcomes)
@@ -233,10 +321,14 @@ function reportOutcome(phase_label, outcomes, n_total, scoped, scoped_problems)
         return
     end
     incompatible = Dict(k => v.reason for (k, v) in outcomes if v.severity == :incompatible)
+    define_unstable = Dict(k => v.reason for (k, v) in outcomes if v.severity == :define_unstable)
     warnings = Dict(k => v.reason for (k, v) in outcomes if v.severity == :warn)
     bugs = Dict(k => v.reason for (k, v) in outcomes if v.severity == :bug)
     if !isempty(incompatible)
         @info "$phase_label: $(length(incompatible))/$n_total approaches skipped -- missing or mutually-exclusive upstream data, not a bug (see SindbadTEM/test/README.md)" incompatible
+    end
+    if !isempty(define_unstable)
+        @info "$phase_label: $(length(define_unstable))/$n_total approaches have a type instability confined to `define` -- define runs once per model (not the hot per-timestep path), so this is never a hard failure, even scoped" define_unstable
     end
     if !isempty(warnings)
         @warn "$phase_label: $(length(warnings))/$n_total approaches failed but are in allowed_to_fail_approaches -- known, pre-triaged issues (see SindbadTEM/test/test_data/referenceApproaches.jl), never a hard failure" warnings
@@ -325,11 +417,15 @@ what each one means -- and return `nothing`, or throw if running **scoped**
 - `approaches`: `nothing` (the default) checks every approach, informationally (logs `@info`/
   `@warn`, never throws on a per-approach problem -- see `approachOutcome`'s docstring for why).
   Passing approach struct names (as `AbstractString`s or `Symbol`s) scopes the run to just those
-  and makes it a hard gate: throws if any of them fails correctness (errors, isn't type-stable,
-  produces `NaN`/`Inf`) *or* allocates on a warm `precompute`/`compute` call -- **unless** that
-  approach is listed in `allowed_to_fail_approaches`
+  and makes it a hard gate: throws if any of them fails correctness (errors, isn't type-stable in
+  `precompute`/`compute`/`update`, produces `NaN`/`Inf`) *or* allocates on a warm
+  `precompute`/`compute` call -- **unless** that approach is listed in `allowed_to_fail_approaches`
   (`SindbadTEM/test/test_data/referenceApproaches.jl`, hand-maintained), in which case a failure is
-  logged as `:warn` and never hard-fails, even scoped (see `applyAllowedToFail`).
+  logged as `:warn` and never hard-fails, even scoped (see `applyAllowedToFail`). A type
+  instability confined to `define` itself is a separate, always-non-blocking `:define_unstable`
+  outcome (see `runAndCheckInferred`) -- `define` runs once per model, not the hot per-timestep
+  path, and its own inference quality doesn't affect what `precompute`/`compute` see (Julia values
+  always have a concrete runtime type, however well `define`'s *code* inferred).
 
 This is what CI's `test-model` (scoped) and `analyse-tem` (unscoped) jobs both run, and what
 `SindbadTEM`'s exported `test_model`/`analyse_tem` (see `SindbadTEM/src/DevTools.jl` and
