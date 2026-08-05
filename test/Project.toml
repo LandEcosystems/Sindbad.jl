@@ -11,4 +11,3 @@ Sindbad = "36c3e672-7dee-4606-99b5-7e5d8d85a313"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [compat]
-ForwardDiff = "1.4.3"
