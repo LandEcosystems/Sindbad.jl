@@ -18,7 +18,7 @@ function define(params::soilWBase_smax1Layer, forcing, land, helpers)
     soil_layer_thickness = helpers.pools.layer_thickness.soilW
     # check if the number of soil layers and number of elements in soil thickness arrays are the same & are equal to 1 
     if n_soilW != 1
-        error(["soilWBase_smax1Layer needs eactly 1 soil layer in model_structure.json."])
+        @warn "soilWBase_smax1Layer needs exactly 1 soil layer in model_structure.json, but model has $n_soilW layers. This approach will just update the first layer of soil water properties. Please check your model structure."
     end
 
     ## Instantiate variables
@@ -42,8 +42,8 @@ function compute(params::soilWBase_smax1Layer, forcing, land, helpers)
 
     # set the properties for each soil layer
     # 1st layer
-    w_sat[1] = smax * soil_layer_thickness[1]
-    w_fc[1] = smax * soil_layer_thickness[1]
+    @rep_elem smax * soil_layer_thickness[1] ⇒ (w_sat, 1, :soilW)
+    @rep_elem smax * soil_layer_thickness[1] ⇒ (w_fc, 1, :soilW)
 
     # get the plant available water available (all the water is plant available)
     w_awc = w_sat

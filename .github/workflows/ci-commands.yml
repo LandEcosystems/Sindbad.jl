@@ -13,14 +13,15 @@ jobs:
   # dispatches other workflows against the PR's branch, the same trust level as a maintainer
   # manually clicking "Run workflow"; it never checks out or runs PR code itself.
   #
-  # Commands (any combination in one comment is fine); see CONTRIBUTING.md's "Continuous
-  # Integration" section for what each actually covers (coverage is uneven, e.g. /compile-os
-  # doesn't exercise every ext/* extension):
+  # Commands (any combination in one comment is fine); see .github/README.md for what each
+  # actually covers (coverage is uneven, e.g. /compile-os doesn't exercise every ext/*
+  # extension):
   #   /check-pr          everything below -- the one comprehensive check to re-run right before
   #                       merging, including after new commits land on top of an earlier run.
   #   /build-docs         Documenter.yml only.
   #   /compile-os         Sindbad.yml + SindbadTEM.yml full OS matrix only.
   #   /test-simulation    TestSimulations.yml only.
+  #   /test-tem           SindbadTEM-benchmark.yml only.
   dispatch:
     if: >
       github.event.issue.pull_request != null &&
@@ -29,7 +30,8 @@ jobs:
         contains(github.event.comment.body, '/check-pr') ||
         contains(github.event.comment.body, '/build-docs') ||
         contains(github.event.comment.body, '/compile-os') ||
-        contains(github.event.comment.body, '/test-simulation')
+        contains(github.event.comment.body, '/test-simulation') ||
+        contains(github.event.comment.body, '/test-tem')
       )
     runs-on: ubuntu-latest
     permissions:
@@ -63,12 +65,13 @@ jobs:
               SindbadTEM.yml) echo "SindbadTEM.jl full OS matrix" ;;
               Documenter.yml) echo "the docs build" ;;
               TestSimulations.yml) echo "Test Simulations" ;;
+              SindbadTEM-benchmark.yml) echo "SindbadTEM process benchmark" ;;
             esac
           }
           workflows=()
 
           if [[ "$COMMENT_BODY" == *"/check-pr"* ]]; then
-            workflows+=(Sindbad.yml SindbadTEM.yml Documenter.yml TestSimulations.yml)
+            workflows+=(Documenter.yml SindbadTEM.yml Sindbad.yml TestSimulations.yml SindbadTEM-benchmark.yml)
           fi
           if [[ "$COMMENT_BODY" == *"/build-docs"* ]]; then
             workflows+=(Documenter.yml)
@@ -78,6 +81,9 @@ jobs:
           fi
           if [[ "$COMMENT_BODY" == *"/test-simulation"* ]]; then
             workflows+=(TestSimulations.yml)
+          fi
+          if [[ "$COMMENT_BODY" == *"/test-tem"* ]]; then
+            workflows+=(SindbadTEM-benchmark.yml)
           fi
 
           # De-dup while preserving first-seen order (a comment may combine commands that

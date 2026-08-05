@@ -20,7 +20,7 @@ function compute(params::cFlow_simple, forcing, land, helpers)
         c_flow_order = 1:length(c_taker)
     else
         if length(c_flow_order) != length(c_taker)
-            error(["ERR : cFlowAct_simple : " "length(c_flow_order) != length(c_taker)"])
+            error("ERR : cFlowAct_simple : " * "length(c_flow_order) != length(c_taker)")
         end
     end
 

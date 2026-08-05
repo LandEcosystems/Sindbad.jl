@@ -10,7 +10,7 @@ function compute(params::gppAirT_Wang2014, forcing, land, helpers)
     ## unpack parameters and forcing
     @unpack_gppAirT_Wang2014 params
     @unpack_nt f_airT_day ⇐ forcing
-    @unpack_nt (z_zero, o_one) ⇐ land.diagnostics
+    @unpack_nt (z_zero, o_one) ⇐ land.constants
 
     ## calculate variables
     gpp_f_airT = clamp_zero_one(f_airT_day / Tmax)

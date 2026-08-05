@@ -24,8 +24,9 @@ function compute(params::groundWSoilWInteraction_gradient, forcing, land, helper
     @unpack_nt begin
         w_sat ⇐ land.properties
         (ΔsoilW, soilW, ΔgroundW, groundW) ⇐ land.pools
-        (n_groundW, z_zero) ⇐ land.constants
+        z_zero ⇐ land.constants
         gw_recharge ⇐ land.fluxes
+        n_groundW = groundW ⇐ helpers.pools.n_layers
     end
     # maximum groundwater storage
     p_gwmax = w_sat[end] * smax_scale

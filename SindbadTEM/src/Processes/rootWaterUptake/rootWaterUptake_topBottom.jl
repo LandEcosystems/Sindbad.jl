@@ -22,12 +22,13 @@ function compute(params::rootWaterUptake_topBottom, forcing, land, helpers)
     ## unpack land variables
     @unpack_nt begin
         PAW ⇐ land.states
-        soilW ⇐ land.pools
-        (ΔsoilW, root_water_uptake) ⇐ land.states
+        (soilW, ΔsoilW) ⇐ land.pools
+        root_water_uptake ⇐ land.fluxes
         transpiration ⇐ land.fluxes
         z_zero ⇐ land.constants
     end
-    to_uptake = oftype(eltype(PAW), transpiration)
+    PAWTotal = sum(PAW)
+    to_uptake = at_least_zero(oftype(PAWTotal, transpiration))
 
     for sl ∈ eachindex(land.pools.soilW)
         uptake_from_layer = min(to_uptake, PAW[sl])

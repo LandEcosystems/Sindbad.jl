@@ -86,11 +86,15 @@ function getInOutModel(model::LandEcosystem; verbose=true)
 end
 
 
-function getInOutModel(model::LandEcosystem, model_funcs::Tuple)
+function getInOutModel(model::LandEcosystem, model_funcs::Tuple; verbose=false)
     mo_in_out=SindbadTEM.DataStructures.OrderedDict()
-    println("   collecting I/O/P of: $(nameof(typeof(model))).jl")
+    if verbose
+        println("   collecting I/O/P of: $(nameof(typeof(model))).jl")
+    end
     for func in model_funcs
-        println("   ...$(func)...")
+        if verbose
+            println("   ...$(func)...")
+        end
         io_func = getInOutModel(model, func)
         if length(model_funcs) == 2 && :parameters in model_funcs
             if func !== :parameters

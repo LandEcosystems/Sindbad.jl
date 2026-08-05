@@ -15,7 +15,7 @@ function define(params::rootWaterEfficiency_k2fvegFraction, forcing, land, helpe
 
     # check if the number of soil layers and number of elements in soil thickness arrays are the same & are equal to 2 
     if length(soilW) != 2
-        error("rootWaterEfficiency_k2fvegFraction approach works for 2 soil layers only.")
+        @warn "rootWaterEfficiency_k2fvegFraction approach is conceptualized/designed for 2 soil layers only, but model has $(length(soilW)) layers. This approach will just update the first two layers of root water efficiency. Please check your model structure."
     end
     # create the arrays to fill in the soil properties 
     root_water_efficiency = one.(soilW)

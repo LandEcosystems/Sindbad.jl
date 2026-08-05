@@ -18,20 +18,22 @@ export runoffSaturationExcess_Bergstroem1992VegFractionPFT
 end
 #! format: on
 
-function define(params::runoffSaturationExcess_Bergstroem1992VegFractionPFT, forcing, land, helpers)
+function precompute(params::runoffSaturationExcess_Bergstroem1992VegFractionPFT, forcing, land, helpers)
     ## unpack parameters and forcing
     #@needscheck
     @unpack_runoffSaturationExcess_Bergstroem1992VegFractionPFT params
+    @unpack_nt f_pft ⇐ forcing
 
     # get the PFT data & assign parameters
-    β_veg = eval("β_PFT" * string(PFT))
+    β_PFTs = (β_PFT0, β_PFT1, β_PFT2, β_PFT3, β_PFT4, β_PFT5, β_PFT6, β_PFT7, β_PFT8, β_PFT9, β_PFT10, β_PFT11)
+    β_veg = β_PFTs[Int(f_pft) + 1]
 
     # get the berg parameters according the vegetation fraction
-    β_veg = max(β_min, β_veg * frac_vegetation) # do this?
+    β_veg_max = max(β_min, β_veg)
 
     ## pack land variables
     @pack_nt begin
-        β_veg ⇒ land.runoffSaturationExcess
+        β_veg_max ⇒ land.runoffSaturationExcess
     end
     return land
 end
@@ -40,17 +42,19 @@ function compute(params::runoffSaturationExcess_Bergstroem1992VegFractionPFT, fo
     ## unpack parameters and forcing
     #@needscheck
     @unpack_runoffSaturationExcess_Bergstroem1992VegFractionPFT params
-    @unpack_nt PFT ⇐ forcing
+    @unpack_nt f_pft ⇐ forcing
 
     ## unpack land variables
     @unpack_nt begin
         (WBP, frac_vegetation) ⇐ land.states
-        β_veg ⇐ land.runoffSaturationExcess
+        β_veg_max ⇐ land.runoffSaturationExcess
         w_sat ⇐ land.properties
         soilW ⇐ land.pools
         ΔsoilW ⇐ land.pools
     end
+    β_veg = β_veg_max * frac_vegetation
     # get the PFT data & assign parameters
+    
     tmp_smax_veg = sum(w_sat)
     tmp_soilW_total = sum(soilW + ΔsoilW)
 
@@ -63,6 +67,7 @@ function compute(params::runoffSaturationExcess_Bergstroem1992VegFractionPFT, fo
     ## pack land variables
     @pack_nt begin
         sat_excess_runoff ⇒ land.fluxes
+        β_veg ⇒ land.runoffSaturationExcess
         WBP ⇒ land.states
     end
     return land

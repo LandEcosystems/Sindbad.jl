@@ -33,8 +33,10 @@ function compute(params::cTauSoilProperties_CASA, forcing, land, helpers)
     clay = mean(st_clay)
     silt = mean(st_silt)
     # TEXTURE EFFECT ON k OF cMicSoil
-    zix = helpers.pools.zix.cMicSoil
-    c_eco_k_f_soil_props[zix] = (1.0 - (TEXTEFFA * (silt + clay)))
+    zix = hasproperty(helpers.pools.zix, :cMicSoil) ? helpers.pools.zix.cMicSoil : nothing
+    if zix !== nothing
+        c_eco_k_f_soil_props[zix] = (1.0 - (TEXTEFFA * (silt + clay)))
+    end
     # (ineficient, should be pix zix_mic)
 
     ## pack land variables

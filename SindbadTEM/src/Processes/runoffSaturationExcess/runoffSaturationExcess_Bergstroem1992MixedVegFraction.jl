@@ -24,7 +24,7 @@ function compute(params::runoffSaturationExcess_Bergstroem1992MixedVegFraction, 
 
     # get the berg parameters according the vegetation fraction
     β_veg = β_veg * frac_vegetation + β_soil * (one(frac_vegetation) - frac_vegetation)
-    β_veg = max(β_min, berg) # do this?
+    β_veg = max(β_min, β_veg) # do this?
 
     # calculate land runoff from incoming water & current soil moisture
     tmp_sat_exc_frac = clamp_zero_one((tmp_soilW_total / tmp_smax_veg)^β_veg)

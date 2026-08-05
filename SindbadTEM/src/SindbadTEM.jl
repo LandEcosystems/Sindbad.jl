@@ -28,6 +28,7 @@ Key dependencies used/re-exported by the module include:
 - **`Utils.jl`** (module `SindbadTEM.Utils`): Utilities for model inspection/tooling (e.g. I/O parsing).
 - **`Variables.jl`** (module `SindbadTEM.Variables`): Canonical catalog of SINDBAD TEM variables and metadata helpers.
 - **`Processes.jl`** (module `SindbadTEM.Processes`): Process hierarchy, parameter metadata macros, model/approach docstring helpers, and dynamic inclusion of process implementations under `src/Processes/`.
+- **`DevTools.jl`**: `test_model`/`analyse_tem`/`test_tem`, local dev-loop convenience functions for running approach checks/benchmarks (see their docstrings; `test_model`/`analyse_tem` additionally need `using Test`, provided by `ext/SindbadTEMTestExt.jl`).
 - *(Internal)* `tmp_precompile_placeholder.jl`: Auto-managed placeholder to force precompilation when new processes/approaches are added.
 
 # Notes
@@ -94,6 +95,8 @@ module SindbadTEM
    @reexport using .Variables
    include("Processes.jl")
    @reexport using .Processes
+   include("DevTools.jl")
+   export test_model, analyse_tem, test_tem
 
    # append the docstring of the LandEcosystem type to the docstring of the SindbadTEM module so that all the methods of the LandEcosystem type are included after the models have been described
    @doc """
