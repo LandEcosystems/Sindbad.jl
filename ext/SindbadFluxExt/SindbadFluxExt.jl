@@ -7,4 +7,5 @@ module SindbadFluxExt
     include("MachineLearningActivationFunctions.jl")
     include("MachineLearningNeuralNetwork.jl")
     include("MachineLearningOneHots.jl")
+    include("GPPNeuralNetwork.jl")
 end
