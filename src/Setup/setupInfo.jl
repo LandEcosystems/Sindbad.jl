@@ -223,7 +223,8 @@ function setDatesInfo(info::NamedTuple)
         end
         tmp_dates = set_namedtuple_field(tmp_dates, (time_prop, prop_val))
     end
-    timestep = getfield(Dates, Symbol(titlecase(info.settings.experiment.basics.time.temporal_resolution)))(1)
+    tr_n, tr_unit = parseTemporalResolution(info.settings.experiment.basics.time.temporal_resolution)
+    timestep = getfield(Dates, Symbol(titlecase(tr_unit)))(tr_n)
     time_range = DateTime(info.settings.experiment.basics.time.date_begin):timestep:DateTime(info.settings.experiment.basics.time.date_end)
     tmp_dates = set_namedtuple_field(tmp_dates, (:temporal_resolution, info.settings.experiment.basics.time.temporal_resolution))
     tmp_dates = set_namedtuple_field(tmp_dates, (:timestep, timestep))
