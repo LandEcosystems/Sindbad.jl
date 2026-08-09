@@ -14,6 +14,7 @@ module Utils
     export getSindbadModels
     export getTypedModel
     export getUnitConversionForParameter
+    export parseTemporalResolution
     export modelParameter
     export modelParameters
 
@@ -406,6 +407,38 @@ end
 
 
 """
+    parseTemporalResolution(resolution)
+
+Parses a temporal resolution string into an integer count and a base unit string.
+
+Accepts either a bare unit (e.g. "day", "hour") or an n-unit string of the form
+"<positive integer>-<unit>" (e.g. "6-hour", "2-day", "3-month"). A bare unit is
+equivalent to "1-<unit>".
+
+# Arguments:
+- `resolution`: a temporal resolution string, e.g. "day", "6-hour", "3-month"
+
+# Returns:
+- `(n::Int, unit::String)`: the multiplier count and the base unit string.
+"""
+function parseTemporalResolution(resolution)
+    parts = split(String(resolution), "-")
+    if length(parts) == 1
+        return 1, String(parts[1])
+    elseif length(parts) == 2
+        n = tryparse(Int, parts[1])
+        if isnothing(n)
+            error("invalid temporal resolution \"$(resolution)\": count \"$(parts[1])\" is not an integer. Expected format \"<integer>-<unit>\", e.g. \"6-hour\".")
+        elseif n <= 0
+            error("invalid temporal resolution \"$(resolution)\": count must be a positive integer, got $(n).")
+        end
+        return n, String(parts[2])
+    else
+        error("invalid temporal resolution \"$(resolution)\": expected a bare unit (e.g. \"day\") or \"<integer>-<unit>\" (e.g. \"6-hour\"), got $(length(parts)) dash-separated parts.")
+    end
+end
+
+"""
     getUnitConversionForParameter(p_timescale, model_timestep)
 
 helper/wrapper function to get unit conversion factors for model parameters that are timescale dependent
@@ -415,50 +448,63 @@ helper/wrapper function to get unit conversion factors for model parameters that
 - `model_timestep`: time step of the model run
 """
 function getUnitConversionForParameter(p_timescale, model_timestep)
+    p_n, p_unit = parseTemporalResolution(p_timescale)
+    m_n, m_unit = parseTemporalResolution(model_timestep)
+    if p_n != 1 || m_n != 1
+        base_conversion = getUnitConversionForParameter(p_unit, m_unit)
+        # an empty p_unit means the parameter has no declared timescale (not time-dependent),
+        # so it must stay a no-op regardless of any n-unit multiplier on either side
+        return isempty(p_unit) ? base_conversion : base_conversion * m_n / p_n
+    end
+
     conversion = 1
     time_multiplier = 1
     # time multiplier compared to daily time steps
-    if model_timestep == "second"
+    if m_unit == "second"
         time_multiplier = 1/(60* 60 * 24)
-    elseif model_timestep == "minute"
+    elseif m_unit == "minute"
         time_multiplier = 1/(60 * 24)
-    elseif model_timestep == "halfhour"
+    elseif m_unit == "halfhour"
         time_multiplier = 1/48
-    elseif model_timestep == "hour"
+    elseif m_unit == "hour"
         time_multiplier = 1/24
-    elseif model_timestep == "day"
+    elseif m_unit == "day"
         time_multiplier = 1
-    elseif model_timestep == "week"
+    elseif m_unit == "week"
         time_multiplier = 7
-    elseif model_timestep == "month"
+    elseif m_unit == "month"
         time_multiplier = 30
-    elseif model_timestep == "year"
+    elseif m_unit == "year"
         time_multiplier = 365
-    elseif model_timestep == "decade"
+    elseif m_unit == "decade"
         time_multiplier = 365 * 10
     else
         error("running model at $(model_timestep) is not supported")
     end
 
     # modelling at other time steps
-    if p_timescale == "second"
+    if p_unit == "second"
         conversion = 60 * 60 * 24 * time_multiplier
-    elseif p_timescale == "minute"
+    elseif p_unit == "minute"
         conversion = 60 * 24 * time_multiplier
-    elseif p_timescale == "halfhour"
+    elseif p_unit == "halfhour"
         conversion = 48 * time_multiplier
-    elseif p_timescale == "hour"
+    elseif p_unit == "hour"
         conversion = 24 * time_multiplier
-    elseif p_timescale == "day"
+    elseif p_unit == "day"
         conversion = 1 * time_multiplier
-    elseif p_timescale == "week"
+    elseif p_unit == "week"
         conversion = 1/7 * time_multiplier
-    elseif p_timescale == "month"
+    elseif p_unit == "month"
         conversion = 1/30 * time_multiplier
-    elseif p_timescale == "year"
+    elseif p_unit == "year"
         conversion = 1/365 * time_multiplier
-    elseif p_timescale == "decade"
+    elseif p_unit == "decade"
         conversion = 1/(365 * 10) * time_multiplier
+    elseif isempty(p_unit)
+        conversion = 1
+    else
+        error("parameter timescale \"$(p_timescale)\" is not supported")
     end
     return conversion
 end
