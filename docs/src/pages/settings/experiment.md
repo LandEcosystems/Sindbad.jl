@@ -25,7 +25,7 @@ The `basics` section defines core experiment settings and metadata.
     "time": {
       "date_begin": "Start date of the experiment (YYYY-MM-DD)",
       "date_end": "End date of the experiment (YYYY-MM-DD)",
-      "temporal_resolution": "Model simulation time step (one of: 'second', 'minute', 'halfhour', 'hour', 'day', 'week', 'month', 'year', 'decade')"
+      "temporal_resolution": "Model simulation time step (one of: 'second', 'minute', 'hour', 'day', 'month', 'year', optionally prefixed with an integer count, e.g. '8-day', '6-hour')"
     }
 }
 ```
