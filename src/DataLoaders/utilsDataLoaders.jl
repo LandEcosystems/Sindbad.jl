@@ -114,23 +114,34 @@ end
 
 """
     getDimPermutation(datDims, permDims)
+
 Returns the permutation indices required to rearrange dimensions from `datDims` to match `permDims`.
 
+If a target dimension is missing from the source data, such as time for a purely
+spatial variable, it is left out of the permutation since it does not exist in
+this array. If the source data has a dimension that is not part of the target
+list at all, such as soil_depth for a spatiovertical variable, that dimension is
+kept and placed before the matched target dims, in its original relative order.
+This guarantees the target dims always end up trailing, in the order given by
+`permDims`, no matter how many dimensions the source variable has or what
+physical order they are stored in. Downstream callers such as
+`OmniTools.view_at_trailing_indices` rely on this trailing order when indexing a
+per-pixel location out of the array.
+
 # Arguments
-- `datDims`: Array of current dimension names or indices
-- `permDims`: Array of target dimension names or indices in desired order
+- `datDims`: array of current dimension names
+- `permDims`: array of target dimension names in desired order
 
 # Returns
-- Array of indices representing the required permutation
+- array of indices representing the required permutation
 """
 function getDimPermutation(datDims, permDims)
+    matched_dims = [pd for pd ∈ permDims if pd in datDims]
+    extra_dims = [dd for dd ∈ datDims if !(dd in permDims)]
+    desired_order = vcat(extra_dims, matched_dims)
     new_dim = Int[]
-    for pd ∈ permDims
-        datIndex = length(permDims)
-        if pd in datDims
-            datIndex = findfirst(isequal(pd), datDims)
-        end
-        push!(new_dim, datIndex)
+    for dd ∈ desired_order
+        push!(new_dim, findfirst(isequal(dd), datDims))
     end
     return new_dim
 end
