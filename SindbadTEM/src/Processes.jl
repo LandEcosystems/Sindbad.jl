@@ -63,6 +63,21 @@ module Processes
     @metadata bounds (-Inf, Inf) Tuple
     @metadata units "" String
     export describe, bounds, units
+
+    """
+    Day-equivalent multiplier for each temporal-resolution unit SINDBAD supports. This is
+    the single source of truth for legal `timescale`/`temporal_resolution` unit strings --
+    add a new unit by adding one entry here.
+    """
+    const TIMESCALE_DAY_MULTIPLIER = Dict(
+        "second" => 1 / (60 * 60 * 24),
+        "minute" => 1 / (60 * 24),
+        "hour"   => 1 / 24,
+        "day"    => 1.0,
+        "month"  => 30.0,
+        "year"   => 365.0,
+    )
+    export TIMESCALE_DAY_MULTIPLIER
     export getApproachDocString
     # define dispatch structs for catching process errors
 
