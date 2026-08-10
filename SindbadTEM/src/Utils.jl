@@ -14,6 +14,7 @@ module Utils
     export getSindbadModels
     export getTypedModel
     export getUnitConversionForParameter
+    export isValidTimescale
     export parseTemporalResolution
     export modelParameter
     export modelParameters
@@ -439,6 +440,19 @@ function parseTemporalResolution(resolution)
 end
 
 """
+    isValidTimescale(timescale)
+
+Checks whether a parameter `timescale` string is either blank (not time-dependent) or
+one of the units in `SindbadTEM.Processes.TIMESCALE_DAY_MULTIPLIER`, optionally
+prefixed with a positive integer count (e.g. "8-day"). Propagates any error
+`parseTemporalResolution` raises for a malformed `<n>-<unit>` prefix.
+"""
+function isValidTimescale(timescale)
+    _, unit = parseTemporalResolution(timescale)
+    return isempty(unit) || haskey(SindbadTEM.Processes.TIMESCALE_DAY_MULTIPLIER, unit)
+end
+
+"""
     getUnitConversionForParameter(p_timescale, model_timestep)
 
 helper/wrapper function to get unit conversion factors for model parameters that are timescale dependent
@@ -457,56 +471,15 @@ function getUnitConversionForParameter(p_timescale, model_timestep)
         return isempty(p_unit) ? base_conversion : base_conversion * m_n / p_n
     end
 
-    conversion = 1
-    time_multiplier = 1
-    # time multiplier compared to daily time steps
-    if m_unit == "second"
-        time_multiplier = 1/(60* 60 * 24)
-    elseif m_unit == "minute"
-        time_multiplier = 1/(60 * 24)
-    elseif m_unit == "halfhour"
-        time_multiplier = 1/48
-    elseif m_unit == "hour"
-        time_multiplier = 1/24
-    elseif m_unit == "day"
-        time_multiplier = 1
-    elseif m_unit == "week"
-        time_multiplier = 7
-    elseif m_unit == "month"
-        time_multiplier = 30
-    elseif m_unit == "year"
-        time_multiplier = 365
-    elseif m_unit == "decade"
-        time_multiplier = 365 * 10
-    else
-        error("running model at $(model_timestep) is not supported")
-    end
+    haskey(SindbadTEM.Processes.TIMESCALE_DAY_MULTIPLIER, m_unit) || error("running model at $(model_timestep) is not supported")
+    m_days = SindbadTEM.Processes.TIMESCALE_DAY_MULTIPLIER[m_unit]
 
-    # modelling at other time steps
-    if p_unit == "second"
-        conversion = 60 * 60 * 24 * time_multiplier
-    elseif p_unit == "minute"
-        conversion = 60 * 24 * time_multiplier
-    elseif p_unit == "halfhour"
-        conversion = 48 * time_multiplier
-    elseif p_unit == "hour"
-        conversion = 24 * time_multiplier
-    elseif p_unit == "day"
-        conversion = 1 * time_multiplier
-    elseif p_unit == "week"
-        conversion = 1/7 * time_multiplier
-    elseif p_unit == "month"
-        conversion = 1/30 * time_multiplier
-    elseif p_unit == "year"
-        conversion = 1/365 * time_multiplier
-    elseif p_unit == "decade"
-        conversion = 1/(365 * 10) * time_multiplier
-    elseif isempty(p_unit)
-        conversion = 1
-    else
-        error("parameter timescale \"$(p_timescale)\" is not supported")
-    end
-    return conversion
+    isempty(p_unit) && return 1
+
+    haskey(SindbadTEM.Processes.TIMESCALE_DAY_MULTIPLIER, p_unit) || error("parameter timescale \"$(p_timescale)\" is not supported")
+    p_days = SindbadTEM.Processes.TIMESCALE_DAY_MULTIPLIER[p_unit]
+
+    return m_days / p_days
 end
 
 

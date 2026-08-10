@@ -5,7 +5,7 @@ authors = ["SINDBAD Contributors <sindbad@bgc-jena.mpg.de>"]
 description = "Core terrestrial ecosystem model types and utilities for the SINDBAD framework"
 readme = "README.md"
 repository = "https://github.com/LandEcosystems/Sindbad.jl.git"
-version = "0.1.4"
+version = "0.1.5"
 
 [deps]
 Accessors = "7d9f7c33-5ae7-4f3b-8dc6-eff91059b697"
