@@ -2,6 +2,22 @@ export wCycle_combined
 
 struct wCycle_combined <: wCycle end
 
+function checkTWSError(TWS, tolerance, ::DoNotCatchModelErrors) # when catch_model_errors is false
+    return TWS
+end
+
+function checkTWSError(TWS, tolerance, ::DoCatchModelErrors) # when catch_model_errors is true
+    if minimum(TWS) < zero(eltype(TWS))
+        if abs(minimum(TWS)) < tolerance
+            @error "Numerically small negative TWS ($(TWS)) smaller than tolerance ($(tolerance)) were replaced with absolute value of the storage"
+            TWS = abs.(TWS)
+        else
+            error("TWS is negative. Cannot continue. $(TWS)")
+        end
+    end
+    return TWS
+end
+
 function define(params::wCycle_combined, forcing, land, helpers)
     ## unpack variables
     @unpack_nt begin
@@ -27,15 +43,7 @@ function compute(params::wCycle_combined, forcing, land, helpers)
     TWS = addVec(TWS, ΔTWS)
 
     # reset soil moisture changes to zero
-    if minimum(TWS) < z_zero
-        if abs(minimum(TWS)) < tolerance
-            @error "Numerically small negative TWS ($(TWS)) smaller than tolerance ($(tolerance)) were replaced with absolute value of the storage"
-            # @assert(false, "Numerically small negative TWS ($(TWS)) smaller than tolerance ($(tolerance)) were replaced with absolute value of the storage") 
-            TWS = abs.(TWS)
-        else
-            error("TWS is negative. Cannot continue. $(TWS)")
-        end
-    end
+    TWS = checkTWSError(TWS, tolerance, helpers.run.catch_model_errors)
     ΔTWS = zeroΔTWS
 
     total_water = sum(TWS)
