@@ -22,5 +22,10 @@ function gradientSite(::EnzymeGrad, x_vals::AbstractArray, gradient_options::Nam
     # Ensure x_vals is a mutable array (Vector)
     x_vals = collect(copy(x_vals))  # Convert to a mutable array if necessary
     # x_vals = copy(x_vals)
-    return Enzyme.gradient(Forward, loss_f, x_vals)
+    # loss_f closes over mutable model state that gets written during the forward
+    # run, so Enzyme's default `Const(loss_f)` wrapping fails its readonly check.
+    # Giving it a shadow via `Duplicated` grants write permission; the shadow's
+    # contents are unused since we only need the gradient w.r.t. x_vals.
+    dup_loss_f = Enzyme.Duplicated(loss_f, Enzyme.make_zero(loss_f))
+    return Enzyme.gradient(Enzyme.set_runtime_activity(Reverse), dup_loss_f, x_vals)
 end
