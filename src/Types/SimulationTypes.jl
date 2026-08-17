@@ -220,15 +220,22 @@ purpose(::Type{Spinup_cEco}) = "Spinup spinup_mode for cEco"
 export SpinupSequence
 export SpinupSequenceWithAggregator
 
-struct SpinupSequenceWithAggregator <: SpinupTypes
+struct SpinupSequenceWithAggregator{O<:NamedTuple} <: SpinupTypes
     forcing::Symbol
     n_repeat::Int
     n_timesteps::Int
     spinup_mode::SpinupMode
-    options::NamedTuple
+    options::O
     aggregator_indices::Vector{Int}
     aggregator::Vector{TimeSample}
     aggregator_type::TimeSamplerMethod
+end
+# Parametrizing the struct on `O` makes Julia generate a strict, exact-type-match outer
+# constructor instead of the convert-based one plain structs get, which would otherwise
+# reject e.g. a concretely-eltyped `Vector{TimeSample{...}}` for the `aggregator` field.
+# This restores the old convert-based calling convention, inferring `O` from `options`.
+function SpinupSequenceWithAggregator(forcing, n_repeat, n_timesteps, spinup_mode, options::O, aggregator_indices, aggregator, aggregator_type) where {O<:NamedTuple}
+    return SpinupSequenceWithAggregator{O}(forcing, n_repeat, n_timesteps, spinup_mode, options, aggregator_indices, aggregator, aggregator_type)
 end
 purpose(::Type{SpinupSequenceWithAggregator}) = "Spinup sequence with time aggregation for corresponding forcingtime series"
 
