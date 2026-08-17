@@ -9,6 +9,7 @@ export PreAllocArray
 export PreAllocArrayAll
 export PreAllocArrayFD
 export PreAllocArrayMT
+export PreAllocArrayReactant
 export PreAllocStacked
 export PreAllocTimeseries
 export PreAllocYAXArray
@@ -27,6 +28,9 @@ purpose(::Type{PreAllocArrayFD}) = "use a preallocated array for finite differen
 
 struct PreAllocArrayMT <: PreAlloc end
 purpose(::Type{PreAllocArrayMT}) = "use arrays of nThreads size for land model output for replicates of multiple threads"
+
+struct PreAllocArrayReactant <: PreAlloc end
+purpose(::Type{PreAllocArrayReactant}) = "use a Reactant-traced preallocated array for model output, for hybrid experiments differentiated via Reactant+Enzyme"
 
 struct PreAllocStacked <: PreAlloc end
 purpose(::Type{PreAllocStacked}) = "save output as a stacked vector of land using map over temporal dimension"

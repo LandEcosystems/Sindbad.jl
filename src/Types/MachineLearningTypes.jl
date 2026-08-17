@@ -10,6 +10,7 @@ export FiniteDifferencesGrad
 export FiniteDiffGrad
 export ForwardDiffGrad
 export PolyesterForwardDiffGrad
+export ReactantGrad
 export ZygoteGrad
 
 abstract type MachineLearningGradType <: MachineLearningTypes end
@@ -28,6 +29,9 @@ purpose(::Type{ForwardDiffGrad}) = "Use ForwardDiff.jl for automatic differentia
 
 struct PolyesterForwardDiffGrad <: MachineLearningGradType end
 purpose(::Type{PolyesterForwardDiffGrad}) = "Use PolyesterForwardDiff.jl for automatic differentiation"
+
+struct ReactantGrad <: MachineLearningGradType end
+purpose(::Type{ReactantGrad}) = "Use Reactant.jl (tracing to StableHLO/MLIR) combined with Enzyme.jl for automatic differentiation"
 
 struct ZygoteGrad <: MachineLearningGradType  end
 purpose(::Type{ZygoteGrad}) = "Use Zygote.jl for automatic differentiation"
