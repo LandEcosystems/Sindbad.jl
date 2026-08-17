@@ -165,6 +165,7 @@ function getCostOptions(optim_info::NamedTuple, vars_info, tem_variables, number
     push!(all_options, agg_indices)
     push!(all_options, agg_type)
     all_props = [:variable, props_to_keep..., :obs_ind, :obs_sn, :mod_ind, :mod_field, :mod_subfield, :temporal_aggr, :temporal_aggr_type]
+    all_options = narrowEltype.(all_options)
     return (; Pair.(all_props, all_options)...)
 end
 

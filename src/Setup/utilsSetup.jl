@@ -1,5 +1,20 @@
 export getAbsDataPath
 export getSindbadDataDepot
+export narrowEltype
+
+"""
+    narrowEltype(v::AbstractVector)
+
+Rebuilds `v` with the tightest `Union` of the concrete types actually present, replacing an
+`Any` eltype accumulated from pushing into an untyped `[]`. A concrete/small-`Union` eltype
+lets Julia (and AD/tracing backends like Enzyme and Reactant that rely on static type
+inference) avoid dynamic dispatch on the column.
+"""
+function narrowEltype(v::AbstractVector)
+    isempty(v) && return v
+    T = Union{unique(typeof.(v))...}
+    return T[x for x in v]
+end
 
 """
     getAbsDataPath(info, data_path)
