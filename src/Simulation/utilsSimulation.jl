@@ -259,7 +259,7 @@ function getLocArrayView(ar::T, val::T1, ts::T2) where {T, T1<:AbstractVector, T
     return view(ar, ts, 1:size(val,1))
 end
 
-function getLocArrayView(ar::T, val::T1, ts::T2) where {T, T1<:Real, T2<:Int}
+function getLocArrayView(ar::T, val::T1, ts::T2) where {T, T1, T2<:Int}
     return view(ar, ts)
 end
 
