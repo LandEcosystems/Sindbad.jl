@@ -359,7 +359,7 @@ function subsetAndProcessYax(yax, forcing_mask, tar_dims, _data_info, info, ::Va
 
     #todo mean of the data instead of zero or nan
     # do a proper check on input type for forcing and if is not lazy do the cleanup
-    if info.experiment.exe_rules.land_output_type == "array"
+    if !(info.helpers.run.input_array_type isa InputYAXArray)
         vfill = 0.0
         if fill_nan
             vfill = NaN
