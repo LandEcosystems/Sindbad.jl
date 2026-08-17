@@ -426,15 +426,13 @@ function repElem(v::AbstractVector, v_elem, _, _, ind::Int)
     return v
 end
 
-function repElem(v::SVector, v_elem, v_zero, v_one, ind::Int)
-    n_0 = zero(first(v_zero))
-    n_1 = one(first(v_zero))
-    v_zero = v_zero .* n_0
-    v_zero = Base.setindex(v_zero, n_1, ind)
-    v_one = v_one .* n_0 .+ n_1
-    v_one = Base.setindex(v_one, n_0, ind)
-    v = v .* v_one .+ v_zero .* v_elem
-    return v
+function repElem(v::SVector{N}, v_elem, v_zero, v_one, ind::Int) where {N}
+    # `ind` is a compile-time constant at every call site, so this tuple construction
+    # unrolls to a plain per-element selection with no runtime branching. Written this
+    # way (rather than via StaticArrays' broadcast/setindex machinery) because that
+    # machinery cannot resolve a destination type when v is a plain-eltype SVector and
+    # v_elem is a traced scalar (e.g. under Reactant tracing).
+    return SVector(ntuple(i -> i == ind ? v_elem : v[i], Val(N)))
 end
 
 """

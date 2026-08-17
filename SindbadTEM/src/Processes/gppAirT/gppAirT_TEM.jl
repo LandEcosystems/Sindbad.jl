@@ -20,7 +20,7 @@ function compute(params::gppAirT_TEM, forcing, land, helpers)
     pTmin = f_airT_day - Tmin
     pTmax = f_airT_day - Tmax
     pTScGPP = pTmin * pTmax / ((pTmin * pTmax) - (f_airT_day - opt_airT)^t_two)
-    TScGPP = (f_airT_day > Tmax) || (f_airT_day < Tmin) ? z_zero : pTScGPP
+    TScGPP = ifelse((f_airT_day > Tmax) | (f_airT_day < Tmin), z_zero, pTScGPP)
     gpp_f_airT = clamp_zero_one(TScGPP)
 
     ## pack land variables

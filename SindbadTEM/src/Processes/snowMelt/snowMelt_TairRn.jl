@@ -27,7 +27,7 @@ function compute(params::snowMelt_TairRn, forcing, land, helpers)
     potential_snow_melt = (tmp_T + tmp_Rn) * frac_snow
 
     # potential snow melt if T > 0.0 deg C
-    potential_snow_melt = f_airT > z_zero ? potential_snow_melt : zero(potential_snow_melt)
+    potential_snow_melt = ifelse(f_airT > z_zero, potential_snow_melt, zero(potential_snow_melt))
     snow_melt = min(totalS(snowW, ΔsnowW), potential_snow_melt)
 
     # divide snowmelt loss equally from all layers

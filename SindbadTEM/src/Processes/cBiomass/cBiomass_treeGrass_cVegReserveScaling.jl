@@ -15,7 +15,7 @@ function compute(params::cBiomass_treeGrass_cVegReserveScaling, forcing, land, h
     aboveground_biomass = (cVegWood_sum + cVegLeaf_sum) + cVegReserve_sum * (cVegWood_sum + cVegLeaf_sum) / (cVegWood_sum + cVegLeaf_sum + cVegRoot_sum)
 
 	
-    aboveground_biomass = frac_tree > zero(frac_tree) ? aboveground_biomass : cVegWood_sum
+    aboveground_biomass = ifelse(frac_tree > zero(frac_tree), aboveground_biomass, cVegWood_sum)
 
     @pack_nt begin
         aboveground_biomass ⇒ land.states

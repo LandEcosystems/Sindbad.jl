@@ -11,7 +11,7 @@ function compute(params::cBiomass_treeGrass, forcing, land, helpers)
     cVegLeaf_sum = totalS(cVegLeaf)
     cVegWood_sum = totalS(cVegWood)
     aboveground_biomass = cVegWood_sum + cVegLeaf_sum # the assumption is that the wood and leaf pools are aboveground!
-    aboveground_biomass = frac_tree > 0 ? aboveground_biomass : cVegWood_sum
+    aboveground_biomass = ifelse(frac_tree > 0, aboveground_biomass, cVegWood_sum)
 
     @pack_nt begin
         aboveground_biomass ⇒ land.states

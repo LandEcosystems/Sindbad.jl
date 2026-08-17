@@ -34,7 +34,7 @@ function compute(params::gppAirT_CASA, forcing, land, helpers)
                (o_one + exp(opt_airT_B * (-opt_airT - exp_airT + f_airT_day))))
 
     # get the scalar
-    gpp_f_airT = f_airT_day >= opt_airT ? T2 : T1
+    gpp_f_airT = ifelse(f_airT_day >= opt_airT, T2, T1)
 
     ## pack land variables
     @pack_nt gpp_f_airT ⇒ land.diagnostics

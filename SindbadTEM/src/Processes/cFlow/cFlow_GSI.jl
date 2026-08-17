@@ -123,10 +123,12 @@ function compute(params::cFlow_GSI, forcing, land, helpers)
     k_shedding_root = min(shedding_rate, one(root_to_reserve) - root_to_reserve)
 
     # Estimate flows from reserve to leaf & root (sujan modified on
-    Re2L_i = zero(slope_leaf_root_to_reserve)
-    if c_allocation_f_soilW + c_allocation_f_cloud !== Re2L_i
-        Re2L_i = reserve_to_leaf_root * (c_allocation_f_soilW / (c_allocation_f_cloud + c_allocation_f_soilW)) # if water stressor is high, , larger fraction of reserve goes to the leaves for light acquisition
-    end
+    Re2L_i_zero = zero(slope_leaf_root_to_reserve)
+    Re2L_i = ifelse(
+        c_allocation_f_soilW + c_allocation_f_cloud != Re2L_i_zero,
+        reserve_to_leaf_root * (c_allocation_f_soilW / (c_allocation_f_cloud + c_allocation_f_soilW)), # if water stressor is high, , larger fraction of reserve goes to the leaves for light acquisition
+        Re2L_i_zero,
+    )
     Re2R_i = reserve_to_leaf_root * (one(Re2L_i) - Re2L_i) # if light stressor is high (=sufficient light), larger fraction of reserve goes to the root for water uptake
 
     # adjust the outflow rate from the flow pools

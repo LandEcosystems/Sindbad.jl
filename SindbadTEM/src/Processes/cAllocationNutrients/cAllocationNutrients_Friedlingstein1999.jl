@@ -23,7 +23,7 @@ function compute(params::cAllocationNutrients_Friedlingstein1999, forcing, land,
 
     # estimate NL
     nl = clamp(c_allocation_f_soilT * c_allocation_f_soilW, min_L, max_L)
-    NL = PET > z_zero ? nl : one(nl) #@needscheck is the else value one or zero? In matlab version was set to ones.
+    NL = ifelse(PET > z_zero, nl, one(nl)) #@needscheck is the else value one or zero? In matlab version was set to ones.
 
     # water limitation calculation
     WL = clamp(sum(PAW) / ∑w_awc, min_L, max_L)

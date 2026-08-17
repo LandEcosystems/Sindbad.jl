@@ -36,7 +36,7 @@ function compute(params::gppSoilW_CASA, forcing, land, helpers)
 
     We = base_f_soilW + OmBweOPET * sum(PAW) #@needscheck: originally, transpiration was used here but that does not make sense, as it is not calculated yet for this time step. This has been replaced by sum of plant available water.
 
-    gpp_f_soilW = clamp_zero_one((f_airT > z_zero) & (PET > z_zero) ? We : gpp_f_soilW_prev) # use the current We if the temperature and PET are favorable, else use the previous one.
+    gpp_f_soilW = clamp_zero_one(ifelse((f_airT > z_zero) & (PET > z_zero), We, gpp_f_soilW_prev)) # use the current We if the temperature and PET are favorable, else use the previous one.
 
     gpp_f_soilW_prev = gpp_f_soilW
 

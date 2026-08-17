@@ -13,7 +13,7 @@ function compute(params::snowFraction_binary, forcing, land, helpers)
 
     # if there is snow; then snow fraction is 1; otherwise 0
     tot_snow = totalS(snowW, ΔsnowW)
-    frac_snow = tot_snow > z_zero ? one(tot_snow) : zero(tot_snow)
+    frac_snow = ifelse(tot_snow > z_zero, one(tot_snow), zero(tot_snow))
 
     ## pack land variables
     @pack_nt frac_snow ⇒ land.states

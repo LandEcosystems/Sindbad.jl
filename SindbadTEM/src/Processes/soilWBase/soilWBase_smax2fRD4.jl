@@ -60,7 +60,7 @@ function compute(params::soilWBase_smax2fRD4, forcing, land, helpers)
     rootwater_capacities = repElem(rootwater_capacities, f_RDmax[1] * scalar_Fan, rootwater_capacities, rootwater_capacities, 1)
     rootwater_capacities = repElem(rootwater_capacities, f_RDeff[1] * scalar_Yang, rootwater_capacities, rootwater_capacities, 2)
     rootwater_capacities = repElem(rootwater_capacities, f_SWCmax[1] * scalar_Wang, rootwater_capacities, rootwater_capacities, 3)
-    AWC_tmp = is_invalid_number(f_AWC) ? smax_Tian : f_AWC
+    AWC_tmp = ifelse(is_invalid_number(f_AWC), smax_Tian, f_AWC)
     rootwater_capacities = repElem(rootwater_capacities, AWC_tmp * scalar_Tian, rootwater_capacities, rootwater_capacities, 4)
 
     # set the properties for each soil layer

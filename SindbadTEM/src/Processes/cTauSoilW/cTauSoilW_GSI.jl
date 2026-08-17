@@ -69,7 +69,7 @@ function fSoilW_cTau(the_one, A, B, wExp, wOpt, wSoil)
     T22 = W2C2 / ((the_one + exp(B * (wOpt - wExp - wSoil))) * (the_one + exp(B * (-wOpt - wExp + wSoil))))
 
     # combine the response curves
-    soilW_sc = wSoil >= wOpt ? T22 : W21
+    soilW_sc = ifelse(wSoil >= wOpt, T22, W21)
     return soilW_sc
 end
 

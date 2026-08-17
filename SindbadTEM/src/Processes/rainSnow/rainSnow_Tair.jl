@@ -16,13 +16,10 @@ function compute(params::rainSnow_Tair, forcing, land, helpers)
         snowW ⇐ land.pools
         ΔsnowW ⇐ land.pools
     end
-    rain = f_rain
-    snow = zero(f_rain)
+    is_snow = f_airT < airT_thres
+    rain = ifelse(is_snow, zero(f_rain), f_rain)
+    snow = ifelse(is_snow, f_rain, zero(f_rain))
     ## calculate variables
-    if f_airT < airT_thres
-        snow = f_rain
-        rain = zero(f_rain)
-    end
     precip = rain + snow
 
     # add snowfall to snowpack of the first layer

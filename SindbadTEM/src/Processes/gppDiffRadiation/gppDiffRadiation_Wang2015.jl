@@ -56,7 +56,7 @@ function compute(params::gppDiffRadiation_Wang2015, forcing, land, helpers)
 
 
     cScGPP = one(μ) - μ * (one(μ) - CI_nor)
-    gpp_f_cloud = f_rg_pot > zero(f_rg_pot) ? cScGPP : zero(cScGPP)
+    gpp_f_cloud = ifelse(f_rg_pot > zero(f_rg_pot), cScGPP, zero(cScGPP))
 
     ## pack land variables
     @pack_nt gpp_f_cloud ⇒ land.diagnostics

@@ -40,7 +40,7 @@ function compute(params::gppDiffRadiation_Turner2006, forcing, land, helpers)
     SCI = (CI - CI_min) / (CI_max - CI_min + tolerance) # @needscheck: originally, CI_min and max were calculated in the instantiate using the full time series of f_rg and f_rg_pot. Now, this is not possible, and thus min and max need to be updated on the go, and once the simulation is complete in the first cycle of forcing, it will work...
 
     cScGPP = (one(rue_ratio) - rue_ratio) * SCI + rue_ratio
-    gpp_f_cloud = f_rg_pot > z_zero ? cScGPP : zero(cScGPP)
+    gpp_f_cloud = ifelse(f_rg_pot > z_zero, cScGPP, zero(cScGPP))
 
     ## pack land variables
     @pack_nt (gpp_f_cloud, CI_min, CI_max) ⇒ land.diagnostics
