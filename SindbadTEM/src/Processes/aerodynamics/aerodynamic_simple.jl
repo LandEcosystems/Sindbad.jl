@@ -1,7 +1,7 @@
 export aerodynamic_simple
 
 #! format: off
-@bounds @describe @units @timescale @with_kw struct aerodynamic_simple{T1} <: aerodynamic
+@bounds @describe @units @timescale @with_kw struct aerodynamic_simple{T1} <: aerodynamics
     href::T1      = 10.0 | (2.0, 50.0)  | "Reference Height for windspeed" | "m" | ""
     rz0::T1       = 0.1  | (0.01, 0.5)  | "Roughness Length Ratio" | "-" | ""
     vonKarman::T1 = 0.4  | (0.35, 0.45) | "von Karman constant" | "-" | ""
@@ -15,21 +15,26 @@ function compute(params::aerodynamic_simple, forcing, land, helpers)
 
     @unpack_nt begin
         f_windspeed ⇐ forcing
+        (z_zero, o_one) ⇐ land.constants
     end
 
-
     # 1. Calculate roughness length (z0) with a safety floor for bare soil
-    z0 = max(rz0 * veg_height, 0.001)
+    z0_floor = oftype(z_zero, 0.001)
+    z0 = max(rz0 * veg_height, z0_floor)
 
-    # 2. Calculate aerodynamic Conductance (ga) [m/s]
-    # Equation: ga = (k² * u) / [ln(href / z0 + 1)]²
-    # We add 1.0 inside the log as per the JSBACH snippet to avoid log(0)
-    denom = log(href / z0 + 1.0)^2
-    aerodynamic_conductance = (vonKarman^2 * f_windspeed) / denom
+    # 2. Calculate aerodynamic conductance (ga) [m/s]
+    #    ga = (k² * u) / [ln(href / z0 + 1)]²
+    denom = log(href / z0 + o_one)^2
 
-    # 3. Calculate aerodynamic Resistance (ra) [s/m]
-    # Use a small epsilon to avoid division by zero in still air
-    aerodynamic_resistance = 1.0 / max(aerodynamic_conductance, 1e-6)
+    aerodynamic_conductance =
+        (vonKarman^2 * f_windspeed) / denom
+
+    # 3. Calculate aerodynamic resistance (ra) [s/m]
+    #    Use a small epsilon to avoid division by zero in still air
+    ga_floor = oftype(aerodynamic_conductance, 1e-6)
+
+    aerodynamic_resistance =
+        o_one / max(aerodynamic_conductance, ga_floor)
 
     @pack_nt begin
         aerodynamic_resistance ⇒ land.diagnostics
