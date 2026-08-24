@@ -1,7 +1,7 @@
-export aerodynamic_simple
+export aerodynamics_simple
 
 #! format: off
-@bounds @describe @units @timescale @with_kw struct aerodynamic_simple{T1} <: aerodynamics
+@bounds @describe @units @timescale @with_kw struct aerodynamics_simple{T1} <: aerodynamics
     href::T1      = 10.0 | (2.0, 50.0)  | "Reference Height for windspeed" | "m" | ""
     rz0::T1       = 0.1  | (0.01, 0.5)  | "Roughness Length Ratio" | "-" | ""
     vonKarman::T1 = 0.4  | (0.35, 0.45) | "von Karman constant" | "-" | ""
@@ -9,9 +9,9 @@ export aerodynamic_simple
 end
 #! format: on
 
-function compute(params::aerodynamic_simple, forcing, land, helpers)
+function compute(params::aerodynamics_simple, forcing, land, helpers)
 
-    @unpack_aerodynamic_simple params
+    @unpack_aerodynamics_simple params
 
     @unpack_nt begin
         f_windspeed ⇐ forcing
@@ -44,11 +44,11 @@ function compute(params::aerodynamic_simple, forcing, land, helpers)
     return land
 end
 
-purpose(::Type{aerodynamic_simple}) =
+purpose(::Type{aerodynamics_simple}) =
     "Calculates aerodynamic resistance (ra) based on the logarithmic wind profile used in JSBACH."
 
 @doc """
-    $(getModelDocString(aerodynamic_simple))
+    $(getModelDocString(aerodynamics_simple))
 
 ---
 
@@ -65,4 +65,4 @@ Where:
 - href: reference measurement height (m)
 - rz0: ratio of roughness length to vegetation height
 """
-aerodynamic_simple
+aerodynamics_simple
