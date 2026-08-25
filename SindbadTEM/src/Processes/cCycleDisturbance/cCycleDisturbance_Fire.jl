@@ -1,10 +1,10 @@
-export cCycleDisturbance_WROASTED
+export cCycleDisturbance_Fire
 
 #! format: off
-struct cCycleDisturbance_WROASTED <: cCycleDisturbance end
+struct cCycleDisturbance_Fire <: cCycleDisturbance end
 #! format: on
 
-function define(params::cCycleDisturbance_WROASTED, forcing, land, helpers)
+function define(params::cCycleDisturbance_Fire, forcing, land, helpers)
     @unpack_nt begin
         (c_giver, c_taker) ⇐ land.constants
         cVeg ⇐ land.pools
@@ -42,7 +42,7 @@ function define(params::cCycleDisturbance_WROASTED, forcing, land, helpers)
     return land
 end
 
-function compute(params::cCycleDisturbance_WROASTED, forcing, land, helpers)
+function compute(params::cCycleDisturbance_Fire, forcing, land, helpers)
     ## unpack forcing
     @unpack_nt f_dist_intensity ⇐ forcing
 
@@ -70,11 +70,11 @@ function compute(params::cCycleDisturbance_WROASTED, forcing, land, helpers)
     return land
 end
 
-purpose(::Type{cCycleDisturbance_WROASTED}) = "Moves carbon in reserve pool to slow litter pool, and all other carbon pools except reserve pool to their respective carbon flow target pools during disturbance events."
+purpose(::Type{cCycleDisturbance_Fire}) = "Moves carbon in reserve pool to slow litter pool, and all other carbon pools except reserve pool to their respective carbon flow target pools during disturbance events."
 
 @doc """
 
-$(getModelDocString(cCycleDisturbance_WROASTED))
+$(getModelDocString(cCycleDisturbance_Fire))
 
 ---
 
@@ -91,4 +91,4 @@ $(getModelDocString(cCycleDisturbance_WROASTED))
 *Created by*
  - skoirala | @dr-ko
 """
-cCycleDisturbance_WROASTED
+cCycleDisturbance_Fire
