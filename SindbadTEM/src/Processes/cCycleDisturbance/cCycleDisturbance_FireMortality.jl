@@ -87,7 +87,7 @@ function compute(params::cCycleDisturbance_FireMortality, forcing, land, helpers
         for zixVeg ∈ zix_veg_all
             # total mortality fraction of vegetation pool
             f_loss = c_fVegDieOff + c_fire_fba * c_Fire_k[zixVeg]
-            cLoss = maxZero(cEco[zixVeg] - c_remain) * f_loss
+            cLoss = at_least_zero(cEco[zixVeg] - c_remain) * f_loss
             # part that is combusted and that goes to the litter pools
             cLossFire = cLoss * (c_fire_fba * c_Fire_k[zixVeg]) / f_loss * c_Fire_cci[zixVeg] # ? if f_loss is zero this is undefined
             cLossSoil = cLoss - cLossFire
@@ -109,7 +109,7 @@ function compute(params::cCycleDisturbance_FireMortality, forcing, land, helpers
         for zixDead ∈ (zix.cLit..., zix.cSoil...)
             # total combustion from pool
             f_loss = c_fire_fba * c_Fire_cci[zixDead]
-            cLoss = maxZero(cEco[zixDead] * f_loss)
+            cLoss = at_least_zero(cEco[zixDead] * f_loss)
             cLossFire = cLoss
             # deplet pool
             @add_to_elem -cLoss ⇒ (cEco, zixDead, :cEco) # ? this one is also a new addition
