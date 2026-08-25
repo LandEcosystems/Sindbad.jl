@@ -1,10 +1,10 @@
-export cCycleDisturbance_WROASTEDMortality
+export cCycleDisturbance_FireMortality
 
 #! format: off
-struct cCycleDisturbance_WROASTEDMortality <: cCycleDisturbance end
+struct cCycleDisturbance_FireMortality <: cCycleDisturbance end
 #! format: on
 
-function define(params::cCycleDisturbance_WROASTEDMortality, forcing, land, helpers)
+function define(params::cCycleDisturbance_FireMortality, forcing, land, helpers)
     @unpack_nt begin
         (c_giver, c_taker) ⇐ land.constants
         (cVeg, cEco) ⇐ land.pools
@@ -16,7 +16,18 @@ function define(params::cCycleDisturbance_WROASTEDMortality, forcing, land, help
     for zixVeg ∈ zix_veg_all
         # make reserve pool flow to slow litter pool/woody debris
         if helpers.pools.components.cEco[zixVeg] == :cVegReserve
-            c_lose_to_zix = helpers.pools.zix.cLitSlow
+            # c_lose_to_zix = helpers.pools.zix.cLitSlow
+            # instead of just going in cLitSlow, which can be very specific to the WROASTED model structure
+            c_lose_to_zix = something(
+                (
+                    hasproperty(helpers.pools.zix, p) ? getproperty(helpers.pools.zix, p) : 
+                    nothing for p in (:cLitSlow, :cLitFast, :cLit, :cSoilSlow, :cSoilOld, :cSoil)
+                )..., 
+            nothing)
+            isnothing(c_lose_to_zix) && 
+                error(
+                    "Not clear where to which litter/soil pool send dead cVegReserve: expected cLitSlow, cLitFast, cLit, cSoilSlow, cSoilOld or cSoil"
+                )
         else
             c_lose_to_zix = c_taker[[(c_giver .== zixVeg)...]]
         end
@@ -44,7 +55,7 @@ function define(params::cCycleDisturbance_WROASTEDMortality, forcing, land, help
     return land
 end
 
-function compute(params::cCycleDisturbance_WROASTEDMortality, forcing, land, helpers)
+function compute(params::cCycleDisturbance_FireMortality, forcing, land, helpers)
     ## unpack disturbance variables
     @unpack_nt begin
         # for vegetation die-off
@@ -120,11 +131,11 @@ function compute(params::cCycleDisturbance_WROASTEDMortality, forcing, land, hel
     return land
 end
 
-purpose(::Type{cCycleDisturbance_WROASTEDMortality}) = "This is used for vegetation die-off and fire disturbance events. Moves carbon in reserve pool to slow litter pool, and all other carbon pools except reserve pool to their respective carbon flow target pools during disturbance events."
+purpose(::Type{cCycleDisturbance_FireMortality}) = "This is used for vegetation die-off and fire disturbance events. Moves carbon in reserve pool to slow litter pool, and all other carbon pools except reserve pool to their respective carbon flow target pools during disturbance events."
 
 @doc """
 
-$(getModelDocString(cCycleDisturbance_WROASTEDMortality))
+$(getModelDocString(cCycleDisturbance_FireMortality))
 
 ---
 
@@ -133,4 +144,4 @@ $(getModelDocString(cCycleDisturbance_WROASTEDMortality))
 *Created by*
     - Nuno | nunocarvalhais
 """
-cCycleDisturbance_WROASTEDMortality
+cCycleDisturbance_FireMortality

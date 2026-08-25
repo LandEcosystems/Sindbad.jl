@@ -14,7 +14,18 @@ function define(params::cCycleDisturbance_WROASTED, forcing, land, helpers)
     for zixVeg ∈ zix_veg_all
         # make reserve pool flow to slow litter pool/woody debris
         if helpers.pools.components.cEco[zixVeg] == :cVegReserve
-            c_lose_to_zix = collect(helpers.pools.zix.cLitSlow)
+            # c_lose_to_zix = helpers.pools.zix.cLitSlow
+            # instead of just going in cLitSlow, which can be very specific to the WROASTED model structure
+            c_lose_to_zix = something(
+                (
+                    hasproperty(helpers.pools.zix, p) ? getproperty(helpers.pools.zix, p) : 
+                    nothing for p in (:cLitSlow, :cLitFast, :cLit, :cSoilSlow, :cSoilOld, :cSoil)
+                )..., 
+            nothing)
+            isnothing(c_lose_to_zix) && 
+                error(
+                    "Not clear where to which litter/soil pool send dead cVegReserve: expected cLitSlow, cLitFast, cLit, cSoilSlow, cSoilOld or cSoil"
+                )
         else
             c_lose_to_zix = c_taker[[(c_giver .== zixVeg)...]]
         end
