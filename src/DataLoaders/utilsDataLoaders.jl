@@ -358,7 +358,6 @@ function subsetAndProcessYax(yax, forcing_mask, tar_dims, _data_info, info, ::Va
     end
 
     #todo mean of the data instead of zero or nan
-    # do a proper check on input type for forcing and if is not lazy do the cleanup
     if info.helpers.run.run_lazy isa DoNotRunLazy
         vfill = 0.0
         if fill_nan
