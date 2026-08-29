@@ -43,6 +43,27 @@
     "cCycleBase": {
         "approach": "GSI_PlantForm"
     },
+    "cMicrobialEfficiency": {
+      "approach": "texture"
+    },
+    "cQualityPartition": {
+      "approach": "none"
+    },
+    "cCropHarvestIntensity": {
+      "approach": "none"
+    },
+    "cCropHarvestEfficiency": {
+      "approach": "none"
+    },
+    "cForestryHarvestIntensity": {
+      "approach": "none"
+    },
+    "cForestryHarvestEfficiency": {
+      "approach": "none"
+    },
+    "cCycleManagement": {
+      "approach": "none"
+    },
     "cCycleConsistency": {
       "approach": "simple"
     },
@@ -63,17 +84,11 @@
         "use_in_spinup": false
       },
     "cCycleDisturbance": {
-        "approach": "WROASTEDMortality",
+        "approach": "FireMortality",
       "use_in_spinup": false
     },
     "cFlow": {
       "approach": "GSI"
-    },
-    "cFlowSoilProperties": {
-      "approach": "none"
-    },
-    "cFlowVegProperties": {
-      "approach": "none"
     },
     "cTau": {
       "approach": "mult"
