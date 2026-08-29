@@ -50,11 +50,9 @@ function compute(params::cCycle_GSI, forcing, land, helpers)
     for zix ∈ (zix_cLit, zix_cSoil, zix_cProducts)
         for i ∈ zix
             tmp = zero(c_eco_efflux[i])
-            @rep_elem tmp ⇒ (c_eco_efflux, zix, :cEco)
+            @rep_elem tmp ⇒ (c_eco_efflux, i, :cEco)
         end
     end
-
-    @show c_eco_efflux
 
     ## compute losses
     for cl ∈ eachindex(cEco)
