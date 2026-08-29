@@ -72,8 +72,14 @@ function compute(params::cCycle_simple, forcing, land, helpers)
         fO = c_flow_order[jix]
         take_r = c_taker[fO]
         give_r = c_giver[fO]
+        # carbon coming into another pool
         tmp_flow = c_eco_flow[take_r] + c_eco_out[give_r] * c_flow_A_vec[take_r, give_r]
         @rep_elem tmp_flow ⇒ (c_eco_flow, take_r, :cEco)
+        # efflux from non vegetation pools
+        if give_r ∉ getZix(cVeg, helpers.pools.zix.cVeg)
+            tmp_efflux = c_eco_efflux[give_r] + c_eco_out[give_r] * (1.0 - c_flow_A_vec[take_r, give_r])
+            @rep_elem tmp_efflux ⇒ (c_eco_efflux, give_r, :cEco)
+        end
     end
     # for jix = 1:length(p_taker)
     # c_taker = p_taker[jix]

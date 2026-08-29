@@ -90,9 +90,9 @@ function compute(params::cCycleManagement_Harvest, forcing, land, helpers)
         @rep_elem z_zero ⇒ (c_Wood_Harvest_Product, izix, :cEco)
         @rep_elem z_zero ⇒ (c_Wood_Harvest_Mortality, izix, :cEco)
     
-        @rep_elem cEco[izix] * frac_crop_harvest_intensity * is_crop_harvest[izix] ⇒ (c_Crop_Harvest_Mortality, izix, :cEco)
-        @rep_elem cEco[izix] * frac_crop_harvest_intensity * frac_crop_harvest_efficiency * is_wood_harvest[izix] ⇒ (c_Crop_Harvest_Product, izix, :cEco)
-        @rep_elem cEco[izix] * frac_wood_harvest_intensity * is_wood_harvest[izix] ⇒ (c_Wood_Harvest_Mortality, izix, :cEco)
+        @rep_elem cEco[izix] * frac_crop_harvest_intensity ⇒ (c_Crop_Harvest_Mortality, izix, :cEco)
+        @rep_elem cEco[izix] * frac_crop_harvest_intensity * frac_crop_harvest_efficiency * is_crop_harvest[izix] ⇒ (c_Crop_Harvest_Product, izix, :cEco)
+        @rep_elem cEco[izix] * frac_wood_harvest_intensity ⇒ (c_Wood_Harvest_Mortality, izix, :cEco)
         @rep_elem cEco[izix] * frac_wood_harvest_intensity * frac_wood_harvest_efficiency * is_wood_harvest[izix] ⇒ (c_Wood_Harvest_Product, izix, :cEco)
     end
 

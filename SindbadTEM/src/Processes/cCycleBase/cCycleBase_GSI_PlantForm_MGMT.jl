@@ -30,6 +30,10 @@ export cCycleBase_GSI_PlantForm_MGMT, adjustPackPoolComponents
     c_τ_Reserve_scalar::T5 = 1.0 | (0.25, 4) | "scalar for Reserve does not respire, but has a small value to avoid numerical error" | "-" | ""
     c_τ_Soil_scalar::T6 = 1.0 | (0.25, 4) | "scalar for turnover rate of soil carbon pool" | "-" | ""
 
+#    c_τ_tree::T7 = Float64.(1.0 ./ [1.0, 50.0, 1.0, 50]) | (1 ./[4.0, 200.0, 4.0, 200.0], 1 ./[0.25, 12.5, 0.25, 12.5]) | "turnover of different organs of trees" | "year-1" | "year"
+#    c_τ_shrub::T8 = Float64.(1.0 ./ [1.0, 5.0, 1.0, 2]) | (1 ./[4.0, 20.0, 4.0, 20], 1 ./[0.25, 1.25, 0.25, 1.25]) | "turnover of different organs of shrubs" | "year-1" | "year"
+#    c_τ_herb::T9 = Float64.(1.0 ./ [0.75, 0.75, 0.75, 1.5]) | (1 ./[3.0, 3.0, 3.0, 6], 1 ./[0.1875, 0.1875, 0.1875, 0.375]) | "turnover of different organs of herbs" | "year-1" | "year"
+
     c_τ_tree::T7 = Float64.(1.0 ./ [1.0, 50.0, 1.0, 1.0e11]) | (1 ./[4.0, 200.0, 4.0, 4.0e11], 1 ./[0.25, 12.5, 0.25, 0.25e11]) | "turnover of different organs of trees" | "year-1" | "year"
     c_τ_shrub::T8 = Float64.(1.0 ./ [1.0, 5.0, 1.0, 1.0e11]) | (1 ./[4.0, 20.0, 4.0, 4.0e11], 1 ./[0.25, 1.25, 0.25, 0.25e11]) | "turnover of different organs of shrubs" | "year-1" | "year"
     c_τ_herb::T9 = Float64.(1.0 ./ [0.75, 0.75, 0.75, 0.75e11]) | (1 ./[3.0, 3.0, 3.0, 3.0e11], 1 ./[0.1875, 0.1875, 0.1875, 0.1875e11]) | "turnover of different organs of herbs" | "year-1" | "year"
@@ -47,13 +51,13 @@ export cCycleBase_GSI_PlantForm_MGMT, adjustPackPoolComponents
                      0.0 -1.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
                      0.0 0.0 -1.0 1.0 0.0 0.0 0.0 0.0 0.0 0.0
                      1.0 0.0 1.0 -1.0 0.0 0.0 0.0 0.0 0.0 0.0
-                     1.0 0.0 1.0 0.0 -1.0 0.0 0.0 0.0 0.0 0.0
+                     1.0 0.0 1.0 1.0 -1.0 0.0 0.0 0.0 0.0 0.0
                      0.0 1.0 0.0 0.0 0.0 -1.0 0.0 0.0 0.0 0.0
                      0.0 0.0 0.0 0.0 1.0 1.0 -1.0 0.0 0.0 0.0
                      0.0 0.0 0.0 0.0 0.0 0.0 1.0 -1.0 0.0 0.0
                      0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 -1.0 0.0
                      0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 -1.0
-                 ]) | (-Inf, Inf) | "Transfer matrix for carbon at ecosystem level" | "" | ""
+                 ]) | (-Inf, Inf) | "Transfer matrix links for carbon at ecosystem level per time step." | "" | ""
     p_C_to_N_cVeg::T17 = Float64.([25.0, 260.0, 260.0, 10.0]) | (-Inf, Inf) | "carbon to nitrogen ratio in vegetation pools" | "gC/gN" | ""
     ηH::T18 = 1.0 | (0.125, 8.0) | "scaling factor for heterotrophic pools after spinup" | "" | ""
     ηA::T19 = 1.0 | (0.25, 4.0) | "scaling factor for vegetation pools after spinup" | "" | ""
@@ -69,7 +73,7 @@ function define(params::cCycleBase_GSI_PlantForm_MGMT, forcing, land, helpers)
     end
     ## Instantiate variables
     C_to_N_cVeg = zero(cEco) #sujan
-    # C_to_N_cVeg[getZix(land.pools.cVeg, helpers.pools.zix.cVeg)] .= p_C_to_N_cVeg
+    # C_to_N_cVeg[getZix(land.pools.cVeg, helpers.pools.zix.cVeg)] .= p_C_to_N_cVeg # not used...
     c_eco_k_base = zero(cEco)
     c_eco_τ = zero(cEco)
 
@@ -119,7 +123,6 @@ function precompute(params::cCycleBase_GSI_PlantForm_MGMT, forcing, land, helper
     end
 
     c_τ_Root, c_τ_Wood, c_τ_Leaf, c_τ_Reserve = get_c_τ(c_τ_pf, params)
-    # @show plant_form, c_τ_Root, c_τ_Wood, c_τ_Leaf, c_τ_Reserve, c_τ_pf
     @rep_elem c_τ_Root * c_τ_Root_scalar ⇒ (c_eco_τ, 1, :cEco)
     @rep_elem c_τ_Wood * c_τ_Wood_scalar ⇒ (c_eco_τ, 2, :cEco)
     @rep_elem c_τ_Leaf * c_τ_Leaf_scalar ⇒ (c_eco_τ, 3, :cEco)
@@ -128,7 +131,6 @@ function precompute(params::cCycleBase_GSI_PlantForm_MGMT, forcing, land, helper
     @rep_elem c_τ_LitSlow * c_τ_Litter_scalar ⇒ (c_eco_τ, 6, :cEco)
     @rep_elem c_τ_SoilSlow * c_τ_Soil_scalar ⇒ (c_eco_τ, 7, :cEco)
     @rep_elem c_τ_SoilOld * c_τ_Soil_scalar ⇒ (c_eco_τ, 8, :cEco)
-
 
     vegZix = getZix(land.pools.cVeg, helpers.pools.zix.cVeg)
     for ix ∈ eachindex(vegZix)
@@ -159,6 +161,8 @@ function adjustPackPoolComponents(land, helpers, ::cCycleBase_GSI_PlantForm_MGMT
         cLitSlow,
         cSoilSlow,
         cSoilOld,
+        cProductsWood,
+        cProductsCrop,
         cEco) ⇐ land.pools
 
     zix = helpers.pools.zix
@@ -205,6 +209,14 @@ function adjustPackPoolComponents(land, helpers, ::cCycleBase_GSI_PlantForm_MGMT
     for (lc, l) in enumerate(zix.cSoilOld)
         @rep_elem cEco[l] ⇒ (cSoilOld, lc, :cSoilOld)
     end
+
+    for (lc, l) in enumerate(zix.cProductsWood)
+        @rep_elem cEco[l] ⇒ (cProductsWood, lc, :cProductsWood)
+    end
+
+    for (lc, l) in enumerate(zix.cProductsCrop)
+        @rep_elem cEco[l] ⇒ (cProductsCrop, lc, :cProductsCrop)
+    end
     @pack_nt (cVeg,
         cLit,
         cSoil,
@@ -216,6 +228,8 @@ function adjustPackPoolComponents(land, helpers, ::cCycleBase_GSI_PlantForm_MGMT
         cLitSlow,
         cSoilSlow,
         cSoilOld,
+        cProductsWood,
+        cProductsCrop,
         cEco) ⇒ land.pools
     return land
 end
