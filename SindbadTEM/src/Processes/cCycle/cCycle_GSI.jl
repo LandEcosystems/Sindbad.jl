@@ -48,8 +48,10 @@ function compute(params::cCycle_GSI, forcing, land, helpers)
 
     # reset the c_eco_efflux to zero, except for cVeg
     for zix ∈ (zix_cLit, zix_cSoil, zix_cProducts)
-        tmp = zero(c_eco_efflux[zix])
-        @rep_elem tmp ⇒ (c_eco_efflux, zix, :cEco)
+        for i ∈ zix
+            tmp = zero(c_eco_efflux[zix])
+            @rep_elem tmp ⇒ (c_eco_efflux, zix, :cEco)
+        end
     end
 
     @show c_eco_efflux
