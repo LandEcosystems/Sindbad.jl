@@ -7,6 +7,7 @@ function compute(params::cFlow_simple, forcing, land, helpers)
     ## unpack land variables
     @unpack_nt c_flow_A_array ⇐ land.diagnostics
 
+# needs revamp
     ## calculate variables
     #@nc : this needs to go in the full..
     # Do A matrix..
@@ -23,6 +24,7 @@ function compute(params::cFlow_simple, forcing, land, helpers)
             error("ERR : cFlowAct_simple : " * "length(c_flow_order) != length(c_taker)")
         end
     end
+# needs revamp
 
     ## pack land variables
     @pack_nt begin
