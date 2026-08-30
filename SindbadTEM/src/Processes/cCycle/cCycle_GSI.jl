@@ -14,12 +14,21 @@ function define(params::cCycle_GSI, forcing, land, helpers)
     c_eco_npp = zero(cEco)
 
     cEco_prev = cEco
-    ## pack land variables
+    # save the zix for cVeg, cLit, cSoil, and cProducts
+    zix_cVeg = getZix(land.pools.cVeg, helpers.pools.zix.cVeg)
+    zix_cLit = getZix(land.pools.cLit, helpers.pools.zix.cLit)
+    zix_cSoil = getZix(land.pools.cSoil, helpers.pools.zix.cSoil)
+    zix_cProducts = getZix(land.pools.cProducts, helpers.pools.zix.cProducts)
 
+    zix_cLit_cSoil_cProducts = (zix_cLit..., zix_cSoil..., zix_cProducts...)
+    zix_cVeg_cLit_cSoil = (zix_cVeg..., zix_cLit..., zix_cSoil...)
+    zix_cLit_cSoil = (zix_cLit..., zix_cSoil...)
+    ## pack land variables
     @pack_nt begin
         (c_eco_flow, c_eco_influx, c_eco_out, c_eco_npp, zero_c_eco_flow, zero_c_eco_influx) ⇒ land.fluxes
         cEco_prev ⇒ land.states
         ΔcEco ⇒ land.pools
+        (zix_cLit_cSoil_cProducts, zix_cVeg_cLit_cSoil, zix_cLit_cSoil) ⇒ land.cCycle
     end
     return land
 end
@@ -35,10 +44,8 @@ function compute(params::cCycle_GSI, forcing, land, helpers)
         gpp ⇐ land.fluxes
         (c_flow_order, c_giver, c_taker) ⇐ land.constants
         c_model ⇐ land.models
+        (zix_cLit_cSoil_cProducts, zix_cVeg_cLit_cSoil, zix_cLit_cSoil) ⇐ land.cCycle
     end
-    zix_cVeg = getZix(land.pools.cVeg, helpers.pools.zix.cVeg)
-    zix_cLit = getZix(land.pools.cLit, helpers.pools.zix.cLit)
-    zix_cSoil = getZix(land.pools.cSoil, helpers.pools.zix.cSoil)
     zix_cProducts = getZix(land.pools.cProducts, helpers.pools.zix.cProducts)
 
     ## reset ecoflow and influx to be zero at every time step
@@ -47,11 +54,9 @@ function compute(params::cCycle_GSI, forcing, land, helpers)
     # @rep_vec ΔcEco ⇒ ΔcEco .* z_zero
 
     # reset the c_eco_efflux to zero, except for cVeg
-    for zix ∈ (zix_cLit, zix_cSoil, zix_cProducts)
-        for i ∈ zix
-            tmp = zero(c_eco_efflux[i])
-            @rep_elem tmp ⇒ (c_eco_efflux, i, :cEco)
-        end
+    for zix ∈ zix_cLit_cSoil_cProducts
+        tmp = zero(c_eco_efflux[zix])
+        @rep_elem tmp ⇒ (c_eco_efflux, zix, :cEco)
     end
 
     ## compute losses
@@ -95,23 +100,30 @@ function compute(params::cCycle_GSI, forcing, land, helpers)
     npp = totalS(c_eco_npp)
     auto_respiration = gpp - npp
 
-    eco_respiration = sum(
-        c_eco_efflux[i]
-            for zix in (zix_cVeg, zix_cLit, zix_cSoil)
-                for i in zix
-        )
-    
-    hetero_respiration = sum(
-        c_eco_efflux[i]
-            for zix in (zix_cLit, zix_cSoil)
-                for i in zix
-        )
+    eco_respiration = totalS_indices(c_eco_efflux, zix_cVeg_cLit_cSoil)
 
-    product_respiration = sum(
-        c_eco_efflux[i]
-            for zix in (zix_cProducts)
-                for i in zix
-        )
+    hetero_respiration = totalS_indices(c_eco_efflux, zix_cLit_cSoil)
+
+    product_respiration = totalS_indices(c_eco_efflux, zix_cProducts)
+
+
+    # eco_respiration = sum(
+    #     c_eco_efflux[i]
+    #         for zix in zix_cVeg_cLit_cSoil
+    #             for i in zix
+    #     )
+    
+    # hetero_respiration = sum(
+    #     c_eco_efflux[i]
+    #         for zix in zix_cLit_cSoil
+    #             for i in zix
+    #     )
+
+    # product_respiration = sum(
+    #     c_eco_efflux[i]
+    #         for zix in zix_cProducts
+    #             for i in zix
+    #     )
     
     nee = eco_respiration - gpp
     nbp = - (eco_respiration + product_respiration - gpp)
