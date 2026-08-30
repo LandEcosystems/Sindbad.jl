@@ -2,7 +2,7 @@ export cMicrobialEfficiency
 
 abstract type cMicrobialEfficiency <: LandEcosystem end
 
-purpose(::Type{cMicrobialEfficiency}) = "Determine flow-specific microbial carbon-transfer efficiency during litter and soil decomposition. The diagnostic c_ME_vec is aligned with c_flow_order/c_giver/c_taker and represents the old CASA p_E efficiency term."
+purpose(::Type{cMicrobialEfficiency}) = "Determine flow-specific microbial carbon-transfer efficiency during litter and soil decomposition. The diagnostic c_flow_ME_vec is aligned with c_flow_order/c_giver/c_taker and represents the old CASA p_E efficiency term."
 
 includeApproaches(cMicrobialEfficiency, @__DIR__)
 
@@ -12,7 +12,7 @@ includeApproaches(cMicrobialEfficiency, @__DIR__)
 ---
 # Extended help
 
-`cMicrobialEfficiency` provides `c_ME_vec`, a flow-aligned diagnostic containing
+`cMicrobialEfficiency` provides `c_flow_ME_vec`, a flow-aligned diagnostic containing
 one efficiency value for each active carbon transfer defined by
 `c_flow_order`, `c_giver`, and `c_taker`.
 
