@@ -1,4 +1,5 @@
 export getAllSpinupForcing
+export accumulateSpinupForcing
 
 """
     getAllSpinupForcing(forcing, spin_seq, tem_helpers)
@@ -22,16 +23,33 @@ julia> # spinup_forcing = getAllSpinupForcing(forcing, spin_sequences, tem_helpe
 ```
 """
 function getAllSpinupForcing(forcing, spin_sequences::Tuple{Vararg{SpinupSequenceWithAggregator}}, tem_helpers)
-    spinup_forcing = (;)
-    for seq ∈ spin_sequences
-        forc = getfield(seq, :forcing)
-        forc_name = forc
-        if forc_name ∉ keys(spinup_forcing)
-            seq_forc = getSpinupForcing(forcing, seq, tem_helpers.vals.forcing_types)
-            spinup_forcing = set_namedtuple_field(spinup_forcing, (forc_name, seq_forc))
-        end
+    return accumulateSpinupForcing(spin_sequences, forcing, tem_helpers, (;))
+end
+
+"""
+    accumulateSpinupForcing(spin_sequences, forcing, tem_helpers, spinup_forcing)
+
+Derive the spinup forcing for each sequence in `spin_sequences` and collect them into a NamedTuple keyed by the forcing name, deriving each distinct name only once.
+
+# Arguments:
+- `spin_sequences`: a tuple of spinup sequences still to be processed
+- `forcing`: a forcing NT that contains the forcing time series set for a location
+- `tem_helpers`: helper NT with necessary objects for model run and type consistencies
+- `spinup_forcing`: the NamedTuple of forcings accumulated so far
+
+# Notes:
+- The sequences are consumed recursively with `Base.tail` rather than with a `for` loop, so that each sequence is handled by its own method specialisation. The forcing name is read from the sequence's type parameter, which lets the "already derived" check resolve at compile time.
+"""
+function accumulateSpinupForcing end
+
+accumulateSpinupForcing(::Tuple{}, _, _, spinup_forcing) = spinup_forcing
+
+function accumulateSpinupForcing(spin_sequences::Tuple{SpinupSequenceWithAggregator{F},Vararg}, forcing, tem_helpers, spinup_forcing) where {F}
+    if F ∉ keys(spinup_forcing)
+        seq_forc = getSpinupForcing(forcing, first(spin_sequences), tem_helpers.vals.forcing_types)
+        spinup_forcing = set_namedtuple_field(spinup_forcing, (F, seq_forc))
     end
-    return spinup_forcing
+    return accumulateSpinupForcing(Base.tail(spin_sequences), forcing, tem_helpers, spinup_forcing)
 end
 
 """

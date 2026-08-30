@@ -220,7 +220,7 @@ purpose(::Type{Spinup_cEco}) = "Spinup spinup_mode for cEco"
 export SpinupSequence
 export SpinupSequenceWithAggregator
 
-struct SpinupSequenceWithAggregator{M<:SpinupMode} <: SpinupTypes
+struct SpinupSequenceWithAggregator{F,M<:SpinupMode} <: SpinupTypes
     forcing::Symbol
     n_repeat::Int
     n_timesteps::Int
@@ -229,6 +229,12 @@ struct SpinupSequenceWithAggregator{M<:SpinupMode} <: SpinupTypes
     aggregator_indices::Vector{Int}
     aggregator::Vector{TimeSample}
     aggregator_type::TimeSamplerMethod
+end
+
+# The forcing name is carried as the type parameter `F` as well as in the field, so that
+# looking the sequence's forcing up in the spinup forcing NamedTuple resolves at compile time.
+function SpinupSequenceWithAggregator(forcing::Symbol, n_repeat, n_timesteps, spinup_mode::M, options, aggregator_indices, aggregator, aggregator_type) where {M<:SpinupMode}
+    return SpinupSequenceWithAggregator{forcing,M}(forcing, n_repeat, n_timesteps, spinup_mode, options, aggregator_indices, aggregator, aggregator_type)
 end
 purpose(::Type{SpinupSequenceWithAggregator}) = "Spinup sequence with time aggregation for corresponding forcingtime series"
 

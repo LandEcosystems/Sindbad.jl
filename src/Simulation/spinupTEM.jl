@@ -1,5 +1,6 @@
 export spinup
 export spinupTEM
+export runSpinupSequences
 export timeLoopTEMSpinup
 
 """
@@ -466,18 +467,41 @@ function spinupTEM end
 
 function spinupTEM(selected_models, spinup_forcings, loc_forcing_t, land, tem_info, ::DoSpinupTEM)
     land = setSpinupLog(land, 1, tem_info.run.store_spinup)
-    log_index = 2
-    for spin_seq ∈ tem_info.spinup_sequence
-        forc_name = spin_seq.forcing
-        n_timesteps = spin_seq.n_timesteps
-        n_repeat = spin_seq.n_repeat
-        spinup_mode = spin_seq.spinup_mode
-        @debug "Spinup: \n         spinup_mode: $(nameof(typeof(spinup_mode))), forcing: $(forc_name)"
-        sel_forcing = sequenceForcing(spinup_forcings, forc_name)
-        land = spinupSequence(selected_models, sel_forcing, loc_forcing_t, land, tem_info, n_timesteps, log_index, n_repeat, spinup_mode)
-        log_index += n_repeat
-    end
+    land, _ = runSpinupSequences(tem_info.spinup_sequence, selected_models, spinup_forcings, loc_forcing_t, land, tem_info, 2)
     return land
+end
+
+"""
+    runSpinupSequences(spin_seqs, selected_models, spinup_forcings, loc_forcing_t, land, tem_info, log_index)
+
+Runs every spinup sequence of `spin_seqs` in order, threading `land` and the spinup log index through the sequences.
+
+# Arguments:
+- `spin_seqs`: a tuple of spinup sequences, each with the forcing name, number of timesteps, number of repeats, and the spinup mode
+- `selected_models`: a tuple of all models selected in the given model structure
+- `spinup_forcings`: a forcing NT with one entry per distinct spinup forcing name
+- `loc_forcing_t`: a forcing NT for a single location and a single time step
+- `land`: SINDBAD NT input to the spinup of TEM during which subfield(s) of pools are overwritten
+- `tem_info`: helper NT with necessary objects for model run and type consistencies
+- `log_index`: the index in the spinup log at which the next sequence starts writing
+
+# Returns:
+- a tuple of the updated `land` and the next free `log_index`
+
+# Notes:
+- The sequences are consumed recursively with `Base.tail` rather than with a `for` loop. `spin_seqs` is a heterogeneous tuple, so a `for` loop indexes it with a runtime state, which puts the whole tuple and every extracted element on the heap once per iteration. Recursion specialises one method per sequence and removes those allocations.
+"""
+function runSpinupSequences end
+
+runSpinupSequences(::Tuple{}, _, _, _, land, _, log_index) = (land, log_index)
+
+function runSpinupSequences(spin_seqs::Tuple, selected_models, spinup_forcings, loc_forcing_t, land, tem_info, log_index)
+    spin_seq = first(spin_seqs)
+    n_repeat = spin_seq.n_repeat
+    @debug "Spinup: \n         spinup_mode: $(nameof(typeof(spin_seq.spinup_mode))), forcing: $(spin_seq.forcing)"
+    sel_forcing = sequenceForcing(spinup_forcings, spin_seq.forcing)
+    land = spinupSequence(selected_models, sel_forcing, loc_forcing_t, land, tem_info, spin_seq.n_timesteps, log_index, n_repeat, spin_seq.spinup_mode)
+    return runSpinupSequences(Base.tail(spin_seqs), selected_models, spinup_forcings, loc_forcing_t, land, tem_info, log_index + n_repeat)
 end
 
 function spinupTEM(selected_models, spinup_forcings, loc_forcing_t, land, tem_info, ::DoNotSpinupTEM)

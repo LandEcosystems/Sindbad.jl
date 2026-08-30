@@ -357,10 +357,11 @@ Processes the spinup sequence and assigns types for temporal aggregators for spi
 function getSpinupSequenceWithTypes(seqq, helpers_dates)
     seqq_typed = []
     for seq in seqq
-        for kk in keys(seq)
+        # collect the keys first: the loop body inserts new keys into seq
+        for kk in collect(keys(seq))
             if kk == "forcing"
                 skip_sampling = false
-                if startswith(kk, helpers_dates.temporal_resolution)
+                if startswith(seq[kk], helpers_dates.temporal_resolution)
                     skip_sampling = true
                 end
                 aggregator = create_TimeSampler(helpers_dates.range, to_uppercase_first(seq[kk], "Time"), mean, skip_sampling)
@@ -380,7 +381,7 @@ function getSpinupSequenceWithTypes(seqq, helpers_dates)
                 seq[kk] = Symbol(seq[kk])
             end
         end
-        optns = in(seq, "options") ? seqp["options"] : (;)
+        optns = haskey(seq, "options") ? seq["options"] : (;)
         sst = SpinupSequenceWithAggregator(seq["forcing"], seq["n_repeat"], seq["n_timesteps"], seq["spinup_mode"], optns, seq["aggregator_indices"], Vector{TimeSample}(seq["aggregator"]), seq["aggregator_type"]);
         push!(seqq_typed, sst)
     end
