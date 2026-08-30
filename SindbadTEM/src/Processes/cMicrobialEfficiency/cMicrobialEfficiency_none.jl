@@ -27,7 +27,7 @@ function define(params::cMicrobialEfficiency_none, forcing, land, helpers)
         give_r = c_giver[fO]
         is_decomposition = (give_r ∈ zix_cLit || give_r ∈ zix_cSoil)
         me_value = is_decomposition ? zero(c_ME_vec[fO]) : one(c_ME_vec[fO])
-        c_ME_vec = rep_elem(c_ME_vec, me_value, c_ME_vec, c_ME_vec, fO)
+        c_ME_vec = repElem(c_ME_vec, me_value, c_ME_vec, c_ME_vec, fO)
     end
 
     @pack_nt c_ME_vec ⇒ land.diagnostics

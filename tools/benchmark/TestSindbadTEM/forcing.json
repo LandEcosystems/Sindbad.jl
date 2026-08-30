@@ -59,6 +59,20 @@
         "source_unit": null,
         "source_variable": "fire_frac"
     },
+    "f_crop_harvest_efficiency": {
+        "bounds": [0.0, 1.0],
+        "standard_name": "crop harvest efficiency (dummy set as fire_frac)",
+        "sindbad_unit": null,
+        "source_unit": null,
+        "source_variable": "fire_frac"
+    },
+    "f_crop_harvest_intensity": {
+        "bounds": [0.0, 1.0],
+        "standard_name": "crop harvest intensity (dummy set as fire_frac)",
+        "sindbad_unit": null,
+        "source_unit": null,
+        "source_variable": "fire_frac"
+    },
     "f_tree_frac": {
       "bounds": [0.0, 1.0],
       "standard_name": "tree fraction",
@@ -178,6 +192,20 @@
       "source_to_sindbad_unit": 0.001,
       "source_unit": "Pa",
       "source_variable": "VPD_DayTime_ERAIv2_gfld"
+    },
+    "f_wood_harvest_efficiency": {
+        "bounds": [0.0, 1.0],
+        "standard_name": "wood harvest efficiency (dummy set as fire_frac)",
+        "sindbad_unit": null,
+        "source_unit": null,
+        "source_variable": "fire_frac"
+    },
+    "f_wood_harvest_intensity": {
+        "bounds": [0.0, 1.0],
+        "standard_name": "wood harvest intensity (dummy set as fire_frac)",
+        "sindbad_unit": null,
+        "source_unit": null,
+        "source_variable": "fire_frac"
     },
     "f_EVI": {
       "bounds": [-1.0, 1.0],

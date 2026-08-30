@@ -71,7 +71,8 @@ function precompute(params::cMicrobialEfficiency_CASA, forcing, land, helpers)
     for fO ∈ c_flow_order
         give_r = c_giver[fO]
         take_r = c_taker[fO]
-        c_flow_ME_vec = rep_elem(c_flow_ME_vec, c_flow_ME_vec[take_r,give_r], c_flow_ME_vec, c_flow_ME_vec, fO)
+        # repElem(v::SVector, v_elem, v_zero, v_one, ind::Int)
+        c_flow_ME_vec = repElem(c_flow_ME_vec, c_flow_ME_vec[take_r,give_r], c_flow_ME_vec, c_flow_ME_vec, fO)
     end
 
     @pack_nt (c_flow_ME_vec, c_flow_ME_array) ⇒ land.diagnostics

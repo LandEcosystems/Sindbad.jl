@@ -46,7 +46,6 @@ function define(params::cCycleDisturbance_FireMortality, forcing, land, helpers)
     c_Veg_Mortality = zero.(cEco)
     c_Fire_Flux = zero.(cEco)
     cFireTotal = z_zero
-
     @pack_nt begin 
         (zix_veg_all, c_lose_to_zix_vec) ⇒ land.cCycleDisturbance
         (c_Veg_Mortality, c_Fire_Flux) ⇒ land.diagnostics

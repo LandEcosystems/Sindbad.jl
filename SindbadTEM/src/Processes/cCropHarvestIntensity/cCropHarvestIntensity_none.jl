@@ -6,9 +6,9 @@ struct cCropHarvestIntensity_none <: cCropHarvestIntensity end
 function define(params::cCropHarvestIntensity_none, forcing, land, helpers)
     @unpack_nt z_zero ⇐ land.constants
 
-    frac_crop_harvest = z_zero
+    frac_crop_harvest_intensity = z_zero
 
-    @pack_nt frac_crop_harvest ⇒ land.diagnostics
+    @pack_nt frac_crop_harvest_intensity ⇒ land.diagnostics
 	return land
 end
 

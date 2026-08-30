@@ -41,7 +41,7 @@ function precompute(params::cMicrobialEfficiency_constant, forcing, land, helper
         is_decomposition = ((give_r ∈ zix_cLit) || (give_r ∈ zix_cSoil))
         @show give_r, is_decomposition
         me_value = is_decomposition ? constant_MicEff : one(constant_MicEff)
-        c_flow_ME_vec = rep_elem(c_flow_ME_vec, me_value, c_flow_ME_vec, c_flow_ME_vec, fO)
+        c_flow_ME_vec = repElem(c_flow_ME_vec, me_value, c_flow_ME_vec, c_flow_ME_vec, fO)
     end
 
     @pack_nt c_flow_ME_vec ⇒ land.diagnostics

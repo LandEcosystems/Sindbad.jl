@@ -1,12 +1,12 @@
 export cQualityPartition_CASA
 
 #! format: off
-@bounds @describe @units @timescale @with_kw struct cQualityPartition_CASA{T1,T2,T3} <: cQualityPartition
+@bounds @describe @units @timescale @with_kw struct cQualityPartition_CASA{T1,T2,T3,T4,T5} <: cQualityPartition
     frac_lignin_wood::T1 = 0.4 | (0.0, 1.0) | "Fraction of wood-derived slow litter associated with the lignin-controlled recalcitrant pathway." | "fraction" | ""
     frac_clay_cSoilSlow_A::T2 = 0.003 | (0.0, 1.0) | "Intercept of the clay-dependent fraction of slow-soil decomposition partitioned to old soil carbon." | "fraction" | ""
     frac_clay_cSoilSlow_B::T3 = 0.009 | (0.0, Inf) | "Sensitivity of the slow-soil to old-soil partition fraction to clay content." | "fraction" | ""
-    frac_clay_cMicSoil_A::T3 = 0.003 | (-Inf, Inf) | "" | "" | ""
-    frac_clay_cMicSoil_B::T4 = 0.032 | (-Inf, Inf) | "" | "" | ""
+    frac_clay_cMicSoil_A::T4 = 0.003 | (-Inf, Inf) | "" | "" | ""
+    frac_clay_cMicSoil_B::T5 = 0.032 | (-Inf, Inf) | "" | "" | ""
 
 end
 #! format: on
@@ -53,10 +53,10 @@ function precompute(params::cQualityPartition_CASA, forcing, land, helpers)
     end
     # Matrix of flows
     QP_flows = [
-        (giver = :cSoilSlow,   taker = :cMicSoil,     value = 1-(frac_clay_cSoilSlow_A+(frac_clay_cSoilSlow_B*clay))),
-        (giver = :cSoilSlow,   taker = :cSoilOld,     value = frac_clay_cSoilSlow_A+(frac_clay_cSoilSlow_B*clay)),
-        (giver = :cMicSoil,    taker = :cSoilSlow,    value = 1-(frac_clay_cMicSoil_A+(frac_clay_cMicSoil_B*clay))),
-        (giver = :cMicSoil,    taker = :cSoilOld,     value = frac_clay_cMicSoil_A+(frac_clay_cMicSoil_B*clay)),
+        (giver = :cSoilSlow,   taker = :cMicSoil,     value = 1-(frac_clay_cSoilSlow_A+(frac_clay_cSoilSlow_B*st_clay))),
+        (giver = :cSoilSlow,   taker = :cSoilOld,     value = frac_clay_cSoilSlow_A+(frac_clay_cSoilSlow_B*st_clay)),
+        (giver = :cMicSoil,    taker = :cSoilSlow,    value = 1-(frac_clay_cMicSoil_A+(frac_clay_cMicSoil_B*st_clay))),
+        (giver = :cMicSoil,    taker = :cSoilOld,     value = frac_clay_cMicSoil_A+(frac_clay_cMicSoil_B*st_clay)),
         (giver = :cVegLeaf,    taker = :cLitLeafM,    value = MTF),
         (giver = :cVegLeaf,    taker = :cLitLeafS,    value = 1 - MTF),
         (giver = :cVegWood,    taker = :cLitWood,     value = 1),

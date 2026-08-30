@@ -8,10 +8,9 @@ end
 #! format: on
 
 function precompute(params::cCropHarvestEfficiency_constant, forcing, land, helpers)
+	@unpack_cCropHarvestEfficiency_constant params
 	frac_crop_harvest_efficiency = constant_frac_crop_harvest_efficiency
-    @pack_nt begin
-        frac_crop_harvest_efficiency ⇒ land.diagnostics
-    end
+    @pack_nt frac_crop_harvest_efficiency ⇒ land.diagnostics
 	return land
 end
 

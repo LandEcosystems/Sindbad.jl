@@ -39,7 +39,7 @@ function compute(params::cAllocationRadiation_GSI, forcing, land, helpers)
     c_allocation_f_cloud_prev = c_allocation_f_cloud
 
     ## pack land variables
-    @pack_nt (c_allocation_c_allocation_f_cloud, c_allocation_f_cloud_prev) ⇒ land.diagnostics
+    @pack_nt (c_allocation_f_cloud, c_allocation_f_cloud_prev) ⇒ land.diagnostics
     return land
 end
 

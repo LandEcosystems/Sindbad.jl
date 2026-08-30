@@ -9,7 +9,8 @@ end
 #! format: on
 
 function precompute(params::cForestryHarvestIntensity_constant, forcing, land, helpers)
-	frac_wood_harvest = constant_frac_wood_harvest 
+	@unpack_cForestryHarvestIntensity_constant params
+	frac_wood_harvest_intensity = constant_frac_wood_harvest_intensity
     @pack_nt begin
         frac_wood_harvest_intensity ⇒ land.diagnostics
     end
