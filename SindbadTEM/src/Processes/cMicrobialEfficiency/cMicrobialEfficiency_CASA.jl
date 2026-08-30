@@ -49,7 +49,7 @@ function precompute(params::cMicrobialEfficiency_CASA, forcing, land, helpers)
         (c_flow_order, c_giver, c_taker) ⇐ land.constants
         # (cLit, cSoil, cMic) ⇐ land.pools
         (st_clay, st_silt) ⇐ land.properties
-        # CASA already has a c_ME_array that will be the prior here... 
+        # CASA already has a c_flow_ME_array that will be the prior here... 
         # the values computed here in this function cannot replace the 
         # values in this prior throw a warning if so!
         # c_flow_E_array ⇐ land.diagnostics

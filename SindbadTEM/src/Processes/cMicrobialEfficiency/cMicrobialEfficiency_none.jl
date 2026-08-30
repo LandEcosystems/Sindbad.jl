@@ -10,9 +10,9 @@ function define(params::cMicrobialEfficiency_none, forcing, land, helpers)
 
     # Allocate one value per active carbon transfer. Start from 
     # one so that vegetation flows, not mediated by microbial activity, are unchanged.
-    c_ME_vec = one.(eltype(cEco).(zero([c_taker...])))
+    c_flow_ME_vec = one.(eltype(cEco).(zero([c_taker...])))
     if cEco isa SVector
-        c_ME_vec = SVector{length(c_ME_vec)}(c_ME_vec)
+        c_flow_ME_vec = SVector{length(c_flow_ME_vec)}(c_flow_ME_vec)
     end
 
     # Find litter and soil pools, where flows are mediated by microbial activity, 
@@ -26,11 +26,11 @@ function define(params::cMicrobialEfficiency_none, forcing, land, helpers)
     for fO ∈ c_flow_order
         give_r = c_giver[fO]
         is_decomposition = (give_r ∈ zix_cLit || give_r ∈ zix_cSoil)
-        me_value = is_decomposition ? zero(c_ME_vec[fO]) : one(c_ME_vec[fO])
-        c_ME_vec = rep_elem(c_ME_vec, me_value, c_ME_vec, c_ME_vec, fO)
+        me_value = is_decomposition ? zero(c_flow_ME_vec[fO]) : one(c_flow_ME_vec[fO])
+        c_flow_ME_vec = rep_elem(c_flow_ME_vec, me_value, c_flow_ME_vec, c_flow_ME_vec, fO)
     end
 
-    @pack_nt c_ME_vec ⇒ land.diagnostics
+    @pack_nt c_flow_ME_vec ⇒ land.diagnostics
 	return land
 end
 
