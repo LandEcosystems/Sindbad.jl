@@ -220,11 +220,11 @@ purpose(::Type{Spinup_cEco}) = "Spinup spinup_mode for cEco"
 export SpinupSequence
 export SpinupSequenceWithAggregator
 
-struct SpinupSequenceWithAggregator <: SpinupTypes
+struct SpinupSequenceWithAggregator{M<:SpinupMode} <: SpinupTypes
     forcing::Symbol
     n_repeat::Int
     n_timesteps::Int
-    spinup_mode::SpinupMode
+    spinup_mode::M
     options::NamedTuple
     aggregator_indices::Vector{Int}
     aggregator::Vector{TimeSample}

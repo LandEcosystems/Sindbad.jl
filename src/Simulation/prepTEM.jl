@@ -249,7 +249,7 @@ function getSpinupTemLite(tem_spinup_sequence)
         ns = (; forcing=seq.forcing, n_repeat= seq.n_repeat, n_timesteps=seq.n_timesteps, spinup_mode=seq.spinup_mode, options=seq.options)
         push!(newseqs, ns)
     end
-    sequence = [_s for _s in newseqs]
+    sequence = Tuple(newseqs)
     return sequence
 
 end

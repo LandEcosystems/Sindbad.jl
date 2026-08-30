@@ -381,7 +381,7 @@ function getSpinupSequenceWithTypes(seqq, helpers_dates)
             end
         end
         optns = in(seq, "options") ? seqp["options"] : (;)
-        sst = SpinupSequenceWithAggregator(seq["forcing"], seq["n_repeat"], seq["n_timesteps"], seq["spinup_mode"], optns, seq["aggregator_indices"], seq["aggregator"], seq["aggregator_type"]);
+        sst = SpinupSequenceWithAggregator(seq["forcing"], seq["n_repeat"], seq["n_timesteps"], seq["spinup_mode"], optns, seq["aggregator_indices"], Vector{TimeSample}(seq["aggregator"]), seq["aggregator_type"]);
         push!(seqq_typed, sst)
     end
     return seqq_typed
@@ -406,7 +406,7 @@ function setSpinupInfo(info)
     seqq = get(infospin, :sequence, nothing)
     if !isnothing(seqq)
         seqq_typed = getSpinupSequenceWithTypes(seqq, info.temp.helpers.dates)
-        infospin = set_namedtuple_field(infospin, (:sequence, [_s for _s in seqq_typed]))
+        infospin = set_namedtuple_field(infospin, (:sequence, Tuple(seqq_typed)))
     end
     info = set_namedtuple_subfield(info, :temp, (:spinup, infospin))
     return info

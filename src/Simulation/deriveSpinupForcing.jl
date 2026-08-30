@@ -21,7 +21,7 @@ julia> # Prepare spinup forcing for all sequences
 julia> # spinup_forcing = getAllSpinupForcing(forcing, spin_sequences, tem_helpers)
 ```
 """
-function getAllSpinupForcing(forcing, spin_sequences::Vector{SpinupSequenceWithAggregator}, tem_helpers)
+function getAllSpinupForcing(forcing, spin_sequences::Tuple{Vararg{SpinupSequenceWithAggregator}}, tem_helpers)
     spinup_forcing = (;)
     for seq ∈ spin_sequences
         forc = getfield(seq, :forcing)
