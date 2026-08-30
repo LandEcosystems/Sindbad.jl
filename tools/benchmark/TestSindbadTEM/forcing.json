@@ -163,6 +163,28 @@
       "source_unit": "°C",
       "source_variable": "TA_DayTime_ERAIv2_gfld"
     },
+    "f_psurf_day": {
+      "bounds": [60000.0, 105000.0],
+      "standard_name": "surface pressure",
+      "sindbad_unit": "pa",
+      "source_unit": "pa",
+      "source_variable": "PA_ERAIv2_gfld"
+    },
+    "f_psurf": {
+      "bounds": [60000.0, 105000.0],
+      "standard_name": "surface pressure",
+      "sindbad_unit": "pa",
+      "source_unit": "pa",
+      "source_variable": "PA_ERAIv2_gfld"
+    },
+    "f_RH": {
+      "bounds": [0.0, 100.0],
+      "standard_name": "Relative Humidity",
+      "sindbad_unit": "%",
+      "source_unit": "%",
+      "source_variable": "RH_ERAIv2_gfld"
+    },
+
     "f_VPD": {
       "bounds": [0.01, 100.0],
       "standard_name": "Vapor pressure deficit",
@@ -171,6 +193,14 @@
       "source_unit": "Pa",
       "source_variable": "VPD_ERAIv2_gfld"
     },
+    "f_windspeed": {
+      "bounds": [0.0001, 100.0],
+      "standard_name": "Wind speed",
+      "sindbad_unit": "m s-1",
+      "source_unit": "m s-1",
+      "source_variable": "WS_ERAIv2_gfld"
+    },
+
     "f_VPD_day": {
       "bounds": [0.01, 100.0],
       "standard_name": "Vapor pressure deficit Day",
