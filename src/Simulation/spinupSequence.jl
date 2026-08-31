@@ -57,7 +57,9 @@ function getSequence(year_disturbance, info_helpers_dates; nrepeat_base=200, yea
             Dict("spinup_mode" => "sel_spinup_models", "forcing" => "day_MSC", "n_repeat" => nrepeat_age),
         ]
     end
-    new_sequence = getSpinupTemLite(getSpinupSequenceWithTypes(sequence, info_helpers_dates))
+    # keep the sequence as a tuple of SpinupSequenceWithAggregator, which is what
+    # getAllSpinupForcing and the spinup loop dispatch on
+    new_sequence = Tuple(getSpinupSequenceWithTypes(sequence, info_helpers_dates))
     return new_sequence
 end
 

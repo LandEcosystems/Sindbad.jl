@@ -46,9 +46,9 @@ function define(params::cCycleDisturbance_FireMortality, forcing, land, helpers)
     c_Veg_Mortality = zero.(cEco)
     c_Fire_Flux = zero.(cEco)
     cFireTotal = z_zero
-
+    zix_dead = (helpers.pools.zix.cLit..., helpers.pools.zix.cSoil...)
     @pack_nt begin 
-        (zix_veg_all, c_lose_to_zix_vec) ⇒ land.cCycleDisturbance
+        (zix_veg_all, c_lose_to_zix_vec, zix_dead) ⇒ land.cCycleDisturbance
         (c_Veg_Mortality, c_Fire_Flux) ⇒ land.diagnostics
         cFireTotal ⇒ land.fluxes
     end
@@ -68,7 +68,7 @@ function compute(params::cCycleDisturbance_FireMortality, forcing, land, helpers
         cFireTotal ⇐ land.fluxes
         zix ⇐ helpers.pools
         c_remain ⇐ land.states
-        (zix_veg_all, c_lose_to_zix_vec) ⇐ land.cCycleDisturbance # TODO: double check the new flow for fire, are indices correct?
+        (zix_veg_all, c_lose_to_zix_vec, zix_dead) ⇐ land.cCycleDisturbance # TODO: double check the new flow for fire, are indices correct?
         (c_giver, c_taker) ⇐ land.constants
         (z_zero, o_one) ⇐ land.constants
         c_model ⇐ land.models
@@ -106,7 +106,7 @@ function compute(params::cCycleDisturbance_FireMortality, forcing, land, helpers
         end
 
         # compute fire flux from litter and soils
-        for zixDead ∈ (zix.cLit..., zix.cSoil...)
+        for zixDead ∈ zix_dead
             # total combustion from pool
             f_loss = c_fire_fba * c_Fire_cci[zixDead]
             cLoss = at_least_zero(cEco[zixDead] * f_loss)

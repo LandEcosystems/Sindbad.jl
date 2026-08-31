@@ -34,15 +34,27 @@ function define(params::cCycleBase_CASA, forcing, land, helpers)
         cEco ⇐ land.pools
     end
 
+    # if there is flux order check that is consistent
+    c_flow_order = Tuple(collect(1:length(findall(>(z_zero), c_flow_A_array))))
+    c_taker = Tuple([ind[1] for ind ∈ findall(>(z_zero), c_flow_A_array)])
+    c_giver = Tuple([ind[2] for ind ∈ findall(>(z_zero), c_flow_A_array)])
+
     ## Instantiate variables
     C_to_N_cVeg = one.(cEco)
+
+    c_model = cCycleBase_CASA()
 
     ## pack land variables
     @pack_nt begin
         (C_to_N_cVeg, c_flow_A_array) ⇒ land.diagnostics
+        (c_flow_order, c_taker, c_giver) ⇒ land.constants
+        c_model ⇒ land.models
     end
     return land
 end
+
+# all the parameters that are required for tau and for QP ME should be loaded here...
+
 
 function compute(params::cCycleBase_CASA, forcing, land, helpers)
     ## unpack parameters

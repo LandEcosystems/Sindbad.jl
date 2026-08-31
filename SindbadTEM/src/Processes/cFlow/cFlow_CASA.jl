@@ -11,6 +11,7 @@ function compute(params::cFlow_CASA, forcing, land, helpers)
         c_flow_E_array ⇐ land.diagnostics
         (z_zero, o_one) ⇐ land.constants
     end
+# needs revamp
     #@nc : this needs to go in the full.
     # effects of soil & veg on the [microbial] efficiency of c flows between carbon pools
     tmp = repeat(reshape(c_flow_E_array, [1 size(c_flow_E_array)]), 1, 1)
@@ -37,6 +38,7 @@ function compute(params::cFlow_CASA, forcing, land, helpers)
             error(["ERR : cFlowAct_CASA : " "length(c_flow_order) != length(c_taker)"])
     end
     end
+# needs revamp
 
     ## pack land variables
     @pack_nt begin

@@ -7,10 +7,9 @@ end
 #! format: on
 
 function precompute(params::cCropHarvestIntensity_constant, forcing, land, helpers)
-	frac_crop_harvest = constant_frac_crop_harvest 
-    @pack_nt begin
-        frac_crop_harvest_intensity ⇒ land.diagnostics
-    end
+	@unpack_cCropHarvestIntensity_constant params
+	frac_crop_harvest_intensity = constant_frac_crop_harvest_intensity 
+    @pack_nt frac_crop_harvest_intensity ⇒ land.diagnostics
 	return land
 end
 

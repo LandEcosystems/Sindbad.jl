@@ -5,7 +5,7 @@ export processPackNT, processUnpackNT
 export repElem, repVec
 export setComponentFromMainPool, setComponents, setMainFromComponentPool
 export totalS
-
+export totalS_indices
 using ..SindbadTEM
 import StaticArraysCore: SVector
 
@@ -711,6 +711,19 @@ end
 function totalS(s)
     sm = zero(eltype(s))
     for si ∈ eachindex(s)
+        sm = sm + s[si]
+    end
+    return sm
+end
+
+"""
+    totalS_indices(s, s_indices)
+
+Return the total storage amount for specific indices of a storage array.
+"""
+function totalS_indices(s, s_indices)
+    sm = zero(eltype(s))
+    for si ∈ s_indices
         sm = sm + s[si]
     end
     return sm

@@ -12,7 +12,7 @@ includeApproaches(cQualityPartition, @__DIR__)
 ---
 # Extended help
 
-`cQualityPartition` provides a diagnostic vector, `c_QP_vec`, with one
+`cQualityPartition` provides a diagnostic vector, `c_flow_QP_vec`, with one
 entry for every active carbon transfer defined by `c_flow_order`, `c_giver`, and
 `c_taker` in the selected carbon-cycle structure.
 

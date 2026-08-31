@@ -6,9 +6,9 @@ struct cForestryHarvestIntensity_none <: cForestryHarvestIntensity end
 function define(params::cForestryHarvestIntensity_none, forcing, land, helpers)
     @unpack_nt z_zero ⇐ land.constants
 
-    frac_wood_harvest = z_zero
+    frac_wood_harvest_intensity = z_zero
 
-    @pack_nt frac_wood_harvest ⇒ land.diagnostics
+    @pack_nt frac_wood_harvest_intensity ⇒ land.diagnostics
 	return land
 end
 

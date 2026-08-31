@@ -9,10 +9,9 @@ end
 #! format: on
 
 function precompute(params::cForestryHarvestEfficiency_constant, forcing, land, helpers)
+	@unpack_cForestryHarvestEfficiency_constant params
 	frac_wood_harvest_efficiency = constant_frac_wood_harvest_efficiency
-    @pack_nt begin
-        frac_wood_harvest_efficiency ⇒ land.diagnostics
-    end
+    @pack_nt frac_wood_harvest_efficiency ⇒ land.diagnostics
 	return land
 end
 
