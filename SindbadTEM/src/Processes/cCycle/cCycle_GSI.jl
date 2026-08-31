@@ -68,17 +68,10 @@ function compute(params::cCycle_GSI, forcing, land, helpers)
     end
 
     # flows & losses
-    for fO ∈ c_flow_order
-        take_r = c_taker[fO]
-        give_r = c_giver[fO]
-        # carbon coming into another pool
-        if give_r ∈ getZix(cVeg, helpers.pools.zix.cVeg) #this is avoidable... we should merge QP and A
-            tmp_out = c_eco_out[give_r] * c_flow_A_vec[fO]
-        else
-            tmp_out = c_eco_out[give_r] * c_flow_QP_vec[fO]
-        end
-        tmp_flow = c_eco_flow[take_r] + tmp_out * c_flow_ME_vec[fO]
-        tmp_efflux = c_eco_efflux[give_r] + tmp_out * (one(c_flow_ME_vec[fO]) - c_flow_ME_vec[fO])
+    for (take_r, give_r, A_value, QP_value, ME_value) ∈ zip(c_taker, c_giver, c_flow_A_vec, c_flow_QP_vec, c_flow_ME_vec)
+        tmp_out = c_eco_out[give_r] * A_value * QP_value
+        tmp_flow = c_eco_flow[take_r] + tmp_out * ME_value
+        tmp_efflux = c_eco_efflux[give_r] + tmp_out * (one(ME_value) - ME_value)
         @rep_elem tmp_flow ⇒ (c_eco_flow, take_r, :cEco)
         @rep_elem tmp_efflux ⇒ (c_eco_efflux, give_r, :cEco)
     end
