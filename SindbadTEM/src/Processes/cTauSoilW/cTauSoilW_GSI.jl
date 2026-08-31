@@ -3,8 +3,8 @@ export cTauSoilW_GSI
 #! format: off
 @bounds @describe @units @timescale @with_kw struct cTauSoilW_GSI{T1,T2,T3,T4,T5} <: cTauSoilW
     opt_soilW::T1 = 90.0 | (60.0, 95.0) | "Optimal moisture for decomposition" | "percent degree of saturation" | ""
-    opt_soilW_A::T2 = 0.2 | (0.1, 0.3) | "slope of increase" | "per percent" | ""
-    opt_soilW_B::T3 = 0.3 | (0.15, 0.5) | "slope of decrease" | "per percent" | ""
+    opt_soilW_A::T2 = 0.025 | (0.0125, 0.1) | "slope of increase" | "per percent" | ""
+    opt_soilW_B::T3 = 0.025 | (0.0125, 0.25) | "slope of decrease" | "per percent" | ""
     w_exp::T4 = 10.0 | (-Inf, Inf) | "reference for exponent of sensitivity" | "per percent" | ""
     frac_to_perc::T5 = 100.0 | (-Inf, Inf) | "unit converter for fraction to percent" | "" | ""
 end
