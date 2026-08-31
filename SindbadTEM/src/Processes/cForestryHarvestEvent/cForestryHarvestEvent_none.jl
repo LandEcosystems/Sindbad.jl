@@ -4,33 +4,9 @@ export cForestryHarvestEvent_none
 struct cForestryHarvestEvent_none <: cForestryHarvestEvent end
 
 function define(params::cForestryHarvestEvent_none, forcing, land, helpers)
-	return land
-end
-
-function precompute(params::cForestryHarvestEvent_none, forcing, land, helpers)
-	return land
-end
-
-function compute(params::cForestryHarvestEvent_none, forcing, land, helpers)
-	## Automatically generated sample code for basis. Modify, correct, and use. define, precompute, and update methods can use similar coding when needed. When not, they can simply be deleted. 
-	## unpack NT forcing
-	# @unpack_nt f_variable ⇐ forcing
-
-	## unpack NT land
-	# @unpack_nt begin
-		# flux_variable ⇐ land.fluxes
-		# state_variable ⇐ land.states
-	# end
-
-	## Do calculations
-
-	## pack land variables
-	# @pack_nt new_diagnostic_variable ⇒ land.diagnostics
-
-	return land
-end
-
-function update(params::cForestryHarvestEvent_none, forcing, land, helpers)
+	@unpack_nt z_zero ⇐ land.constants
+	is_wood_harvested = z_zero
+    @pack_nt is_wood_harvested ⇒ land.diagnostics
 	return land
 end
 

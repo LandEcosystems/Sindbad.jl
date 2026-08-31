@@ -39,7 +39,6 @@ function precompute(params::cMicrobialEfficiency_constant, forcing, land, helper
     for fO ∈ c_flow_order
         give_r = c_giver[fO]
         is_decomposition = ((give_r ∈ zix_cLit) || (give_r ∈ zix_cSoil))
-        #@show give_r, is_decomposition
         me_value = is_decomposition ? constant_MicEff : one(constant_MicEff)
         c_flow_ME_vec = repElem(c_flow_ME_vec, me_value, c_flow_ME_vec, c_flow_ME_vec, fO)
     end

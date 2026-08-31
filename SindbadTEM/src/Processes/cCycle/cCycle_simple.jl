@@ -76,7 +76,7 @@ function compute(params::cCycle_simple, forcing, land, helpers)
         # efflux from non vegetation pools
         if give_r ∉ getZix(cVeg, helpers.pools.zix.cVeg)
             tmp_efflux = c_eco_efflux[give_r] + c_eco_out[give_r] * (1.0 - c_flow_A_vec[take_r, give_r])
-        @rep_elem tmp_efflux ⇒ (c_eco_efflux, give_r, :cEco)
+            @rep_elem tmp_efflux ⇒ (c_eco_efflux, give_r, :cEco)
         end
     end
     # for jix = 1:length(p_taker)
