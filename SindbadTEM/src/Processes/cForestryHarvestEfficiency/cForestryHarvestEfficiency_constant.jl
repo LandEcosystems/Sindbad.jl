@@ -4,7 +4,7 @@ export cForestryHarvestEfficiency_constant
 @bounds @describe @units @timescale @with_kw struct cForestryHarvestEfficiency_constant{
 	T1 # constant_frac_wood_harvest_efficiency
 } <: cForestryHarvestEfficiency
-	constant_frac_wood_harvest_efficiency::T1 = 0.8 | (0.0, 1.0) | "Fraction of the killed harvestable vegetation carbon pools that is removed from an ecosystem in a harvest event" | "fraction" | ""
+	constant_frac_wood_harvest_efficiency::T1 = 0.8 | (0.0, 0.99) | "Fraction of the killed harvestable vegetation carbon pools that is removed from an ecosystem in a harvest event" | "fraction" | ""
 end
 #! format: on
 

@@ -2,7 +2,7 @@ export cCropHarvestEfficiency_constant
 
 #! format: off
 @bounds @describe @units @timescale @with_kw struct cCropHarvestEfficiency_constant{T1} <: cCropHarvestEfficiency
-	constant_frac_crop_harvest_efficiency::T1 = 0.8 | (0.0, 1.0) | "Fraction of the harvestable killed vegetation carbon pools that is removed from an ecosystem in a harvest event" | "fraction" | ""
+	constant_frac_crop_harvest_efficiency::T1 = 0.8 | (0.0, 0.99) | "Fraction of the harvestable killed vegetation carbon pools that is removed from an ecosystem in a harvest event" | "fraction" | ""
 end
 
 #! format: on

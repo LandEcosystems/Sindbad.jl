@@ -89,14 +89,16 @@ function compute(params::cCycleManagement_Harvest, forcing, land, helpers)
         # @rep_elem z_zero ⇒ (c_Crop_Harvest_Mortality, izix, :cEco)
         # @rep_elem z_zero ⇒ (c_Wood_Harvest_Product, izix, :cEco)
         # @rep_elem z_zero ⇒ (c_Wood_Harvest_Mortality, izix, :cEco)
-
-        crop_harvest_intensity = frac_crop_harvest_intensity * is_crop_harvested
-        wood_harvest_intensity = frac_wood_harvest_intensity * is_wood_harvested
+        
+        # the actual harvest fraction cannot leave less than c_remain in cEco[izix]
+        max_to_harvest_intensity = 1 - (c_remain / cEco[izix])
+        actual_crop_harvest_intensity = min(frac_crop_harvest_intensity, max_to_harvest_intensity) * is_crop_harvested
+        actual_wood_harvest_intensity = min(frac_wood_harvest_intensity, max_to_harvest_intensity) * is_wood_harvested
     
-        @rep_elem cEco[izix] * crop_harvest_intensity ⇒ (c_Crop_Harvest_Mortality, izix, :cEco)
-        @rep_elem cEco[izix] * crop_harvest_intensity * frac_crop_harvest_efficiency * is_crop_harvest_pool[izix] ⇒ (c_Crop_Harvest_Product, izix, :cEco)
-        @rep_elem cEco[izix] * wood_harvest_intensity ⇒ (c_Wood_Harvest_Mortality, izix, :cEco)
-        @rep_elem cEco[izix] * wood_harvest_intensity * frac_wood_harvest_efficiency * is_wood_harvest_pool[izix] ⇒ (c_Wood_Harvest_Product, izix, :cEco)
+        @rep_elem cEco[izix] * actual_crop_harvest_intensity ⇒ (c_Crop_Harvest_Mortality, izix, :cEco)
+        @rep_elem cEco[izix] * actual_crop_harvest_intensity * frac_crop_harvest_efficiency * is_crop_harvest_pool[izix] ⇒ (c_Crop_Harvest_Product, izix, :cEco)
+        @rep_elem cEco[izix] * actual_wood_harvest_intensity ⇒ (c_Wood_Harvest_Mortality, izix, :cEco)
+        @rep_elem cEco[izix] * actual_wood_harvest_intensity * frac_wood_harvest_efficiency * is_wood_harvest_pool[izix] ⇒ (c_Wood_Harvest_Product, izix, :cEco)
     end
 
     # compute harvest, and splits to litter
@@ -144,6 +146,7 @@ function compute(params::cCycleManagement_Harvest, forcing, land, helpers)
     @pack_nt begin 
         cEco ⇒ land.pools
         (c_Crop_Harvest_Product, c_Wood_Harvest_Product, c_Crop_Harvest_Mortality, c_Wood_Harvest_Mortality) ⇒ land.diagnostics
+        (actual_crop_harvest_intensity, actual_wood_harvest_intensity) ⇒ land.diagnostics
     end
     land = adjustPackPoolComponents(land, helpers, c_model)
     return land
