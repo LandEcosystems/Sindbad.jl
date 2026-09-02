@@ -76,7 +76,7 @@ function compute(params::cCycleBase_CASA, forcing, land, helpers)
 
     ## calculate variables
     # carbon to nitrogen ratio [gC.gN-1]
-    C_to_N_cVeg[getZix(land.pools.cVeg, helpers.pools.zix.cVeg)] .= p_C_to_N_cVeg
+    C_to_N_cVeg[helpers.pools.zix.cVeg] .= p_C_to_N_cVeg
 
     # turnover rates
     c_eco_k_base .= annk

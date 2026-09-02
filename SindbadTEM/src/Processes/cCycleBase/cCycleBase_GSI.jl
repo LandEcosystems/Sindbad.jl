@@ -25,7 +25,7 @@ function define(params::cCycleBase_GSI, forcing, land, helpers)
     end
     ## Instantiate variables
     C_to_N_cVeg = zero(cEco) #sujan
-    # C_to_N_cVeg[getZix(land.pools.cVeg, helpers.pools.zix.cVeg)] .= p_C_to_N_cVeg
+    # C_to_N_cVeg[helpers.pools.zix.cVeg] .= p_C_to_N_cVeg
     c_eco_k_base = zero(cEco)
     c_eco_τ = zero(cEco)
 
@@ -71,7 +71,7 @@ function precompute(params::cCycleBase_GSI, forcing, land, helpers)
     @rep_elem c_τ_SoilSlow ⇒ (c_eco_τ, 7, :cEco)
     @rep_elem c_τ_SoilOld ⇒ (c_eco_τ, 8, :cEco)
 
-    vegZix = getZix(land.pools.cVeg, helpers.pools.zix.cVeg)
+    vegZix = helpers.pools.zix.cVeg
     for ix ∈ eachindex(vegZix)
         @rep_elem p_C_to_N_cVeg[ix] ⇒ (C_to_N_cVeg, vegZix[ix], :cEco)
     end

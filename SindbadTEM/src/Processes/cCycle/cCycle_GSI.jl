@@ -15,10 +15,10 @@ function define(params::cCycle_GSI, forcing, land, helpers)
 
     cEco_prev = cEco
     # save the zix for cVeg, cLit, cSoil, and cProducts
-    zix_cVeg = getZix(land.pools.cVeg, helpers.pools.zix.cVeg)
-    zix_cLit = getZix(land.pools.cLit, helpers.pools.zix.cLit)
-    zix_cSoil = getZix(land.pools.cSoil, helpers.pools.zix.cSoil)
-    zix_cProducts = getZix(land.pools.cProducts, helpers.pools.zix.cProducts)
+    zix_cVeg = helpers.pools.zix.cVeg
+    zix_cLit = helpers.pools.zix.cLit
+    zix_cSoil = helpers.pools.zix.cSoil
+    zix_cProducts = helpers.pools.zix.cProducts
 
     zix_cLit_cSoil_cProducts = (zix_cLit..., zix_cSoil..., zix_cProducts...)
     zix_cVeg_cLit_cSoil = (zix_cVeg..., zix_cLit..., zix_cSoil...)
@@ -46,7 +46,7 @@ function compute(params::cCycle_GSI, forcing, land, helpers)
         c_model ⇐ land.models
         (zix_cLit_cSoil_cProducts, zix_cVeg_cLit_cSoil, zix_cLit_cSoil) ⇐ land.cCycle
     end
-    zix_cProducts = getZix(land.pools.cProducts, helpers.pools.zix.cProducts)
+    zix_cProducts = helpers.pools.zix.cProducts
 
     ## reset ecoflow and influx to be zero at every time step
     @rep_vec c_eco_flow ⇒ helpers.pools.zeros.cEco
