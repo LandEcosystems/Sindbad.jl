@@ -1,4 +1,4 @@
-export cCycleBase_GSI, adjustPackPoolComponents
+export cCycleBase_GSI
 
 #! format: off
 @bounds @describe @units @timescale @with_kw struct cCycleBase_GSI{T1,T2,T3,T4,T5,T6,T7,T8,T9,T10,T11,T12,T13} <: cCycleBase
@@ -87,79 +87,6 @@ function precompute(params::cCycleBase_GSI, forcing, land, helpers)
         (C_to_N_cVeg, c_eco_τ, c_eco_k_base, ηA, ηH) ⇒ land.diagnostics
         c_remain ⇒ land.states
     end
-    return land
-end
-
-function adjustPackPoolComponents(land, helpers, ::cCycleBase_GSI)
-    @unpack_nt (cVeg,
-        cLit,
-        cSoil,
-        cVegRoot,
-        cVegWood,
-        cVegLeaf,
-        cVegReserve,
-        cLitFast,
-        cLitSlow,
-        cSoilSlow,
-        cSoilOld,
-        cEco) ⇐ land.pools
-
-    zix = helpers.pools.zix
-    for (lc, l) in enumerate(zix.cVeg)
-        @rep_elem cEco[l] ⇒ (cVeg, lc, :cVeg)
-    end
-
-    for (lc, l) in enumerate(zix.cVegRoot)
-        @rep_elem cEco[l] ⇒ (cVegRoot, lc, :cVegRoot)
-    end
-
-    for (lc, l) in enumerate(zix.cVegWood)
-        @rep_elem cEco[l] ⇒ (cVegWood, lc, :cVegWood)
-    end
-
-    for (lc, l) in enumerate(zix.cVegLeaf)
-        @rep_elem cEco[l] ⇒ (cVegLeaf, lc, :cVegLeaf)
-    end
-
-    for (lc, l) in enumerate(zix.cVegReserve)
-        @rep_elem cEco[l] ⇒ (cVegReserve, lc, :cVegReserve)
-    end
-
-    for (lc, l) in enumerate(zix.cLit)
-        @rep_elem cEco[l] ⇒ (cLit, lc, :cLit)
-    end
-
-    for (lc, l) in enumerate(zix.cLitFast)
-        @rep_elem cEco[l] ⇒ (cLitFast, lc, :cLitFast)
-    end
-
-    for (lc, l) in enumerate(zix.cLitSlow)
-        @rep_elem cEco[l] ⇒ (cLitSlow, lc, :cLitSlow)
-    end
-
-    for (lc, l) in enumerate(zix.cSoil)
-        @rep_elem cEco[l] ⇒ (cSoil, lc, :cSoil)
-    end
-
-    for (lc, l) in enumerate(zix.cSoilSlow)
-        @rep_elem cEco[l] ⇒ (cSoilSlow, lc, :cSoilSlow)
-    end
-
-    for (lc, l) in enumerate(zix.cSoilOld)
-        @rep_elem cEco[l] ⇒ (cSoilOld, lc, :cSoilOld)
-    end
-    @pack_nt (cVeg,
-        cLit,
-        cSoil,
-        cVegRoot,
-        cVegWood,
-        cVegLeaf,
-        cVegReserve,
-        cLitFast,
-        cLitSlow,
-        cSoilSlow,
-        cSoilOld,
-        cEco) ⇒ land.pools
     return land
 end
 

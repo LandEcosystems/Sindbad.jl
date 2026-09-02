@@ -169,6 +169,9 @@ function setPoolsInfo(info::NamedTuple)
         end
         tmp_elem = set_namedtuple_field(tmp_elem, (:arraytype, arraytype))
         tmp_elem = set_namedtuple_field(tmp_elem, (:create, create))
+        # the Vals built alongside the combined pool are what the generated
+        # setComponentFromMainPool dispatches on, so they have to travel with the element
+        hlp_elem = set_namedtuple_field(hlp_elem, (:vals, vals_tuple))
         tmp_states = set_namedtuple_field(tmp_states, (elSymbol, tmp_elem))
         hlp_states = set_namedtuple_field(hlp_states, (elSymbol, hlp_elem))
     end

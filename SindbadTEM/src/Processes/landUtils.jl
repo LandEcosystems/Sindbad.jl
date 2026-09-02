@@ -537,13 +537,11 @@ Set component pool values using values from the main pool.
             push!(gen_output.args, Expr(:(=),
                 s_comp,
                 Expr(:call,
-                    rep_elem,
+                    repElem,
                     s_comp,
                     Expr(:ref, s_main, ix),
                     Expr(:., :(helpers.pools.zeros), QuoteNode(s_comp)),
                     Expr(:., :(helpers.pools.ones), QuoteNode(s_comp)),
-                    :(land.constants.z_zero),
-                    :(land.constants.o_one),
                     c_ix)))
 
             c_ix += 1
