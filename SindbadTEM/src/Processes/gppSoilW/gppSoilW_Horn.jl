@@ -50,7 +50,7 @@ function compute(params::gppSoilW_Horn, forcing, land, helpers)
 	Wf = (one(α) - α) * Wk + α * Wf_prev
 
 	## Horn response: fW = 1 / (1 + exp(kW * (Wf - WI)))
-	gpp_f_soilW = clampZeroOne(one(kW) / (one(kW) + exp(kW * (Wf - WI))))
+	gpp_f_soilW = clamp_zero_one(one(kW) / (one(kW) + exp(kW * (Wf - WI))))
 
 	## store W_f,k as W_f,k-1 for next timestep
 	Wf_prev = Wf

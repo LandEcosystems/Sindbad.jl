@@ -35,8 +35,8 @@ function compute(params::groundWRecharge_dos, forcing, land, helpers)
         n_groundW = groundW ⇐ helpers.pools.n_layers
     end
     # calculate recharge
-    dos_soil_end = clampZeroOne((soilW[end] + ΔsoilW[end]) / w_sat[end])
-    recharge_fraction = clampZeroOne((dos_soil_end)^(dos_exp * soil_β[end])) * n24
+    dos_soil_end = clamp_zero_one((soilW[end] + ΔsoilW[end]) / w_sat[end])
+    recharge_fraction = clamp_zero_one((dos_soil_end)^(dos_exp * soil_β[end])) * n24
     gw_recharge = recharge_fraction * (soilW[end] + ΔsoilW[end])
 
     ΔgroundW = addToEachElem(ΔgroundW, gw_recharge / n_groundW)

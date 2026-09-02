@@ -48,7 +48,7 @@ function compute(params::gppAirT_De2025, forcing, land, helpers)
 	# fT_Horn = 2 * exp(-(Tf - Topt)/kT) / (1 + exp(-(Tf - Topt)/kT))^2
 	z = exp(-(Tf - Topt) / kT)
 	denominator = one(Tf) + exp((-(Tf - Topt) / kT)) ^ t_two
-	gpp_f_airT = clampZeroOne(t_two * z / denominator)
+	gpp_f_airT = clamp_zero_one(t_two * z / denominator)
 
 	## store T_f,k for next step as T_f,k-1
 	Tf_prev = Tf
