@@ -139,6 +139,8 @@ function precompute(params::cCycleBase_GSI_PlantForm, forcing, land, helpers)
     return land
 end
 
+poolConfiguration(::Type{cCycleBase_GSI_PlantForm}) = CarbonPoolsGSI
+cFlowEdges(::Type{cCycleBase_GSI_PlantForm}) = GSI_FLOW_EDGES
 purpose(::Type{cCycleBase_GSI_PlantForm}) = "Same as GSI, additionally allowing for scaling of turnover parameters based on plant forms."
 
 @doc """

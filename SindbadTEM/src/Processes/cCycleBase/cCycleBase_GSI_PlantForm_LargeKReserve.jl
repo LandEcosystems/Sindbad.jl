@@ -138,6 +138,8 @@ function precompute(params::cCycleBase_GSI_PlantForm_LargeKReserve, forcing, lan
     return land
 end
 
+poolConfiguration(::Type{cCycleBase_GSI_PlantForm_LargeKReserve}) = CarbonPoolsGSI
+cFlowEdges(::Type{cCycleBase_GSI_PlantForm_LargeKReserve}) = GSI_FLOW_EDGES
 purpose(::Type{cCycleBase_GSI_PlantForm_LargeKReserve}) = "Same as cCycleBase_GSI_PlantForm, but with a default of larger turnover of reserve pool so that it respires and flows."
 
 @doc """

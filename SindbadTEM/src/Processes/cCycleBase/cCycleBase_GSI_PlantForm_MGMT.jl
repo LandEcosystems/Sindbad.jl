@@ -149,6 +149,8 @@ function precompute(params::cCycleBase_GSI_PlantForm_MGMT, forcing, land, helper
     return land
 end
 
+poolConfiguration(::Type{cCycleBase_GSI_PlantForm_MGMT}) = CarbonPoolsMGMT
+cFlowEdges(::Type{cCycleBase_GSI_PlantForm_MGMT}) = GSI_FLOW_EDGES
 purpose(::Type{cCycleBase_GSI_PlantForm_MGMT}) = "Same as GSI, additionally allowing for scaling of turnover parameters based on plant forms."
 
 @doc """

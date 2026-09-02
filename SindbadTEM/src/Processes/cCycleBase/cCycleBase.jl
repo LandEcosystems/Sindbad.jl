@@ -24,6 +24,10 @@ function adjustPackPoolComponents(land, helpers, ::cCycleBase)
         helpers.pools.vals.zix.cEco)
 end
 
+# Pool structures and flow topologies the approaches below declare against. Included
+# explicitly because includeApproaches globs `cCycleBase_*.jl` and skips this name.
+include("poolConfigurations.jl")
+
 includeApproaches(cCycleBase, @__DIR__)
 
 @doc """ 

@@ -90,6 +90,8 @@ function precompute(params::cCycleBase_GSI, forcing, land, helpers)
     return land
 end
 
+poolConfiguration(::Type{cCycleBase_GSI}) = CarbonPoolsGSI
+cFlowEdges(::Type{cCycleBase_GSI}) = GSI_FLOW_EDGES
 purpose(::Type{cCycleBase_GSI}) = "Structure and properties of the carbon cycle components as needed for a dynamic phenology-based carbon cycle in the GSI approach."
 
 @doc """

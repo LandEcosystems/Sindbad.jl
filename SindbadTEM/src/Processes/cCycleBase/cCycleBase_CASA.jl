@@ -78,6 +78,8 @@ function compute(params::cCycleBase_CASA, forcing, land, helpers)
     return land
 end
 
+poolConfiguration(::Type{cCycleBase_CASA}) = CarbonPoolsCASA
+cFlowEdges(::Type{cCycleBase_CASA}) = CASA_FLOW_EDGES
 purpose(::Type{cCycleBase_CASA}) = "Structure and properties of the carbon cycle components used in the CASA approach."
 
 @doc """
