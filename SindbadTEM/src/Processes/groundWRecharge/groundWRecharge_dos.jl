@@ -1,8 +1,9 @@
 export groundWRecharge_dos
 
 #! format: off
-@bounds @describe @units @timescale @with_kw struct groundWRecharge_dos{T1} <: groundWRecharge
+@bounds @describe @units @timescale @with_kw struct groundWRecharge_dos{T1, T2} <: groundWRecharge
     dos_exp::T1 = 1.5 | (1.0, 3.0) | "exponent of non-linearity for dos influence on drainage to groundwater" | "" | ""
+    n24::T2 = 1.0 | (-Inf, Inf) | "Time scale (day to hour) Parameters" | "" | "day"
 end
 #! format: on
 
@@ -34,8 +35,8 @@ function compute(params::groundWRecharge_dos, forcing, land, helpers)
         n_groundW = groundW ⇐ helpers.pools.n_layers
     end
     # calculate recharge
-    dos_soil_end = clamp_zero_one((soilW[end] + ΔsoilW[end]) / w_sat[end])
-    recharge_fraction = clamp_zero_one((dos_soil_end)^(dos_exp * soil_β[end]))
+    dos_soil_end = clampZeroOne((soilW[end] + ΔsoilW[end]) / w_sat[end])
+    recharge_fraction = clampZeroOne((dos_soil_end)^(dos_exp * soil_β[end])) * n24
     gw_recharge = recharge_fraction * (soilW[end] + ΔsoilW[end])
 
     ΔgroundW = addToEachElem(ΔgroundW, gw_recharge / n_groundW)

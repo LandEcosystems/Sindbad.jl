@@ -14,7 +14,7 @@ function define(params::cCycleDisturbance_WROASTED, forcing, land, helpers)
     for zixVeg ∈ zix_veg_all
         # make reserve pool flow to slow litter pool/woody debris
         if helpers.pools.components.cEco[zixVeg] == :cVegReserve
-            c_lose_to_zix = collect(helpers.pools.zix.cLitSlow)
+            c_lose_to_zix = helpers.pools.zix.cLitSlow
         else
             c_lose_to_zix = c_taker[[(c_giver .== zixVeg)...]]
         end
