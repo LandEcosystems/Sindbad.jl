@@ -43,6 +43,9 @@ function define(params::cCycleBase_CASA, forcing, land, helpers)
     c_taker = Tuple([ind[1] for ind ∈ findall(>(z_zero), c_flow_A_array)])
     c_giver = Tuple([ind[2] for ind ∈ findall(>(z_zero), c_flow_A_array)])
 
+    # resolved once here so cFlow approaches read the topology instead of rederiving it
+    c_flow_named_edges = cFlowNamedEdges(c_taker, c_giver, helpers.pools.components.cEco)
+
     ## Instantiate variables
     C_to_N_cVeg = one.(cEco)
 
@@ -52,6 +55,7 @@ function define(params::cCycleBase_CASA, forcing, land, helpers)
     @pack_nt begin
         (C_to_N_cVeg, c_flow_A_array) ⇒ land.diagnostics
         (c_flow_order, c_taker, c_giver) ⇒ land.constants
+        c_flow_named_edges ⇒ land.cCycleBase
         c_model ⇒ land.models
     end
     return land

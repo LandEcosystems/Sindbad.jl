@@ -226,3 +226,35 @@ function cFlowEdgeIndex(params, helpers, pool_name, edge)
     end
     return only(zix)
 end
+
+"""
+    cFlowNamedEdges(c_taker, c_giver, cEco_components)
+
+Bucket the flow-vector positions by the `(giver, taker)` pool-name pair they connect, as
+`<giver>_to_<taker> => (positions...)`.
+
+`cFlow` approaches need to find "the entry that carries leaf shedding" without knowing which
+index that is. They used to rederive it themselves by matching component names and taking
+`findall(...)[1]`, which silently kept only the first match wherever a name spans more than one
+`cEco` slot. Resolving it once here, as a tuple of every match, removes the duplication and the
+truncation together: the caller loops over the tuple instead of writing a single element.
+
+A pair the topology does not contain is simply absent, so reading it fails at `define` naming
+the missing edge rather than at a `BoundsError` on an empty `findall`.
+"""
+function cFlowNamedEdges(c_taker, c_giver, cEco_components)
+    edge_names = Symbol[]
+    edge_positions = Vector{Int}[]
+    for flow ∈ eachindex(c_taker, c_giver)
+        edge = Symbol(String(cEco_components[c_giver[flow]]) * "_to_" *
+                      String(cEco_components[c_taker[flow]]))
+        known = findfirst(==(edge), edge_names)
+        if isnothing(known)
+            push!(edge_names, edge)
+            push!(edge_positions, [flow])
+        else
+            push!(edge_positions[known], flow)
+        end
+    end
+    return NamedTuple{Tuple(edge_names)}(Tuple(Tuple.(edge_positions)))
+end

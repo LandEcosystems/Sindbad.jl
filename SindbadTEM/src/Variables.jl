@@ -329,6 +329,13 @@ sindbad_tem_variables = orD{Symbol,orD{Symbol,String}}(
         :land_field => "diagnostics",
         :description => "number of years needed for carbon turnover per carbon pool"
     ),
+    :cCycleBase__c_flow_named_edges => orD(
+        :standard_name => "c_flow_named_edges",
+        :long_name => "carbon_flow_named_edges",
+        :units => "",
+        :land_field => "cCycleBase",
+        :description => "flow vector positions bucketed by the pool name pair they connect, as giver_to_taker, so that a cFlow approach can find the entry carrying a named transfer without knowing its index"
+    ),
     :diagnostics__c_flow_A_array => orD(
         :standard_name => "c_flow_A_array",
         :long_name => "carbon_flow_array",

@@ -14,42 +14,27 @@ function define(params::cFlow_GSI, forcing, land, helpers)
     @unpack_nt begin
         (cEco, soilW) ⇐ land.pools
         (c_giver, c_taker) ⇐ land.constants
-        cEco_comps = cEco ⇐ helpers.pools.components
+        c_flow_named_edges ⇐ land.cCycleBase
         ∑w_sat ⇐ land.properties
     end
     ## Instantiate variables
 
-    # transfers
-    aTrg = []
-    for t_rg in c_taker
-        push!(aTrg, cEco_comps[t_rg])
-    end
-    aSrc = []
-    for s_rc in c_giver
-        push!(aSrc, cEco_comps[s_rc])
-    end
+    # The transfer topology belongs to cCycleBase, which resolved it once into flow-vector
+    # positions keyed by pool-name pair. Name the edges this algorithm works in terms of; each
+    # is a tuple of every matching position, not just the first, so a pool name spanning
+    # several cEco slots writes all of them.
+    #
+    # An edge this approach needs but the selected base does not have is simply not a field
+    # here, so it fails at define naming the edge -- cFlow_GSI on a structure with no
+    # cVegReserve, for instance -- instead of a BoundsError on an empty findall.
+    c_flow_A_vec_ind = (reserve_to_leaf=c_flow_named_edges.cVegReserve_to_cVegLeaf,
+        reserve_to_root=c_flow_named_edges.cVegReserve_to_cVegRoot,
+        leaf_to_reserve=c_flow_named_edges.cVegLeaf_to_cVegReserve,
+        root_to_reserve=c_flow_named_edges.cVegRoot_to_cVegReserve,
+        k_shedding_leaf=c_flow_named_edges.cVegLeaf_to_cLitFast,
+        k_shedding_root=c_flow_named_edges.cVegRoot_to_cLitFast,
+        k_shedding_reserve=c_flow_named_edges.cVegReserve_to_cLitFast)
 
-    # aTrg_a = Tuple(aTrg_a)
-    # aSrc_b = Tuple(aSrc_a)
-
-    # flowVar = [:reserve_to_leaf, :reserve_to_root, :leaf_to_reserve, :root_to_reserve, :k_shedding_leaf, :k_shedding_root]
-    # aSrc = (:cVegReserve, :cVegReserve, :cVegLeaf, :cVegRoot, :cVegLeaf, :cVegRoot)
-    # aTrg = (:cVegLeaf, :cVegRoot, :cVegReserve, :cVegReserve, :cLitFast, :cLitFast)
-
-    aSrc = Tuple(aSrc)
-    aTrg = Tuple(aTrg)
-
-    # @show aSrc, aSrc_b
-    # @show aTrg, aTrg_a
-    c_flow_A_vec_ind = (reserve_to_leaf=findall((aSrc .== :cVegReserve) .* (aTrg .== :cVegLeaf) .== true)[1],
-        reserve_to_root=findall((aSrc .== :cVegReserve) .* (aTrg .== :cVegRoot) .== true)[1],
-        leaf_to_reserve=findall((aSrc .== :cVegLeaf) .* (aTrg .== :cVegReserve) .== true)[1],
-        root_to_reserve=findall((aSrc .== :cVegRoot) .* (aTrg .== :cVegReserve) .== true)[1],
-        k_shedding_leaf=findall((aSrc .== :cVegLeaf) .* (aTrg .== :cLitFast) .== true)[1],
-        k_shedding_root=findall((aSrc .== :cVegRoot) .* (aTrg .== :cLitFast) .== true)[1],
-        k_shedding_reserve=findall((aSrc .== :cVegReserve) .* (aTrg .== :cLitFast) .== true)[1])
-
-    # tc_print(c_flow_A_vec_ind)
     c_flow_A_vec = one.(eltype(cEco).(zero([c_taker...])))
 
     if cEco isa SVector
@@ -148,13 +133,27 @@ function compute(params::cFlow_GSI, forcing, land, helpers)
     k_shedding_reserve = reserve_k_sum
     k_shedding_reserve_frac = safe_divide(reserve_k_sum, reserve_k_f_sum)
     
-    c_flow_A_vec = repElem(c_flow_A_vec, reserve_to_leaf_frac, c_flow_A_vec, c_flow_A_vec, c_flow_A_vec_ind.reserve_to_leaf)
-    c_flow_A_vec = repElem(c_flow_A_vec, reserve_to_root_frac, c_flow_A_vec, c_flow_A_vec, c_flow_A_vec_ind.reserve_to_root)
-    c_flow_A_vec = repElem(c_flow_A_vec, leaf_to_reserve_frac, c_flow_A_vec, c_flow_A_vec, c_flow_A_vec_ind.leaf_to_reserve)
-    c_flow_A_vec = repElem(c_flow_A_vec, root_to_reserve_frac, c_flow_A_vec, c_flow_A_vec, c_flow_A_vec_ind.root_to_reserve)
-    c_flow_A_vec = repElem(c_flow_A_vec, k_shedding_leaf_frac, c_flow_A_vec, c_flow_A_vec, c_flow_A_vec_ind.k_shedding_leaf)
-    c_flow_A_vec = repElem(c_flow_A_vec, k_shedding_root_frac, c_flow_A_vec, c_flow_A_vec, c_flow_A_vec_ind.k_shedding_root)
-    c_flow_A_vec = repElem(c_flow_A_vec, k_shedding_reserve_frac, c_flow_A_vec, c_flow_A_vec, c_flow_A_vec_ind.k_shedding_reserve)
+    for flow ∈ c_flow_A_vec_ind.reserve_to_leaf
+        c_flow_A_vec = repElem(c_flow_A_vec, reserve_to_leaf_frac, c_flow_A_vec, c_flow_A_vec, flow)
+    end
+    for flow ∈ c_flow_A_vec_ind.reserve_to_root
+        c_flow_A_vec = repElem(c_flow_A_vec, reserve_to_root_frac, c_flow_A_vec, c_flow_A_vec, flow)
+    end
+    for flow ∈ c_flow_A_vec_ind.leaf_to_reserve
+        c_flow_A_vec = repElem(c_flow_A_vec, leaf_to_reserve_frac, c_flow_A_vec, c_flow_A_vec, flow)
+    end
+    for flow ∈ c_flow_A_vec_ind.root_to_reserve
+        c_flow_A_vec = repElem(c_flow_A_vec, root_to_reserve_frac, c_flow_A_vec, c_flow_A_vec, flow)
+    end
+    for flow ∈ c_flow_A_vec_ind.k_shedding_leaf
+        c_flow_A_vec = repElem(c_flow_A_vec, k_shedding_leaf_frac, c_flow_A_vec, c_flow_A_vec, flow)
+    end
+    for flow ∈ c_flow_A_vec_ind.k_shedding_root
+        c_flow_A_vec = repElem(c_flow_A_vec, k_shedding_root_frac, c_flow_A_vec, c_flow_A_vec, flow)
+    end
+    for flow ∈ c_flow_A_vec_ind.k_shedding_reserve
+        c_flow_A_vec = repElem(c_flow_A_vec, k_shedding_reserve_frac, c_flow_A_vec, c_flow_A_vec, flow)
+    end
 
     # store the varibles in diagnostic structure
     reserve_to_leaf = Re2L_i
