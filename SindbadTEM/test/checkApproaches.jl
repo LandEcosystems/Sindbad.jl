@@ -194,6 +194,26 @@ function checkUpdate(::Type{T}, forcing, land, helpers, warn_ref) where {T <: La
     return checkInferredHard("update", SM.update, typedApproach(T), forcing, land, helpers)
 end
 
+# `getTypedModel` (used by `typedApproach`) can't be inferred concretely -- it builds its
+# parameter list as a `Vector{Any}` and splats it into the keyword constructor, so its return
+# type is plain `Any` even though the runtime value is concrete. That's harmless for the
+# inference checks above (they key off `typeof(params)`, the actual runtime type, not the
+# static binding) but would otherwise poison an allocation measurement: every reference to an
+# `Any`-typed local requires a dynamic dispatch, and that dispatch overhead is exactly what
+# `@allocated` would end up measuring instead of the approach's own behavior. Passing `params`
+# as an ordinary argument here (rather than measuring a call made directly against the
+# `Any`-typed local) is the standard function-barrier fix: Julia specializes this function's
+# compiled body on the concrete argument types actually passed at each call site, so the one
+# unavoidable dispatch happens *before* entering here, outside the `@allocated` block, and the
+# call inside is fully-typed. Same pattern as `benchmarkApproaches.jl`'s `measureCall`.
+function allocatedBytes(f, params, forcing, land, helpers)
+    # The result must be captured (not discarded) -- an unused, side-effect-free call's
+    # allocation can otherwise be eliminated entirely by the compiler, under-reporting real
+    # allocations.
+    local result
+    return @allocated (result = f(params, forcing, land, helpers))
+end
+
 # Zero-allocation checks: warm-up call (JIT-compiles, discarded), then a second, identical-input
 # call whose allocations are measured. `define` is excluded -- it legitimately allocates (it's
 # creating pools/arrays) -- but a well-written `precompute`/`compute` should allocate ~0 once
@@ -206,12 +226,7 @@ function checkPrecomputeAllocation(T, forcing, land, helpers)
         params = typedApproach(T)
         land_defined = SM.define(params, forcing, land, helpers)
         SM.precompute(params, forcing, land_defined, helpers)  # warm-up
-        # The result must be captured (not discarded) inside the @allocated expression -- an
-        # unused, side-effect-free call's allocation can otherwise be eliminated entirely by the
-        # compiler, under-reporting real allocations. See benchmarkApproaches.jl's measureCall
-        # for the same pattern.
-        local result
-        bytes = @allocated (result = SM.precompute(params, forcing, land_defined, helpers))
+        bytes = allocatedBytes(SM.precompute, params, forcing, land_defined, helpers)
         bytes == 0 && return nothing
         return (; severity=:bug, reason="precompute allocated $bytes bytes on a hot call (expected 0)")
     catch e
@@ -224,8 +239,7 @@ function checkComputeAllocation(T, forcing, land, helpers)
         land_dp = SM.define(params, forcing, land, helpers)
         land_dp = SM.precompute(params, forcing, land_dp, helpers)
         SM.compute(params, forcing, land_dp, helpers)  # warm-up
-        local result
-        bytes = @allocated (result = SM.compute(params, forcing, land_dp, helpers))
+        bytes = allocatedBytes(SM.compute, params, forcing, land_dp, helpers)
         bytes == 0 && return nothing
         return (; severity=:bug, reason="compute allocated $bytes bytes on a hot call (expected 0)")
     catch e
