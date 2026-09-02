@@ -34,6 +34,9 @@ $(getModelDocString(cTauSoilT_Q10))
 # Extended help
 
 *References*
+ - Davidson, E. A. and Janssens, I. A. (2006). Temperature sensitivity of soil carbon decomposition and feedbacks to climate change. *Nature*, 440, 165–173. https://doi.org/10.1038/nature04514
+ - Frøseth, R. B. and Bleken, M. A. (2015). Effect of low temperature and soil type on the decomposition rate of soil organic carbon and clover leaves, and related priming effect. *Soil Biology and Biochemistry*, 80, 156–166. https://doi.org/10.1016/j.soilbio.2014.10.004
+ - Dehaen, E. M., Burke, E. J., Chadburn, S. E., Kaduk, J., Sitch, S., Smith, N. D., and Gallego-Sala, A. V. (2025). Drivers of soil heterotrophic respiration in tropical peatlands: a review to inform peat carbon accumulation modelling. *Frontiers in Geochemistry*, 3, 1492386. https://doi.org/10.3389/fgeoc.2025.1492386
 
 *Versions*
  - 1.0 on 12.01.2020 [sbesnard]  
