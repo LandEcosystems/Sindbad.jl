@@ -44,7 +44,8 @@
       "approach": "GSI"
     },
     "cCycleBase": {
-      "approach": "GSI_PlantForm_LargeKReserve"
+      "approach": "GSI_PlantForm",
+      "note": "was GSI_PlantForm_LargeKReserve, which existed only to default the reserve turnover higher. A large reserve k is now set through the reserve element of c_tau_tree / c_tau_shrub / c_tau_herb rather than through a distinct approach."
     },
     "cCycleConsistency": {
       "approach": "simple"

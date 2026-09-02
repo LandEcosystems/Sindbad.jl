@@ -129,9 +129,8 @@ function cFlowEdges end
     GSI_FLOW_EDGES
 
 The 11 edges shared by every GSI-derived base. Transcribed from the `c_flow_A_array` those
-approaches carried, which is identical across `cCycleBase_GSI`, `_GSI_PlantForm` and
-`_GSI_PlantForm_LargeKReserve`, and the same 11 under `_GSI_PlantForm_MGMT`, whose products
-are decay only and so add no edges.
+approaches carried, which is identical across `cCycleBase_GSI` and `_GSI_PlantForm`, and the
+same 11 under `_GSI_PlantForm_MGMT`, whose products are decay only and so add no edges.
 """
 const GSI_FLOW_EDGES = (            # giver => taker
     :cVegReserve => :cVegRoot,
