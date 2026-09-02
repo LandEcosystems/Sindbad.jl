@@ -20,8 +20,8 @@ function define(params::cCycleDisturbance_FireMortality, forcing, land, helpers)
             # instead of just going in cLitSlow, which can be very specific to the WROASTED model structure
             c_lose_to_zix = something(
                 (
-                    hasproperty(helpers.pools.zix, p) ? getproperty(helpers.pools.zix, p) : 
-                    nothing for p in (:cLitSlow, :cLitFast, :cLit, :cSoilSlow, :cSoilOld, :cSoil)
+                    isempty(getproperty(helpers.pools.zix, p)) ? nothing : getproperty(helpers.pools.zix, p)
+                    for p in (:cLitSlow, :cLitFast, :cLit, :cSoilSlow, :cSoilOld, :cSoil)
                 )..., 
             nothing)
             isnothing(c_lose_to_zix) && 
