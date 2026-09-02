@@ -1,29 +1,13 @@
 export cCycleBase_CASA
 
 #! format: off
-@bounds @describe @units @timescale @with_kw struct cCycleBase_CASA{T1,T2,T3,T4,T5,T6,T7} <: cCycleBase
+@bounds @describe @units @timescale @with_kw struct cCycleBase_CASA{T1,T2,T3,T4,T5,T6} <: cCycleBase
     annk::T1 = Float64.([1, 0.03, 0.03, 1, 14.8, 3.9, 18.5, 4.8, 0.2424, 0.2424, 6, 7.3, 0.2, 0.0045]) | (Float64.([0.05, 0.002, 0.002, 0.05, 1.48, 0.39, 1.85, 0.48, 0.02424, 0.02424, 0.6, 0.73, 0.02, 0.0045]), Float64.([3.3, 0.5, 0.5, 3.3, 148.0, 39.0, 185.0, 48.0, 2.424, 2.424, 60.0, 73.0, 2.0, 0.045])) | "turnover rate of ecosystem carbon pools" | "year-1" | ""
-    c_flow_A_array::T2 = Float64.([
-                          -1.0          0.0          0.0          0.0          0.0          0.0          0.0          0.0          0.0          0.0          0.0          0.0          0.0          0.0
-                           0.0         -1.0          0.0          0.0          0.0          0.0          0.0          0.0          0.0          0.0          0.0          0.0          0.0          0.0
-                           0.0          0.0         -1.0          0.0          0.0          0.0          0.0          0.0          0.0          0.0          0.0          0.0          0.0          0.0
-                           0.0          0.0          0.0         -1.0          0.0          0.0          0.0          0.0          0.0          0.0          0.0          0.0          0.0          0.0
-                           0.0          0.0          0.0          1.0         -1.0          0.0          0.0          0.0          0.0          0.0          0.0          0.0          0.0          0.0
-                           0.0          0.0          0.0          1.0          0.0         -1.0          0.0          0.0          0.0          0.0          0.0          0.0          0.0          0.0
-                           1.0          0.0          0.0          0.0          0.0          0.0         -1.0          0.0          0.0          0.0          0.0          0.0          0.0          0.0
-                           1.0          0.0          0.0          0.0          0.0          0.0          0.0         -1.0          0.0          0.0          0.0          0.0          0.0          0.0
-                           0.0          0.0          1.0          0.0          0.0          0.0          0.0          0.0         -1.0          0.0          0.0          0.0          0.0          0.0
-                           0.0          1.0          0.0          0.0          0.0          0.0          0.0          0.0          0.0         -1.0          0.0          0.0          0.0          0.0
-                           0.0          0.0          0.0          0.0          1.0          1.0          0.0          0.0          1.0          0.0         -1.0          0.0          0.0          0.0
-                           0.0          0.0          0.0          0.0          0.0          0.0          1.0          1.0          0.0          1.0          0.0         -1.0          1.0          1.0
-                           0.0          0.0          0.0          0.0          0.0          1.0          0.0          1.0          1.0          1.0          1.0          1.0         -1.0          0.0
-                           0.0          0.0          0.0          0.0          0.0          0.0          0.0          0.0          0.0          0.0          0.0          1.0          1.0         -1.0
-                        ]) | (-Inf, Inf) | "Transfer matrix links for carbon at ecosystem level" | "" | ""
-    cVegRootF_age_per_PFT::T3 = Float64.([1.8, 1.2, 1.2, 5.0, 1.8, 1.0, 1.0, 0.0, 1.0, 2.8, 1.0, 1.0]) | (Float64.([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]), Float64.([20.0, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0])) | "mean age of fine roots" | "yr" | ""
-    cVegRootC_age_per_PFT::T4 = Float64.([41.0, 58.0, 58.0, 42.0, 27.0, 25.0, 25.0, 0.0, 5.5, 40.0, 1.0, 40.0]) | (Float64.([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]), Float64.([100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0])) | "mean age of coarse roots" | "yr" | ""
-    cVegWood_age_per_PFT::T5 = Float64.([41.0, 58.0, 58.0, 42.0, 27.0, 25.0, 25.0, 0.0, 5.5, 40.0, 1.0, 40.0]) | (Float64.([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]), Float64.([100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0])) | "mean age of wood" | "yr" | ""
-    cVegLeaf_age_per_PFT::T6 = Float64.([1.8, 1.2, 1.2, 5.0, 1.8, 1.0, 1.0, 0.0, 1.0, 2.8, 1.0, 1.0]) | (Float64.([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]), Float64.([20.0, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0])) | "mean age of leafs" | "yr" | ""
-    p_C_to_N_cVeg::T7 = Float64.([25.0, 260.0, 260.0, 25.0]) | (-Inf, Inf) | "carbon to nitrogen ratio in vegetation pools" | "gC/gN" | ""
+    cVegRootF_age_per_PFT::T2 = Float64.([1.8, 1.2, 1.2, 5.0, 1.8, 1.0, 1.0, 0.0, 1.0, 2.8, 1.0, 1.0]) | (Float64.([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]), Float64.([20.0, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0])) | "mean age of fine roots" | "yr" | ""
+    cVegRootC_age_per_PFT::T3 = Float64.([41.0, 58.0, 58.0, 42.0, 27.0, 25.0, 25.0, 0.0, 5.5, 40.0, 1.0, 40.0]) | (Float64.([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]), Float64.([100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0])) | "mean age of coarse roots" | "yr" | ""
+    cVegWood_age_per_PFT::T4 = Float64.([41.0, 58.0, 58.0, 42.0, 27.0, 25.0, 25.0, 0.0, 5.5, 40.0, 1.0, 40.0]) | (Float64.([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]), Float64.([100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0])) | "mean age of wood" | "yr" | ""
+    cVegLeaf_age_per_PFT::T5 = Float64.([1.8, 1.2, 1.2, 5.0, 1.8, 1.0, 1.0, 0.0, 1.0, 2.8, 1.0, 1.0]) | (Float64.([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]), Float64.([20.0, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0, 20.0])) | "mean age of leafs" | "yr" | ""
+    p_C_to_N_cVeg::T6 = Float64.([25.0, 260.0, 260.0, 25.0]) | (-Inf, Inf) | "carbon to nitrogen ratio in vegetation pools" | "gC/gN" | ""
 end
 #! format: on
 
@@ -35,6 +19,10 @@ function define(params::cCycleBase_CASA, forcing, land, helpers)
     end
 
     # if there is flux order check that is consistent
+    # the transfer matrix is generated from this approach's declared cFlowEdges, resolved
+    # against the configured pool structure, rather than carried as a parameter
+    c_flow_A_array = cFlowMatrix(params, cEco, helpers)
+
     c_flow_order = Tuple(collect(1:length(findall(>(z_zero), c_flow_A_array))))
     c_taker = Tuple([ind[1] for ind ∈ findall(>(z_zero), c_flow_A_array)])
     c_giver = Tuple([ind[2] for ind ∈ findall(>(z_zero), c_flow_A_array)])
@@ -78,8 +66,8 @@ function compute(params::cCycleBase_CASA, forcing, land, helpers)
     return land
 end
 
-poolConfiguration(::Type{cCycleBase_CASA}) = CarbonPoolsCASA
-cFlowEdges(::Type{cCycleBase_CASA}) = CASA_FLOW_EDGES
+poolConfiguration(::Type{<:cCycleBase_CASA}) = CarbonPoolsCASA
+cFlowEdges(::Type{<:cCycleBase_CASA}) = CASA_FLOW_EDGES
 purpose(::Type{cCycleBase_CASA}) = "Structure and properties of the carbon cycle components used in the CASA approach."
 
 @doc """

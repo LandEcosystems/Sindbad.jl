@@ -169,3 +169,61 @@ const CASA_FLOW_EDGES = (           # giver => taker
 
 cFlowEdges(::Type{<:cCycleBase}) = ()
 cFlowEdges(T::cCycleBase) = cFlowEdges(typeof(T))
+
+"""
+    cFlowMatrix(params::cCycleBase, cEco, helpers)
+
+Build the carbon transfer matrix for an approach from its `cFlowEdges`, resolved against the
+pool structure the experiment actually configured.
+
+Row is taker, column is giver, `-1` on the diagonal and `+1` at each edge, which is the layout
+the hand-written `c_flow_A_array` used. `c_taker`/`c_giver`/`c_flow_order` are still derived
+from the matrix by the existing `findall`, so the flow-vector order stays column major and the
+edge declaration order cannot affect it.
+
+This is where an edge list first meets a concrete structure, so both checks live here: an edge
+naming a pool the structure lacks, and an edge naming a group or alias rather than a leaf pool,
+which would otherwise expand silently into a cross product.
+"""
+function cFlowMatrix(params::cCycleBase, cEco, helpers)
+    edges = cFlowEdges(typeof(params))
+    n_pools = length(cEco)
+    num_type = eltype(cEco)
+    c_flow_A_array = zeros(num_type, n_pools, n_pools)
+    for pool ∈ 1:n_pools
+        c_flow_A_array[pool, pool] = -one(num_type)
+    end
+    for edge ∈ edges
+        giver = cFlowEdgeIndex(params, helpers, first(edge), edge)
+        taker = cFlowEdgeIndex(params, helpers, last(edge), edge)
+        c_flow_A_array[taker, giver] = one(num_type)
+    end
+    return c_flow_A_array
+end
+
+"""
+    cFlowEdgeIndex(params, helpers, pool_name, edge)
+
+Resolve one end of a flow edge to the single `cEco` index it names, erroring with the offending
+name when it resolves to no pool or to more than one.
+"""
+function cFlowEdgeIndex(params, helpers, pool_name, edge)
+    approach = nameof(typeof(params))
+    if !hasproperty(helpers.pools.zix, pool_name)
+        error("$(approach) declares the carbon flow edge `$(edge)`, but `$(pool_name)` is not a " *
+              "known carbon pool name. Add it to CARBON_POOL_NAMES, or correct the edge.")
+    end
+    zix = getproperty(helpers.pools.zix, pool_name)
+    if isempty(zix)
+        error("$(approach) declares the carbon flow edge `$(edge)`, but the configured pool " *
+              "structure has no `$(pool_name)`. Use a pool structure that has it, or an approach " *
+              "whose edges match this structure.")
+    end
+    if length(zix) > 1
+        error("$(approach) declares the carbon flow edge `$(edge)`, but `$(pool_name)` spans " *
+              "$(length(zix)) pools ($(zix)). Flow edges must name leaf pools, not groups or " *
+              "aliases, because a group would expand into a cross product of links. List the " *
+              "individual edges instead.")
+    end
+    return only(zix)
+end

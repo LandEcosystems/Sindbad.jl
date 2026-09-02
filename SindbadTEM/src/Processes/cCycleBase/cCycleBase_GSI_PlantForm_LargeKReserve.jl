@@ -14,11 +14,10 @@ export cCycleBase_GSI_PlantForm_LargeKReserve
     T11, # c_τ_LitSlow
     T12, # c_τ_SoilSlow
     T13, # c_τ_SoilOld
-    T14, # c_flow_A_array
-    T15, # p_C_to_N_cVeg
-    T16, # ηH
-    T17, # ηA
-    T18  # c_remain
+    T14, # p_C_to_N_cVeg
+    T15, # ηH
+    T16, # ηA
+    T17  # c_remain
 } <: cCycleBase
     c_τ_Root_scalar::T1 = 1.0 | (0.25, 4) | "scalar for turnover rate of root carbon pool" | "-" | ""
     c_τ_Wood_scalar::T2 = 1.0 | (0.25, 4) | "scalar for turnover rate of wood carbon pool" | "-" | ""
@@ -35,20 +34,10 @@ export cCycleBase_GSI_PlantForm_LargeKReserve
     c_τ_LitSlow::T11 = 3.9 | (0.39, 39.0) | "turnover rate of slow litter carbon (wood litter) pool" | "year-1" | "year"
     c_τ_SoilSlow::T12 = 0.2 | (0.02, 2.0) | "turnover rate of slow soil carbon pool" | "year-1" | "year"
     c_τ_SoilOld::T13 = 0.0045 | (0.00045, 0.045) | "turnover rate of old soil carbon pool" | "year-1" | "year"
-    c_flow_A_array::T14 = Float64.([
-                     -1.0 0.0 0.0 1.0 0.0 0.0 0.0 0.0
-                     0.0 -1.0 0.0 0.0 0.0 0.0 0.0 0.0
-                     0.0 0.0 -1.0 1.0 0.0 0.0 0.0 0.0
-                     1.0 0.0 1.0 -1.0 0.0 0.0 0.0 0.0
-                     1.0 0.0 1.0 1.0 -1.0 0.0 0.0 0.0
-                     0.0 1.0 0.0 0.0 0.0 -1.0 0.0 0.0
-                     0.0 0.0 0.0 0.0 1.0 1.0 -1.0 0.0
-                     0.0 0.0 0.0 0.0 0.0 0.0 1.0 -1.0
-                 ]) | (-Inf, Inf) | "Transfer matrix for carbon at ecosystem level" | "" | ""
-    p_C_to_N_cVeg::T15 = Float64.([25.0, 260.0, 260.0, 10.0]) | (-Inf, Inf) | "carbon to nitrogen ratio in vegetation pools" | "gC/gN" | ""
-    ηH::T16 = 1.0 | (0.125, 8.0) | "scaling factor for heterotrophic pools after spinup" | "" | ""
-    ηA::T17 = 1.0 | (0.25, 4.0) | "scaling factor for vegetation pools after spinup" | "" | ""
-    c_remain::T18 = 50.0 | (0.1, 100.0) | "remaining carbon after disturbance" | "gC/m2" | ""
+    p_C_to_N_cVeg::T14 = Float64.([25.0, 260.0, 260.0, 10.0]) | (-Inf, Inf) | "carbon to nitrogen ratio in vegetation pools" | "gC/gN" | ""
+    ηH::T15 = 1.0 | (0.125, 8.0) | "scaling factor for heterotrophic pools after spinup" | "" | ""
+    ηA::T16 = 1.0 | (0.25, 4.0) | "scaling factor for vegetation pools after spinup" | "" | ""
+    c_remain::T17 = 50.0 | (0.1, 100.0) | "remaining carbon after disturbance" | "gC/m2" | ""
 end
 #! format: on
 
@@ -65,6 +54,10 @@ function define(params::cCycleBase_GSI_PlantForm_LargeKReserve, forcing, land, h
     c_eco_τ = zero(cEco)
 
     # if there is flux order check that is consistent
+    # the transfer matrix is generated from this approach's declared cFlowEdges, resolved
+    # against the configured pool structure, rather than carried as a parameter
+    c_flow_A_array = cFlowMatrix(params, cEco, helpers)
+
     c_flow_order = Tuple(collect(1:length(findall(>(z_zero), c_flow_A_array))))
     c_taker = Tuple([ind[1] for ind ∈ findall(>(z_zero), c_flow_A_array)])
     c_giver = Tuple([ind[2] for ind ∈ findall(>(z_zero), c_flow_A_array)])
@@ -138,8 +131,8 @@ function precompute(params::cCycleBase_GSI_PlantForm_LargeKReserve, forcing, lan
     return land
 end
 
-poolConfiguration(::Type{cCycleBase_GSI_PlantForm_LargeKReserve}) = CarbonPoolsGSI
-cFlowEdges(::Type{cCycleBase_GSI_PlantForm_LargeKReserve}) = GSI_FLOW_EDGES
+poolConfiguration(::Type{<:cCycleBase_GSI_PlantForm_LargeKReserve}) = CarbonPoolsGSI
+cFlowEdges(::Type{<:cCycleBase_GSI_PlantForm_LargeKReserve}) = GSI_FLOW_EDGES
 purpose(::Type{cCycleBase_GSI_PlantForm_LargeKReserve}) = "Same as cCycleBase_GSI_PlantForm, but with a default of larger turnover of reserve pool so that it respires and flows."
 
 @doc """

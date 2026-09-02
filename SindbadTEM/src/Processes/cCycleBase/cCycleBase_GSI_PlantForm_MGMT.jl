@@ -17,11 +17,10 @@ export cCycleBase_GSI_PlantForm_MGMT
     T13, # c_τ_SoilOld
     T14, # c_τ_cProductsWood
     T15, # c_τ_cProductsCrop
-    T16, # c_flow_A_array
-    T17, # p_C_to_N_cVeg
-    T18, # ηH
-    T19, # ηA
-    T20  # c_remain
+    T16, # p_C_to_N_cVeg
+    T17, # ηH
+    T18, # ηA
+    T19  # c_remain
 } <: cCycleBase
     c_τ_Root_scalar::T1 = 1.0 | (0.25, 4) | "scalar for turnover rate of root carbon pool" | "-" | ""
     c_τ_Wood_scalar::T2 = 1.0 | (0.25, 4) | "scalar for turnover rate of wood carbon pool" | "-" | ""
@@ -46,22 +45,10 @@ export cCycleBase_GSI_PlantForm_MGMT
     c_τ_cProductsWood::T14 = 0.03 | (0.01, 0.05) | "turnover rate of harvested wood products" | "year-1" | "year"
     c_τ_cProductsCrop::T15 = 1 | (0.25, 4) | "turnover rate of harvested crop products" | "year-1" | "year"
 
-    c_flow_A_array::T16 = Float64.([
-                     -1.0 0.0 0.0 1.0 0.0 0.0 0.0 0.0 0.0 0.0
-                     0.0 -1.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
-                     0.0 0.0 -1.0 1.0 0.0 0.0 0.0 0.0 0.0 0.0
-                     1.0 0.0 1.0 -1.0 0.0 0.0 0.0 0.0 0.0 0.0
-                     1.0 0.0 1.0 1.0 -1.0 0.0 0.0 0.0 0.0 0.0
-                     0.0 1.0 0.0 0.0 0.0 -1.0 0.0 0.0 0.0 0.0
-                     0.0 0.0 0.0 0.0 1.0 1.0 -1.0 0.0 0.0 0.0
-                     0.0 0.0 0.0 0.0 0.0 0.0 1.0 -1.0 0.0 0.0
-                     0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 -1.0 0.0
-                     0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 -1.0
-                 ]) | (-Inf, Inf) | "Transfer matrix links for carbon at ecosystem level per time step." | "" | ""
-    p_C_to_N_cVeg::T17 = Float64.([25.0, 260.0, 260.0, 10.0]) | (-Inf, Inf) | "carbon to nitrogen ratio in vegetation pools" | "gC/gN" | ""
-    ηH::T18 = 1.0 | (0.125, 8.0) | "scaling factor for heterotrophic pools after spinup" | "" | ""
-    ηA::T19 = 1.0 | (0.25, 4.0) | "scaling factor for vegetation pools after spinup" | "" | ""
-    c_remain::T20 = 50.0 | (0.1, 100.0) | "remaining carbon after disturbance" | "gC/m2" | ""
+    p_C_to_N_cVeg::T16 = Float64.([25.0, 260.0, 260.0, 10.0]) | (-Inf, Inf) | "carbon to nitrogen ratio in vegetation pools" | "gC/gN" | ""
+    ηH::T17 = 1.0 | (0.125, 8.0) | "scaling factor for heterotrophic pools after spinup" | "" | ""
+    ηA::T18 = 1.0 | (0.25, 4.0) | "scaling factor for vegetation pools after spinup" | "" | ""
+    c_remain::T19 = 50.0 | (0.1, 100.0) | "remaining carbon after disturbance" | "gC/m2" | ""
 end
 #! format: on
 
@@ -78,6 +65,10 @@ function define(params::cCycleBase_GSI_PlantForm_MGMT, forcing, land, helpers)
     c_eco_τ = zero(cEco)
 
     # if there is flux order check that is consistent
+    # the transfer matrix is generated from this approach's declared cFlowEdges, resolved
+    # against the configured pool structure, rather than carried as a parameter
+    c_flow_A_array = cFlowMatrix(params, cEco, helpers)
+
     c_flow_order = Tuple(collect(1:length(findall(>(z_zero), c_flow_A_array))))
     c_taker = Tuple([ind[1] for ind ∈ findall(>(z_zero), c_flow_A_array)])
     c_giver = Tuple([ind[2] for ind ∈ findall(>(z_zero), c_flow_A_array)])
@@ -149,8 +140,8 @@ function precompute(params::cCycleBase_GSI_PlantForm_MGMT, forcing, land, helper
     return land
 end
 
-poolConfiguration(::Type{cCycleBase_GSI_PlantForm_MGMT}) = CarbonPoolsMGMT
-cFlowEdges(::Type{cCycleBase_GSI_PlantForm_MGMT}) = GSI_FLOW_EDGES
+poolConfiguration(::Type{<:cCycleBase_GSI_PlantForm_MGMT}) = CarbonPoolsMGMT
+cFlowEdges(::Type{<:cCycleBase_GSI_PlantForm_MGMT}) = GSI_FLOW_EDGES
 purpose(::Type{cCycleBase_GSI_PlantForm_MGMT}) = "Same as GSI, additionally allowing for scaling of turnover parameters based on plant forms."
 
 @doc """
