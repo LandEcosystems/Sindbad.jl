@@ -1,10 +1,10 @@
-export cCycleDisturbance_WROASTEDMortality
+export cCycleDisturbance_FireMortality
 
 #! format: off
-struct cCycleDisturbance_WROASTEDMortality <: cCycleDisturbance end
+struct cCycleDisturbance_FireMortality <: cCycleDisturbance end
 #! format: on
 
-function define(params::cCycleDisturbance_WROASTEDMortality, forcing, land, helpers)
+function define(params::cCycleDisturbance_FireMortality, forcing, land, helpers)
     @unpack_nt begin
         (c_giver, c_taker) ⇐ land.constants
         (cVeg, cEco) ⇐ land.pools
@@ -16,7 +16,18 @@ function define(params::cCycleDisturbance_WROASTEDMortality, forcing, land, help
     for zixVeg ∈ zix_veg_all
         # make reserve pool flow to slow litter pool/woody debris
         if helpers.pools.components.cEco[zixVeg] == :cVegReserve
-            c_lose_to_zix = helpers.pools.zix.cLitSlow
+            # c_lose_to_zix = helpers.pools.zix.cLitSlow
+            # instead of just going in cLitSlow, which can be very specific to the WROASTED model structure
+            c_lose_to_zix = something(
+                (
+                    hasproperty(helpers.pools.zix, p) ? getproperty(helpers.pools.zix, p) : 
+                    nothing for p in (:cLitSlow, :cLitFast, :cLit, :cSoilSlow, :cSoilOld, :cSoil)
+                )..., 
+            nothing)
+            isnothing(c_lose_to_zix) && 
+                error(
+                    "Not clear where to which litter/soil pool send dead cVegReserve: expected cLitSlow, cLitFast, cLit, cSoilSlow, cSoilOld or cSoil"
+                )
         else
             c_lose_to_zix = c_taker[[(c_giver .== zixVeg)...]]
         end
@@ -35,16 +46,16 @@ function define(params::cCycleDisturbance_WROASTEDMortality, forcing, land, help
     c_Veg_Mortality = zero.(cEco)
     c_Fire_Flux = zero.(cEco)
     cFireTotal = z_zero
-
+    zix_dead = (helpers.pools.zix.cLit..., helpers.pools.zix.cSoil...)
     @pack_nt begin 
-        (zix_veg_all, c_lose_to_zix_vec) ⇒ land.cCycleDisturbance
+        (zix_veg_all, c_lose_to_zix_vec, zix_dead) ⇒ land.cCycleDisturbance
         (c_Veg_Mortality, c_Fire_Flux) ⇒ land.diagnostics
         cFireTotal ⇒ land.fluxes
     end
     return land
 end
 
-function compute(params::cCycleDisturbance_WROASTEDMortality, forcing, land, helpers)
+function compute(params::cCycleDisturbance_FireMortality, forcing, land, helpers)
     ## unpack disturbance variables
     @unpack_nt begin
         # for vegetation die-off
@@ -57,7 +68,7 @@ function compute(params::cCycleDisturbance_WROASTEDMortality, forcing, land, hel
         cFireTotal ⇐ land.fluxes
         zix ⇐ helpers.pools
         c_remain ⇐ land.states
-        (zix_veg_all, c_lose_to_zix_vec) ⇐ land.cCycleDisturbance # TODO: double check the new flow for fire, are indices correct?
+        (zix_veg_all, c_lose_to_zix_vec, zix_dead) ⇐ land.cCycleDisturbance # TODO: double check the new flow for fire, are indices correct?
         (c_giver, c_taker) ⇐ land.constants
         (z_zero, o_one) ⇐ land.constants
         c_model ⇐ land.models
@@ -76,7 +87,7 @@ function compute(params::cCycleDisturbance_WROASTEDMortality, forcing, land, hel
         for zixVeg ∈ zix_veg_all
             # total mortality fraction of vegetation pool
             f_loss = c_fVegDieOff + c_fire_fba * c_Fire_k[zixVeg]
-            cLoss = maxZero(cEco[zixVeg] - c_remain) * f_loss
+            cLoss = at_least_zero(cEco[zixVeg] - c_remain) * f_loss
             # part that is combusted and that goes to the litter pools
             cLossFire = cLoss * (c_fire_fba * c_Fire_k[zixVeg]) / f_loss * c_Fire_cci[zixVeg] # ? if f_loss is zero this is undefined
             cLossSoil = cLoss - cLossFire
@@ -95,10 +106,10 @@ function compute(params::cCycleDisturbance_WROASTEDMortality, forcing, land, hel
         end
 
         # compute fire flux from litter and soils
-        for zixDead ∈ (zix.cLit..., zix.cSoil...)
+        for zixDead ∈ zix_dead
             # total combustion from pool
             f_loss = c_fire_fba * c_Fire_cci[zixDead]
-            cLoss = maxZero(cEco[zixDead] * f_loss)
+            cLoss = at_least_zero(cEco[zixDead] * f_loss)
             cLossFire = cLoss
             # deplet pool
             @add_to_elem -cLoss ⇒ (cEco, zixDead, :cEco) # ? this one is also a new addition
@@ -120,11 +131,11 @@ function compute(params::cCycleDisturbance_WROASTEDMortality, forcing, land, hel
     return land
 end
 
-purpose(::Type{cCycleDisturbance_WROASTEDMortality}) = "This is used for vegetation die-off and fire disturbance events. Moves carbon in reserve pool to slow litter pool, and all other carbon pools except reserve pool to their respective carbon flow target pools during disturbance events."
+purpose(::Type{cCycleDisturbance_FireMortality}) = "This is used for vegetation die-off and fire disturbance events. Moves carbon in reserve pool to slow litter pool, and all other carbon pools except reserve pool to their respective carbon flow target pools during disturbance events."
 
 @doc """
 
-$(getModelDocString(cCycleDisturbance_WROASTEDMortality))
+$(getModelDocString(cCycleDisturbance_FireMortality))
 
 ---
 
@@ -133,4 +144,4 @@ $(getModelDocString(cCycleDisturbance_WROASTEDMortality))
 *Created by*
     - Nuno | nunocarvalhais
 """
-cCycleDisturbance_WROASTEDMortality
+cCycleDisturbance_FireMortality

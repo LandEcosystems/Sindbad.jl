@@ -211,7 +211,15 @@ end
 """
 function getLocData(forcing::NamedTuple, loc_ind)
     loc_forcing = map(forcing) do a
-        view_at_trailing_indices(a, loc_ind) |> Array
+        # a variable with fewer dimensions than the domain's spatial index tuple has none of
+        # the domain's spatial dimensions at all (e.g. a globally-uniform forcing such as
+        # atmospheric CO2 with no lat/lon axis) -- it is constant across the domain, so it is
+        # passed through unindexed rather than attempting a spatial view it cannot support
+        if ndims(a) < length(loc_ind)
+            Array(a)
+        else
+            view_at_trailing_indices(a, loc_ind) |> Array
+        end
     end
     return loc_forcing
 end

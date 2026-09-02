@@ -217,7 +217,7 @@ function saveInfo(info, ::DoSaveInfo)
     return nothing
 end
 
-function saveInfo(::DoNotSaveInfo)
+function saveInfo(_, ::DoNotSaveInfo)
     return nothing
 end
 

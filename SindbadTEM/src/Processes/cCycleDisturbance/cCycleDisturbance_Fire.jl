@@ -1,10 +1,10 @@
-export cCycleDisturbance_WROASTED
+export cCycleDisturbance_Fire
 
 #! format: off
-struct cCycleDisturbance_WROASTED <: cCycleDisturbance end
+struct cCycleDisturbance_Fire <: cCycleDisturbance end
 #! format: on
 
-function define(params::cCycleDisturbance_WROASTED, forcing, land, helpers)
+function define(params::cCycleDisturbance_Fire, forcing, land, helpers)
     @unpack_nt begin
         (c_giver, c_taker) ⇐ land.constants
         cVeg ⇐ land.pools
@@ -14,7 +14,18 @@ function define(params::cCycleDisturbance_WROASTED, forcing, land, helpers)
     for zixVeg ∈ zix_veg_all
         # make reserve pool flow to slow litter pool/woody debris
         if helpers.pools.components.cEco[zixVeg] == :cVegReserve
-            c_lose_to_zix = collect(helpers.pools.zix.cLitSlow)
+            # c_lose_to_zix = helpers.pools.zix.cLitSlow
+            # instead of just going in cLitSlow, which can be very specific to the WROASTED model structure
+            c_lose_to_zix = something(
+                (
+                    hasproperty(helpers.pools.zix, p) ? getproperty(helpers.pools.zix, p) : 
+                    nothing for p in (:cLitSlow, :cLitFast, :cLit, :cSoilSlow, :cSoilOld, :cSoil)
+                )..., 
+            nothing)
+            isnothing(c_lose_to_zix) && 
+                error(
+                    "Not clear where to which litter/soil pool send dead cVegReserve: expected cLitSlow, cLitFast, cLit, cSoilSlow, cSoilOld or cSoil"
+                )
         else
             c_lose_to_zix = c_taker[[(c_giver .== zixVeg)...]]
         end
@@ -31,7 +42,7 @@ function define(params::cCycleDisturbance_WROASTED, forcing, land, helpers)
     return land
 end
 
-function compute(params::cCycleDisturbance_WROASTED, forcing, land, helpers)
+function compute(params::cCycleDisturbance_Fire, forcing, land, helpers)
     ## unpack forcing
     @unpack_nt f_dist_intensity ⇐ forcing
 
@@ -59,11 +70,11 @@ function compute(params::cCycleDisturbance_WROASTED, forcing, land, helpers)
     return land
 end
 
-purpose(::Type{cCycleDisturbance_WROASTED}) = "Moves carbon in reserve pool to slow litter pool, and all other carbon pools except reserve pool to their respective carbon flow target pools during disturbance events."
+purpose(::Type{cCycleDisturbance_Fire}) = "Moves carbon in reserve pool to slow litter pool, and all other carbon pools except reserve pool to their respective carbon flow target pools during disturbance events."
 
 @doc """
 
-$(getModelDocString(cCycleDisturbance_WROASTED))
+$(getModelDocString(cCycleDisturbance_Fire))
 
 ---
 
@@ -80,4 +91,4 @@ $(getModelDocString(cCycleDisturbance_WROASTED))
 *Created by*
  - skoirala | @dr-ko
 """
-cCycleDisturbance_WROASTED
+cCycleDisturbance_Fire

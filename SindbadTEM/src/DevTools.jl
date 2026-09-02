@@ -44,6 +44,26 @@ Same check CI's `analyse-tem` job runs: the full ~240-approach catalog, informat
 """
 function analyse_tem end
 
+"""
+    analyse_process(names::AbstractString...)
+
+Same as `analyse_tem`, restricted to the named process(es) (e.g. "soilProperties") instead of
+the full catalog: runs every leaf approach of just those processes, informationally (logs
+`@info`/`@warn` per phase, never throws on a per-approach problem). Unlike `test_model`, this
+never hard-gates -- use `test_model` with that process's approach names instead if you want a
+failure to throw.
+
+```julia
+using SindbadTEM, Test
+analyse_process("soilProperties")
+analyse_process("soilProperties", "plantForm")
+```
+
+Errors immediately if a name doesn't match any process, listing the valid names. Same
+`using Test` / dev-linked-checkout requirement as `test_model`/`analyse_tem`.
+"""
+function analyse_process end
+
 function _run_julia_script(repo_root::AbstractString, script::AbstractString)
     run(Cmd(`julia --project=SindbadTEM $script`; dir=repo_root))
     return nothing
