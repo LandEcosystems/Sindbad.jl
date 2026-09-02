@@ -3,7 +3,7 @@ export addToElem, addToEachElem, addVec
 export getZix
 export processPackNT, processUnpackNT
 export repElem, repVec
-export setComponentFromMainPool, setComponents, setMainFromComponentPool
+export setComponentFromMainPool, setMainFromComponentPool
 export totalS
 export totalS_indices
 using ..SindbadTEM
@@ -560,64 +560,6 @@ Set component pool values using values from the main pool.
 end
 
 """
-    setComponents(land, helpers, Val{s_main}, Val{s_comps}, Val{zix})
-
-Set component pools from main pool values.
-
-# Arguments
-- `land`: A core SINDBAD NamedTuple containing all variables for a given time step
-- `helpers`: Helper NamedTuple with necessary objects for model run and type consistencies
-- `::Val{s_main}`: A NamedTuple with names of the main pools
-- `::Val{s_comps}`: A NamedTuple with names of the component pools
-- `::Val{zix}`: A NamedTuple with zix (indices) of each pool
-
-# Returns
-- Generated code expression to set components
-
-# Notes
-- This function generates code at runtime to set component pools
-"""
-function setComponents(
-    land,
-    helpers,
-    ::Val{s_main},
-    ::Val{s_comps},
-    ::Val{zix}) where {s_main, s_comps, zix}
-    output = quote end
-    push!(output.args, Expr(:(=), s_main, Expr(:., :(land.pools), QuoteNode(s_main))))
-    foreach(s_comps) do s_comp
-        push!(output.args, Expr(:(=), s_comp, Expr(:., :(land.pools), QuoteNode(s_comp))))
-        zix_pool = getfield(zix, s_comp)
-        c_ix = 1
-        foreach(zix_pool) do ix
-            push!(output.args, Expr(:(=),
-                s_comp,
-                Expr(:call,
-                    rep_elem,
-                    s_comp,
-                    Expr(:ref, s_main, ix),
-                    Expr(:., :(helpers.pools.zeros), QuoteNode(s_comp)),
-                    Expr(:., :(helpers.pools.ones), QuoteNode(s_comp)),
-                    :(land.constants.z_zero),
-                    :(land.constants.o_one),
-                    c_ix)))
-
-            c_ix += 1
-        end
-        push!(output.args, Expr(:(=),
-            :land,
-            Expr(:tuple,
-                Expr(:(...), :land),
-                Expr(:(=),
-                    :pools,
-                    (Expr(:tuple,
-                        Expr(:parameters, Expr(:(...), :(land.pools)),
-                            Expr(:kw, s_comp, s_comp))))))))
-    end
-    return output
-end
-
-"""
     setMainFromComponentPool(land, helpers, Val{s_main}, Val{s_comps}, Val{zix})
 
 Set main pool values from component pool values.
@@ -652,13 +594,11 @@ Set main pool values from component pool values.
             push!(gen_output.args, Expr(:(=),
                 s_main,
                 Expr(:call,
-                    rep_elem,
+                    repElem,
                     s_main,
                     Expr(:ref, s_comp, c_ix),
                     Expr(:., :(helpers.pools.zeros), QuoteNode(s_main)),
                     Expr(:., :(helpers.pools.ones), QuoteNode(s_main)),
-                    :(land.constants.z_zero),
-                    :(land.constants.o_one),
                     ix)))
             c_ix += 1
         end
