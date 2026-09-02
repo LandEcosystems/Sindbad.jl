@@ -34,7 +34,7 @@ function update(params::cQualityPartition_simple, forcing, land, helpers)
 	return land
 end
 
-purpose(::Type{cQualityPartition_simple}) = ""
+purpose(::Type{cQualityPartition_simple}) = "Currently no-op placeholder: leaves land unchanged."
 
 @doc """ 
 

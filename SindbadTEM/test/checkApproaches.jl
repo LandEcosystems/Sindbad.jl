@@ -84,6 +84,14 @@ process_sequence = map(SM.standard_sindbad_model) do p
 end
 allowed_to_fail_set = Set(allowed_to_fail_approaches)
 
+# model_number_type as the pools themselves.
+test_num_type = eltype(land.pools.cEco)
+# Matches tools/benchmark/TestSindbadTEM/experiment.json's temporal_resolution (the
+# fixture's source) and getTypedModel's own default. Not derived dynamically: the
+# fixture's tmp_helpers.dates is empty, same intentional stripping as num_type above.
+test_model_timestep = "day"
+typedApproach(::Type{T}) where {T <: LandEcosystem} = getTypedModel(nameof(T), test_model_timestep, test_num_type)
+
 # `@inferred`'s own failure message prints the *entire* return type on both sides -- for a
 # process's `land`, that's every field of every process's namespace, often thousands of
 # characters, with the one field that actually diverges buried somewhere in the middle (see
@@ -161,7 +169,7 @@ end
 # Function barriers: the inference checks above need to check against the concrete approach type,
 # not the erased `Any`/abstract type a dynamic loop variable would have.
 function checkDefinePrecompute(::Type{T}, forcing, land, helpers, warn_ref) where {T <: LandEcosystem}
-    params = T()
+    params = typedApproach(T)
     land = runAndCheckInferred("define", warn_ref, SM.define, params, forcing, land, helpers)
     return checkInferredHard("precompute", SM.precompute, params, forcing, land, helpers)
 end
@@ -169,7 +177,7 @@ end
 # define/precompute/compute are chained for T itself, so compute sees exactly what T's own
 # precompute would hand it in a real run, not some other approach's.
 function checkComputeChain(::Type{T}, forcing, land, helpers, warn_ref) where {T <: LandEcosystem}
-    params = T()
+    params = typedApproach(T)
     land = try
         runAndCheckInferred("define", warn_ref, SM.define, params, forcing, land, helpers)
     catch e
@@ -183,7 +191,7 @@ function checkComputeChain(::Type{T}, forcing, land, helpers, warn_ref) where {T
     return checkInferredHard("compute", SM.compute, params, forcing, land, helpers)
 end
 function checkUpdate(::Type{T}, forcing, land, helpers, warn_ref) where {T <: LandEcosystem}
-    return checkInferredHard("update", SM.update, T(), forcing, land, helpers)
+    return checkInferredHard("update", SM.update, typedApproach(T), forcing, land, helpers)
 end
 
 # Zero-allocation checks: warm-up call (JIT-compiles, discarded), then a second, identical-input
@@ -195,7 +203,7 @@ end
 # that doesn't even run correctly.
 function checkPrecomputeAllocation(T, forcing, land, helpers)
     try
-        params = T()
+        params = typedApproach(T)
         land_defined = SM.define(params, forcing, land, helpers)
         SM.precompute(params, forcing, land_defined, helpers)  # warm-up
         # The result must be captured (not discarded) inside the @allocated expression -- an
@@ -212,7 +220,7 @@ function checkPrecomputeAllocation(T, forcing, land, helpers)
 end
 function checkComputeAllocation(T, forcing, land, helpers)
     try
-        params = T()
+        params = typedApproach(T)
         land_dp = SM.define(params, forcing, land, helpers)
         land_dp = SM.precompute(params, forcing, land_dp, helpers)
         SM.compute(params, forcing, land_dp, helpers)  # warm-up
@@ -282,7 +290,7 @@ end
 function advanceReference(f, ref_type, forcing, land, helpers, step_label)
     ref_type === nothing && return land
     try
-        return f(ref_type(), forcing, land, helpers)
+        return f(typedApproach(ref_type), forcing, land, helpers)
     catch e
         @warn "Reference approach failed while advancing the sequential chain; leaving `land` unchanged for this step" step = step_label ref = ref_type exception = e
         return land
@@ -403,7 +411,7 @@ function runComputePhase(land0, tested_functions, wanted, scoped, scoped_problem
 end
 
 """
-    runApproachTests(; functions=("define", "precompute", "compute"), approaches=nothing)
+    runApproachTests(; functions=("define", "precompute", "compute"), approaches=nothing, processes=nothing)
 
 Run every check in `SindbadTEM/test/checkApproaches.jl` -- see `SindbadTEM/test/README.md` for
 what each one means -- and return `nothing`, or throw if running **scoped**
@@ -426,16 +434,35 @@ what each one means -- and return `nothing`, or throw if running **scoped**
   outcome (see `runAndCheckInferred`) -- `define` runs once per model, not the hot per-timestep
   path, and its own inference quality doesn't affect what `precompute`/`compute` see (Julia values
   always have a concrete runtime type, however well `define`'s *code* inferred).
+- `processes`: `nothing` (the default) doesn't restrict by process. Passing process names (e.g.
+  `"soilProperties"`, as `AbstractString`s or `Symbol`s) restricts the run to just those
+  processes' own leaf approaches -- unlike `approaches`, this alone does **not** make the run
+  scoped/hard-gated (that's still controlled by `approaches` only); combine both to hard-gate a
+  whole process at once. Errors immediately if a name doesn't match any process in
+  `standard_sindbad_model`, listing the valid names, rather than silently matching nothing.
 
 This is what CI's `test-model` (scoped) and `analyse-tem` (unscoped) jobs both run, and what
-`SindbadTEM`'s exported `test_model`/`analyse_tem` (see `SindbadTEM/src/DevTools.jl` and
-`SindbadTEM/ext/SindbadTEMTestExt.jl`) call directly, in-process.
+`SindbadTEM`'s exported `test_model`/`analyse_tem`/`analyse_process` (see
+`SindbadTEM/src/DevTools.jl` and `SindbadTEM/ext/SindbadTEMTestExt.jl`) call directly, in-process.
 """
-function runApproachTests(; functions=("define", "precompute", "compute"), approaches=nothing)
+function runApproachTests(; functions=("define", "precompute", "compute"), approaches=nothing, processes=nothing)
     tested_functions = Set(Symbol.(functions))
     tested_approaches = approaches === nothing ? nothing : Set(Symbol.(approaches))
     scoped = tested_approaches !== nothing
-    wanted(T) = tested_approaches === nothing || nameof(T) in tested_approaches
+    tested_processes = if processes === nothing
+        nothing
+    else
+        wanted_processes = Set(Symbol.(processes))
+        known_processes = Set(step.process for step in process_sequence)
+        unknown = setdiff(wanted_processes, known_processes)
+        isempty(unknown) || error(
+            "unknown process name(s): $(join(sort(string.(unknown)), ", ")) -- valid names are: " *
+            join(sort(string.(collect(known_processes))), ", "),
+        )
+        wanted_processes
+    end
+    wanted(T) = (tested_approaches === nothing || nameof(T) in tested_approaches) &&
+                (tested_processes === nothing || nameof(supertype(T)) in tested_processes)
     scoped_problems = Dict{String,String}()
 
     # Pure type-hierarchy check, no simulation involved: every process in standard_sindbad_model
@@ -446,9 +473,11 @@ function runApproachTests(; functions=("define", "precompute", "compute"), appro
     # bug -- so it always runs, scoped or not.
     @testset "Process/approach type hierarchy" verbose = true begin
         for step in process_sequence
+            tested_processes === nothing || step.process in tested_processes || continue
             @test step.process_type <: LandEcosystem
             @testset "$(step.process)" begin
                 for T in leafSubtypes(step.process_type)
+                    wanted(T) || continue
                     @test T <: step.process_type
                     @test !isabstracttype(T)
                 end
@@ -466,8 +495,10 @@ function runApproachTests(; functions=("define", "precompute", "compute"), appro
     # type-hierarchy check above, this always runs, scoped or not.
     @testset "Approach purpose defined" verbose = true begin
         for step in process_sequence
+            tested_processes === nothing || step.process in tested_processes || continue
             @testset "$(step.process)" begin
                 for T in leafSubtypes(step.process_type)
+                    wanted(T) || continue
                     p = try
                         SM.purpose(T)
                     catch

@@ -34,7 +34,7 @@ function update(params::cMicrobialEfficiency_simple, forcing, land, helpers)
 	return land
 end
 
-purpose(::Type{cMicrobialEfficiency_simple}) = ""
+purpose(::Type{cMicrobialEfficiency_simple}) = "Currently no-op placeholder: leaves land unchanged."
 
 @doc """ 
 
