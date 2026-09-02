@@ -4,14 +4,16 @@ export cBiomass_treeGrass_cVegReserveScaling
 struct cBiomass_treeGrass_cVegReserveScaling <: cBiomass end
 
 function compute(params::cBiomass_treeGrass_cVegReserveScaling, forcing, land, helpers)
-    @unpack_nt (cVegWood, cVegLeaf, cVegReserve, cVegRoot) ⇐ land.pools
+    @unpack_nt cEco ⇐ land.pools
     @unpack_nt frac_tree ⇐ land.states
 
     ## calculate variables    
-    cVegLeaf_sum = totalS(cVegLeaf)
-    cVegWood_sum = totalS(cVegWood)
-    cVegReserve_sum = totalS(cVegReserve)
-    cVegRoot_sum = totalS(cVegRoot)
+    # summed straight out of cEco through zix, so a pool name that spans several cEco
+    # slots contributes all of them and a name the structure lacks contributes nothing
+    cVegLeaf_sum = totalS_indices(cEco, helpers.pools.zix.cVegLeaf)
+    cVegWood_sum = totalS_indices(cEco, helpers.pools.zix.cVegWood)
+    cVegReserve_sum = totalS_indices(cEco, helpers.pools.zix.cVegReserve)
+    cVegRoot_sum = totalS_indices(cEco, helpers.pools.zix.cVegRoot)
     aboveground_biomass = (cVegWood_sum + cVegLeaf_sum) + cVegReserve_sum * (cVegWood_sum + cVegLeaf_sum) / (cVegWood_sum + cVegLeaf_sum + cVegRoot_sum)
 
 	
