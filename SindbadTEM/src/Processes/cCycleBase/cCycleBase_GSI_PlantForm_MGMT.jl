@@ -145,6 +145,16 @@ function precompute(params::cCycleBase_GSI_PlantForm_MGMT, forcing, land, helper
         @rep_elem c_τ_SoilOld * c_τ_Soil_scalar ⇒ (c_eco_τ, ix, :cEco)
     end
 
+    # Harvested products decay at their own declared rates. These two parameters existed but were
+    # never assigned: only slots 1 to 8 were written, so the product pools kept the zero from
+    # define, giving them no turnover and an infinite residence time.
+    for ix ∈ helpers.pools.zix.cProductsWood
+        @rep_elem c_τ_cProductsWood ⇒ (c_eco_τ, ix, :cEco)
+    end
+    for ix ∈ helpers.pools.zix.cProductsCrop
+        @rep_elem c_τ_cProductsCrop ⇒ (c_eco_τ, ix, :cEco)
+    end
+
     vegZix = helpers.pools.zix.cVeg
     for ix ∈ eachindex(vegZix)
         @rep_elem p_C_to_N_cVeg[ix] ⇒ (C_to_N_cVeg, vegZix[ix], :cEco)
