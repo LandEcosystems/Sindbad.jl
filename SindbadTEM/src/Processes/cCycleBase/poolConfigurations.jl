@@ -1,15 +1,3 @@
-# Carbon pool configurations: the pool structure a cCycleBase approach is written against,
-# and the pool-to-pool flow topology it uses.
-#
-# Included explicitly from cCycleBase.jl before includeApproaches, which globs
-# `cCycleBase_*.jl` and so ignores this file.
-#
-# Configurations are `<: SindbadTypes`, deliberately not `<: cCycleBase`. Approach
-# enumeration is driven by `subtypes(cCycleBase)` and `subtypes(LandEcosystem)` in five
-# places (the generated "# Approaches" docstring list, the variable catalog, the approaches
-# list, and approach validation), and a configuration has no `define` and no parameters, so
-# registering as an approach would surface it as a broken one.
-
 export CARBON_POOL_NAMES
 export CarbonPoolConfiguration
 export CarbonPoolsCASA
@@ -17,6 +5,25 @@ export CarbonPoolsGSI
 export CarbonPoolsMGMT
 export cFlowEdges
 
+"""
+    CarbonPoolConfiguration
+
+Abstract supertype of the carbon pool configurations: the pool structure a `cCycleBase`
+approach is written against, together with any aliases that structure needs.
+
+An approach names its configuration with `poolConfiguration`, and the configuration answers
+`poolStructure` and `poolAliases`. The flow topology is not part of a configuration; it belongs
+to the approach and is declared with `cFlowEdges`.
+
+# Notes:
+- Defined in `poolConfigurations.jl`, which `cCycleBase.jl` includes explicitly before
+  `includeApproaches`. That glob matches `cCycleBase_*.jl` and so skips this file.
+- Configurations subtype `SindbadTypes`, deliberately not `cCycleBase`. Approach enumeration is
+  driven by `subtypes(cCycleBase)` and `subtypes(LandEcosystem)` in five places: the generated
+  "# Approaches" docstring list, the variable catalog, the approaches list, and approach
+  validation. A configuration has no `define` and no parameters, so registering as an approach
+  would surface it as a broken one.
+"""
 abstract type CarbonPoolConfiguration <: SindbadTypes end
 purpose(::Type{CarbonPoolConfiguration}) = "Abstract type for the carbon pool structures that cCycleBase approaches are written against"
 
@@ -47,15 +54,25 @@ const CARBON_POOL_NAMES = (
     :cProducts, :cProductsWood, :cProductsCrop,
 )
 
-# --------------------------------------------------------------------------------------
-# Pool structures. Shaped exactly like the `pools` block of a model structure JSON, so
-# setPoolsInfo consumes them with no reshaping. Declaration order is cEco index order:
-# getPoolInformation flattens depth first in declaration order.
-#
-# Each leaf is (number of layers, initial value). Every nesting level also becomes a real
-# pool with its own zix entry and backing array, which is where the groupings come from.
-# --------------------------------------------------------------------------------------
+"""
+    poolStructure(::Type{CarbonPoolsGSI})
+    poolStructure(::Type{CarbonPoolsMGMT})
+    poolStructure(::Type{CarbonPoolsCASA})
 
+The pool structure each configuration declares.
+
+# Notes:
+- Shaped exactly like the `pools` block of a model structure JSON, so `setPoolsInfo` consumes
+  either source with no reshaping.
+- Declaration order is `cEco` index order: `getPoolInformation` flattens depth first, in
+  declaration order.
+- Each leaf is `(number of layers, initial value)`.
+- Every nesting level also becomes a real pool, with its own `zix` entry and backing array. That
+  is where the groupings come from: `CarbonPoolsCASA`'s two-level layout yields `cVegRoot`,
+  `cLitLeaf` and `cLitRoot` without declaring them, giving a `cEco` of `cVegRootF`, `cVegRootC`,
+  `cVegWood`, `cVegLeaf`, `cLitLeafM`, `cLitLeafS`, `cLitWood`, `cLitRootFM`, `cLitRootFS`,
+  `cLitRootC`, `cMicSurf`, `cMicSoil`, `cSoilSlow`, `cSoilOld`.
+"""
 poolStructure(::Type{CarbonPoolsGSI}) = (;
     combine = :cEco,
     components = (;
@@ -75,9 +92,6 @@ poolStructure(::Type{CarbonPoolsMGMT}) = (;
     ),
 )
 
-# Nested two levels deep, so cVegRoot, cLitLeaf and cLitRoot come out as pools without being
-# declared. cEco is then cVegRootF, cVegRootC, cVegWood, cVegLeaf, cLitLeafM, cLitLeafS,
-# cLitWood, cLitRootFM, cLitRootFS, cLitRootC, cMicSurf, cMicSoil, cSoilSlow, cSoilOld.
 poolStructure(::Type{CarbonPoolsCASA}) = (;
     combine = :cEco,
     components = (;
@@ -91,28 +105,27 @@ poolStructure(::Type{CarbonPoolsCASA}) = (;
     ),
 )
 
-# CASA litter is nested by organ, but the fast/slow axis is quality, so it cannot be a nesting
-# level. These two are the only groupings in any configuration that cut across the hierarchy.
+"""
+    poolAliases(::Type{CarbonPoolsCASA})
+    poolAliases(::Type{<:CarbonPoolConfiguration})
+
+Extra `zix` names a configuration needs that its nesting cannot produce.
+
+# Notes:
+- CASA litter is nested by organ, while the fast/slow axis is quality, so that split cannot be a
+  nesting level. These two entries are the only groupings in any configuration that cut across
+  the hierarchy.
+- Every other configuration declares none: GSI and MGMT nest litter by quality already, so their
+  structures generate `cLitFast` and `cLitSlow` directly.
+- An alias has no backing array in `land.pools`, so models must iterate `helpers.pools.zix.X`
+  for these names rather than reach into `land.pools.X`.
+"""
 poolAliases(::Type{CarbonPoolsCASA}) = (;
     cLitFast = (:cLitLeafM, :cLitRootFM),                          # -> (5, 8)
     cLitSlow = (:cLitLeafS, :cLitWood, :cLitRootFS, :cLitRootC),   # -> (6, 7, 9, 10)
 )
 
-# GSI and MGMT: their nesting already produces cLitFast and cLitSlow directly.
 poolAliases(::Type{<:CarbonPoolConfiguration}) = (;)
-
-# --------------------------------------------------------------------------------------
-# Flow topology, as an edge list rather than a transfer matrix.
-#
-# Every c_flow_A_array in every cCycleBase approach holds only {-1, 0, 1} and every consumer
-# tests positivity alone, so the matrix is a dense encoding of a sparse adjacency: 64 numbers
-# to say 11 things under GSI, 196 to say 22 under CASA.
-#
-# Edges name leaf pools, never groups. `zix` is keyed by group names as well as leaf names, so
-# an edge naming a group would silently expand to a cross product (`:cVeg => :cLit` becoming
-# 4x2 entries). CASA is the reason this matters: cVegRootF feeds cLitRootFM/FS while cVegRootC
-# feeds only cLitRootC, so a group-level `cVegRoot => cLitFast` would invent links.
-# --------------------------------------------------------------------------------------
 
 """
     cFlowEdges(T)
@@ -120,8 +133,18 @@ poolAliases(::Type{<:CarbonPoolConfiguration}) = (;)
 Return the pool-to-pool carbon flow edges of an approach as `giver => taker` pairs, or `()`
 if it declares none.
 
-Topology is an approach property rather than a pool-structure one: a base that adds or drops
-a link is one line here, not a new configuration.
+# Notes:
+- Topology is an approach property rather than a pool-structure one: a base that adds or drops a
+  link is one line here, not a new configuration.
+- An edge list rather than a transfer matrix, because the matrix carried no information beyond
+  the adjacency. Every `c_flow_A_array` in every `cCycleBase` approach held only `{-1, 0, 1}`,
+  and every consumer tested positivity alone, so it was a dense encoding of a sparse graph: 64
+  numbers to say 11 things under GSI, 196 to say 22 under CASA.
+- Edges must name leaf pools, never groups. `zix` is keyed by group names as well as leaf names,
+  so an edge naming a group would silently expand to a cross product, `:cVeg => :cLit` becoming
+  4x2 entries. CASA is why this matters: `cVegRootF` feeds `cLitRootFM` and `cLitRootFS` while
+  `cVegRootC` feeds only `cLitRootC`, so a group-level `cVegRoot => cLitFast` would invent links
+  that do not exist. `cFlowMatrix` rejects both mistakes.
 """
 function cFlowEdges end
 
