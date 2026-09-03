@@ -62,14 +62,32 @@ function precompute(params::cCycleBase_GSI, forcing, land, helpers)
     end
 
     ## replace values
-    @rep_elem c_τ_Root ⇒ (c_eco_τ, 1, :cEco)
-    @rep_elem c_τ_Wood ⇒ (c_eco_τ, 2, :cEco)
-    @rep_elem c_τ_Leaf ⇒ (c_eco_τ, 3, :cEco)
-    @rep_elem c_τ_Reserve ⇒ (c_eco_τ, 4, :cEco)
-    @rep_elem c_τ_LitFast ⇒ (c_eco_τ, 5, :cEco)
-    @rep_elem c_τ_LitSlow ⇒ (c_eco_τ, 6, :cEco)
-    @rep_elem c_τ_SoilSlow ⇒ (c_eco_τ, 7, :cEco)
-    @rep_elem c_τ_SoilOld ⇒ (c_eco_τ, 8, :cEco)
+    # c_eco_τ is written by pool name rather than by cEco position, so a structure that
+    # orders or omits pools differently still gets its turnovers in the right slots
+    for ix ∈ helpers.pools.zix.cVegRoot
+        @rep_elem c_τ_Root ⇒ (c_eco_τ, ix, :cEco)
+    end
+    for ix ∈ helpers.pools.zix.cVegWood
+        @rep_elem c_τ_Wood ⇒ (c_eco_τ, ix, :cEco)
+    end
+    for ix ∈ helpers.pools.zix.cVegLeaf
+        @rep_elem c_τ_Leaf ⇒ (c_eco_τ, ix, :cEco)
+    end
+    for ix ∈ helpers.pools.zix.cVegReserve
+        @rep_elem c_τ_Reserve ⇒ (c_eco_τ, ix, :cEco)
+    end
+    for ix ∈ helpers.pools.zix.cLitFast
+        @rep_elem c_τ_LitFast ⇒ (c_eco_τ, ix, :cEco)
+    end
+    for ix ∈ helpers.pools.zix.cLitSlow
+        @rep_elem c_τ_LitSlow ⇒ (c_eco_τ, ix, :cEco)
+    end
+    for ix ∈ helpers.pools.zix.cSoilSlow
+        @rep_elem c_τ_SoilSlow ⇒ (c_eco_τ, ix, :cEco)
+    end
+    for ix ∈ helpers.pools.zix.cSoilOld
+        @rep_elem c_τ_SoilOld ⇒ (c_eco_τ, ix, :cEco)
+    end
 
     vegZix = helpers.pools.zix.cVeg
     for ix ∈ eachindex(vegZix)
