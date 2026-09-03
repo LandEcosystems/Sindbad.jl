@@ -65,15 +65,17 @@ function define(params::cCycleBase_GSI_PlantForm_MGMT, forcing, land, helpers)
     c_eco_τ = zero(cEco)
 
     # if there is flux order check that is consistent
-    # the transfer matrix is generated from this approach's declared cFlowEdges, resolved
-    # against the configured pool structure, rather than carried as a parameter
+    # the transfer matrix is generated from this approach's declared cFlowEdges,
+    # resolved against the configured pool structure, rather than carried as a
+    # parameter
     c_flow_A_array = cFlowMatrix(params, cEco, helpers)
 
     c_flow_order = Tuple(collect(1:length(findall(>(z_zero), c_flow_A_array))))
     c_taker = Tuple([ind[1] for ind ∈ findall(>(z_zero), c_flow_A_array)])
     c_giver = Tuple([ind[2] for ind ∈ findall(>(z_zero), c_flow_A_array)])
 
-    # resolved once here so cFlow approaches read the topology instead of rederiving it
+    # resolved once here so cFlow approaches read the topology instead of rederiving
+    # it
     c_flow_named_edges = cFlowNamedEdges(c_taker, c_giver, helpers.pools.components.cEco)
 
     c_model = cCycleBase_GSI_PlantForm_MGMT()
@@ -118,8 +120,9 @@ function precompute(params::cCycleBase_GSI_PlantForm_MGMT, forcing, land, helper
     end
 
     c_τ_Root, c_τ_Wood, c_τ_Leaf, c_τ_Reserve = get_c_τ(c_τ_pf, params)
-    # c_eco_τ is written by pool name rather than by cEco position, so a structure that
-    # orders or omits pools differently still gets its turnovers in the right slots
+    # c_eco_τ is written by pool name rather than by cEco position, so a structure
+    # that orders or omits pools differently still gets its turnovers in the right
+    # slots
     for ix ∈ helpers.pools.zix.cVegRoot
         @rep_elem c_τ_Root * c_τ_Root_scalar ⇒ (c_eco_τ, ix, :cEco)
     end
@@ -145,9 +148,10 @@ function precompute(params::cCycleBase_GSI_PlantForm_MGMT, forcing, land, helper
         @rep_elem c_τ_SoilOld * c_τ_Soil_scalar ⇒ (c_eco_τ, ix, :cEco)
     end
 
-    # Harvested products decay at their own declared rates. These two parameters existed but were
-    # never assigned: only slots 1 to 8 were written, so the product pools kept the zero from
-    # define, giving them no turnover and an infinite residence time.
+    # Harvested products decay at their own declared rates. These two parameters
+    # existed but were never assigned: only slots 1 to 8 were written, so the product
+    # pools kept the zero from define, giving them no turnover and an infinite
+    # residence time.
     for ix ∈ helpers.pools.zix.cProductsWood
         @rep_elem c_τ_cProductsWood ⇒ (c_eco_τ, ix, :cEco)
     end

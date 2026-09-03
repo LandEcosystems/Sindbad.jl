@@ -64,9 +64,9 @@ function precompute(params::cMicrobialEfficiency_CASA, forcing, land, helpers)
     #     E = effA - effB * (silt + clay)
     microbial_efficiency = clamp_zero_one(effA - effB * (silt + clay))
 
-    # c_flow_ME_array. These were absolute positions (13,12) and (14,12), correct only for one
-    # 14-pool ordering; resolving the names instead holds under any structure that has them, and
-    # writes nothing at all under one that does not.
+    # c_flow_ME_array. These were absolute positions (13,12) and (14,12), correct
+    # only for one 14-pool ordering; resolving the names instead holds under any
+    # structure that has them, and writes nothing at all under one that does not.
     for giver ∈ helpers.pools.zix.cMicSoil
         for taker ∈ helpers.pools.zix.cSoilSlow      # cMicSoil -> cSoilSlow
             c_flow_ME_array[taker, giver] = microbial_efficiency

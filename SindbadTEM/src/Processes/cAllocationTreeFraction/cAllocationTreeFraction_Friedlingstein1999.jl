@@ -9,8 +9,9 @@ end
 function define(params::cAllocationTreeFraction_Friedlingstein1999, forcing, land, helpers)
     ## unpack parameters
     ## calculate variables
-    # cVegRoot resolves to every root pool the configured structure has, fine and coarse
-    # included, so these names work under every configuration without probing for variants
+    # cVegRoot resolves to every root pool the configured structure has, fine and
+    # coarse included, so these names work under every configuration without probing
+    # for variants
     cVeg_names_for_c_allocation_frac_tree = (:cVegRoot, :cVegWood, :cVegLeaf)::Tuple
     @pack_nt cVeg_names_for_c_allocation_frac_tree ⇒ land.cAllocationTreeFraction
     return land

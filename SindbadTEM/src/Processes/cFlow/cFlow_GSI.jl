@@ -19,12 +19,11 @@ function define(params::cFlow_GSI, forcing, land, helpers)
     end
     ## Instantiate variables
 
-    # The transfer topology belongs to cCycleBase, which resolved it once into flow-vector
-    # positions keyed by pool-name pair. Name the edges this algorithm works in terms of; each
-    # is a tuple of every matching position, not just the first, so a pool name spanning
-    # several cEco slots writes all of them.
-    #
-    # An edge this approach needs but the selected base does not have is simply not a field
+    # The transfer topology belongs to cCycleBase, which resolved it once into
+    # flow-vector positions keyed by pool-name pair. Name the edges this algorithm
+    # works in terms of; each is a tuple of every matching position, not just the
+    # first, so a pool name spanning several cEco slots writes all of them.  An edge
+    # this approach needs but the selected base does not have is simply not a field
     # here, so it fails at define naming the edge -- cFlow_GSI on a structure with no
     # cVegReserve, for instance -- instead of a BoundsError on an empty findall.
     c_flow_A_vec_ind = (reserve_to_leaf=c_flow_named_edges.cVegReserve_to_cVegLeaf,

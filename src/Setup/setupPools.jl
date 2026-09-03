@@ -6,18 +6,19 @@ export setPoolsInfo
 """
     POOL_ELEMENT_PROCESS
 
-Which process owns each pool element, for resolving a JSON block's aliases from the approach
-that is actually selected. Only `carbon` has configurations today; `wCycleBase_simple` declares
-none, so `water` keeps whatever its block says.
+Which process owns each pool element, for resolving a JSON block's aliases from the
+approach that is actually selected. Only `carbon` has configurations today;
+`wCycleBase_simple` declares none, so `water` keeps whatever its block says.
 """
 const POOL_ELEMENT_PROCESS = (; carbon = :cCycleBase, water = :wCycleBase)
 
 """
     generatedPoolNames(structure)
 
-Return `(leaf_names, group_names)` for a pool structure: the names `getPoolInformation` flattens
-it into, and the intermediate nesting levels that become groups. Every nesting level is a real
-pool with its own `zix` entry, so a two-level layout yields `cVegRoot` alongside `cVegRootF`.
+Return `(leaf_names, group_names)` for a pool structure: the names
+`getPoolInformation` flattens it into, and the intermediate nesting levels that
+become groups. Every nesting level is a real pool with its own `zix` entry, so a
+two-level layout yields `cVegRoot` alongside `cVegRootF`.
 """
 function generatedPoolNames(structure)
     components = getfield(structure, :components)
@@ -31,9 +32,9 @@ end
 
 Resolve a string in a `pools` block to a pool configuration.
 
-A string naming a process (`"cCycleBase"`) resolves through that process's selected approach in
-`models`; any other string is taken as an approach type name directly. Errors name what was
-tried rather than surfacing an `UndefVarError`.
+A string naming a process (`"cCycleBase"`) resolves through that process's selected
+approach in `models`; any other string is taken as an approach type name directly.
+Errors name what was tried rather than surfacing an `UndefVarError`.
 """
 function poolConfigurationFor(info::NamedTuple, element, spec::AbstractString)
     models = info.settings.model_structure.models
@@ -63,9 +64,9 @@ end
 """
     validatePoolStructure(element, structure, aliases)
 
-Check an element's aliases against the structure they are declared over: every target must be a
-pool the structure actually has, and an alias may not shadow a name the nesting already
-generates, which would otherwise silently replace real indices.
+Check an element's aliases against the structure they are declared over: every target
+must be a pool the structure actually has, and an alias may not shadow a name the
+nesting already generates, which would otherwise silently replace real indices.
 """
 function validatePoolStructure(element, structure, aliases)
     leaves, groups = generatedPoolNames(structure)
@@ -90,23 +91,24 @@ end
 """
     resolvePoolStructure(info::NamedTuple)
 
-Normalize every element of `model_structure.pools` into one shape, so that nothing downstream
-knows or cares whether a structure was written out in the JSON or named as a configuration.
+Normalize every element of `model_structure.pools` into one shape, so that nothing
+downstream knows or cares whether a structure was written out in the JSON or named as
+a configuration.
 
-Each element resolves to its own block plus an `aliases` field; anything else the block carried,
-`state_variables` included, is passed through untouched.
+Each element resolves to its own block plus an `aliases` field; anything else the
+block carried, `state_variables` included, is passed through untouched.
 
 An element's value may be:
 
 - a **String**: structure and aliases both come from the configuration it names.
-- a **NamedTuple**: the block supplies the structure verbatim. Aliases come from its own
-  `aliases` key if it has one, otherwise from the configuration of the approach selected for
-  that element's process. In that second case the block's pool names must match the
-  configuration's, because aliases resolved elsewhere would otherwise point at pools the block
-  does not have.
+- a **NamedTuple**: the block supplies the structure verbatim. Aliases come from its
+  own `aliases` key if it has one, otherwise from the configuration of the approach
+  selected for that element's process. In that second case the block's pool names
+  must match the configuration's, because aliases resolved elsewhere would otherwise
+  point at pools the block does not have.
 
-`poolConfiguration` is consulted here and nowhere else. After this, `helpers.pools` is the sole
-interface between setup and the models.
+`poolConfiguration` is consulted here and nowhere else. After this, `helpers.pools`
+is the sole interface between setup and the models.
 """
 function resolvePoolStructure(info::NamedTuple)
     pools = info.settings.model_structure.pools
@@ -174,8 +176,8 @@ Generates `info.temp.helpers.pools` and `info.pools`.
 """
 function setPoolsInfo(info::NamedTuple)
     print_info(setPoolsInfo, @__FILE__, @__LINE__, "setting Pools Info...")
-    # after this, the source of the structure stops mattering: everything below reads the
-    # resolved blocks, never info.settings.model_structure.pools
+    # after this, the source of the structure stops mattering: everything below reads
+    # the resolved blocks, never info.settings.model_structure.pools
     resolved_pools = resolvePoolStructure(info)
     elements = propertynames(resolved_pools)
     tmp_states = (;)
@@ -329,9 +331,10 @@ function setPoolsInfo(info::NamedTuple)
         tmp_elem = set_namedtuple_field(tmp_elem, (:arraytype, arraytype))
         tmp_elem = set_namedtuple_field(tmp_elem, (:create, create))
 
-        # aliases: groupings that cut across the nesting, so they cannot be a nesting level.
-        # hlp_elem only -- an alias has no backing array, so keeping it out of tmp_elem keeps it
-        # out of `create`, `initial_values`, `all_components` and `n_layers`.
+        # aliases: groupings that cut across the nesting, so they cannot be a nesting
+        # level. hlp_elem only -- an alias has no backing array, so keeping it out of
+        # tmp_elem keeps it out of `create`, `initial_values`, `all_components` and
+        # `n_layers`.
         for alias ∈ propertynames(getfield(resolved_elem, :aliases))
             targets = getproperty(getfield(resolved_elem, :aliases), alias)
             alias_zix = Tuple(sort(vcat([collect(getproperty(hlp_elem.zix, t)) for t ∈ targets]...)))
@@ -339,7 +342,8 @@ function setPoolsInfo(info::NamedTuple)
         end
 
         # the Vals built alongside the combined pool are what the generated
-        # setComponentFromMainPool dispatches on, so they have to travel with the element
+        # setComponentFromMainPool dispatches on, so they have to travel with the
+        # element
         hlp_elem = set_namedtuple_field(hlp_elem, (:vals, vals_tuple))
         tmp_states = set_namedtuple_field(tmp_states, (elSymbol, tmp_elem))
         hlp_states = set_namedtuple_field(hlp_states, (elSymbol, hlp_elem))
@@ -370,15 +374,14 @@ function setPoolsInfo(info::NamedTuple)
         hlp_new = hlp_states
     end
 
-    # Every carbon pool name resolves, to real indices or to (), whatever the structure. An
-    # empty entry iterates zero times, statically, which is why models loop over
-    # helpers.pools.zix.X with no isempty branch and why adding a name to CARBON_POOL_NAMES
-    # needs no model edit.
-    #
-    # Filled here rather than per element on purpose: the carbon+water merge above is
-    # `(; carbon..., water...)`, so water wins on any shared key, and a per-element skeleton
-    # would have water's empty entries overwrite carbon's real indices. Doing it after the
-    # merge also covers a model structure with no carbon element at all, where the merge takes
+    # Every carbon pool name resolves, to real indices or to (), whatever the
+    # structure. An empty entry iterates zero times, statically, which is why models
+    # loop over helpers.pools.zix.X with no isempty branch and why adding a name to
+    # CARBON_POOL_NAMES needs no model edit.  Filled here rather than per element on
+    # purpose: the carbon+water merge above is `(; carbon..., water...)`, so water
+    # wins on any shared key, and a per-element skeleton would have water's empty
+    # entries overwrite carbon's real indices. Doing it after the merge also covers a
+    # model structure with no carbon element at all, where the merge takes
     # hlp_states.water wholesale.
     for pool_name ∈ SindbadTEM.Processes.CARBON_POOL_NAMES
         if !hasproperty(hlp_new.zix, pool_name)
@@ -394,9 +397,10 @@ function setPoolsInfo(info::NamedTuple)
     )
     hlp_new = (hlp_new..., n_layers=n_layers)
 
-    # provenance: info.settings.model_structure.pools stays exactly as the user wrote it, so the
-    # saved settings still read "carbon": "cCycleBase"; pool_structure records what that resolved
-    # to, so an output directory documents the structure actually run.
+    # provenance: info.settings.model_structure.pools stays exactly as the user wrote
+    # it, so the saved settings still read "carbon": "cCycleBase"; pool_structure
+    # records what that resolved to, so an output directory documents the structure
+    # actually run.
     info = (; info..., pools=tmp_states, pool_structure=resolved_pools,
         temp=(; info.temp..., helpers=(; info.temp.helpers..., pools=hlp_new)))
     return info

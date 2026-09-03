@@ -1,10 +1,10 @@
-# Pool configurations and flow edges.
-#
-# The load-bearing check here is that the traits are asked with the type of a *constructed*
-# approach, not with the bare name. `poolConfiguration(::Type{cCycleBase_GSI})` matches only the
-# UnionAll, so an instance's parameterized type falls through to the default and every approach
-# silently reports "no configuration" and "no edges" -- which is how the generated transfer
-# matrix first came out empty. Testing through `typeof(Approach())` is what catches that.
+# Pool configurations and flow edges.  The load-bearing check here is that the traits
+# are asked with the type of a *constructed* approach, not with the bare name.
+# `poolConfiguration(::Type{cCycleBase_GSI})` matches only the UnionAll, so an
+# instance's parameterized type falls through to the default and every approach
+# silently reports "no configuration" and "no edges" -- which is how the generated
+# transfer matrix first came out empty. Testing through `typeof(Approach())` is what
+# catches that.
 
 @testset "pool configurations" begin
     P = SindbadTEM.Processes
@@ -25,8 +25,9 @@
         end
     end
 
-    # the same depth-first, prefix-accumulating flattening setPoolsInfo applies, inlined because
-    # it lives in Sindbad.Setup and SindbadTEM does not depend on Sindbad
+    # the same depth-first, prefix-accumulating flattening setPoolsInfo applies,
+    # inlined because it lives in Sindbad.Setup and SindbadTEM does not depend on
+    # Sindbad
     function leafNames(components, prefix="")
         names = Symbol[]
         for name in propertynames(components)

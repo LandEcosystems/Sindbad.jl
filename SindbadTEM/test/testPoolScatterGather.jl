@@ -1,15 +1,15 @@
-# setComponentFromMainPool / setMainFromComponentPool generate the scatter of a combined pool
-# into its components and the matching gather back. Both went a long time with no caller and
-# no test, and both drifted into calling a `rep_elem` that does not exist. These tests exist so
-# that cannot happen silently again: they run the generated code rather than just checking it
-# compiles.
-#
-# Uses `land` and `tmp_helpers` from test_data, loaded by runtests.jl.
+# setComponentFromMainPool / setMainFromComponentPool generate the scatter of a
+# combined pool into its components and the matching gather back. Both went a long
+# time with no caller and no test, and both drifted into calling a `rep_elem` that
+# does not exist. These tests exist so that cannot happen silently again: they run
+# the generated code rather than just checking it compiles.  Uses `land` and
+# `tmp_helpers` from test_data, loaded by runtests.jl.
 
 @testset "pool scatter/gather" begin
     vals = tmp_helpers.pools.vals
 
-    # distinct values, so a misplaced index shows up as a wrong number rather than a coincidence
+    # distinct values, so a misplaced index shows up as a wrong number rather than a
+    # coincidence
     cEco_in = SVector{8,Float64}((11.0, 22.0, 33.0, 44.0, 55.0, 66.0, 77.0, 88.0))
     land_in = (; land..., pools=(; land.pools..., cEco=cEco_in))
 
@@ -26,7 +26,8 @@
     end
 
     @testset "gather back into the main pool" begin
-        # zero cEco first, so a gather that did nothing at all would fail rather than pass
+        # zero cEco first, so a gather that did nothing at all would fail rather than
+        # pass
         zeroed = (; scattered..., pools=(; scattered.pools..., cEco=zero(cEco_in)))
         gathered = setMainFromComponentPool(zeroed, tmp_helpers,
             vals.self.cEco, vals.all_components.cEco, vals.zix.cEco)

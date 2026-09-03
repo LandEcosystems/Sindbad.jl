@@ -32,8 +32,9 @@ function compute(params::cTauSoilProperties_CASA, forcing, land, helpers)
     #sujan: moving clay & silt from land.properties to p_soilWBase.
     clay = mean(st_clay)
     silt = mean(st_silt)
-    # TEXTURE EFFECT ON k OF cMicSoil. A structure with no microbial pool resolves cMicSoil to
-    # an empty index set, so this loop runs zero times rather than needing a guard.
+    # TEXTURE EFFECT ON k OF cMicSoil. A structure with no microbial pool resolves
+    # cMicSoil to an empty index set, so this loop runs zero times rather than
+    # needing a guard.
     for zix ∈ helpers.pools.zix.cMicSoil
         c_eco_k_f_soil_props[zix] = (1.0 - (TEXTEFFA * (silt + clay)))
     end

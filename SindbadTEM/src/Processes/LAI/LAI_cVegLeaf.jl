@@ -14,7 +14,8 @@ function compute(params::LAI_cVegLeaf, forcing, land, helpers)
 
     ## calculate variables
     # summed straight out of cEco through zix, so a pool name that spans several cEco
-    # slots contributes all of them and a name the structure lacks contributes nothing
+    # slots contributes all of them and a name the structure lacks contributes
+    # nothing
     cVegLeafTotal = totalS_indices(cEco, helpers.pools.zix.cVegLeaf)
     LAI = cVegLeafTotal * SLA
 

@@ -9,7 +9,8 @@ function compute(params::cBiomass_treeGrass_cVegReserveScaling, forcing, land, h
 
     ## calculate variables    
     # summed straight out of cEco through zix, so a pool name that spans several cEco
-    # slots contributes all of them and a name the structure lacks contributes nothing
+    # slots contributes all of them and a name the structure lacks contributes
+    # nothing
     cVegLeaf_sum = totalS_indices(cEco, helpers.pools.zix.cVegLeaf)
     cVegWood_sum = totalS_indices(cEco, helpers.pools.zix.cVegWood)
     cVegReserve_sum = totalS_indices(cEco, helpers.pools.zix.cVegReserve)
