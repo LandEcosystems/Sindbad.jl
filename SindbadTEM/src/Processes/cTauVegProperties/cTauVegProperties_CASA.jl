@@ -50,7 +50,7 @@ function compute(params::cTauVegProperties_CASA, forcing, land, helpers)
         # compute annk based on age
         annk[AGE>z_zero] = o_one / AGE[AGE>z_zero]
         # feed it to the new annual turnover rates
-        zix = helpers.pools.zix.(cpN)
+        zix = getproperty(helpers.pools.zix, cpN)
         c_eco_τ[zix] = annk #sujan
         # c_eco_τ[zix] = annk[zix]
     end
