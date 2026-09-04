@@ -59,11 +59,41 @@
         @test propertynames(poolAliases(P.CarbonPoolsCASA)) == (:cLitFast, :cLitSlow)
     end
 
+    # Enumerated rather than listed, so a configuration added as a new file in
+    # poolConfigurations/ is covered from the moment it is included. The three known
+    # ones are asserted to be among them, so an enumeration that silently returns
+    # nothing cannot pass these vacuously.
+    configurations = SindbadTEM.subtypes(P.CarbonPoolConfiguration)
+
+    @testset "every configuration is discoverable and declares a structure" begin
+        for known in (P.CarbonPoolsCASA, P.CarbonPoolsGSI, P.CarbonPoolsMGMT)
+            @test known ∈ configurations
+        end
+        for configuration in configurations
+            @test poolStructure(configuration) !== nothing
+            @test hasproperty(poolStructure(configuration), :components)
+        end
+    end
+
     @testset "configurations are not approaches" begin
         # approach enumeration is driven by these two, in five separate places
-        for configuration in (P.CarbonPoolsCASA, P.CarbonPoolsGSI, P.CarbonPoolsMGMT)
+        for configuration in configurations
             @test !(configuration <: LandEcosystem)
             @test configuration ∉ SindbadTEM.subtypes(P.cCycleBase)
+        end
+    end
+
+    # An alias is an extra name for pools that already exist, so it must not shadow a
+    # pool the structure generates -- that would put two meanings on one zix entry.
+    # The pool name skeleton setPoolsInfo derives unions the two, which is where such a
+    # collision would silently disappear. Tested here rather than there because
+    # carbonPoolNames lives in Sindbad.Setup and SindbadTEM does not depend on Sindbad.
+    @testset "no alias shadows a generated pool name" begin
+        for configuration in configurations
+            leaves = Set(leafNames(poolStructure(configuration).components))
+            for alias in propertynames(poolAliases(configuration))
+                @test alias ∉ leaves
+            end
         end
     end
 end
