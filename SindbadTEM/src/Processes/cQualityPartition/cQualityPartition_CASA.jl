@@ -22,10 +22,7 @@ function define(params::cQualityPartition_CASA, forcing, land, helpers)
     ## The vector has one element per active carbon transfer, in exactly the same
     ## order as c_flow_order/c_giver/c_taker. This follows the flow-vector design
     ## used by cFlow_GSI and avoids constructing a dense pool-by-pool matrix.
-    c_flow_QP_vec = one.(eltype(cEco).(zero([c_taker...])))
-    if cEco isa SVector
-        c_flow_QP_vec = SVector{length(c_flow_QP_vec)}(c_flow_QP_vec)
-    end
+    c_flow_QP_vec = getVectorOfType(cEco, length(c_taker), one)
 
     ## The partition vector is consumed by other carbon-cycle processes, so it is
     ## a shared diagnostic rather than a cQualityPartition-private variable.

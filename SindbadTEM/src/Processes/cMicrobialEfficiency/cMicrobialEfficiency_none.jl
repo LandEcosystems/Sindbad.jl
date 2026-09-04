@@ -10,10 +10,7 @@ function define(params::cMicrobialEfficiency_none, forcing, land, helpers)
 
     # Allocate one value per active carbon transfer. Start from 
     # one so that vegetation flows, not mediated by microbial activity, are unchanged.
-    c_flow_ME_vec = one.(eltype(cEco).(zero([c_taker...])))
-    if cEco isa SVector
-        c_flow_ME_vec = SVector{length(c_flow_ME_vec)}(c_flow_ME_vec)
-    end
+    c_flow_ME_vec = getVectorOfType(cEco, length(c_taker), one)
 
     # Find litter and soil pools, where flows are mediated by microbial activity, 
     # and attribute microbial efficiency.

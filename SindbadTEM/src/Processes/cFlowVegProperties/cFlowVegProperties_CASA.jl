@@ -13,10 +13,7 @@ function define(params::cFlowVegProperties_CASA, forcing, land, helpers)
         cEco ⇐ land.pools
     end
     ## Instantiate variables
-    p_F_vec = eltype(cEco).(zero([c_taker...]))
-    if cEco isa SVector
-        p_F_vec = SVector{length(p_F_vec)}(p_F_vec)
-    end
+    p_F_vec = getVectorOfType(cEco, length(c_taker))
 
     ## pack land variables
     @pack_nt p_F_vec ⇒ land.cFlowVegProperties

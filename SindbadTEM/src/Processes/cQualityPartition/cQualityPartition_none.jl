@@ -10,11 +10,7 @@ function define(params::cQualityPartition_none, forcing, land, helpers)
     end
 
     # Instantiate a full partition vector, making sure that the givers do not given more that what they have (sum of columns == 1)
-    c_flow_QP_vec = one.(eltype(cEco).(zero([c_taker...])))
-
-    if cEco isa SVector
-        c_flow_QP_vec = SVector{length(c_flow_QP_vec)}(c_flow_QP_vec)
-    end
+    c_flow_QP_vec = getVectorOfType(cEco, length(c_taker), one)
 
     for fO ∈ c_flow_order
         give_r = c_giver[fO]

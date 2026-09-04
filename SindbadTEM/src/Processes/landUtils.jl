@@ -1,5 +1,6 @@
 export @add_to_elem, @pack_nt, @rep_elem, @rep_vec, @unpack_nt
 export addToElem, addToEachElem, addVec
+export getVectorOfType
 export getZix
 export processPackNT, processUnpackNT
 export repElem, repVec
@@ -7,7 +8,7 @@ export setComponentFromMainPool, setMainFromComponentPool
 export totalS
 export totalS_indices
 using ..SindbadTEM
-import StaticArraysCore: SVector
+import StaticArraysCore: SVector, StaticArray
 
 """
     @add_to_elem
@@ -208,6 +209,58 @@ end
 
 function getZix(dat::SVector, zixhelpersPool)
     return zixhelpersPool
+end
+
+"""
+    getVectorOfType(source_vector, output_length)
+    getVectorOfType(source_vector, output_length, fill_value)
+    getVectorOfType(source_vector::StaticArray, output_length, fill_value)
+
+Return a vector of `output_length` elements shaped like `source_vector`: its element
+type and its container kind, filled with `fill_value(eltype(source_vector))`.
+
+# Arguments
+- `source_vector`: the vector whose element type and container kind to copy
+- `output_length`: length of the returned vector, which need not match
+  `length(source_vector)`
+- `fill_value`: `zero` or `one`, the function rather than a number, so the element
+  type comes from `source_vector` and the caller never repeats it. Defaults to `zero`
+
+# Returns
+- A vector of `output_length` elements, static when `source_vector` is static
+
+# Notes:
+- "Of type" is about the source's type, not its size: the two lengths differ at every
+  carbon-cycle call site, where `source_vector` is `cEco` with one entry per pool and
+  the result has one entry per carbon flow.
+- Dispatch on `StaticArray` replaces the `if x isa SVector` branch that every one of
+  those sites used to carry, which had to be repeated once per constructed vector.
+
+# Examples
+```jldoctest
+julia> getVectorOfType([1.0, 2.0, 3.0], 2)
+2-element Vector{Float64}:
+ 0.0
+ 0.0
+
+julia> getVectorOfType([1.0, 2.0, 3.0], 2, one)
+2-element Vector{Float64}:
+ 1.0
+ 1.0
+```
+"""
+function getVectorOfType end
+
+function getVectorOfType(source_vector, output_length)
+    return getVectorOfType(source_vector, output_length, zero)
+end
+
+function getVectorOfType(source_vector, output_length, fill_value)
+    return fill(fill_value(eltype(source_vector)), output_length)
+end
+
+function getVectorOfType(source_vector::StaticArray, output_length, fill_value)
+    return SVector{output_length}(fill(fill_value(eltype(source_vector)), output_length))
 end
 
 """
