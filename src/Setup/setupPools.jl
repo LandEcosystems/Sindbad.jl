@@ -18,7 +18,7 @@ const POOL_ELEMENT_PROCESS = (; carbon = :cCycleBase, water = :wCycleBase)
 Return `(leaf_names, group_names)` for a pool structure: the names
 `getPoolInformation` flattens it into, and the intermediate nesting levels that
 become groups. Every nesting level is a real pool with its own `zix` entry, so a
-two-level layout yields `cVegRoot` alongside `cVegRootF`.
+two-level layout yields `cVegRoot` alongside `cVegRootFine`.
 """
 function generatedPoolNames(structure)
     components = getfield(structure, :components)

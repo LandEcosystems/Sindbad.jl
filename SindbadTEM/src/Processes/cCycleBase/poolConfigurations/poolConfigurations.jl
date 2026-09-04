@@ -67,8 +67,8 @@ or `()` if it declares none.
   agree.
 - Edges must name leaf pools, never groups. `zix` is keyed by group names as well as
   leaf names, so an edge naming a group would silently expand to a cross product,
-  `:cVeg => :cLit` becoming 4x2 entries. CASA is why this matters: `cVegRootF` feeds
-  `cLitRootFM` and `cLitRootFS` while `cVegRootC` feeds only `cLitRootC`, so a
+  `:cVeg => :cLit` becoming 4x2 entries. CASA is why this matters: `cVegRootFine` feeds
+  `cLitRootFineFast` and `cLitRootFineSlow` while `cVegRootCoarse` feeds only `cLitRootCoarse`, so a
   group-level `cVegRoot => cLitFast` would invent links that do not exist.
   `cFlowStructure` rejects both mistakes.
 """

@@ -66,7 +66,7 @@ module TEMTypes
     a model structure JSON (`combine` plus nested `components`), or `nothing` if none.
 
     Nesting carries the grouping: every level becomes a pool with its own `zix` entry, so
-    declaring `cVeg.Root.{F,C}` yields `cVegRoot` alongside `cVegRootF` and `cVegRootC`.
+    declaring `cVeg.Root.{Fine,Coarse}` yields `cVegRoot` alongside `cVegRootFine` and `cVegRootCoarse`.
     """
     function poolStructure end
     poolStructure(configuration) = nothing
