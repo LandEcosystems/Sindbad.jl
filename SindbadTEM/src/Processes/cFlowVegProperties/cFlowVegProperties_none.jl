@@ -5,7 +5,7 @@ struct cFlowVegProperties_none <: cFlowVegProperties end
 function define(params::cFlowVegProperties_none, forcing, land, helpers)
     @unpack_nt cEco ⇐ land.pools
 
-    @unpack_nt c_taker ⇐ land.constants
+    @unpack_nt c_taker ⇐ land.cCycleBase
 
     ## calculate variables
     p_E_vec = getVectorOfType(cEco, length(c_taker))

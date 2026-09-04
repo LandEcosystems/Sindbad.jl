@@ -6,7 +6,7 @@ struct cCycleManagement_Harvest <: cCycleManagement end
 
 function define(params::cCycleManagement_Harvest, forcing, land, helpers)
     @unpack_nt begin
-        (c_giver, c_taker) ⇐ land.constants
+        (c_giver, c_taker) ⇐ land.cCycleBase
         (cVeg, cEco) ⇐ land.pools
         zix ⇐ helpers.pools
         (z_zero, o_one) ⇐ land.constants
@@ -74,7 +74,7 @@ function compute(params::cCycleManagement_Harvest, forcing, land, helpers)
         zix ⇐ helpers.pools
         c_remain ⇐ land.states
         (zix_veg_all, c_lose_to_zix_vec, is_crop_harvest_pool, is_wood_harvest_pool) ⇐ land.cCycleManagement 
-        (c_giver, c_taker) ⇐ land.constants
+        (c_giver, c_taker) ⇐ land.cCycleBase
         (z_zero, o_one) ⇐ land.constants
         c_model ⇐ land.models
     end

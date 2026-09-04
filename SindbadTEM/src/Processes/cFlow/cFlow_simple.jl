@@ -17,7 +17,7 @@ function compute(params::cFlow_simple, forcing, land, helpers)
     p_taker = c_taker
     p_giver = c_giver
     # if there is flux order check that is consistent
-    if !isfield(land.constants, :c_flow_order)
+    if !isfield(land.cCycleBase, :c_flow_order)
         c_flow_order = 1:length(c_taker)
     else
         if length(c_flow_order) != length(c_taker)
@@ -28,7 +28,7 @@ function compute(params::cFlow_simple, forcing, land, helpers)
 
     ## pack land variables
     @pack_nt begin
-        c_flow_order ⇒ land.constants
+        c_flow_order ⇒ land.cCycleBase
         (c_flow_A_vec, p_giver, p_taker) ⇒ land.cFlow
     end
     return land

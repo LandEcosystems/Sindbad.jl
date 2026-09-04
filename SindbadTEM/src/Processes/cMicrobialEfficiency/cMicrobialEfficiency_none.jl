@@ -4,7 +4,7 @@ struct cMicrobialEfficiency_none <: cMicrobialEfficiency end
 
 function define(params::cMicrobialEfficiency_none, forcing, land, helpers)
     @unpack_nt begin
-        (c_flow_order, c_giver, c_taker) ⇐ land.constants
+        (c_flow_order, c_giver, c_taker) ⇐ land.cCycleBase
         (cEco, cLit, cSoil) ⇐ land.pools
     end
 

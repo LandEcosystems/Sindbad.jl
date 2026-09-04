@@ -133,27 +133,6 @@ sindbad_tem_variables = orD{Symbol,orD{Symbol,String}}(
         :land_field => "cFlow",
         :description => "name of the target pool for carbon flow"
     ),
-    :constants__c_flow_order => orD(
-        :standard_name => "c_flow_order",
-        :long_name => "carbon_flow_order",
-        :units => "number",
-        :land_field => "constants",
-        :description => "order of pooling while calculating the carbon flow"
-    ),
-    :constants__c_giver => orD(
-        :standard_name => "c_giver",
-        :long_name => "carbon_giver_pool",
-        :units => "number",
-        :land_field => "constants",
-        :description => "index of the source carbon pool for a given flow"
-    ),
-    :constants__c_taker => orD(
-        :standard_name => "c_taker",
-        :long_name => "carbon_taker_pool",
-        :units => "number",
-        :land_field => "constants",
-        :description => "index of the source carbon pool for a given flow"
-    ),
     :constants__n_groundW => orD(
         :standard_name => "n_groundW",
         :long_name => "num_layers_groundW",
@@ -321,6 +300,27 @@ sindbad_tem_variables = orD{Symbol,orD{Symbol,String}}(
         :units => "years",
         :land_field => "diagnostics",
         :description => "number of years needed for carbon turnover per carbon pool"
+    ),
+    :cCycleBase__c_flow_order => orD(
+        :standard_name => "c_flow_order",
+        :long_name => "carbon_flow_order",
+        :units => "number",
+        :land_field => "cCycleBase",
+        :description => "order of pooling while calculating the carbon flow"
+    ),
+    :cCycleBase__c_giver => orD(
+        :standard_name => "c_giver",
+        :long_name => "carbon_giver_pool",
+        :units => "number",
+        :land_field => "cCycleBase",
+        :description => "index of the source carbon pool for a given flow"
+    ),
+    :cCycleBase__c_taker => orD(
+        :standard_name => "c_taker",
+        :long_name => "carbon_taker_pool",
+        :units => "number",
+        :land_field => "cCycleBase",
+        :description => "index of the receiving carbon pool for a given flow"
     ),
     :cCycleBase__c_flow_named_edges => orD(
         :standard_name => "c_flow_named_edges",

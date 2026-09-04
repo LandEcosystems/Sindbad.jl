@@ -5,7 +5,7 @@ struct cQualityPartition_none <: cQualityPartition end
 
 function define(params::cQualityPartition_none, forcing, land, helpers)
     @unpack_nt begin
-        (c_flow_order, c_taker, c_giver) ⇐ land.constants
+        (c_flow_order, c_taker, c_giver) ⇐ land.cCycleBase
         cEco ⇐ land.pools
     end
 

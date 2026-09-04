@@ -27,7 +27,7 @@ end
 function define(params::cMicrobialEfficiency_CASA, forcing, land, helpers)
     
     @unpack_nt begin
-        c_taker ⇐ land.constants
+        c_taker ⇐ land.cCycleBase
         cEco ⇐ land.pools
     end
 
@@ -43,7 +43,7 @@ function precompute(params::cMicrobialEfficiency_CASA, forcing, land, helpers)
     @unpack_cMicrobialEfficiency_CASA params
     @unpack_nt begin
         c_flow_ME_vec ⇐ land.diagnostics
-        (c_flow_order, c_giver, c_taker) ⇐ land.constants
+        (c_flow_order, c_giver, c_taker) ⇐ land.cCycleBase
         # (cLit, cSoil, cMic) ⇐ land.pools
         (st_clay, st_silt) ⇐ land.properties
         # CASA already has a c_flow_ME_array that will be the prior here... 

@@ -49,8 +49,7 @@ function define(params::cCycleBase_CASA, forcing, land, helpers)
     ## pack land variables
     @pack_nt begin
         (C_to_N_cVeg, c_flow_A_vec) ⇒ land.diagnostics
-        (c_flow_order, c_taker, c_giver) ⇒ land.constants
-        c_flow_named_edges ⇒ land.cCycleBase
+        (c_flow_order, c_taker, c_giver, c_flow_named_edges) ⇒ land.cCycleBase
         c_model ⇒ land.models
     end
     return land

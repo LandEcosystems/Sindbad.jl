@@ -6,7 +6,7 @@ struct cCycleDisturbance_Fire <: cCycleDisturbance end
 
 function define(params::cCycleDisturbance_Fire, forcing, land, helpers)
     @unpack_nt begin
-        (c_giver, c_taker) ⇐ land.constants
+        (c_giver, c_taker) ⇐ land.cCycleBase
         cVeg ⇐ land.pools
     end
     zix_veg_all = Tuple(vcat(getZix(cVeg, helpers.pools.zix.cVeg)...))
@@ -50,7 +50,7 @@ function compute(params::cCycleDisturbance_Fire, forcing, land, helpers)
     @unpack_nt begin
         (zix_veg_all, c_lose_to_zix_vec) ⇐ land.cCycleDisturbance
         cEco ⇐ land.pools
-        (c_giver, c_taker) ⇐ land.constants
+        (c_giver, c_taker) ⇐ land.cCycleBase
         c_remain ⇐ land.states
         c_model ⇐ land.models
     end

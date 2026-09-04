@@ -7,7 +7,7 @@ function define(params::cCycleConsistency_simple, forcing, land, helpers)
     ## unpack land variables
     @unpack_nt begin
         cEco ⇐ land.pools
-        (c_giver, c_taker) ⇐ land.constants
+        (c_giver, c_taker) ⇐ land.cCycleBase
     end
     # make list of indices which give carbon to other pools during the flow, and separate them if 
     # they are above or below the diagonal in flow vector. A flow is one off-diagonal

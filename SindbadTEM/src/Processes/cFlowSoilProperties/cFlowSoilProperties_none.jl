@@ -4,7 +4,7 @@ struct cFlowSoilProperties_none <: cFlowSoilProperties end
 
 function define(params::cFlowSoilProperties_none, forcing, land, helpers)
     @unpack_nt begin
-        c_taker ⇐ land.constants
+        c_taker ⇐ land.cCycleBase
         cEco ⇐ land.pools
     end
     ## calculate variables

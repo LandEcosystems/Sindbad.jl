@@ -9,7 +9,7 @@ end
 
 function define(params::cMicrobialEfficiency_texture, forcing, land, helpers)
     @unpack_nt begin
-        c_taker ⇐ land.constants
+        c_taker ⇐ land.cCycleBase
         cEco ⇐ land.pools
     end
 
@@ -25,7 +25,7 @@ function precompute(params::cMicrobialEfficiency_texture, forcing, land, helpers
     @unpack_cMicrobialEfficiency_texture params
     @unpack_nt begin
         c_flow_ME_vec ⇐ land.diagnostics
-        (c_flow_order, c_giver, c_taker) ⇐ land.constants
+        (c_flow_order, c_giver, c_taker) ⇐ land.cCycleBase
         (cLit, cSoil) ⇐ land.pools
         (st_clay, st_silt) ⇐ land.properties
     end

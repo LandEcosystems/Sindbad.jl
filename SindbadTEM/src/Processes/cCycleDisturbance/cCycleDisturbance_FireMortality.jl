@@ -6,7 +6,7 @@ struct cCycleDisturbance_FireMortality <: cCycleDisturbance end
 
 function define(params::cCycleDisturbance_FireMortality, forcing, land, helpers)
     @unpack_nt begin
-        (c_giver, c_taker) ⇐ land.constants
+        (c_giver, c_taker) ⇐ land.cCycleBase
         (cVeg, cEco) ⇐ land.pools
         zix ⇐ helpers.pools
         (z_zero, o_one) ⇐ land.constants
@@ -69,7 +69,7 @@ function compute(params::cCycleDisturbance_FireMortality, forcing, land, helpers
         zix ⇐ helpers.pools
         c_remain ⇐ land.states
         (zix_veg_all, c_lose_to_zix_vec, zix_dead) ⇐ land.cCycleDisturbance # TODO: double check the new flow for fire, are indices correct?
-        (c_giver, c_taker) ⇐ land.constants
+        (c_giver, c_taker) ⇐ land.cCycleBase
         (z_zero, o_one) ⇐ land.constants
         c_model ⇐ land.models
     end

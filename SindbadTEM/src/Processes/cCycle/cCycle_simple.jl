@@ -45,8 +45,8 @@ function compute(params::cCycle_simple, forcing, land, helpers)
         (c_flow_A_vec, c_eco_k, c_allocation) ⇐ land.diagnostics
         ΔcEco ⇐ land.pools
         gpp ⇐ land.fluxes
-        (c_giver, c_taker) ⇐ land.constants
-        (c_flow_order) ⇐ land.constants
+        (c_giver, c_taker) ⇐ land.cCycleBase
+        (c_flow_order) ⇐ land.cCycleBase
         (z_zero, o_one) ⇐ land.constants
     end
     ## reset ecoflow and influx to be zero at every time step

@@ -42,7 +42,7 @@ function compute(params::cCycle_GSI, forcing, land, helpers)
         (cEco, cVeg, ΔcEco) ⇐ land.pools
         cEco_prev ⇐ land.states
         gpp ⇐ land.fluxes
-        (c_flow_order, c_giver, c_taker) ⇐ land.constants
+        (c_flow_order, c_giver, c_taker) ⇐ land.cCycleBase
         c_model ⇐ land.models
         (zix_cLit_cSoil_cProducts, zix_cVeg_cLit_cSoil, zix_cLit_cSoil) ⇐ land.cCycle
     end

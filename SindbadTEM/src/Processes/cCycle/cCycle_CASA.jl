@@ -24,7 +24,7 @@ function compute(params::cCycle_CASA, forcing, land, helpers)
         gpp ⇐ land.fluxes
         (c_eco_k, c_allocation) ⇐ land.diagnostics
         (p_E_vec, p_F_vec, p_giver, p_taker) ⇐ land.cFlow
-        c_flow_order ⇐ land.constants
+        c_flow_order ⇐ land.cCycleBase
         c_eco_τ ⇐ land.diagnostics
     end
     # NUMBER OF TIME STEPS PER YEAR

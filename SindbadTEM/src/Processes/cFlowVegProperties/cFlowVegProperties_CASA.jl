@@ -9,7 +9,7 @@ end
 function define(params::cFlowVegProperties_CASA, forcing, land, helpers)
     @unpack_cFlowVegProperties_CASA params
     @unpack_nt begin 
-        c_taker ⇐ land.constants
+        c_taker ⇐ land.cCycleBase
         cEco ⇐ land.pools
     end
     ## Instantiate variables

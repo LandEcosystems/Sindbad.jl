@@ -13,7 +13,7 @@ end
 
 function define(params::cQualityPartition_CASA, forcing, land, helpers)
     @unpack_nt begin
-        c_taker ⇐ land.constants
+        c_taker ⇐ land.cCycleBase
         cEco ⇐ land.pools
     end
 
@@ -45,7 +45,7 @@ function precompute(params::cQualityPartition_CASA, forcing, land, helpers)
     @unpack_cQualityPartition_CASA params
     @unpack_nt begin
         c_flow_QP_vec ⇐ land.diagnostics
-        (c_flow_order, c_giver, c_taker) ⇐ land.constants
+        (c_flow_order, c_giver, c_taker) ⇐ land.cCycleBase
         st_clay ⇐ land.properties
     end
     # Matrix of flows
