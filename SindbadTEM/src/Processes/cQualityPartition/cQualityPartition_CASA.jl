@@ -9,44 +9,6 @@ export cQualityPartition_CASA
 end
 #! format: on
 
-function define(params::cQualityPartition_CASA, forcing, land, helpers)
-    @unpack_nt begin
-        c_taker ⇐ land.cCycleBase
-        cEco ⇐ land.pools
-    end
-
-    ## Instantiate c_flow_QP_vec with the neutral value (one) for every active flow.
-    ##
-    ## The vector has one element per active carbon transfer, in exactly the same
-    ## order as c_flow_order/c_giver/c_taker. This follows the flow-vector design
-    ## used by cFlow_GSI and avoids constructing a dense pool-by-pool matrix.
-    c_flow_QP_vec = getVectorOfType(cEco, length(c_taker), one)
-
-    ## The partition vector is consumed by other carbon-cycle processes, so it is
-    ## a shared diagnostic rather than a cQualityPartition-private variable.
-    @pack_nt c_flow_QP_vec ⇒ land.diagnostics
-	return land
-end
-
-"""
-    setQPFlow(c_flow_QP_vec, c_flow_named_edges, edge, value)
-
-Write `value` into every flow-vector position that carries the named `edge`, and
-return the vector unchanged when the configured pool structure has no such edge.
-
-The CASA partition is declared over the full CASA pool topology, but the same
-approach is selected against more aggregated structures that lack the explicit
-metabolic/structural litter and microbial pools. Skipping absent edges lets one
-declaration serve both, instead of erroring on a pool the structure never had.
-"""
-function setQPFlow(c_flow_QP_vec, c_flow_named_edges, edge, value)
-    hasproperty(c_flow_named_edges, edge) || return c_flow_QP_vec
-    for flow ∈ getproperty(c_flow_named_edges, edge)
-        c_flow_QP_vec = repElem(c_flow_QP_vec, value, c_flow_QP_vec, c_flow_QP_vec, flow)
-    end
-    return c_flow_QP_vec
-end
-
 function precompute(params::cQualityPartition_CASA, forcing, land, helpers)
     @unpack_cQualityPartition_CASA params
     @unpack_nt begin
@@ -126,6 +88,13 @@ selected structure lacks are skipped, so on the more aggregated GSI structure th
 CASA-only metabolic/structural litter and microbial edges simply do not
 contribute and the remaining flows keep their neutral partition of one.
 
+The three controls in the table are independent and own disjoint giver pools, so
+the same partition can be assembled from [`cQualityPartitionSoilProperties`](@ref),
+[`cQualityPartitionMetabolicFraction`](@ref) and
+[`cQualityPartitionLignin`](@ref) through [`cQualityPartition_mult`](@ref). Use
+that when the controls need to be swapped or disabled separately; use this
+approach when one self-contained CASA declaration is what is wanted.
+
 *References*
  - Carvalhais, N., Reichstein, M., Seixas, J., Collatz, G. J., Pereira, J. S., Berbigier, P., & Rambal, S. (2008). Implications of the carbon cycle steady state assumption for biogeochemical modeling performance and inverse parameter retrieval. Global Biogeochemical Cycles, 22(2).
  - Potter, C. S., Klooster, S., Myneni, R., Genovese, V., Tan, P. N., & Kumar, V. (2003). Continental-scale comparisons of terrestrial carbon sinks estimated from satellite data and ecosystem modeling 1982-1998. Global and Planetary Change, 39(3-4), 201-213.
@@ -134,6 +103,7 @@ contribute and the remaining flows keep their neutral partition of one.
 *Versions*
  - 1.0 on 27.08.2026 [sol]
  - 2.0 on 04.09.2026 [skoirala]: litter chemistry read from land.properties; flows matched by named edge
+ - 2.1 on 04.09.2026 [skoirala]: c_flow_QP_vec allocated by cCycleBase; setQPFlow moved to cQualityPartition.jl
 
 *Created by*
  - sol
