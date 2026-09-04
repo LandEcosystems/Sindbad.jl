@@ -15,13 +15,13 @@ The partition tables are declared over the full CASA pool topology, but the same
 approaches are selected against more aggregated structures that lack the explicit
 metabolic/structural litter and microbial pools. Skipping absent edges lets one
 declaration serve both, instead of erroring on a pool the structure never had.
+
+The body is `setFlowEdgeValue` in `landUtils.jl`, shared with `setMEFlow`: writing a
+value into the positions of a named edge is the same operation whichever per-flow
+vector is being filled.
 """
 function setQPFlow(qp_vec, c_flow_named_edges, edge, value)
-    hasproperty(c_flow_named_edges, edge) || return qp_vec
-    for flow ∈ getproperty(c_flow_named_edges, edge)
-        qp_vec = repElem(qp_vec, value, qp_vec, qp_vec, flow)
-    end
-    return qp_vec
+    return setFlowEdgeValue(qp_vec, c_flow_named_edges, edge, value)
 end
 
 """
