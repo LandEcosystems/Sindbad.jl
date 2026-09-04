@@ -18,9 +18,9 @@ function define(params::gppSoilW_Horn, forcing, land, helpers)
 
 	## initialize filtered soil moisture with current normalized soil moisture
 	SM = sum(soilW)
-	max_AWC = maxZero(∑w_fc - ∑w_wp)
-	actAWC = maxZero(SM - ∑w_wp)
-	Wf_prev = minOne(actAWC / max_AWC)
+	max_AWC = at_least_zero(∑w_fc - ∑w_wp)
+	actAWC = at_least_zero(SM - ∑w_wp)
+	Wf_prev = at_most_one(actAWC / max_AWC)
 
 	## pack land variables
 	@pack_nt Wf_prev ⇒ land.diagnostics
@@ -42,9 +42,9 @@ function compute(params::gppSoilW_Horn, forcing, land, helpers)
 
 	## normalize soil moisture: W_k in [0, 1]
 	SM = sum(soilW)
-	max_AWC = maxZero(∑w_fc - ∑w_wp)
-	actAWC = maxZero(SM - ∑w_wp)
-	Wk = minOne(actAWC / max_AWC)
+	max_AWC = at_least_zero(∑w_fc - ∑w_wp)
+	actAWC = at_least_zero(SM - ∑w_wp)
+	Wk = at_most_one(actAWC / max_AWC)
 
 	## filtered soil moisture: W_f,k = (1 - α) * W_k + α * W_f,k-1
 	Wf = (one(α) - α) * Wk + α * Wf_prev

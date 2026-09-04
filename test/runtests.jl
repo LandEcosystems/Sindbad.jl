@@ -21,6 +21,39 @@ using PolyesterForwardDiff, FiniteDifferences, FiniteDiff
     @test isdefined(Sindbad, :addExtensionToSindbad)
 end
 
+@testset "Inline algorithm options" begin
+    function algorithm_test_info(algorithm_optimization)
+        return (
+            settings=(optimization=(; algorithm_optimization),),
+            temp=(experiment=(dirs=(settings="",),),),
+            optimization=(;),
+        )
+    end
+
+    inline_options = (;
+        method="CMAEvolutionStrategyCMAES",
+        options=(; maxfevals=123, ftol=1.0e-5),
+    )
+    info = Sindbad.Setup.setAlgorithmOptions(
+        algorithm_test_info(inline_options),
+        :algorithm_optimization,
+    )
+    @test info.optimization.optimizer.method isa Sindbad.CMAEvolutionStrategyCMAES
+    @test info.optimization.optimizer.options.maxfevals == 123
+    @test info.optimization.optimizer.options.ftol == 1.0e-5
+
+    inline_options_dict = Dict(
+        "method" => "CMAEvolutionStrategyCMAES",
+        "options" => Dict("maxfevals" => 456),
+    )
+    info = Sindbad.Setup.setAlgorithmOptions(
+        algorithm_test_info(inline_options_dict),
+        :algorithm_optimization,
+    )
+    @test info.optimization.optimizer.method isa Sindbad.CMAEvolutionStrategyCMAES
+    @test info.optimization.optimizer.options.maxfevals == 456
+end
+
 @testset "DataLoaders utilsDataLoaders basics" begin
     using Sindbad.DataLoaders: getDimPermutation
 

@@ -133,9 +133,9 @@ function compute(params::cFlow_GSI_subdaily, forcing, land, helpers)
 
     # calculate the flow rate for exchange with reserve pools based on the slopes
     # get the flow & shedding rates
-    leaf_root_to_reserve = minOne(at_least_zero(-slope_eco_stressor) * slope_leaf_root_to_reserve) # * (cVeg_growth < z_zero)
-    reserve_to_leaf_root = minOne(at_least_zero(slope_eco_stressor) * slope_reserve_to_leaf_root) # * (cVeg_growth > 0.0)
-    shedding_rate = minOne(at_least_zero(-slope_eco_stressor) * k_shedding)
+    leaf_root_to_reserve = at_most_one(at_least_zero(-slope_eco_stressor) * slope_leaf_root_to_reserve) # * (cVeg_growth < z_zero)
+    reserve_to_leaf_root = at_most_one(at_least_zero(slope_eco_stressor) * slope_reserve_to_leaf_root) # * (cVeg_growth > 0.0)
+    shedding_rate = at_most_one(at_least_zero(-slope_eco_stressor) * k_shedding)
 
     # @debug leaf_root_to_reserve, reserve_to_leaf_root, shedding_rate
 
@@ -158,20 +158,20 @@ function compute(params::cFlow_GSI_subdaily, forcing, land, helpers)
     # @debug "1" c_eco_k
     # @debug k_shedding_leaf, leaf_to_reserve
     c_eco_k, c_eco_k_f_sum = adjust_pk_subdaily(c_eco_k, k_shedding_leaf, leaf_to_reserve, one(leaf_to_reserve), helpers.pools.zix.cVegLeaf, helpers)
-    leaf_to_reserve_frac = getFrac(leaf_to_reserve, c_eco_k_f_sum)
-    k_shedding_leaf_frac = getFrac(k_shedding_leaf, c_eco_k_f_sum)
+    leaf_to_reserve_frac = safe_divide(leaf_to_reserve, c_eco_k_f_sum)
+    k_shedding_leaf_frac = safe_divide(k_shedding_leaf, c_eco_k_f_sum)
 
     # @debug "2" c_eco_k
 
     c_eco_k, c_eco_k_f_sum = adjust_pk_subdaily(c_eco_k, k_shedding_root, root_to_reserve, one(root_to_reserve), helpers.pools.zix.cVegRoot, helpers)
-    root_to_reserve_frac = getFrac(root_to_reserve, c_eco_k_f_sum)
-    k_shedding_root_frac = getFrac(k_shedding_root, c_eco_k_f_sum)
+    root_to_reserve_frac = safe_divide(root_to_reserve, c_eco_k_f_sum)
+    k_shedding_root_frac = safe_divide(k_shedding_root, c_eco_k_f_sum)
 
     # @debug "3" c_eco_k
 
     c_eco_k, c_eco_k_f_sum = adjust_pk_subdaily(c_eco_k, Re2L_i, Re2R_i, one(Re2R_i), helpers.pools.zix.cVegReserve, helpers)
-    reserve_to_leaf_frac = getFrac(Re2L_i, c_eco_k_f_sum)
-    reserve_to_root_frac = getFrac(Re2R_i, c_eco_k_f_sum)
+    reserve_to_leaf_frac = safe_divide(Re2L_i, c_eco_k_f_sum)
+    reserve_to_root_frac = safe_divide(Re2R_i, c_eco_k_f_sum)
 
     c_flow_A_vec = repElem(c_flow_A_vec, reserve_to_leaf_frac, c_flow_A_vec, c_flow_A_vec, c_flow_A_vec_ind.reserve_to_leaf)
     c_flow_A_vec = repElem(c_flow_A_vec, reserve_to_root_frac, c_flow_A_vec, c_flow_A_vec, c_flow_A_vec_ind.reserve_to_root)

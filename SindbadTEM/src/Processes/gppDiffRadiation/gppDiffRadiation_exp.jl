@@ -45,7 +45,7 @@ function compute(params::gppDiffRadiation_exp, forcing, land, helpers)
 
     ## calculate variables
     ## FROM SHANNING
-    rg_frac = getFrac(f_rg, f_rg_pot)
+    rg_frac = safe_divide(f_rg, f_rg_pot)
 
     CI = clamp_zero_one(one(rg_frac) - rg_frac) #@needscheck: this is different to Turner which does not have 1- . So, need to check if this correct
 
@@ -53,7 +53,7 @@ function compute(params::gppDiffRadiation_exp, forcing, land, helpers)
     # CI_min = min(CI, CI_min)
     # CI_max = max(CI, CI_max)
 
-    # CI_nor = clamp_zero_one(getFrac(CI - CI_min, CI_max - CI_min)) # @needscheck: originally, CI_min and max were based on the year's data. see below.
+    # CI_nor = clamp_zero_one(safe_divide(CI - CI_min, CI_max - CI_min)) # @needscheck: originally, CI_min and max were based on the year's data. see below.
 
 
     # cScGPP = one(μ) - μ * (one(μ) - CI_nor)
