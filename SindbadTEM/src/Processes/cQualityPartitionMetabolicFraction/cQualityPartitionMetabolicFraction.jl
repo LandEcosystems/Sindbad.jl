@@ -13,12 +13,12 @@ pairs. The first edge of a pair takes the metabolic fraction and the second take
 its complement.
 
 Each pair is the complete set of outgoing flows of one giver, and no other
-`cQualityPartition` factor process touches `cVegLeaf` or `cVegRootF`, which is
+`cQualityPartition` factor process touches `cVegLeaf` or `cVegRootFine`, which is
 what lets the factors be multiplied into `c_flow_QP_vec`.
 """
 const QP_METABOLIC_FRACTION_GROUPS = (
-    (:cVegLeaf_to_cLitLeafM, :cVegLeaf_to_cLitLeafS),
-    (:cVegRootF_to_cLitRootFM, :cVegRootF_to_cLitRootFS),
+    (:cVegLeaf_to_cLitLeafFast, :cVegLeaf_to_cLitLeafSlow),
+    (:cVegRootFine_to_cLitRootFineFast, :cVegRootFine_to_cLitRootFineSlow),
 )
 
 includeApproaches(cQualityPartitionMetabolicFraction, @__DIR__)
@@ -34,7 +34,7 @@ flow-aligned factor of the carbon-quality partition with one entry per active
 carbon transfer, in the same order as `c_flow_order`, `c_giver` and `c_taker`.
 
 The factor is one everywhere except on the flows leaving `cVegLeaf` and
-`cVegRootF`, listed in `QP_METABOLIC_FRACTION_GROUPS`: lignin-rich, nitrogen-poor
+`cVegRootFine`, listed in `QP_METABOLIC_FRACTION_GROUPS`: lignin-rich, nitrogen-poor
 litter routes less of its litterfall to the fast-cycling metabolic pools and more
 to the structural ones. [`cQualityPartition_mult`](@ref) multiplies this factor
 with the lignin and soil-property factors to form `c_flow_QP_vec`.

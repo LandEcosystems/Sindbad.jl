@@ -13,8 +13,8 @@ The structural-litter partition groups this process owns, as
 lignin fraction of structural litter carbon and the second takes its complement.
 """
 const QP_LIGNIN_STRUCT_GROUPS = (
-    (:cLitLeafS_to_cSoilSlow, :cLitLeafS_to_cMicSurf),
-    (:cLitRootFS_to_cSoilSlow, :cLitRootFS_to_cMicSoil),
+    (:cLitLeafSlow_to_cSoilSlow, :cLitLeafSlow_to_cMicSurf),
+    (:cLitRootFineSlow_to_cSoilSlow, :cLitRootFineSlow_to_cMicSoil),
 )
 
 """
@@ -26,7 +26,7 @@ litter rather than of structural litter.
 """
 const QP_LIGNIN_WOOD_GROUPS = (
     (:cLitWood_to_cSoilSlow, :cLitWood_to_cMicSurf),
-    (:cLitRootC_to_cSoilSlow, :cLitRootC_to_cMicSoil),
+    (:cLitRootCoarse_to_cSoilSlow, :cLitRootCoarse_to_cMicSoil),
 )
 
 includeApproaches(cQualityPartitionLignin, @__DIR__)

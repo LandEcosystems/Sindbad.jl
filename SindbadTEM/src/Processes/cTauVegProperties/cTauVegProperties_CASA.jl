@@ -23,7 +23,7 @@ function precompute(params::cTauVegProperties_CASA, forcing, land, helpers)
     ## calculate variables
     # Lignin slows the decomposition of the structural litter pools only. All
     # other pools keep the neutral factor of one set in define.
-    for zix ∈ (helpers.pools.zix.cLitLeafS..., helpers.pools.zix.cLitRootFS...)
+    for zix ∈ (helpers.pools.zix.cLitLeafSlow..., helpers.pools.zix.cLitRootFineSlow...)
         @rep_elem lit_k_f_lignin ⇒ (c_eco_k_f_veg_props, zix, :cEco)
     end
 
@@ -43,7 +43,7 @@ $(getModelDocString(cTauVegProperties_CASA))
 # Extended help
 
 The approach applies `lit_k_f_lignin`, published by the [`lignin`](@ref)
-process, to the structural litter pools `cLitLeafS` and `cLitRootFS`.
+process, to the structural litter pools `cLitLeafSlow` and `cLitRootFineSlow`.
 
 This approach previously owned the whole lignin calculation, with seven
 parameters of its own. Those now live in [`metabolicFraction`](@ref) and

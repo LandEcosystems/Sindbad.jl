@@ -54,9 +54,9 @@ function compute(params::cAllocationTreeFraction_Friedlingstein1999, forcing, la
     o_one = one(eltype(c_allocation))
     a_cVegWood = frac_tree
     a_cVegRoot = o_one + (s0 / (r0 + l0)) * (o_one - frac_tree)
-    a_cVegRootF = a_cVegRoot * (frac_fine_to_coarse * frac_tree + (o_one - frac_tree))
-    a_cVegRootC = a_cVegRoot * (o_one - frac_fine_to_coarse) * frac_tree
-    # cVegRoot = cVegRootF + cVegRootC
+    a_cVegRootFine = a_cVegRoot * (frac_fine_to_coarse * frac_tree + (o_one - frac_tree))
+    a_cVegRootCoarse = a_cVegRoot * (o_one - frac_fine_to_coarse) * frac_tree
+    # cVegRoot = cVegRootFine + cVegRootCoarse
     a_cVegLeaf = o_one + (s0 / (r0 + l0)) * (o_one - frac_tree)
 
     c_allocation = setCAlloc(c_allocation, a_cVegWood, helpers.pools.zix.cVegWood, helpers)

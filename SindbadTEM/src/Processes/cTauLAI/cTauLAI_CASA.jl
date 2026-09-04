@@ -37,7 +37,7 @@ function compute(params::cTauLAI_CASA, forcing, land, helpers)
     # fine roots where the structure separates them, all roots otherwise. Every name
     # resolves now, so absence shows up as an empty entry rather than a missing
     # field.
-    p_cVegRootZix = isempty(helpers.pools.zix.cVegRootF) ? helpers.pools.zix.cVegRoot : helpers.pools.zix.cVegRootF
+    p_cVegRootZix = isempty(helpers.pools.zix.cVegRootFine) ? helpers.pools.zix.cVegRoot : helpers.pools.zix.cVegRootFine
     # make sure TSPY is integer
     TSPY = floor(Int, TSPY)
     if !hasproperty(land.cTaufLAI, :p_LAI13)
