@@ -162,18 +162,18 @@ those approaches carried, which is identical across `cCycleBase_GSI` and
 `_GSI_PlantForm`, and the same 11 under `_GSI_PlantForm_MGMT`, whose products are
 decay only and so add no edges.
 """
-const GSI_FLOW_EDGES = (            # giver => taker
-    :cVegReserve => :cVegRoot,
-    :cVegReserve => :cVegLeaf,
-    :cVegRoot    => :cVegReserve,
-    :cVegLeaf    => :cVegReserve,
+const GSI_FLOW_EDGES = (            # giver => taker, in flow-vector order
+    :cVegRoot    => :cVegReserve,   # giver 1: cVegRoot
     :cVegRoot    => :cLitFast,
+    :cVegWood    => :cLitSlow,      # giver 2: cVegWood
+    :cVegLeaf    => :cVegReserve,   # giver 3: cVegLeaf
     :cVegLeaf    => :cLitFast,
+    :cVegReserve => :cVegRoot,      # giver 4: cVegReserve
+    :cVegReserve => :cVegLeaf,
     :cVegReserve => :cLitFast,
-    :cVegWood    => :cLitSlow,
-    :cLitFast    => :cSoilSlow,
-    :cLitSlow    => :cSoilSlow,
-    :cSoilSlow   => :cSoilOld,
+    :cLitFast    => :cSoilSlow,     # giver 5: cLitFast
+    :cLitSlow    => :cSoilSlow,     # giver 6: cLitSlow
+    :cSoilSlow   => :cSoilOld,      # giver 7: cSoilSlow
 )
 
 """
@@ -184,16 +184,21 @@ Keeping the `RootFM`/`RootFS` leaf names means every name here matches that matr
 only the index order shifts under the nested structure (`cLitWood` moves from 9 to
 7), which a name-keyed edge list does not care about.
 """
-const CASA_FLOW_EDGES = (           # giver => taker
-    :cVegRootF  => :cLitRootFM,  :cVegRootF  => :cLitRootFS,
-    :cVegRootC  => :cLitRootC,   :cVegWood   => :cLitWood,
-    :cVegLeaf   => :cLitLeafM,   :cVegLeaf   => :cLitLeafS,
-    :cLitLeafM  => :cMicSurf,    :cLitLeafS  => :cMicSurf,   :cLitLeafS  => :cSoilSlow,
-    :cLitRootFM => :cMicSoil,    :cLitRootFS => :cMicSoil,   :cLitRootFS => :cSoilSlow,
-    :cLitWood   => :cMicSurf,    :cLitWood   => :cSoilSlow,
-    :cLitRootC  => :cMicSoil,    :cLitRootC  => :cSoilSlow,
-    :cMicSurf   => :cSoilSlow,   :cMicSoil   => :cSoilSlow,  :cMicSoil   => :cSoilOld,
-    :cSoilSlow  => :cMicSoil,    :cSoilSlow  => :cSoilOld,   :cSoilOld   => :cMicSoil,
+const CASA_FLOW_EDGES = (           # giver => taker, in flow-vector order
+    :cVegRootF  => :cLitRootFM,  :cVegRootF  => :cLitRootFS,   # giver 1: cVegRootF
+    :cVegRootC  => :cLitRootC,                                 # giver 2: cVegRootC
+    :cVegWood   => :cLitWood,                                  # giver 3: cVegWood
+    :cVegLeaf   => :cLitLeafM,   :cVegLeaf   => :cLitLeafS,    # giver 4: cVegLeaf
+    :cLitLeafM  => :cMicSurf,                                  # giver 5: cLitLeafM
+    :cLitLeafS  => :cMicSurf,    :cLitLeafS  => :cSoilSlow,    # giver 6: cLitLeafS
+    :cLitWood   => :cMicSurf,    :cLitWood   => :cSoilSlow,    # giver 7: cLitWood
+    :cLitRootFM => :cMicSoil,                                  # giver 8: cLitRootFM
+    :cLitRootFS => :cMicSoil,    :cLitRootFS => :cSoilSlow,    # giver 9: cLitRootFS
+    :cLitRootC  => :cMicSoil,    :cLitRootC  => :cSoilSlow,    # giver 10: cLitRootC
+    :cMicSurf   => :cSoilSlow,                                 # giver 11: cMicSurf
+    :cMicSoil   => :cSoilSlow,   :cMicSoil   => :cSoilOld,     # giver 12: cMicSoil
+    :cSoilSlow  => :cMicSoil,    :cSoilSlow  => :cSoilOld,     # giver 13: cSoilSlow
+    :cSoilOld   => :cMicSoil,                                  # giver 14: cSoilOld
 )
 
 cFlowEdges(::Type{<:cCycleBase}) = ()
