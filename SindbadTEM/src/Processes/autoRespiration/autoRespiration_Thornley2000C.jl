@@ -1,10 +1,9 @@
 export autoRespiration_Thornley2000C
 
 #! format: off
-@bounds @describe @units @timescale @with_kw struct autoRespiration_Thornley2000C{T1,T2,T3} <: autoRespiration
+@bounds @describe @units @timescale @with_kw struct autoRespiration_Thornley2000C{T1,T2} <: autoRespiration
     RMN::T1 = 0.009085714285714286 | (0.0009085714285714285, 0.09085714285714286) | "Nitrogen efficiency rate of maintenance respiration" | "gC/gN/day" | "day"
     YG::T2 = 0.75 | (0.0, 1.0) | "growth yield coefficient, or growth efficiency. Loosely: (1-YG)*GPP is growth respiration" | "gC/gC" | ""
-    MTF::T3 = 0.85 | (-Inf, Inf) | "" | "" | ""
 end
 #! format: on
 
@@ -40,6 +39,7 @@ function compute(params::autoRespiration_Thornley2000C, forcing, land, helpers)
         C_to_N_cVeg ⇐ land.diagnostics
         cVegZix = cVeg ⇐ helpers.pools.zix
         (auto_respiration_f_airT, c_allocation) ⇐ land.diagnostics
+        lit_frac_metabolic ⇐ land.properties
         (z_zero, o_one) ⇐ land.constants
     end
     # adjust nitrogen efficiency rate of maintenance respiration to the current
@@ -47,7 +47,7 @@ function compute(params::autoRespiration_Thornley2000C, forcing, land, helpers)
     zix = getZix(cVeg, cVegZix)
     for ix ∈ zix
 
-        @rep_elem MTF ⇒ (Fd, ix, :cEco)
+        @rep_elem lit_frac_metabolic ⇒ (Fd, ix, :cEco)
 
         # compute maintenance & growth respiration terms for each vegetation pool
         # according to MODEL C - growth; degradation & resynthesis view of
@@ -61,7 +61,7 @@ function compute(params::autoRespiration_Thornley2000C, forcing, land, helpers)
         k_respiration_maintain_ix = km_ix * kd_ix
         k_respiration_maintain_su_ix = k_respiration_maintain[ix] * (o_one - YG)
 
-        # maintenance respiration: R_m = km * (1.0 - YG) * C; km = km * MTF [before equivalent to kd]
+        # maintenance respiration: R_m = km * (1.0 - YG) * C; km = km * kd
         RA_M_ix = k_respiration_maintain_ix * (o_one - YG) * cEco[ix]
         # no negative maintenance respiration
         RA_M_ix = at_least_zero(RA_M_ix)
@@ -96,6 +96,21 @@ purpose(::Type{autoRespiration_Thornley2000C}) = "Calculates autotrophic mainten
 
 ----
 # Extended help
+
+The degradation coefficient `Fd` of the maintenance-respiration term is taken
+from `land.properties.lit_frac_metabolic`, published by the
+[`metabolicFraction`](@ref) process, rather than from a parameter of this
+approach.
+
+!!! warning "Pair this approach with a non-zero metabolic fraction"
+    This approach previously declared its own `MTF = 0.85` parameter. That name
+    was a misnomer: the value is the Thornley degradation coefficient, not a
+    metabolic litter fraction, and it only coincided with the CASA
+    `lit_frac_metabolic_A` default. Reading `lit_frac_metabolic` instead means
+    `metabolicFraction_none`, which sets it to zero, drives `Fd` and therefore
+    maintenance respiration to zero. Select
+    `metabolicFraction: {"approach": "constant"}`, whose default is 0.85, to
+    reproduce the earlier behaviour.
 
 *References*
  - Amthor, J. S. (2000), The McCree-de Wit-Penning de Vries-Thornley  respiration paradigms: 30 years later, Ann Bot-London, 86[1], 1-20.  Ryan, M. G. (1991), Effects of Climate Change on Plant Respiration, Ecol  Appl, 1[2], 157-167.
