@@ -179,3 +179,104 @@ end
         @test_throws ErrorException cFlowMatrix(P.cCycleBase_GSI, poolNamesOf(P.cCycleBase_CASA))
     end
 end
+
+# The three pool-group microbial-efficiency factors, driven for real rather than compared
+# against a parallel edge list. Each group's _CASA approach is run on a synthetic land and
+# the positions it moves away from the neutral one are read back, so this checks what the
+# approaches actually write. The groups must partition the decomposition transfers: every
+# one owned exactly once, none shared, and no vegetation transfer touched. That is the
+# property cMicrobialEfficiency_mult relies on, and the check the dense c_flow_ME_array had
+# no way to express -- it is what would have caught its transposed coarse-root and wood
+# columns.
+@testset "microbial efficiency group coverage" begin
+    P = SindbadTEM.Processes
+
+    function leafNames(components, prefix="")
+        names = Symbol[]
+        for name in propertynames(components)
+            value = getproperty(components, name)
+            if isa(value, NamedTuple)
+                append!(names, leafNames(value, prefix * String(name)))
+            else
+                push!(names, Symbol(prefix * String(name)))
+            end
+        end
+        return names
+    end
+
+    # a land carrying just what the _CASA approaches unpack
+    function syntheticLand(approach)
+        pool_names = Tuple(leafNames(poolStructure(poolConfiguration(approach)).components))
+        n_pools = length(pool_names)
+        flow_matrix = cFlowMatrix(approach, pool_names)
+        n_flows = maximum(flow_matrix)
+        givers = zeros(Int, n_flows)
+        takers = zeros(Int, n_flows)
+        for taker in 1:n_pools, giver in 1:n_pools
+            flow_matrix[taker, giver] == 0 && continue
+            givers[flow_matrix[taker, giver]] = giver
+            takers[flow_matrix[taker, giver]] = taker
+        end
+        named = P.cFlowNamedEdges(Tuple(takers), Tuple(givers), pool_names)
+        land = (;
+            pools = (; cEco = zeros(n_pools)),
+            cCycleBase = (; c_taker = Tuple(takers), c_giver = Tuple(givers),
+                            c_flow_order = ntuple(identity, n_flows),
+                            c_flow_named_edges = named),
+            diagnostics = (;),
+            properties = (; st_clay = [0.2], st_silt = [0.3]),
+        )
+        return land, pool_names, givers, takers, n_flows
+    end
+
+    # which flow positions this approach moves away from the neutral one
+    function ownedFlows(approach_instance, diagnostic, land)
+        l = P.define(approach_instance, nothing, land, nothing)
+        l = P.precompute(approach_instance, nothing, l, nothing)
+        factor = getproperty(l.diagnostics, diagnostic)
+        return Set(findall(!=(1.0), factor))
+    end
+
+    groups = ((P.cMicrobialEfficiencycLit_CASA(), :c_flow_ME_f_cLit, :cLit),
+              (P.cMicrobialEfficiencycMic_CASA(), :c_flow_ME_f_cMic, :cMic),
+              (P.cMicrobialEfficiencycSoil_CASA(), :c_flow_ME_f_cSoil, :cSoil))
+
+    for base in (P.cCycleBase_CASA, P.cCycleBase_GSI)
+        land, pool_names, givers, _, n_flows = syntheticLand(base)
+        owned = [ownedFlows(a, d, land) for (a, d, _) in groups]
+
+        @testset "$(nameof(base)): the groups are disjoint" begin
+            for i in 1:3, j in (i + 1):3
+                @test isempty(intersect(owned[i], owned[j]))
+            end
+        end
+
+        @testset "$(nameof(base)): every decomposition transfer is owned once" begin
+            all_owned = union(owned...)
+            for flow in 1:n_flows
+                giver = String(pool_names[givers[flow]])
+                if startswith(giver, "cVeg")
+                    @test flow ∉ all_owned
+                else
+                    @test flow ∈ all_owned
+                end
+            end
+        end
+
+        # the property the whole split rests on: a group writes only transfers leaving its
+        # own pools, so ownership follows the giver's name
+        @testset "$(nameof(base)): each group owns only its own givers" begin
+            for (k, (_, _, prefix)) in enumerate(groups)
+                for flow in owned[k]
+                    @test startswith(String(pool_names[givers[flow]]), String(prefix))
+                end
+            end
+        end
+    end
+
+    # cMic has no pools under GSI, so its factor must come out entirely neutral there
+    @testset "the cMic group is inert without microbial pools" begin
+        land, _, _, _, _ = syntheticLand(P.cCycleBase_GSI)
+        @test isempty(ownedFlows(P.cMicrobialEfficiencycMic_CASA(), :c_flow_ME_f_cMic, land))
+    end
+end

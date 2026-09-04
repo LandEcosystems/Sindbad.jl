@@ -36,8 +36,8 @@ function precompute(params::cQualityPartitionSoilProperties_clay, forcing, land,
     end
 
     ## calculate variables
-    # Collapse the soil profile to a single mean clay fraction, as in
-    # cMicrobialEfficiency_texture.
+    # Collapse the soil profile to a single mean clay fraction, as `meTextureEfficiency`
+    # does for the microbial carbon-transfer efficiency.
     clay = mean(st_clay)
     frac_cSoilSlow_to_cSoilOld = frac_clay_cSoilSlow_A + frac_clay_cSoilSlow_B * clay
     frac_cMicSoil_to_cSoilOld = frac_clay_cMicSoil_A + frac_clay_cMicSoil_B * clay

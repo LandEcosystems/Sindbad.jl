@@ -343,6 +343,34 @@ sindbad_tem_variables = orD{Symbol,orD{Symbol,String}}(
         :land_field => "diagnostics",
         :description => "fraction of the carbon loss fron a (giver) pool that flows to a (taker) pool"
     ),
+    :diagnostics__c_flow_ME_vec => orD(
+        :standard_name => "c_flow_ME_vec",
+        :long_name => "microbial_efficiency_vector",
+        :units => "fraction",
+        :land_field => "diagnostics",
+        :description => "fraction of the carbon leaving a (giver) pool along each of its outgoing transfers that is retained by the (taker) pool rather than respired; allocated as one per flow by cCycleBase and filled in by cMicrobialEfficiency"
+    ),
+    :diagnostics__c_flow_ME_f_cLit => orD(
+        :standard_name => "c_flow_ME_f_cLit",
+        :long_name => "litter_pool_effect_microbial_efficiency",
+        :units => "fraction",
+        :land_field => "diagnostics",
+        :description => "litter pool control of the microbial carbon-transfer efficiency, per active carbon transfer; sets the efficiency of the transfers leaving the litter pools, and is one on every other transfer"
+    ),
+    :diagnostics__c_flow_ME_f_cMic => orD(
+        :standard_name => "c_flow_ME_f_cMic",
+        :long_name => "microbial_pool_effect_microbial_efficiency",
+        :units => "fraction",
+        :land_field => "diagnostics",
+        :description => "microbial pool control of the microbial carbon-transfer efficiency, per active carbon transfer; sets the efficiency of the transfers leaving the microbial pools, where the soil texture response acts, and is one on every other transfer"
+    ),
+    :diagnostics__c_flow_ME_f_cSoil => orD(
+        :standard_name => "c_flow_ME_f_cSoil",
+        :long_name => "soil_pool_effect_microbial_efficiency",
+        :units => "fraction",
+        :land_field => "diagnostics",
+        :description => "soil pool control of the microbial carbon-transfer efficiency, per active carbon transfer; sets the efficiency of the transfers leaving the soil carbon pools, and is one on every other transfer"
+    ),
     :diagnostics__c_flow_QP_f_lignin => orD(
         :standard_name => "c_flow_QP_f_lignin",
         :long_name => "lignin_effect_carbon_quality_partition",
