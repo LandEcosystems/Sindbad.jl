@@ -145,12 +145,17 @@ or `()` if it declares none.
   approach held only `{-1, 0, 1}`, and every consumer tested positivity alone, so it
   was a dense encoding of a sparse graph: 64 numbers to say 11 things under GSI, 196
   to say 22 under CASA.
+- Listed in flow-vector order: all edges leaving the first giver pool, ordered by
+  taker index, then all edges leaving the second, and so on. Nothing depends on it,
+  since `cFlowStructure` sorts by `(giver, taker)` whatever the declaration order,
+  but reading a declaration against a `d_cFlow` output is far easier when the two
+  agree.
 - Edges must name leaf pools, never groups. `zix` is keyed by group names as well as
   leaf names, so an edge naming a group would silently expand to a cross product,
   `:cVeg => :cLit` becoming 4x2 entries. CASA is why this matters: `cVegRootF` feeds
   `cLitRootFM` and `cLitRootFS` while `cVegRootC` feeds only `cLitRootC`, so a
   group-level `cVegRoot => cLitFast` would invent links that do not exist.
-  `cFlowMatrix` rejects both mistakes.
+  `cFlowStructure` rejects both mistakes.
 """
 function cFlowEdges end
 
@@ -205,34 +210,52 @@ cFlowEdges(::Type{<:cCycleBase}) = ()
 cFlowEdges(T::cCycleBase) = cFlowEdges(typeof(T))
 
 """
-    cFlowMatrix(params::cCycleBase, cEco, helpers)
+    cFlowStructure(params::cCycleBase, cEco, helpers)
 
-Build the carbon transfer matrix for an approach from its `cFlowEdges`, resolved
-against the pool structure the experiment actually configured.
+Resolve an approach's `cFlowEdges` against the pool structure the experiment actually
+configured, returning the whole flow-vector description as
+`(c_flow_order, c_taker, c_giver, c_flow_named_edges)`, in the order the approaches pack
+it.
 
-Row is taker, column is giver, `-1` on the diagonal and `+1` at each edge, which is
-the layout the hand-written `c_flow_A_array` used. `c_taker`/`c_giver`/`c_flow_order`
-are still derived from the matrix by the existing `findall`, so the flow-vector order
-stays column major and the edge declaration order cannot affect it.
-
-This is where an edge list first meets a concrete structure, so both checks live
-here: an edge naming a pool the structure lacks, and an edge naming a group or alias
-rather than a leaf pool, which would otherwise expand silently into a cross product.
+# Notes:
+- A flow is an edge, so the taker and giver of flow `i` are just the two endpoints of
+  edge `i` resolved to indices, and `c_flow_order` is `1:number of edges`. There is no
+  transfer matrix in between: the old `c_flow_A_array` existed only to be walked back
+  out by `findall`, and its one remaining reader, `cCycleConsistency_simple`, asks
+  only whether a flow sits above or below the diagonal, which is `c_taker` against
+  `c_giver`.
+- All four come from one call so they cannot disagree about how many flows there are
+  or what order they sit in, which is what an approach rederiving each of them
+  separately from a matrix left open. `c_flow_named_edges` is the same topology keyed
+  by pool-name pair rather than by position, built by `cFlowNamedEdges`.
+- Sorted by `(giver, taker)`, which is the column-major order `findall` produced from
+  the matrix and which `c_flow_A_vec`, `c_flow_QP_vec`, `c_flow_ME_vec` and the
+  `d_cFlow` output dimension are all indexed by. Sorting here rather than trusting the
+  declaration means an edge list written out of order still yields the same flow
+  vector; the lists are kept in that order anyway so a declaration reads in the same
+  order as the flows it produces.
+- This is where an edge list first meets a concrete structure, so the checks live
+  here: an edge naming a pool the structure lacks, an edge naming a group or alias
+  rather than a leaf pool, which would otherwise expand silently into a cross
+  product, and a duplicated edge, which the matrix used to swallow into one flow.
 """
-function cFlowMatrix(params::cCycleBase, cEco, helpers)
+function cFlowStructure(params::cCycleBase, cEco, helpers)
     edges = cFlowEdges(typeof(params))
-    n_pools = length(cEco)
-    num_type = eltype(cEco)
-    c_flow_A_array = zeros(num_type, n_pools, n_pools)
-    for pool ∈ 1:n_pools
-        c_flow_A_array[pool, pool] = -one(num_type)
+    givers = [cFlowEdgeIndex(params, helpers, first(edge), edge) for edge ∈ edges]
+    takers = [cFlowEdgeIndex(params, helpers, last(edge), edge) for edge ∈ edges]
+    flows = collect(zip(givers, takers))
+    if length(unique(flows)) < length(flows)
+        repeated = unique([edges[i] for i ∈ findall(flow -> count(==(flow), flows) > 1, flows)])
+        error("$(nameof(typeof(params))) declares the carbon flow edge(s) " *
+              "$(repeated) more than once. Each giver to taker link carries one flow, " *
+              "so list it once.")
     end
-    for edge ∈ edges
-        giver = cFlowEdgeIndex(params, helpers, first(edge), edge)
-        taker = cFlowEdgeIndex(params, helpers, last(edge), edge)
-        c_flow_A_array[taker, giver] = one(num_type)
-    end
-    return c_flow_A_array
+    order = sortperm(flows)
+    c_taker = Tuple(takers[order])
+    c_giver = Tuple(givers[order])
+    c_flow_order = ntuple(identity, length(order))
+    c_flow_named_edges = cFlowNamedEdges(c_taker, c_giver, helpers.pools.components.cEco)
+    return c_flow_order, c_taker, c_giver, c_flow_named_edges
 end
 
 """

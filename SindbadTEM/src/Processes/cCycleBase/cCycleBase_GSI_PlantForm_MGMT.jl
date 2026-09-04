@@ -54,29 +54,18 @@ end
 
 function define(params::cCycleBase_GSI_PlantForm_MGMT, forcing, land, helpers)
     @unpack_cCycleBase_GSI_PlantForm_MGMT params
-    @unpack_nt begin
-        cEco ⇐ land.pools
-        (z_zero, o_one) ⇐ land.constants
-    end
+    @unpack_nt cEco ⇐ land.pools
     ## Instantiate variables
     C_to_N_cVeg = zero(cEco) #sujan
     # C_to_N_cVeg[helpers.pools.zix.cVeg] .= p_C_to_N_cVeg # not used...
     c_eco_k_base = zero(cEco)
     c_eco_τ = zero(cEco)
 
-    # if there is flux order check that is consistent
-    # the transfer matrix is generated from this approach's declared cFlowEdges,
-    # resolved against the configured pool structure, rather than carried as a
-    # parameter
-    c_flow_A_array = cFlowMatrix(params, cEco, helpers)
-
-    c_flow_order = Tuple(collect(1:length(findall(>(z_zero), c_flow_A_array))))
-    c_taker = Tuple([ind[1] for ind ∈ findall(>(z_zero), c_flow_A_array)])
-    c_giver = Tuple([ind[2] for ind ∈ findall(>(z_zero), c_flow_A_array)])
-
-    # resolved once here so cFlow approaches read the topology instead of rederiving
-    # it
-    c_flow_named_edges = cFlowNamedEdges(c_taker, c_giver, helpers.pools.components.cEco)
+    # one flow per declared edge of this approach, resolved against the configured
+    # pool structure, rather than a transfer matrix carried as a parameter. The same
+    # call keys the flows by pool-name pair, so a cFlow approach reads the topology
+    # instead of rederiving it
+    (c_flow_order, c_taker, c_giver, c_flow_named_edges) = cFlowStructure(params, cEco, helpers)
 
     c_model = cCycleBase_GSI_PlantForm_MGMT()
 
@@ -84,10 +73,9 @@ function define(params::cCycleBase_GSI_PlantForm_MGMT, forcing, land, helpers)
 
     ## pack land variables
     @pack_nt begin
-        c_flow_A_array ⇒ land.diagnostics
         (c_flow_order, c_taker, c_giver) ⇒ land.constants
-        (C_to_N_cVeg, c_eco_τ, c_eco_k_base, zero_c_τ_pf) ⇒ land.diagnostics
         c_flow_named_edges ⇒ land.cCycleBase
+        (C_to_N_cVeg, c_eco_τ, c_eco_k_base, zero_c_τ_pf) ⇒ land.diagnostics
         c_model ⇒ land.models
     end
     return land
