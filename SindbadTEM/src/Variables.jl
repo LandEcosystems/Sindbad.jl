@@ -133,13 +133,6 @@ sindbad_tem_variables = orD{Symbol,orD{Symbol,String}}(
         :land_field => "cFlow",
         :description => "name of the target pool for carbon flow"
     ),
-    :cFlow__c_flow_A_vec_ind => orD(
-        :standard_name => "c_flow_A_vec_ind",
-        :long_name => "index_carbon_flow_vector",
-        :units => "number",
-        :land_field => "cFlow",
-        :description => "indices of flow from giver to taker for carbon flow vector"
-    ),
     :constants__c_flow_order => orD(
         :standard_name => "c_flow_order",
         :long_name => "carbon_flow_order",

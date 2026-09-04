@@ -12,42 +12,20 @@ end
 function define(params::cFlow_GSI, forcing, land, helpers)
     @unpack_cFlow_GSI params
     @unpack_nt begin
-        (cEco, soilW) ⇐ land.pools
-        (c_giver, c_taker) ⇐ land.constants
-        c_flow_named_edges ⇐ land.cCycleBase
+        soilW ⇐ land.pools
         ∑w_sat ⇐ land.properties
     end
     ## Instantiate variables
 
-    # The transfer topology belongs to cCycleBase, which resolved it once into
-    # flow-vector positions keyed by pool-name pair. Name the edges this algorithm
-    # works in terms of; each is a tuple of every matching position, not just the
-    # first, so a pool name spanning several cEco slots writes all of them.  An edge
-    # this approach needs but the selected base does not have is simply not a field
-    # here, so it fails at define naming the edge -- cFlow_GSI on a structure with no
-    # cVegReserve, for instance -- instead of a BoundsError on an empty findall.
-    c_flow_A_vec_ind = (reserve_to_leaf=c_flow_named_edges.cVegReserve_to_cVegLeaf,
-        reserve_to_root=c_flow_named_edges.cVegReserve_to_cVegRoot,
-        leaf_to_reserve=c_flow_named_edges.cVegLeaf_to_cVegReserve,
-        root_to_reserve=c_flow_named_edges.cVegRoot_to_cVegReserve,
-        k_shedding_leaf=c_flow_named_edges.cVegLeaf_to_cLitFast,
-        k_shedding_root=c_flow_named_edges.cVegRoot_to_cLitFast,
-        k_shedding_reserve=c_flow_named_edges.cVegReserve_to_cLitFast)
-
-    c_flow_A_vec = one.(eltype(cEco).(zero([c_taker...])))
-
-    if cEco isa SVector
-        c_flow_A_vec = SVector{length(c_flow_A_vec)}(c_flow_A_vec)
-    end
-
+    # The transfer topology and the flow vector itself both belong to cCycleBase,
+    # which resolves them once. This approach only needs its own stressor state; it
+    # names the flows it writes directly from c_flow_named_edges in compute.
     eco_stressor_prev = totalS(soilW) / ∑w_sat
     slope_eco_stressor_prev = zero(eco_stressor_prev)
 
     @pack_nt begin
-        c_flow_A_vec_ind ⇒ land.cFlow
         eco_stressor_prev ⇒ land.diagnostics
         slope_eco_stressor_prev ⇒ land.diagnostics
-        c_flow_A_vec ⇒ land.diagnostics
     end
 
     return land
@@ -73,7 +51,7 @@ function compute(params::cFlow_GSI, forcing, land, helpers)
     @unpack_cFlow_GSI params
     ## unpack land variables
     @unpack_nt begin
-        c_flow_A_vec_ind ⇐ land.cFlow
+        c_flow_named_edges ⇐ land.cCycleBase
         (c_allocation_f_soilW, c_allocation_f_soilT, c_allocation_f_cloud, eco_stressor_prev, slope_eco_stressor_prev)  ⇐ land.diagnostics
         c_eco_k ⇐ land.diagnostics
         c_flow_A_vec ⇐ land.diagnostics
@@ -132,25 +110,25 @@ function compute(params::cFlow_GSI, forcing, land, helpers)
     k_shedding_reserve = reserve_k_sum
     k_shedding_reserve_frac = safe_divide(reserve_k_sum, reserve_k_f_sum)
     
-    for flow ∈ c_flow_A_vec_ind.reserve_to_leaf
+    for flow ∈ c_flow_named_edges.cVegReserve_to_cVegLeaf
         c_flow_A_vec = repElem(c_flow_A_vec, reserve_to_leaf_frac, c_flow_A_vec, c_flow_A_vec, flow)
     end
-    for flow ∈ c_flow_A_vec_ind.reserve_to_root
+    for flow ∈ c_flow_named_edges.cVegReserve_to_cVegRoot
         c_flow_A_vec = repElem(c_flow_A_vec, reserve_to_root_frac, c_flow_A_vec, c_flow_A_vec, flow)
     end
-    for flow ∈ c_flow_A_vec_ind.leaf_to_reserve
+    for flow ∈ c_flow_named_edges.cVegLeaf_to_cVegReserve
         c_flow_A_vec = repElem(c_flow_A_vec, leaf_to_reserve_frac, c_flow_A_vec, c_flow_A_vec, flow)
     end
-    for flow ∈ c_flow_A_vec_ind.root_to_reserve
+    for flow ∈ c_flow_named_edges.cVegRoot_to_cVegReserve
         c_flow_A_vec = repElem(c_flow_A_vec, root_to_reserve_frac, c_flow_A_vec, c_flow_A_vec, flow)
     end
-    for flow ∈ c_flow_A_vec_ind.k_shedding_leaf
+    for flow ∈ c_flow_named_edges.cVegLeaf_to_cLitFast
         c_flow_A_vec = repElem(c_flow_A_vec, k_shedding_leaf_frac, c_flow_A_vec, c_flow_A_vec, flow)
     end
-    for flow ∈ c_flow_A_vec_ind.k_shedding_root
+    for flow ∈ c_flow_named_edges.cVegRoot_to_cLitFast
         c_flow_A_vec = repElem(c_flow_A_vec, k_shedding_root_frac, c_flow_A_vec, c_flow_A_vec, flow)
     end
-    for flow ∈ c_flow_A_vec_ind.k_shedding_reserve
+    for flow ∈ c_flow_named_edges.cVegReserve_to_cLitFast
         c_flow_A_vec = repElem(c_flow_A_vec, k_shedding_reserve_frac, c_flow_A_vec, c_flow_A_vec, flow)
     end
 

@@ -63,9 +63,10 @@ function define(params::cCycleBase_GSI_PlantForm_MGMT, forcing, land, helpers)
 
     # one flow per declared edge of this approach, resolved against the configured
     # pool structure, rather than a transfer matrix carried as a parameter. The same
-    # call keys the flows by pool-name pair, so a cFlow approach reads the topology
-    # instead of rederiving it
-    (c_flow_order, c_taker, c_giver, c_flow_named_edges) = cFlowStructure(params, cEco, helpers)
+    # call keys the flows by pool-name pair and sizes the neutral flow vector, so a
+    # cFlow approach reads the topology and fills in values instead of rederiving both
+    (c_flow_order, c_taker, c_giver, c_flow_named_edges, c_flow_A_vec) =
+        cFlowStructure(params, cEco, helpers)
 
     c_model = cCycleBase_GSI_PlantForm_MGMT()
 
@@ -75,7 +76,7 @@ function define(params::cCycleBase_GSI_PlantForm_MGMT, forcing, land, helpers)
     @pack_nt begin
         (c_flow_order, c_taker, c_giver) ⇒ land.constants
         c_flow_named_edges ⇒ land.cCycleBase
-        (C_to_N_cVeg, c_eco_τ, c_eco_k_base, zero_c_τ_pf) ⇒ land.diagnostics
+        (C_to_N_cVeg, c_eco_τ, c_eco_k_base, zero_c_τ_pf, c_flow_A_vec) ⇒ land.diagnostics
         c_model ⇒ land.models
     end
     return land

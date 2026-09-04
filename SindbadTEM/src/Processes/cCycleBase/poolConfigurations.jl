@@ -214,8 +214,8 @@ cFlowEdges(T::cCycleBase) = cFlowEdges(typeof(T))
 
 Resolve an approach's `cFlowEdges` against the pool structure the experiment actually
 configured, returning the whole flow-vector description as
-`(c_flow_order, c_taker, c_giver, c_flow_named_edges)`, in the order the approaches pack
-it.
+`(c_flow_order, c_taker, c_giver, c_flow_named_edges, c_flow_A_vec)`, in the order the
+approaches pack it.
 
 # Notes:
 - A flow is an edge, so the taker and giver of flow `i` are just the two endpoints of
@@ -224,10 +224,14 @@ it.
   out by `findall`, and its one remaining reader, `cCycleConsistency_simple`, asks
   only whether a flow sits above or below the diagonal, which is `c_taker` against
   `c_giver`.
-- All four come from one call so they cannot disagree about how many flows there are
+- All five come from one call so they cannot disagree about how many flows there are
   or what order they sit in, which is what an approach rederiving each of them
   separately from a matrix left open. `c_flow_named_edges` is the same topology keyed
   by pool-name pair rather than by position, built by `cFlowNamedEdges`.
+- `c_flow_A_vec` is neutral, one per flow, and is built here rather than in a `cFlow`
+  approach for the same reason: its length and order are the topology's, so a `cFlow`
+  approach building it had to reach for `c_taker` to re-measure what the base already
+  knows. `cFlow` fills in values; it no longer decides the shape.
 - Sorted by `(giver, taker)`, which is the column-major order `findall` produced from
   the matrix and which `c_flow_A_vec`, `c_flow_QP_vec`, `c_flow_ME_vec` and the
   `d_cFlow` output dimension are all indexed by. Sorting here rather than trusting the
@@ -255,7 +259,8 @@ function cFlowStructure(params::cCycleBase, cEco, helpers)
     c_giver = Tuple(givers[order])
     c_flow_order = ntuple(identity, length(order))
     c_flow_named_edges = cFlowNamedEdges(c_taker, c_giver, helpers.pools.components.cEco)
-    return c_flow_order, c_taker, c_giver, c_flow_named_edges
+    c_flow_A_vec = getVectorOfType(cEco, length(c_taker), one)
+    return c_flow_order, c_taker, c_giver, c_flow_named_edges, c_flow_A_vec
 end
 
 """
