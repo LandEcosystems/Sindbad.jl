@@ -124,7 +124,7 @@ end
     # produces, leaves unique to one configuration, and an alias that no structure
     # generates but CASA needs.
     for expected in (:cVeg, :cLit, :cSoil, :cMic, :cProducts,
-                     :cVegReserve, :cVegRootF, :cProductsCrop, :cMicSoil,
+                     :cVegReserve, :cVegRootFine, :cProductsCrop, :cMicSoil,
                      :cLitFast, :cLitSlow)
         @test expected ∈ names
     end
