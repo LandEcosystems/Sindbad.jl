@@ -3,15 +3,15 @@ export cQualityPartition_none
 
 struct cQualityPartition_none <: cQualityPartition end
 
-function define(params::cQualityPartition_none, forcing, land, helpers)
+function precompute(params::cQualityPartition_none, forcing, land, helpers)
     @unpack_nt begin
-        (c_flow_order, c_taker, c_giver) ⇐ land.cCycleBase
-        cEco ⇐ land.pools
+        (c_flow_order, c_giver) ⇐ land.cCycleBase
+        c_flow_QP_vec ⇐ land.diagnostics
     end
 
-    # Instantiate a full partition vector, making sure that the givers do not given more that what they have (sum of columns == 1)
-    c_flow_QP_vec = getVectorOfType(cEco, length(c_taker), one)
-
+    # The neutral vector comes from cCycleBase; here it is turned into a partition
+    # that makes sure the givers do not give more than what they have (sum of
+    # columns == 1)
     for fO ∈ c_flow_order
         give_r = c_giver[fO]
 
@@ -28,7 +28,7 @@ function define(params::cQualityPartition_none, forcing, land, helpers)
 	return land
 end
 
-purpose(::Type{cQualityPartition_none}) = "Use a neutral carbon-quality partition: c_flow_QP_vec is one for every active carbon transfer, so the existing carbon-flow partition is left unchanged."
+purpose(::Type{cQualityPartition_none}) = "Use a neutral carbon-quality partition: every giver divides its carbon equally among its active outgoing transfers, with no preference for any pathway."
 
 @doc """ 
 
@@ -38,12 +38,19 @@ purpose(::Type{cQualityPartition_none}) = "Use a neutral carbon-quality partitio
 
 # Extended help
 
-This approach is the identity element for carbon-quality partitioning. It does
-not introduce an additional labile/recalcitrant split and therefore sets every
-entry of `c_flow_QP_vec` to one.
+This approach introduces no labile/recalcitrant preference: each giver splits its
+carbon equally over its active outgoing flows, so a giver with a single outgoing
+flow keeps the neutral partition of one and a giver with several conserves mass
+across them.
+
+The vector itself is allocated neutral by `cCycleBase`, so leaving
+`cQualityPartition` out of the model structure entirely gives every flow a
+partition of one. That differs from selecting this approach, which still splits
+multi-outflow givers.
 
 *Versions*
  - 1.0 on 27.08.2026 [sol]
+ - 1.1 on 04.09.2026 [skoirala]: c_flow_QP_vec allocated by cCycleBase; split moved to precompute
 
 *Created by*
  - sol

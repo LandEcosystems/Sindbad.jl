@@ -30,7 +30,7 @@ function define(params::cCycleBase_GSI, forcing, land, helpers)
     # pool structure, rather than a transfer matrix carried as a parameter. The same
     # call keys the flows by pool-name pair and sizes the neutral flow vector, so a
     # cFlow approach reads the topology and fills in values instead of rederiving both
-    (c_flow_order, c_taker, c_giver, c_flow_named_edges, c_flow_A_vec) =
+    (c_flow_order, c_taker, c_giver, c_flow_named_edges, c_flow_A_vec, c_flow_QP_vec) =
         cFlowStructure(params, cEco, helpers)
 
     c_model = cCycleBase_GSI()
@@ -38,7 +38,7 @@ function define(params::cCycleBase_GSI, forcing, land, helpers)
     ## pack land variables
     @pack_nt begin
         (c_flow_order, c_taker, c_giver, c_flow_named_edges) ⇒ land.cCycleBase
-        (C_to_N_cVeg, c_eco_τ, c_eco_k_base, c_flow_A_vec) ⇒ land.diagnostics
+        (C_to_N_cVeg, c_eco_τ, c_eco_k_base, c_flow_A_vec, c_flow_QP_vec) ⇒ land.diagnostics
         c_model ⇒ land.models
     end
     return land

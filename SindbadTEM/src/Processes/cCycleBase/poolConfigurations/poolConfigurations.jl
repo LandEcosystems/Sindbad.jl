@@ -82,8 +82,8 @@ cFlowEdges(T::cCycleBase) = cFlowEdges(typeof(T))
 
 Resolve an approach's `cFlowEdges` against the pool structure the experiment actually
 configured, returning the whole flow-vector description as
-`(c_flow_order, c_taker, c_giver, c_flow_named_edges, c_flow_A_vec)`, in the order the
-approaches pack it.
+`(c_flow_order, c_taker, c_giver, c_flow_named_edges, c_flow_A_vec, c_flow_QP_vec)`, in
+the order the approaches pack it.
 
 # Notes:
 - A flow is an edge, so the taker and giver of flow `i` are just the two endpoints of
@@ -92,14 +92,17 @@ approaches pack it.
   out by `findall`, and its one remaining reader, `cCycleConsistency_simple`, asks
   only whether a flow sits above or below the diagonal, which is `c_taker` against
   `c_giver`.
-- All five come from one call so they cannot disagree about how many flows there are
+- All six come from one call so they cannot disagree about how many flows there are
   or what order they sit in, which is what an approach rederiving each of them
   separately from a matrix left open. `c_flow_named_edges` is the same topology keyed
   by pool-name pair rather than by position, built by `cFlowNamedEdges`.
-- `c_flow_A_vec` is neutral, one per flow, and is built here rather than in a `cFlow`
-  approach for the same reason: its length and order are the topology's, so a `cFlow`
-  approach building it had to reach for `c_taker` to re-measure what the base already
-  knows. `cFlow` fills in values; it no longer decides the shape.
+- `c_flow_A_vec` and `c_flow_QP_vec` are neutral, one per flow, and are built here
+  rather than in a `cFlow` or `cQualityPartition` approach for the same reason: their
+  length and order are the topology's, so an approach building one had to reach for
+  `c_taker` to re-measure what the base already knows. Those approaches fill in
+  values; they no longer decide the shape. Allocating here also means the neutral
+  partition of one exists whenever the topology does, so `cCycle` reads a valid
+  `c_flow_QP_vec` even when no `cQualityPartition` model is selected at all.
 - Sorted by `(giver, taker)`, which is the column-major order `findall` produced from
   the matrix and which `c_flow_A_vec`, `c_flow_QP_vec`, `c_flow_ME_vec` and the
   `d_cFlow` output dimension are all indexed by. Sorting here rather than trusting the
@@ -128,7 +131,8 @@ function cFlowStructure(params::cCycleBase, cEco, helpers)
     c_flow_order = ntuple(identity, length(order))
     c_flow_named_edges = cFlowNamedEdges(c_taker, c_giver, helpers.pools.components.cEco)
     c_flow_A_vec = getVectorOfType(cEco, length(c_taker), one)
-    return c_flow_order, c_taker, c_giver, c_flow_named_edges, c_flow_A_vec
+    c_flow_QP_vec = getVectorOfType(cEco, length(c_taker), one)
+    return c_flow_order, c_taker, c_giver, c_flow_named_edges, c_flow_A_vec, c_flow_QP_vec
 end
 
 """
