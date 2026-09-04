@@ -16,10 +16,12 @@ module SindbadPlotsExt
     using SindbadTEM
     using SindbadTEM.OmniTools
     using Sindbad.Types
+    using Sindbad.Setup: getPoolInformation
     using Sindbad.DataLoaders
     using Sindbad.ErrorMetrics
     using Sindbad.NaNStatistics
 
     include("VisualizationPlotOutput.jl")
     include("VisualizationPlotIOModelStructure.jl")
+    include("VisualizationPlotCarbonFlows.jl")
 end

@@ -1,95 +1,70 @@
 export cQualityPartition_CASA
 
 #! format: off
-@bounds @describe @units @timescale @with_kw struct cQualityPartition_CASA{T1,T2,T3,T4,T5} <: cQualityPartition
-    frac_lignin_wood::T1 = 0.4 | (0.0, 1.0) | "Fraction of wood-derived slow litter associated with the lignin-controlled recalcitrant pathway." | "fraction" | ""
-    frac_clay_cSoilSlow_A::T2 = 0.003 | (0.0, 1.0) | "Intercept of the clay-dependent fraction of slow-soil decomposition partitioned to old soil carbon." | "fraction" | ""
-    frac_clay_cSoilSlow_B::T3 = 0.009 | (0.0, Inf) | "Sensitivity of the slow-soil to old-soil partition fraction to clay content." | "fraction" | ""
-    frac_clay_cMicSoil_A::T4 = 0.003 | (-Inf, Inf) | "" | "" | ""
-    frac_clay_cMicSoil_B::T5 = 0.032 | (-Inf, Inf) | "" | "" | ""
-
+@bounds @describe @units @timescale @with_kw struct cQualityPartition_CASA{T1,T2,T3,T4} <: cQualityPartition
+    frac_clay_cSoilSlow_A::T1 = 0.003 | (0.0, 1.0) | "Intercept of the clay-dependent fraction of slow-soil decomposition partitioned to old soil carbon." | "fraction" | ""
+    frac_clay_cSoilSlow_B::T2 = 0.009 | (0.0, Inf) | "Sensitivity of the slow-soil to old-soil partition fraction to clay content." | "fraction" | ""
+    frac_clay_cMicSoil_A::T3 = 0.003 | (0.0, 1.0) | "Intercept of the clay-dependent fraction of soil-microbial decomposition partitioned to old soil carbon." | "fraction" | ""
+    frac_clay_cMicSoil_B::T4 = 0.032 | (0.0, Inf) | "Sensitivity of the soil-microbial to old-soil partition fraction to clay content." | "fraction" | ""
 end
 #! format: on
-
-function define(params::cQualityPartition_CASA, forcing, land, helpers)
-    @unpack_nt begin
-        c_taker ⇐ land.constants
-        cEco ⇐ land.pools
-    end
-
-    ## Instantiate c_flow_QP_vec with the neutral value (one) for every active flow.
-    ##
-    ## The vector has one element per active carbon transfer, in exactly the same
-    ## order as c_flow_order/c_giver/c_taker. This follows the flow-vector design
-    ## used by cFlow_GSI and avoids constructing a dense pool-by-pool matrix.
-    c_flow_QP_vec = one.(eltype(cEco).(zero([c_taker...])))
-    if cEco isa SVector
-        c_flow_QP_vec = SVector{length(c_flow_QP_vec)}(c_flow_QP_vec)
-    end
-
-    ## The partition vector is consumed by other carbon-cycle processes, so it is
-    ## a shared diagnostic rather than a cQualityPartition-private variable.
-    @pack_nt c_flow_QP_vec ⇒ land.diagnostics
-	return land
-end
-
-function fill_QP_matrix!(M, flows, land, helpers)
-    for (; giver, taker, value) in flows
-        i_give = pool_index(giver, land, helpers)
-        i_take = pool_index(taker, land, helpers)
-        M[i_take, i_give] = value
-        # to revamp: we should give some warning if we are filling a value that is empty in A (the links matrix)
-        # or if we are filling a value that already has a value in QP...
-    end
-    return M
-end
 
 function precompute(params::cQualityPartition_CASA, forcing, land, helpers)
     @unpack_cQualityPartition_CASA params
     @unpack_nt begin
         c_flow_QP_vec ⇐ land.diagnostics
-        (c_flow_order, c_giver, c_taker) ⇐ land.constants
-        st_clay ⇐ land.properties
+        c_flow_named_edges ⇐ land.cCycleBase
+        (lit_frac_lignin_struct, lit_frac_lignin_wood, lit_frac_metabolic, st_clay) ⇐ land.properties
+        o_one ⇐ land.constants
     end
-    # Matrix of flows
-    QP_flows = [
-        (giver = :cSoilSlow,   taker = :cMicSoil,     value = 1-(frac_clay_cSoilSlow_A+(frac_clay_cSoilSlow_B*st_clay))),
-        (giver = :cSoilSlow,   taker = :cSoilOld,     value = frac_clay_cSoilSlow_A+(frac_clay_cSoilSlow_B*st_clay)),
-        (giver = :cMicSoil,    taker = :cSoilSlow,    value = 1-(frac_clay_cMicSoil_A+(frac_clay_cMicSoil_B*st_clay))),
-        (giver = :cMicSoil,    taker = :cSoilOld,     value = frac_clay_cMicSoil_A+(frac_clay_cMicSoil_B*st_clay)),
-        (giver = :cVegLeaf,    taker = :cLitLeafM,    value = MTF),
-        (giver = :cVegLeaf,    taker = :cLitLeafS,    value = 1 - MTF),
-        (giver = :cVegWood,    taker = :cLitWood,     value = 1),
-        (giver = :cVegRootF,   taker = :cLitRootFM,   value = MTF),
-        (giver = :cVegRootF,   taker = :cLitRootFS,   value = 1 - MTF),
-        (giver = :cVegRootC,   taker = :cLitRootC,    value = 1),
-        (giver = :cLitLeafS,   taker = :cSoilSlow,    value = SCLIGNIN),
-        (giver = :cLitLeafS,   taker = :cMicSurf,     value = 1 - SCLIGNIN),
-        (giver = :cLitRootFS,  taker = :cSoilSlow,    value = SCLIGNIN),
-        (giver = :cLitRootFS,  taker = :cMicSoil,     value = 1 - SCLIGNIN),
-        (giver = :cLitWood,    taker = :cSoilSlow,    value = frac_lignin_wood),
-        (giver = :cLitWood,    taker = :cMicSurf,     value = 1 - frac_lignin_wood),
-        (giver = :cLitRootC,   taker = :cSoilSlow,    value = frac_lignin_wood),
-        (giver = :cLitRootC,   taker = :cMicSoil,     value = 1 - frac_lignin_wood),
-        (giver = :cSoilOld,    taker = :cMicSoil,     value = 1),
-        (giver = :cLitLeafM,   taker = :cMicSurf,     value = 1),
-        (giver = :cLitRootFM,  taker = :cMicSoil,     value = 1),
-        (giver = :cMicSurf,    taker = :cSoilSlow,    value = 1),
-    ]
 
-    # revamp: there should be some warning if the c_flow_QP_vec is not the same size as the QP_flows
+    # Collapse the soil profile to a single mean clay fraction, as `meTextureEfficiency`
+    # does for the microbial carbon-transfer efficiency.
+    clay = mean(st_clay)
+    frac_cSoilSlow_to_cSoilOld = frac_clay_cSoilSlow_A + frac_clay_cSoilSlow_B * clay
+    frac_cMicSoil_to_cSoilOld = frac_clay_cMicSoil_A + frac_clay_cMicSoil_B * clay
 
-    # fill the matrix
-    c_flow_QP_array = fill_transfer_matrix!(c_flow_QP_array, flows, land, helpers)
+    # Partition of every carbon transfer, keyed by giver-to-taker pool-name pair.
+    # Leaf and fine-root litterfall splits by the metabolic fraction; structural
+    # litter decomposition splits by the lignin fraction of structural carbon;
+    # woody and coarse-root litter splits by the lignin fraction of wood; and the
+    # soil pools split by clay content.
+    QP_flows = (
+        (:cSoilSlow_to_cMicSoil, o_one - frac_cSoilSlow_to_cSoilOld),
+        (:cSoilSlow_to_cSoilOld, frac_cSoilSlow_to_cSoilOld),
+        (:cMicSoil_to_cSoilSlow, o_one - frac_cMicSoil_to_cSoilOld),
+        (:cMicSoil_to_cSoilOld, frac_cMicSoil_to_cSoilOld),
+        (:cVegLeaf_to_cLitLeafFast, lit_frac_metabolic),
+        (:cVegLeaf_to_cLitLeafSlow, o_one - lit_frac_metabolic),
+        (:cVegWood_to_cLitWood, o_one),
+        (:cVegRootFine_to_cLitRootFineFast, lit_frac_metabolic),
+        (:cVegRootFine_to_cLitRootFineSlow, o_one - lit_frac_metabolic),
+        (:cVegRootCoarse_to_cLitRootCoarse, o_one),
+        (:cLitLeafSlow_to_cSoilSlow, lit_frac_lignin_struct),
+        (:cLitLeafSlow_to_cMicSurf, o_one - lit_frac_lignin_struct),
+        (:cLitRootFineSlow_to_cSoilSlow, lit_frac_lignin_struct),
+        (:cLitRootFineSlow_to_cMicSoil, o_one - lit_frac_lignin_struct),
+        (:cLitWood_to_cSoilSlow, lit_frac_lignin_wood),
+        (:cLitWood_to_cMicSurf, o_one - lit_frac_lignin_wood),
+        (:cLitRootCoarse_to_cSoilSlow, lit_frac_lignin_wood),
+        (:cLitRootCoarse_to_cMicSoil, o_one - lit_frac_lignin_wood),
+        (:cSoilOld_to_cMicSoil, o_one),
+        (:cLitLeafFast_to_cMicSurf, o_one),
+        (:cLitRootFineFast_to_cMicSoil, o_one),
+        (:cMicSurf_to_cSoilSlow, o_one),
+    )
 
+    for (edge, value) ∈ QP_flows
+        c_flow_QP_vec = setQPFlow(c_flow_QP_vec, c_flow_named_edges, edge, value)
+    end
 
-    @pack_nt (c_flow_QP_array, c_flow_QP_vec) ⇒ land.diagnostics
+    @pack_nt c_flow_QP_vec ⇒ land.diagnostics
 	return land
 end
 
-purpose(::Type{cQualityPartition_CASA}) = "Represent CASA-style carbon-quality partitioning on the GSI carbon-pool topology using wood-lignin control of slow-litter transfer and clay control of slow-soil stabilization."
+purpose(::Type{cQualityPartition_CASA}) = "Represent CASA-style carbon-quality partitioning using the metabolic litter fraction, lignin control of structural-litter transfer, and clay control of slow-soil stabilization."
 
-@doc """ 
+@doc """
 
 	$(getModelDocString(cQualityPartition_CASA))
 
@@ -98,18 +73,27 @@ purpose(::Type{cQualityPartition_CASA}) = "Represent CASA-style carbon-quality p
 
 This approach refactors the partitioning term (`p_F_vec`) formerly distributed
 across `cFlowVegProperties_CASA` and `cFlowSoilProperties_CASA` into the
-dedicated `cQualityPartition` process. The
-output `c_flow_QP_vec` is indexed by active flow (`c_flow_order`) rather than by a
-dense giver-taker matrix.
+dedicated `cQualityPartition` process. The output `c_flow_QP_vec` is indexed by
+active flow (`c_flow_order`) rather than by a dense giver-taker matrix.
 
-The original CASA pool structure contains explicit metabolic/structural litter
-and microbial pools. The GSI carbon-cycle structure is more aggregated, so the
-lignin-controlled CASA partition is represented here by the available
-`cLitSlow -> cSoilSlow` transfer. The clay-dependent CASA partition of
-`cSoilSlow` decomposition is also retained on the available
-`cSoilSlow -> cSoilOld` edge. The complementary microbial branches are absent
-from GSI, so these mappings are effective representations rather than a
-one-to-one reproduction of the full CASA topology.
+The litter-chemistry terms `lit_frac_metabolic`, `lit_frac_lignin_struct` and
+`lit_frac_lignin_wood` come from the [`metabolicFraction`](@ref) and
+[`lignin`](@ref) processes, which run before `cQualityPartition`. This approach
+declares none of them itself; it previously carried a private
+`frac_lignin_wood` that duplicated the one in `cFlowVegProperties_CASA`.
+
+The flow table is declared over the full CASA pool topology and matched against
+the configured structure by pool-name pair through `c_flow_named_edges`. Edges the
+selected structure lacks are skipped, so on the more aggregated GSI structure the
+CASA-only metabolic/structural litter and microbial edges simply do not
+contribute and the remaining flows keep their neutral partition of one.
+
+The three controls in the table are independent and own disjoint giver pools, so
+the same partition can be assembled from [`cQualityPartitionSoilProperties`](@ref),
+[`cQualityPartitionMetabolicFraction`](@ref) and
+[`cQualityPartitionLignin`](@ref) through [`cQualityPartition_mult`](@ref). Use
+that when the controls need to be swapped or disabled separately; use this
+approach when one self-contained CASA declaration is what is wanted.
 
 *References*
  - Carvalhais, N., Reichstein, M., Seixas, J., Collatz, G. J., Pereira, J. S., Berbigier, P., & Rambal, S. (2008). Implications of the carbon cycle steady state assumption for biogeochemical modeling performance and inverse parameter retrieval. Global Biogeochemical Cycles, 22(2).
@@ -118,6 +102,8 @@ one-to-one reproduction of the full CASA topology.
 
 *Versions*
  - 1.0 on 27.08.2026 [sol]
+ - 2.0 on 04.09.2026 [skoirala]: litter chemistry read from land.properties; flows matched by named edge
+ - 2.1 on 04.09.2026 [skoirala]: c_flow_QP_vec allocated by cCycleBase; setQPFlow moved to cQualityPartition.jl
 
 *Created by*
  - sol

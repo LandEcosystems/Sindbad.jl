@@ -6,7 +6,7 @@ struct cCycleDisturbance_Fire <: cCycleDisturbance end
 
 function define(params::cCycleDisturbance_Fire, forcing, land, helpers)
     @unpack_nt begin
-        (c_giver, c_taker) ⇐ land.constants
+        (c_giver, c_taker) ⇐ land.cCycleBase
         cVeg ⇐ land.pools
     end
     zix_veg_all = Tuple(vcat(getZix(cVeg, helpers.pools.zix.cVeg)...))
@@ -18,8 +18,8 @@ function define(params::cCycleDisturbance_Fire, forcing, land, helpers)
             # instead of just going in cLitSlow, which can be very specific to the WROASTED model structure
             c_lose_to_zix = something(
                 (
-                    hasproperty(helpers.pools.zix, p) ? getproperty(helpers.pools.zix, p) : 
-                    nothing for p in (:cLitSlow, :cLitFast, :cLit, :cSoilSlow, :cSoilOld, :cSoil)
+                    isempty(getproperty(helpers.pools.zix, p)) ? nothing : getproperty(helpers.pools.zix, p)
+                    for p in (:cLitSlow, :cLitFast, :cLit, :cSoilSlow, :cSoilOld, :cSoil)
                 )..., 
             nothing)
             isnothing(c_lose_to_zix) && 
@@ -50,7 +50,7 @@ function compute(params::cCycleDisturbance_Fire, forcing, land, helpers)
     @unpack_nt begin
         (zix_veg_all, c_lose_to_zix_vec) ⇐ land.cCycleDisturbance
         cEco ⇐ land.pools
-        (c_giver, c_taker) ⇐ land.constants
+        (c_giver, c_taker) ⇐ land.cCycleBase
         c_remain ⇐ land.states
         c_model ⇐ land.models
     end

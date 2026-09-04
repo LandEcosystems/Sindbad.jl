@@ -9,17 +9,15 @@ end
 function define(params::cAllocationTreeFraction_Friedlingstein1999, forcing, land, helpers)
     ## unpack parameters
     ## calculate variables
-    # check if there are fine & coarse root pools
+    # cVegRoot resolves to every root pool the configured structure has, fine and
+    # coarse included, so these names work under every configuration without probing
+    # for variants
     cVeg_names_for_c_allocation_frac_tree = (:cVegRoot, :cVegWood, :cVegLeaf)::Tuple
-    if hasproperty(land.pools, :cVegWoodC) && hasproperty(land.pools, :cVegWoodF)
-        cVeg_names_for_c_allocation_frac_tree = (:cVegRootF, :cVegRootC, :cVegWood, :cVegLeaf)::Tuple
-    end
     @pack_nt cVeg_names_for_c_allocation_frac_tree ⇒ land.cAllocationTreeFraction
     return land
 end
 
-function setCAlloc(c_allocation, cAllocValue, landPool, zixPools, helpers)
-    zix = getZix(landPool, zixPools)
+function setCAlloc(c_allocation, cAllocValue, zix, helpers)
     for ix ∈ eachindex(zix)
         @rep_elem cAllocValue * c_allocation[zix[ix]] ⇒ (c_allocation, zix[ix], :cEco)
     end
@@ -39,15 +37,15 @@ function compute(params::cAllocationTreeFraction_Friedlingstein1999, forcing, la
     end
     # the allocation fractions according to the partitioning to root/wood/leaf - represents plant level allocation
     r0 = z_zero
-    for ix ∈ getZix(land.pools.cVegRoot, helpers.pools.zix.cVegRoot)
+    for ix ∈ helpers.pools.zix.cVegRoot
         r0 = r0 + c_allocation[ix]
     end
     s0 = z_zero
-    for ix ∈ getZix(land.pools.cVegWood, helpers.pools.zix.cVegWood)
+    for ix ∈ helpers.pools.zix.cVegWood
         s0 = s0 + c_allocation[ix]
     end
     l0 = z_zero
-    for ix ∈ getZix(land.pools.cVegLeaf, helpers.pools.zix.cVegLeaf)
+    for ix ∈ helpers.pools.zix.cVegLeaf
         l0 = l0 + c_allocation[ix]
     end     # this is to below ground root fine+coarse
 
@@ -56,23 +54,14 @@ function compute(params::cAllocationTreeFraction_Friedlingstein1999, forcing, la
     o_one = one(eltype(c_allocation))
     a_cVegWood = frac_tree
     a_cVegRoot = o_one + (s0 / (r0 + l0)) * (o_one - frac_tree)
-    a_cVegRootF = a_cVegRoot * (frac_fine_to_coarse * frac_tree + (o_one - frac_tree))
-    a_cVegRootC = a_cVegRoot * (o_one - frac_fine_to_coarse) * frac_tree
-    # cVegRoot = cVegRootF + cVegRootC
+    a_cVegRootFine = a_cVegRoot * (frac_fine_to_coarse * frac_tree + (o_one - frac_tree))
+    a_cVegRootCoarse = a_cVegRoot * (o_one - frac_fine_to_coarse) * frac_tree
+    # cVegRoot = cVegRootFine + cVegRootCoarse
     a_cVegLeaf = o_one + (s0 / (r0 + l0)) * (o_one - frac_tree)
 
-    c_allocation = setCAlloc(c_allocation, a_cVegWood, land.pools.cVegWood, helpers.pools.zix.cVegWood, helpers)
-    if hasproperty(cVeg_names_for_c_allocation_frac_tree, :cVegRootC)
-        c_allocation = setCAlloc(c_allocation, a_cVegRootC, land.pools.cVegRootC, helpers.pools.zix.cVegRootC,
-            helpers)
-        c_allocation = setCAlloc(c_allocation, a_cVegRootF, land.pools.cVegRootF, helpers.pools.zix.cVegRootF,
-            helpers)
-    else
-        c_allocation = setCAlloc(c_allocation, a_cVegRoot, land.pools.cVegRoot, helpers.pools.zix.cVegRoot,
-            helpers)
-    end
-
-    c_allocation = setCAlloc(c_allocation, a_cVegLeaf, land.pools.cVegLeaf, helpers.pools.zix.cVegLeaf, helpers)
+    c_allocation = setCAlloc(c_allocation, a_cVegWood, helpers.pools.zix.cVegWood, helpers)
+    c_allocation = setCAlloc(c_allocation, a_cVegRoot, helpers.pools.zix.cVegRoot, helpers)
+    c_allocation = setCAlloc(c_allocation, a_cVegLeaf, helpers.pools.zix.cVegLeaf, helpers)
 
     @pack_nt c_allocation ⇒ land.diagnostics
 

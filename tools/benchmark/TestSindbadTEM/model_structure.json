@@ -43,6 +43,12 @@
     "cCycleBase": {
         "approach": "GSI_PlantForm"
     },
+    "metabolicFraction": {
+      "approach": "none"
+    },
+    "lignin": {
+      "approach": "none"
+    },
     "cMicrobialEfficiency": {
       "approach": "texture"
     },
@@ -182,6 +188,9 @@
     },
     "PET": {
       "approach": "Lu2005"
+    },
+    "PFT": {
+      "approach": "forcing"
     },
     "plantForm": {
       "approach": "PFT"

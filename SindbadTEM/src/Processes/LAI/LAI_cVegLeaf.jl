@@ -10,10 +10,13 @@ function compute(params::LAI_cVegLeaf, forcing, land, helpers)
     ## unpack parameters
     @unpack_LAI_cVegLeaf params
 
-    @unpack_nt cVegLeaf ⇐ land.pools
+    @unpack_nt cEco ⇐ land.pools
 
     ## calculate variables
-    cVegLeafTotal = totalS(cVegLeaf)
+    # summed straight out of cEco through zix, so a pool name that spans several cEco
+    # slots contributes all of them and a name the structure lacks contributes
+    # nothing
+    cVegLeafTotal = totalS_indices(cEco, helpers.pools.zix.cVegLeaf)
     LAI = cVegLeafTotal * SLA
 
     ## pack land variables

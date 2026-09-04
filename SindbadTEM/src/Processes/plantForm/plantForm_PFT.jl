@@ -40,11 +40,11 @@ end
 
 
 function precompute(params::plantForm_PFT, forcing, land, helpers)
-	## unpack NT forcing
-	@unpack_nt f_pft ⇐ forcing
+	## unpack land variables
+	@unpack_nt PFT ⇐ land.states
 	@unpack_nt (plant_form_pft, defined_forms_pft) ⇐ land.plantForm
 
-	the_pft = f_pft[1]
+	the_pft = PFT
 	plant_form = :unknown
 	if the_pft ∈ defined_forms_pft
 		for (pf_key, pf_values) in plant_form_pft

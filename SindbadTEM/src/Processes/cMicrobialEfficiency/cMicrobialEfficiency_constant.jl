@@ -2,72 +2,69 @@ export cMicrobialEfficiency_constant
 
 #! format: off
 @bounds @describe @units @timescale @with_kw struct cMicrobialEfficiency_constant{T1} <: cMicrobialEfficiency
-	constant_MicEff::T1 = 0.1 | (0.0, 1.0) | "Microbial efficency." | "fraction" | ""
+    constant_MicEff::T1 = 0.5 | (0.0, 1.0) | "Microbial carbon-transfer efficiency of every decomposition flow, whichever pool group it leaves." | "fraction" | ""
 end
 #! format: on
 
-function define(params::cMicrobialEfficiency_constant, forcing, land, helpers)
-    @unpack_nt begin 
-        c_taker ⇐ land.constants
-        cEco ⇐ land.pools
-    end
-
-    # Allocate one value per active carbon transfer. Start from 
-    # one so that vegetation flows, not mediated by microbial activity, are unchanged.
-    c_flow_ME_vec = one.(eltype(cEco).(zero([c_taker...])))
-    if cEco isa SVector
-        c_flow_ME_vec = SVector{length(c_flow_ME_vec)}(c_flow_ME_vec)
-    end
-
-    @pack_nt c_flow_ME_vec ⇒ land.diagnostics
-	return land
-end
-
 function precompute(params::cMicrobialEfficiency_constant, forcing, land, helpers)
+    ## unpack parameters
     @unpack_cMicrobialEfficiency_constant params
+
+    ## unpack land variables
     @unpack_nt begin
         c_flow_ME_vec ⇐ land.diagnostics
-        (c_flow_order, c_giver, c_taker) ⇐ land.constants
-        (cLit, cSoil) ⇐ land.pools
+        (c_flow_order, c_giver) ⇐ land.cCycleBase
     end
 
-    # Find litter and soil pools, where flows are mediated by microbial activity, 
-    # and attribute microbial efficiency.
-    zix_cLit = getZix(cLit, helpers.pools.zix.cLit)
-    zix_cSoil = getZix(cSoil, helpers.pools.zix.cSoil)
-
+    ## calculate variables
+    # One efficiency for every decomposition transfer, with no distinction between pool
+    # groups or pathways. The three pool-group factors are deliberately not read, so this
+    # holds whether or not they are selected.
+    #
+    # helpers.pools.zix is read directly rather than through getZix(land.pools.X, ..),
+    # because a structure without a group's pools has no land.pools array for it at all
+    # while zix always carries the name, empty where the group is absent.
+    zix_decomposition = (helpers.pools.zix.cLit..., helpers.pools.zix.cMic...,
+        helpers.pools.zix.cSoil...)
     for fO ∈ c_flow_order
-        give_r = c_giver[fO]
-        is_decomposition = ((give_r ∈ zix_cLit) || (give_r ∈ zix_cSoil))
-        me_value = is_decomposition ? constant_MicEff : one(constant_MicEff)
-        c_flow_ME_vec = repElem(c_flow_ME_vec, me_value, c_flow_ME_vec, c_flow_ME_vec, fO)
+        c_giver[fO] ∈ zix_decomposition || continue
+        c_flow_ME_vec = repElem(c_flow_ME_vec, constant_MicEff, c_flow_ME_vec, c_flow_ME_vec, fO)
     end
 
+    ## pack land variables
     @pack_nt c_flow_ME_vec ⇒ land.diagnostics
-	return land
+    return land
 end
 
-purpose(::Type{cMicrobialEfficiency_constant}) = "A constant microbial carbon-transfer efficiency is used in all flows originating from litter and soil pools; flows from vegetation have an efficiency of one."
+purpose(::Type{cMicrobialEfficiency_constant}) = "A single constant microbial carbon-transfer efficiency for every decomposition flow, whichever pool group it leaves."
 
-@doc """ 
+@doc """
 
 	$(getModelDocString(cMicrobialEfficiency_constant))
 
 ---
+
 # Extended help
-`constant_MicEff` is applied only to active carbon transfers from 
-`cLit` or `cSoil` into `cLit` or `cSoil`, as diagnosed from `c_giver` and
-`c_taker`. Reserve exchange, allocation, and litter shedding have a value of 1
-because these carbon transfers are not mediated by microbial activity.
+
+`constant_MicEff` is written into every active transfer whose giver is a litter,
+microbial or soil carbon pool. Transfers leaving vegetation keep the neutral efficiency
+of one, since litterfall is not microbial decomposition.
+
+Set it to zero for the endpoint where all decomposed carbon respires and none is retained
+by the receiving pool.
+
+This is the one-parameter alternative to composing the three pool-group factors through
+[`cMicrobialEfficiency_mult`](@ref). It ignores them, so it can be selected whether or not
+they are, and it is equivalent to selecting `_constant` with the same value in all three
+groups.
 
 *References*
 
 *Versions*
- - 1.0 on 27.08.2026 [sol]
+ - 1.0 on 04.09.2026 [skoirala]
 
 *Created by*
- - sol
+ - skoirala
 
 """
 cMicrobialEfficiency_constant
-

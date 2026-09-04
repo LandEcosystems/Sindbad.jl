@@ -1,4 +1,4 @@
-export cCycleBase_GSI_PlantForm_MGMT, adjustPackPoolComponents
+export cCycleBase_GSI_PlantForm_MGMT
 
 #! format: off
 @bounds @describe @units @timescale @with_kw struct cCycleBase_GSI_PlantForm_MGMT{
@@ -17,11 +17,10 @@ export cCycleBase_GSI_PlantForm_MGMT, adjustPackPoolComponents
     T13, # c_τ_SoilOld
     T14, # c_τ_cProductsWood
     T15, # c_τ_cProductsCrop
-    T16, # c_flow_A_array
-    T17, # p_C_to_N_cVeg
-    T18, # ηH
-    T19, # ηA
-    T20  # c_remain
+    T16, # p_C_to_N_cVeg
+    T17, # ηH
+    T18, # ηA
+    T19  # c_remain
 } <: cCycleBase
     c_τ_Root_scalar::T1 = 1.0 | (0.25, 4) | "scalar for turnover rate of root carbon pool" | "-" | ""
     c_τ_Wood_scalar::T2 = 1.0 | (0.25, 4) | "scalar for turnover rate of wood carbon pool" | "-" | ""
@@ -46,41 +45,28 @@ export cCycleBase_GSI_PlantForm_MGMT, adjustPackPoolComponents
     c_τ_cProductsWood::T14 = 0.03 | (0.01, 0.05) | "turnover rate of harvested wood products" | "year-1" | "year"
     c_τ_cProductsCrop::T15 = 1 | (0.25, 4) | "turnover rate of harvested crop products" | "year-1" | "year"
 
-    c_flow_A_array::T16 = Float64.([
-                     -1.0 0.0 0.0 1.0 0.0 0.0 0.0 0.0 0.0 0.0
-                     0.0 -1.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
-                     0.0 0.0 -1.0 1.0 0.0 0.0 0.0 0.0 0.0 0.0
-                     1.0 0.0 1.0 -1.0 0.0 0.0 0.0 0.0 0.0 0.0
-                     1.0 0.0 1.0 1.0 -1.0 0.0 0.0 0.0 0.0 0.0
-                     0.0 1.0 0.0 0.0 0.0 -1.0 0.0 0.0 0.0 0.0
-                     0.0 0.0 0.0 0.0 1.0 1.0 -1.0 0.0 0.0 0.0
-                     0.0 0.0 0.0 0.0 0.0 0.0 1.0 -1.0 0.0 0.0
-                     0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 -1.0 0.0
-                     0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 -1.0
-                 ]) | (-Inf, Inf) | "Transfer matrix links for carbon at ecosystem level per time step." | "" | ""
-    p_C_to_N_cVeg::T17 = Float64.([25.0, 260.0, 260.0, 10.0]) | (-Inf, Inf) | "carbon to nitrogen ratio in vegetation pools" | "gC/gN" | ""
-    ηH::T18 = 1.0 | (0.125, 8.0) | "scaling factor for heterotrophic pools after spinup" | "" | ""
-    ηA::T19 = 1.0 | (0.25, 4.0) | "scaling factor for vegetation pools after spinup" | "" | ""
-    c_remain::T20 = 50.0 | (0.1, 100.0) | "remaining carbon after disturbance" | "gC/m2" | ""
+    p_C_to_N_cVeg::T16 = Float64.([25.0, 260.0, 260.0, 10.0]) | (-Inf, Inf) | "carbon to nitrogen ratio in vegetation pools" | "gC/gN" | ""
+    ηH::T17 = 1.0 | (0.125, 8.0) | "scaling factor for heterotrophic pools after spinup" | "" | ""
+    ηA::T18 = 1.0 | (0.25, 4.0) | "scaling factor for vegetation pools after spinup" | "" | ""
+    c_remain::T19 = 50.0 | (0.1, 100.0) | "remaining carbon after disturbance" | "gC/m2" | ""
 end
 #! format: on
 
 function define(params::cCycleBase_GSI_PlantForm_MGMT, forcing, land, helpers)
     @unpack_cCycleBase_GSI_PlantForm_MGMT params
-    @unpack_nt begin
-        cEco ⇐ land.pools
-        (z_zero, o_one) ⇐ land.constants
-    end
+    @unpack_nt cEco ⇐ land.pools
     ## Instantiate variables
     C_to_N_cVeg = zero(cEco) #sujan
-    # C_to_N_cVeg[getZix(land.pools.cVeg, helpers.pools.zix.cVeg)] .= p_C_to_N_cVeg # not used...
+    # C_to_N_cVeg[helpers.pools.zix.cVeg] .= p_C_to_N_cVeg # not used...
     c_eco_k_base = zero(cEco)
     c_eco_τ = zero(cEco)
 
-    # if there is flux order check that is consistent
-    c_flow_order = Tuple(collect(1:length(findall(>(z_zero), c_flow_A_array))))
-    c_taker = Tuple([ind[1] for ind ∈ findall(>(z_zero), c_flow_A_array)])
-    c_giver = Tuple([ind[2] for ind ∈ findall(>(z_zero), c_flow_A_array)])
+    # one flow per declared edge of this approach, resolved against the configured
+    # pool structure, rather than a transfer matrix carried as a parameter. The same
+    # call keys the flows by pool-name pair and sizes the neutral flow vector, so a
+    # cFlow approach reads the topology and fills in values instead of rederiving both
+    (c_flow_order, c_taker, c_giver, c_flow_named_edges, c_flow_A_vec, c_flow_QP_vec,
+        c_flow_ME_vec) = cFlowStructure(params, cEco, helpers)
 
     c_model = cCycleBase_GSI_PlantForm_MGMT()
 
@@ -88,9 +74,8 @@ function define(params::cCycleBase_GSI_PlantForm_MGMT, forcing, land, helpers)
 
     ## pack land variables
     @pack_nt begin
-        c_flow_A_array ⇒ land.diagnostics
-        (c_flow_order, c_taker, c_giver) ⇒ land.constants
-        (C_to_N_cVeg, c_eco_τ, c_eco_k_base, zero_c_τ_pf) ⇒ land.diagnostics
+        (c_flow_order, c_taker, c_giver, c_flow_named_edges) ⇒ land.cCycleBase
+        (C_to_N_cVeg, c_eco_τ, c_eco_k_base, zero_c_τ_pf, c_flow_A_vec, c_flow_QP_vec, c_flow_ME_vec) ⇒ land.diagnostics
         c_model ⇒ land.models
     end
     return land
@@ -123,16 +108,46 @@ function precompute(params::cCycleBase_GSI_PlantForm_MGMT, forcing, land, helper
     end
 
     c_τ_Root, c_τ_Wood, c_τ_Leaf, c_τ_Reserve = get_c_τ(c_τ_pf, params)
-    @rep_elem c_τ_Root * c_τ_Root_scalar ⇒ (c_eco_τ, 1, :cEco)
-    @rep_elem c_τ_Wood * c_τ_Wood_scalar ⇒ (c_eco_τ, 2, :cEco)
-    @rep_elem c_τ_Leaf * c_τ_Leaf_scalar ⇒ (c_eco_τ, 3, :cEco)
-    @rep_elem c_τ_Reserve * c_τ_Reserve_scalar ⇒ (c_eco_τ, 4, :cEco)
-    @rep_elem c_τ_LitFast * c_τ_Litter_scalar ⇒ (c_eco_τ, 5, :cEco)
-    @rep_elem c_τ_LitSlow * c_τ_Litter_scalar ⇒ (c_eco_τ, 6, :cEco)
-    @rep_elem c_τ_SoilSlow * c_τ_Soil_scalar ⇒ (c_eco_τ, 7, :cEco)
-    @rep_elem c_τ_SoilOld * c_τ_Soil_scalar ⇒ (c_eco_τ, 8, :cEco)
+    # c_eco_τ is written by pool name rather than by cEco position, so a structure
+    # that orders or omits pools differently still gets its turnovers in the right
+    # slots
+    for ix ∈ helpers.pools.zix.cVegRoot
+        @rep_elem c_τ_Root * c_τ_Root_scalar ⇒ (c_eco_τ, ix, :cEco)
+    end
+    for ix ∈ helpers.pools.zix.cVegWood
+        @rep_elem c_τ_Wood * c_τ_Wood_scalar ⇒ (c_eco_τ, ix, :cEco)
+    end
+    for ix ∈ helpers.pools.zix.cVegLeaf
+        @rep_elem c_τ_Leaf * c_τ_Leaf_scalar ⇒ (c_eco_τ, ix, :cEco)
+    end
+    for ix ∈ helpers.pools.zix.cVegReserve
+        @rep_elem c_τ_Reserve * c_τ_Reserve_scalar ⇒ (c_eco_τ, ix, :cEco)
+    end
+    for ix ∈ helpers.pools.zix.cLitFast
+        @rep_elem c_τ_LitFast * c_τ_Litter_scalar ⇒ (c_eco_τ, ix, :cEco)
+    end
+    for ix ∈ helpers.pools.zix.cLitSlow
+        @rep_elem c_τ_LitSlow * c_τ_Litter_scalar ⇒ (c_eco_τ, ix, :cEco)
+    end
+    for ix ∈ helpers.pools.zix.cSoilSlow
+        @rep_elem c_τ_SoilSlow * c_τ_Soil_scalar ⇒ (c_eco_τ, ix, :cEco)
+    end
+    for ix ∈ helpers.pools.zix.cSoilOld
+        @rep_elem c_τ_SoilOld * c_τ_Soil_scalar ⇒ (c_eco_τ, ix, :cEco)
+    end
 
-    vegZix = getZix(land.pools.cVeg, helpers.pools.zix.cVeg)
+    # Harvested products decay at their own declared rates. These two parameters
+    # existed but were never assigned: only slots 1 to 8 were written, so the product
+    # pools kept the zero from define, giving them no turnover and an infinite
+    # residence time.
+    for ix ∈ helpers.pools.zix.cProductsWood
+        @rep_elem c_τ_cProductsWood ⇒ (c_eco_τ, ix, :cEco)
+    end
+    for ix ∈ helpers.pools.zix.cProductsCrop
+        @rep_elem c_τ_cProductsCrop ⇒ (c_eco_τ, ix, :cEco)
+    end
+
+    vegZix = helpers.pools.zix.cVeg
     for ix ∈ eachindex(vegZix)
         @rep_elem p_C_to_N_cVeg[ix] ⇒ (C_to_N_cVeg, vegZix[ix], :cEco)
     end
@@ -149,91 +164,8 @@ function precompute(params::cCycleBase_GSI_PlantForm_MGMT, forcing, land, helper
     return land
 end
 
-function adjustPackPoolComponents(land, helpers, ::cCycleBase_GSI_PlantForm_MGMT)
-    @unpack_nt (cVeg,
-        cLit,
-        cSoil,
-        cVegRoot,
-        cVegWood,
-        cVegLeaf,
-        cVegReserve,
-        cLitFast,
-        cLitSlow,
-        cSoilSlow,
-        cSoilOld,
-        cProductsWood,
-        cProductsCrop,
-        cEco) ⇐ land.pools
-
-    zix = helpers.pools.zix
-    for (lc, l) in enumerate(zix.cVeg)
-        @rep_elem cEco[l] ⇒ (cVeg, lc, :cVeg)
-    end
-
-    for (lc, l) in enumerate(zix.cVegRoot)
-        @rep_elem cEco[l] ⇒ (cVegRoot, lc, :cVegRoot)
-    end
-
-    for (lc, l) in enumerate(zix.cVegWood)
-        @rep_elem cEco[l] ⇒ (cVegWood, lc, :cVegWood)
-    end
-
-    for (lc, l) in enumerate(zix.cVegLeaf)
-        @rep_elem cEco[l] ⇒ (cVegLeaf, lc, :cVegLeaf)
-    end
-
-    for (lc, l) in enumerate(zix.cVegReserve)
-        @rep_elem cEco[l] ⇒ (cVegReserve, lc, :cVegReserve)
-    end
-
-    for (lc, l) in enumerate(zix.cLit)
-        @rep_elem cEco[l] ⇒ (cLit, lc, :cLit)
-    end
-
-    for (lc, l) in enumerate(zix.cLitFast)
-        @rep_elem cEco[l] ⇒ (cLitFast, lc, :cLitFast)
-    end
-
-    for (lc, l) in enumerate(zix.cLitSlow)
-        @rep_elem cEco[l] ⇒ (cLitSlow, lc, :cLitSlow)
-    end
-
-    for (lc, l) in enumerate(zix.cSoil)
-        @rep_elem cEco[l] ⇒ (cSoil, lc, :cSoil)
-    end
-
-    for (lc, l) in enumerate(zix.cSoilSlow)
-        @rep_elem cEco[l] ⇒ (cSoilSlow, lc, :cSoilSlow)
-    end
-
-    for (lc, l) in enumerate(zix.cSoilOld)
-        @rep_elem cEco[l] ⇒ (cSoilOld, lc, :cSoilOld)
-    end
-
-    for (lc, l) in enumerate(zix.cProductsWood)
-        @rep_elem cEco[l] ⇒ (cProductsWood, lc, :cProductsWood)
-    end
-
-    for (lc, l) in enumerate(zix.cProductsCrop)
-        @rep_elem cEco[l] ⇒ (cProductsCrop, lc, :cProductsCrop)
-    end
-    @pack_nt (cVeg,
-        cLit,
-        cSoil,
-        cVegRoot,
-        cVegWood,
-        cVegLeaf,
-        cVegReserve,
-        cLitFast,
-        cLitSlow,
-        cSoilSlow,
-        cSoilOld,
-        cProductsWood,
-        cProductsCrop,
-        cEco) ⇒ land.pools
-    return land
-end
-
+poolConfiguration(::Type{<:cCycleBase_GSI_PlantForm_MGMT}) = CarbonPoolsMGMT
+cFlowEdges(::Type{<:cCycleBase_GSI_PlantForm_MGMT}) = GSI_FLOW_EDGES
 purpose(::Type{cCycleBase_GSI_PlantForm_MGMT}) = "Same as GSI, additionally allowing for scaling of turnover parameters based on plant forms."
 
 @doc """
@@ -249,6 +181,7 @@ $(getModelDocString(cCycleBase_GSI_PlantForm_MGMT))
 
 *Versions*
  - 1.0 on 28.02.2020 [skoirala | @dr-ko]  
+ - 1.1 on 04.09.2026 [skoirala]: c_flow_ME_vec allocated here alongside c_flow_A_vec and c_flow_QP_vec
 
 *Created by*
  - ncarvalhais

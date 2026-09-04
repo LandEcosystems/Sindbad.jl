@@ -11,7 +11,7 @@ function precompute(params::PFT_constant, forcing, land, helpers)
     @unpack_PFT_constant params
 
     ## pack land variables
-    @pack_nt PFT ⇒ land.PFT
+    @pack_nt PFT ⇒ land.states
     return land
 end
 

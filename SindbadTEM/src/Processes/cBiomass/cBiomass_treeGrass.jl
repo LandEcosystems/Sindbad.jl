@@ -4,12 +4,15 @@ struct cBiomass_treeGrass <: cBiomass end
 
 function compute(params::cBiomass_treeGrass, forcing, land, helpers)
 
-    @unpack_nt (cVegWood, cVegLeaf) ⇐ land.pools
+    @unpack_nt cEco ⇐ land.pools
     @unpack_nt frac_tree ⇐ land.states
 
     ## calculate variables    
-    cVegLeaf_sum = totalS(cVegLeaf)
-    cVegWood_sum = totalS(cVegWood)
+    # summed straight out of cEco through zix, so a pool name that spans several cEco
+    # slots contributes all of them and a name the structure lacks contributes
+    # nothing
+    cVegLeaf_sum = totalS_indices(cEco, helpers.pools.zix.cVegLeaf)
+    cVegWood_sum = totalS_indices(cEco, helpers.pools.zix.cVegWood)
     aboveground_biomass = cVegWood_sum + cVegLeaf_sum # the assumption is that the wood and leaf pools are aboveground!
     aboveground_biomass = frac_tree > 0 ? aboveground_biomass : cVegWood_sum
 

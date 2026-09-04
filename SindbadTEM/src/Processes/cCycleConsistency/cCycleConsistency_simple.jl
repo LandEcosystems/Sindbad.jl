@@ -7,13 +7,14 @@ function define(params::cCycleConsistency_simple, forcing, land, helpers)
     ## unpack land variables
     @unpack_nt begin
         cEco ⇐ land.pools
-        c_flow_A_array ⇐ land.diagnostics
-        c_giver ⇐ land.constants
+        (c_giver, c_taker) ⇐ land.cCycleBase
     end
     # make list of indices which give carbon to other pools during the flow, and separate them if 
-    # they are above or below the diagonal in flow vector
-    giver_upper = Tuple([ind[2] for ind ∈ findall(>(0), upper_triangle_mask(c_flow_A_array) .* c_flow_A_array)])
-    giver_lower = Tuple([ind[2] for ind ∈ findall(>(0), lower_triangle_mask(c_flow_A_array) .* c_flow_A_array)])
+    # they are above or below the diagonal in flow vector. A flow is one off-diagonal
+    # entry at row taker, column giver, so the side of the diagonal it falls on is
+    # the taker index against the giver index, with no transfer matrix needed
+    giver_upper = Tuple([c_giver[f] for f ∈ eachindex(c_giver, c_taker) if c_taker[f] < c_giver[f]])
+    giver_lower = Tuple([c_giver[f] for f ∈ eachindex(c_giver, c_taker) if c_taker[f] > c_giver[f]])
     giver_upper_unique = unique(giver_upper)
     giver_lower_unique = unique(giver_lower)
     giver_upper_indices = []

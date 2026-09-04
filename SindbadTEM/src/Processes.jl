@@ -55,7 +55,8 @@ julia> # end
 module Processes
 
     # Import & export necessary modules/functions
-    import SindbadTEM.TEMTypes: LandEcosystem, purpose
+    import SindbadTEM.TEMTypes: LandEcosystem, SindbadTypes, purpose
+    import SindbadTEM.TEMTypes: poolAliases, poolConfiguration, poolStructure
     using FieldMetadata: @metadata
     using Parameters: @with_kw
     @metadata timescale "" String

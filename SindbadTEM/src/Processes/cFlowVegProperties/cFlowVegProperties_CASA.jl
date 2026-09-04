@@ -9,14 +9,11 @@ end
 function define(params::cFlowVegProperties_CASA, forcing, land, helpers)
     @unpack_cFlowVegProperties_CASA params
     @unpack_nt begin 
-        c_taker ⇐ land.constants
+        c_taker ⇐ land.cCycleBase
         cEco ⇐ land.pools
     end
     ## Instantiate variables
-    p_F_vec = eltype(cEco).(zero([c_taker...]))
-    if cEco isa SVector
-        p_F_vec = SVector{length(p_F_vec)}(p_F_vec)
-    end
+    p_F_vec = getVectorOfType(cEco, length(c_taker))
 
     ## pack land variables
     @pack_nt p_F_vec ⇒ land.cFlowVegProperties
@@ -36,10 +33,10 @@ function compute(params::cFlowVegProperties_CASA, forcing, land, helpers)
     # p_fVeg = zeros(nPix, length(info.model.c.nZix)); #sujan
     #p_fVeg = zero(cEco)
     p_E_vec = p_F_vec
-    # ADJUST cFlow BASED ON PARTICULAR PARAMETERS # SOURCE, TARGET, INCREMENT aM = (:cVegLeaf, :cLitLeafM, MTF;, :cVegLeaf, :cLitLeafS, 1, -, MTF;, :cVegWood, :cLitWood, 1;, :cVegRootF, :cLitRootFM, MTF;, :cVegRootF, :cLitRootFS, 1, -, MTF;, :cVegRootC, :cLitRootC, 1;, :cLitLeafS, :cSoilSlow, SCLIGNIN;, :cLitLeafS, :cMicSurf, 1, -, SCLIGNIN;, :cLitRootFS, :cSoilSlow, SCLIGNIN;, :cLitRootFS, :cMicSoil, 1, -, SCLIGNIN;, :cLitWood, :cSoilSlow, frac_lignin_wood;, :cLitWood, :cMicSurf, 1, -, frac_lignin_wood;, :cLitRootC, :cSoilSlow, frac_lignin_wood;, :cLitRootC, :cMicSoil, 1, -, frac_lignin_wood;, :cSoilOld, :cMicSoil, 1;, :cLitLeafM, :cMicSurf, 1;, :cLitRootFM, :cMicSoil, 1;, :cMicSurf, :cSoilSlow, 1;)
+    # ADJUST cFlow BASED ON PARTICULAR PARAMETERS # SOURCE, TARGET, INCREMENT aM = (:cVegLeaf, :cLitLeafFast, MTF;, :cVegLeaf, :cLitLeafSlow, 1, -, MTF;, :cVegWood, :cLitWood, 1;, :cVegRootFine, :cLitRootFineFast, MTF;, :cVegRootFine, :cLitRootFineSlow, 1, -, MTF;, :cVegRootCoarse, :cLitRootCoarse, 1;, :cLitLeafSlow, :cSoilSlow, SCLIGNIN;, :cLitLeafSlow, :cMicSurf, 1, -, SCLIGNIN;, :cLitRootFineSlow, :cSoilSlow, SCLIGNIN;, :cLitRootFineSlow, :cMicSoil, 1, -, SCLIGNIN;, :cLitWood, :cSoilSlow, frac_lignin_wood;, :cLitWood, :cMicSurf, 1, -, frac_lignin_wood;, :cLitRootCoarse, :cSoilSlow, frac_lignin_wood;, :cLitRootCoarse, :cMicSoil, 1, -, frac_lignin_wood;, :cSoilOld, :cMicSoil, 1;, :cLitLeafFast, :cMicSurf, 1;, :cLitRootFineFast, :cMicSoil, 1;, :cMicSurf, :cSoilSlow, 1;)
     for ii ∈ 1:size(aM, 1)
-        ndxSrc = helpers.pools.zix.(aM[ii, 1])
-        ndxTrg = helpers.pools.zix.(aM[ii, 2]) #sujan is this 2 | 1?
+        ndxSrc = getproperty(helpers.pools.zix, aM[ii, 1])
+        ndxTrg = getproperty(helpers.pools.zix, aM[ii, 2]) #sujan is this 2 | 1?
         for iSrc ∈ eachindex(ndxSrc)
             for iTrg ∈ eachindex(ndxTrg)
                 # p_fVeg[ndxTrg[iTrg], ndxSrc[iSrc]] = aM(ii, 3)
