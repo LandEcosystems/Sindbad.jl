@@ -1099,27 +1099,6 @@ sindbad_tem_variables = orD{Symbol,orD{Symbol,String}}(
         :land_field => "properties",
         :description => "the depth to the bottom of each soil layer"
     ),
-    :properties__LIGEFF => orD(
-        :standard_name => "LIGEFF",
-        :long_name => "LIGEFF",
-        :units => "fraction",
-        :land_field => "properties",
-        :description => ""
-    ),
-    :properties__LIGNIN => orD(
-        :standard_name => "LIGNIN",
-        :long_name => "LIGNIN",
-        :units => "fraction",
-        :land_field => "properties",
-        :description => ""
-    ),
-    :properties__LITC2N => orD(
-        :standard_name => "LITC2N",
-        :long_name => "LITC2N",
-        :units => "fraction",
-        :land_field => "properties",
-        :description => ""
-    ),
     :properties__k_fc => orD(
         :standard_name => "k_fc",
         :long_name => "k_field_capacity",
@@ -1141,12 +1120,61 @@ sindbad_tem_variables = orD{Symbol,orD{Symbol,String}}(
         :land_field => "properties",
         :description => "hydraulic conductivity of soil at wilting point per layer"
     ),
-    :properties__MTF => orD(
-        :standard_name => "MTF",
-        :long_name => "MTF",
+    :properties__lit_C_to_N => orD(
+        :standard_name => "lit_C_to_N",
+        :long_name => "litter_carbon_to_nitrogen_ratio",
+        :units => "gC/gN",
+        :land_field => "properties",
+        :description => "carbon-to-nitrogen ratio of litter"
+    ),
+    :properties__lit_frac_C_lignin => orD(
+        :standard_name => "lit_frac_C_lignin",
+        :long_name => "litter_carbon_fraction_of_lignin",
         :units => "fraction",
         :land_field => "properties",
-        :description => ""
+        :description => "carbon fraction of lignin"
+    ),
+    :properties__lit_frac_lignin => orD(
+        :standard_name => "lit_frac_lignin",
+        :long_name => "litter_lignin_fraction",
+        :units => "fraction",
+        :land_field => "properties",
+        :description => "fraction of litter that is lignin"
+    ),
+    :properties__lit_frac_lignin_struct => orD(
+        :standard_name => "lit_frac_lignin_struct",
+        :long_name => "litter_structural_lignin_fraction",
+        :units => "fraction",
+        :land_field => "properties",
+        :description => "lignin as a fraction of structural litter carbon, which controls how structural litter decomposition is split between the slow soil pool and the microbial pools"
+    ),
+    :properties__lit_frac_lignin_wood => orD(
+        :standard_name => "lit_frac_lignin_wood",
+        :long_name => "woody_litter_lignin_fraction",
+        :units => "fraction",
+        :land_field => "properties",
+        :description => "lignin fraction of woody litter, which controls the partitioning of woody and coarse-root litter decomposition"
+    ),
+    :properties__lit_frac_metabolic => orD(
+        :standard_name => "lit_frac_metabolic",
+        :long_name => "metabolic_litter_fraction",
+        :units => "fraction",
+        :land_field => "properties",
+        :description => "fraction of leaf and fine-root litterfall routed to the metabolic litter pools; the complement goes to the structural pools"
+    ),
+    :properties__lit_k_f_lignin => orD(
+        :standard_name => "lit_k_f_lignin",
+        :long_name => "k_lignin_effect",
+        :units => "fraction",
+        :land_field => "properties",
+        :description => "multiplicative effect of lignin content on the decomposition rate of the structural litter pools; one means no effect"
+    ),
+    :properties__lit_nonsol_to_sol_lignin => orD(
+        :standard_name => "lit_nonsol_to_sol_lignin",
+        :long_name => "nonsoluble_to_soluble_lignin",
+        :units => "fraction",
+        :land_field => "properties",
+        :description => "scalar converting nonsoluble to soluble lignin"
     ),
     :properties__ψ_fc => orD(
         :standard_name => "ψ_fc",
@@ -1168,13 +1196,6 @@ sindbad_tem_variables = orD{Symbol,orD{Symbol,String}}(
         :units => "m",
         :land_field => "properties",
         :description => "matric potential of soil at wiliting point per layer"
-    ),
-    :properties__SCLIGNIN => orD(
-        :standard_name => "SCLIGNIN",
-        :long_name => "SCLIGNIN",
-        :units => "fraction",
-        :land_field => "properties",
-        :description => ""
     ),
     :properties__soil_α => orD(
         :standard_name => "soil_α",
@@ -1462,6 +1483,13 @@ sindbad_tem_variables = orD{Symbol,orD{Symbol,String}}(
         :units => "mm",
         :land_field => "states",
         :description => "amount of water available for transpiration per soil layer"
+    ),
+    :states__PFT => orD(
+        :standard_name => "PFT",
+        :long_name => "plant_functional_type",
+        :units => "class",
+        :land_field => "states",
+        :description => "plant functional type class of the pixel, the single source of PFT for downstream processes"
     ),
     :states__Tair_prev => orD(
         :standard_name => "Tair_prev",
