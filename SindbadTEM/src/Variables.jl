@@ -343,6 +343,34 @@ sindbad_tem_variables = orD{Symbol,orD{Symbol,String}}(
         :land_field => "diagnostics",
         :description => "fraction of the carbon loss fron a (giver) pool that flows to a (taker) pool"
     ),
+    :diagnostics__c_flow_QP_f_lignin => orD(
+        :standard_name => "c_flow_QP_f_lignin",
+        :long_name => "lignin_effect_carbon_quality_partition",
+        :units => "fraction",
+        :land_field => "diagnostics",
+        :description => "lignin control of the carbon-quality partition, per active carbon transfer; splits structural and woody litter decomposition between the slow soil pool and the microbial pools, and is one on every other flow"
+    ),
+    :diagnostics__c_flow_QP_f_metabolic_fraction => orD(
+        :standard_name => "c_flow_QP_f_metabolic_fraction",
+        :long_name => "metabolic_fraction_effect_carbon_quality_partition",
+        :units => "fraction",
+        :land_field => "diagnostics",
+        :description => "metabolic litter fraction control of the carbon-quality partition, per active carbon transfer; splits leaf and fine-root litterfall between the metabolic and structural litter pools, and is one on every other flow"
+    ),
+    :diagnostics__c_flow_QP_f_soil_props => orD(
+        :standard_name => "c_flow_QP_f_soil_props",
+        :long_name => "soil_property_effect_carbon_quality_partition",
+        :units => "fraction",
+        :land_field => "diagnostics",
+        :description => "soil property control of the carbon-quality partition, per active carbon transfer; splits slow-soil and soil-microbial decomposition between old soil carbon and the remaining pathway, and is one on every other flow"
+    ),
+    :diagnostics__c_flow_QP_vec => orD(
+        :standard_name => "c_flow_QP_vec",
+        :long_name => "carbon_quality_partition_vector",
+        :units => "fraction",
+        :land_field => "diagnostics",
+        :description => "fraction of the carbon loss from a (giver) pool that is routed along each of its outgoing transfers by carbon quality; allocated as one per flow by cCycleBase and filled in by cQualityPartition"
+    ),
     :diagnostics__c_flow_E_array => orD(
         :standard_name => "c_flow_E_array",
         :long_name => "carbon_flow_efficiency_array",
