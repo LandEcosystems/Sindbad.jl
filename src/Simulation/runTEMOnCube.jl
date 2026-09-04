@@ -44,7 +44,7 @@ function TEMYax(map_cubes...;selected_models::Tuple, forcing_vars, loc_land::Nam
     outputs, inputs = unpackYaxForward(map_cubes; output_vars, forcing_vars)
     # What exactly should the NaN check be? 
     # Do I check per variable, or for all variables together?
-    any(ismissing || isnan , inputs)
+    any(in_forcing -> any(v -> ismissing(v) || isnan(v), in_forcing), inputs)
 
     # ? apply clean_data fields to input data points
     _data_fill, _forcing_default_info, _num_type, _forcing_vars_info = clean_data
@@ -89,6 +89,12 @@ function runTEMYax(selected_models::Tuple, forcing::NamedTuple, info::NamedTuple
     _forcing_vars_info = info.experiment.data_settings.forcing.variables
     #output = XOutput.(getproperty.(run_helpers.output_dims, :axisdesc))
     output = run_helpers.output_dims
+    alloutdims = union(getproperty.(output, :outaxes)...)
+    new_output = map(output) do out
+        singleton_dims = setdiff(alloutdims, out.outaxes)
+        newdims = (out.outaxes..., DD.rebuild.(singleton_dims, (1:1,))...) 
+        YAXArrays.XOutput(newdims, out.destroyaxes, out.outtype, out.properties)
+    end
     outcubes = xmap(TEMYax,
         (incubes .⊘ indims)...;
     function_kwargs = (selected_models=selected_models,
@@ -97,7 +103,7 @@ function runTEMYax(selected_models::Tuple, forcing::NamedTuple, info::NamedTuple
         loc_land=loc_land,
         tem=run_helpers.tem_info,
         clean_data=(; _data_fill, _forcing_default_info, _num_type, _forcing_vars_info)),
-        output = output,
+        output = new_output,
         #outdims=run_helpers.output_dims,
         #max_cache=info.experiment.exe_rules.yax_max_cache,
         #ispar=false,
@@ -244,7 +250,7 @@ function fillOutputYax(xout, xin)
         end
     else
         for i ∈ CartesianIndices(xin)
-            xout[:, i] = xin[i]
+            xout[i,:] .= xin[i]
         end
     end
 end
