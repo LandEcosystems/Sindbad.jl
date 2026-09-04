@@ -28,6 +28,42 @@ function generatedPoolNames(structure)
 end
 
 """
+    carbonPoolNames()
+
+Every carbon pool name any configuration can produce: the leaves and groups of each
+`CarbonPoolConfiguration`'s structure, plus the alias names its nesting cannot
+generate.
+
+`setPoolsInfo` emits a `zix` entry for each, so a name a configuration lacks resolves
+to `()` rather than a missing field. A loop over an empty entry runs zero times,
+statically, which is why models iterate `helpers.pools.zix.X` without an `isempty`
+branch.
+
+# Notes:
+- Derived rather than listed. This replaced a hand-written tuple of all 27 names, which
+  a new configuration had to be added to by hand: miss that edit and the name was
+  simply absent from `zix`, and the first model to reach for it failed on a missing
+  field far from the cause. Declaring the structure is now the only step.
+- Lives here rather than beside the configurations because it needs
+  `getPoolInformation`, and `Sindbad.Setup` depends on `SindbadTEM` and not the other
+  way round. It also sits next to its only caller.
+- Enumeration is `subtypes`, so a configuration file that is written but never included
+  contributes nothing.
+"""
+function carbonPoolNames()
+    names = Symbol[]
+    for configuration ∈ SindbadTEM.subtypes(SindbadTEM.Processes.CarbonPoolConfiguration)
+        structure = poolStructure(configuration)
+        isnothing(structure) && continue
+        leaves, groups = generatedPoolNames(structure)
+        append!(names, groups)
+        append!(names, leaves)
+        append!(names, propertynames(poolAliases(configuration)))
+    end
+    return Tuple(unique(names))
+end
+
+"""
     poolConfigurationFor(info, element, spec)
 
 Resolve a string in a `pools` block to a pool configuration.
@@ -376,14 +412,15 @@ function setPoolsInfo(info::NamedTuple)
 
     # Every carbon pool name resolves, to real indices or to (), whatever the
     # structure. An empty entry iterates zero times, statically, which is why models
-    # loop over helpers.pools.zix.X with no isempty branch and why adding a name to
-    # CARBON_POOL_NAMES needs no model edit.  Filled here rather than per element on
+    # loop over helpers.pools.zix.X with no isempty branch and why a new pool needs no
+    # model edit -- the names come from the configurations themselves, see
+    # carbonPoolNames.  Filled here rather than per element on
     # purpose: the carbon+water merge above is `(; carbon..., water...)`, so water
     # wins on any shared key, and a per-element skeleton would have water's empty
     # entries overwrite carbon's real indices. Doing it after the merge also covers a
     # model structure with no carbon element at all, where the merge takes
     # hlp_states.water wholesale.
-    for pool_name ∈ SindbadTEM.Processes.CARBON_POOL_NAMES
+    for pool_name ∈ carbonPoolNames()
         if !hasproperty(hlp_new.zix, pool_name)
             hlp_new = set_namedtuple_subfield(hlp_new, :zix, (pool_name, ()))
         end
