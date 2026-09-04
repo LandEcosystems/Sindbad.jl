@@ -56,7 +56,9 @@ or `()` if it declares none.
   `GSI.jl`, `CASA_FLOW_EDGES` in `CASA.jl`. Which approach uses which is still declared
   by the approach.
 - An edge list rather than a transfer matrix, because the matrix carried no
-  information beyond the adjacency. Every `c_flow_A_array` in every `cCycleBase`
+  information beyond the adjacency. `cFlowMatrix` rebuilds the matrix view from an
+  edge list when one is wanted, in the `[taker, giver]` orientation every dense flow
+  array in the models uses. Every `c_flow_A_array` in every `cCycleBase`
   approach held only `{-1, 0, 1}`, and every consumer tested positivity alone, so it
   was a dense encoding of a sparse graph: 64 numbers to say 11 things under GSI, 196
   to say 22 under CASA.
@@ -82,8 +84,8 @@ cFlowEdges(T::cCycleBase) = cFlowEdges(typeof(T))
 
 Resolve an approach's `cFlowEdges` against the pool structure the experiment actually
 configured, returning the whole flow-vector description as
-`(c_flow_order, c_taker, c_giver, c_flow_named_edges, c_flow_A_vec, c_flow_QP_vec)`, in
-the order the approaches pack it.
+`(c_flow_order, c_taker, c_giver, c_flow_named_edges, c_flow_A_vec, c_flow_QP_vec,
+c_flow_ME_vec)`, in the order the approaches pack it.
 
 # Notes:
 - A flow is an edge, so the taker and giver of flow `i` are just the two endpoints of
@@ -92,20 +94,22 @@ the order the approaches pack it.
   out by `findall`, and its one remaining reader, `cCycleConsistency_simple`, asks
   only whether a flow sits above or below the diagonal, which is `c_taker` against
   `c_giver`.
-- All six come from one call so they cannot disagree about how many flows there are
+- All seven come from one call so they cannot disagree about how many flows there are
   or what order they sit in, which is what an approach rederiving each of them
   separately from a matrix left open. `c_flow_named_edges` is the same topology keyed
   by pool-name pair rather than by position, built by `cFlowNamedEdges`.
-- `c_flow_A_vec` and `c_flow_QP_vec` are neutral, one per flow, and are built here
-  rather than in a `cFlow` or `cQualityPartition` approach for the same reason: their
-  length and order are the topology's, so an approach building one had to reach for
-  `c_taker` to re-measure what the base already knows. Those approaches fill in
-  values; they no longer decide the shape. Allocating here also means the neutral
-  partition of one exists whenever the topology does, so `cCycle` reads a valid
-  `c_flow_QP_vec` even when no `cQualityPartition` model is selected at all.
+- `c_flow_A_vec`, `c_flow_QP_vec` and `c_flow_ME_vec` are neutral, one per flow, and
+  are built here rather than in a `cFlow`, `cQualityPartition` or
+  `cMicrobialEfficiency` approach for the same reason: their length and order are the
+  topology's, so an approach building one had to reach for `c_taker` to re-measure
+  what the base already knows. Those approaches fill in values; they no longer decide
+  the shape. Allocating here also means the neutral value of one exists whenever the
+  topology does, so `cCycle` reads a valid `c_flow_QP_vec` and `c_flow_ME_vec` even
+  when no `cQualityPartition` or `cMicrobialEfficiency` model is selected at all.
 - Sorted by `(giver, taker)`, which is the column-major order `findall` produced from
   the matrix and which `c_flow_A_vec`, `c_flow_QP_vec`, `c_flow_ME_vec` and the
-  `d_cFlow` output dimension are all indexed by. Sorting here rather than trusting the
+  `d_cFlow` output dimension are all indexed by. Column-major means the giver is the
+  column, so a flow matrix rebuilt from this is `[taker, giver]`; see `cFlowMatrix`. Sorting here rather than trusting the
   declaration means an edge list written out of order still yields the same flow
   vector; the lists are kept in that order anyway so a declaration reads in the same
   order as the flows it produces.
@@ -132,7 +136,9 @@ function cFlowStructure(params::cCycleBase, cEco, helpers)
     c_flow_named_edges = cFlowNamedEdges(c_taker, c_giver, helpers.pools.components.cEco)
     c_flow_A_vec = getVectorOfType(cEco, length(c_taker), one)
     c_flow_QP_vec = getVectorOfType(cEco, length(c_taker), one)
-    return c_flow_order, c_taker, c_giver, c_flow_named_edges, c_flow_A_vec, c_flow_QP_vec
+    c_flow_ME_vec = getVectorOfType(cEco, length(c_taker), one)
+    return c_flow_order, c_taker, c_giver, c_flow_named_edges, c_flow_A_vec, c_flow_QP_vec,
+        c_flow_ME_vec
 end
 
 """

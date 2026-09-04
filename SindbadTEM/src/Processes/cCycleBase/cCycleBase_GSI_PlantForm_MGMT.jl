@@ -65,8 +65,8 @@ function define(params::cCycleBase_GSI_PlantForm_MGMT, forcing, land, helpers)
     # pool structure, rather than a transfer matrix carried as a parameter. The same
     # call keys the flows by pool-name pair and sizes the neutral flow vector, so a
     # cFlow approach reads the topology and fills in values instead of rederiving both
-    (c_flow_order, c_taker, c_giver, c_flow_named_edges, c_flow_A_vec, c_flow_QP_vec) =
-        cFlowStructure(params, cEco, helpers)
+    (c_flow_order, c_taker, c_giver, c_flow_named_edges, c_flow_A_vec, c_flow_QP_vec,
+        c_flow_ME_vec) = cFlowStructure(params, cEco, helpers)
 
     c_model = cCycleBase_GSI_PlantForm_MGMT()
 
@@ -75,7 +75,7 @@ function define(params::cCycleBase_GSI_PlantForm_MGMT, forcing, land, helpers)
     ## pack land variables
     @pack_nt begin
         (c_flow_order, c_taker, c_giver, c_flow_named_edges) ⇒ land.cCycleBase
-        (C_to_N_cVeg, c_eco_τ, c_eco_k_base, zero_c_τ_pf, c_flow_A_vec, c_flow_QP_vec) ⇒ land.diagnostics
+        (C_to_N_cVeg, c_eco_τ, c_eco_k_base, zero_c_τ_pf, c_flow_A_vec, c_flow_QP_vec, c_flow_ME_vec) ⇒ land.diagnostics
         c_model ⇒ land.models
     end
     return land
@@ -181,6 +181,7 @@ $(getModelDocString(cCycleBase_GSI_PlantForm_MGMT))
 
 *Versions*
  - 1.0 on 28.02.2020 [skoirala | @dr-ko]  
+ - 1.1 on 04.09.2026 [skoirala]: c_flow_ME_vec allocated here alongside c_flow_A_vec and c_flow_QP_vec
 
 *Created by*
  - ncarvalhais
