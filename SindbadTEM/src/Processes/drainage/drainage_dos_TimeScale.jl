@@ -1,13 +1,13 @@
-export drainage_dos
+export drainage_dos_TimeScale
 
 #! format: off
-@bounds @describe @units @timescale @with_kw struct drainage_dos{T1, T2} <: drainage
+@bounds @describe @units @timescale @with_kw struct drainage_dos_TimeScale{T1, T2} <: drainage
     dos_exp::T1 = 1.5 | (0.1, 3.0) | "exponent of non-linearity for dos influence on drainage in soil" | "" | ""
     n24::T2 = 1.0 | (-Inf, Inf) | "Time scale (day to hour) Parameters" | "" | "day"
 end
 #! format: on
 
-function define(params::drainage_dos, forcing, land, helpers)
+function define(params::drainage_dos_TimeScale, forcing, land, helpers)
     ## unpack parameters
 
     ## unpack land variables
@@ -23,9 +23,9 @@ function define(params::drainage_dos, forcing, land, helpers)
     return land
 end
 
-function compute(params::drainage_dos, forcing, land, helpers)
+function compute(params::drainage_dos_TimeScale, forcing, land, helpers)
     ## unpack parameters
-    @unpack_drainage_dos params
+    @unpack_drainage_dos_TimeScale params
 
     ## unpack land variables
     @unpack_nt begin
@@ -60,11 +60,11 @@ function compute(params::drainage_dos, forcing, land, helpers)
     return land
 end
 
-purpose(::Type{drainage_dos}) = "Drainage flux based on an exponential function of soil moisture degree of saturation."
+purpose(::Type{drainage_dos_TimeScale}) = "Drainage flux based on an exponential function of soil moisture degree of saturation. Depending on time scale"
 
 @doc """
 
-$(getModelDocString(drainage_dos))
+$(getModelDocString(drainage_dos_TimeScale))
 
 ---
 
@@ -73,9 +73,8 @@ $(getModelDocString(drainage_dos))
 *References*
 
 *Versions*
- - 1.0 on 18.11.2019 [skoirala | @dr-ko]
 
 *Created by*
- - skoirala | @dr-ko
+ - Xu Shan
 """
-drainage_dos
+drainage_dos_TimeScale

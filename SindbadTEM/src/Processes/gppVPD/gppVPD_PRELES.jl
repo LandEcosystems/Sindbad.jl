@@ -2,10 +2,12 @@ export gppVPD_PRELES
 
 #! format: off
 @bounds @describe @units @timescale @with_kw struct gppVPD_PRELES{T1,T2,T3,T4} <: gppVPD
-    κ::T1 = 0.4 | (0.06, 0.7) | "" | "kPa-1" | ""
-    c_κ::T2 = 0.4 | (-50.0, 10.0) | "" | "" | ""
-    base_ambient_CO2::T3 = 295.0 | (250.0, 500.0) | "" | "ppm" | ""
-    sat_ambient_CO2::T4 = 2000.0 | (400.0, 4000.0) | "" | "ppm" | ""
+    # κ::T1 = 0.4 | (0.06, 0.7) | "" | "kPa-1" | ""
+    # c_κ::T2 = 0.4 | (-50.0, 10.0) | "" | "" | ""
+    κ::T1 = 0.05 | (0.01, 10.0) | "" | "kPa-1" | ""
+    c_κ::T2 = 0.4 | (0.0, 10.0) | "" | "" | ""
+    base_ambient_CO2::T3 = 380.0 | (340.0, 390.0) | "" | "ppm" | ""
+    sat_ambient_CO2::T4 = 2000.0 | (100.0, 4000.0) | "" | "ppm" | ""
 end
 #! format: on
 
@@ -27,9 +29,11 @@ function compute(params::gppVPD_PRELES, forcing, land, helpers)
     ## calculate variables
     fVPD_VPD = exp(-κ * f_VPD_day * (base_ambient_CO2 / ambient_CO2)^-c_κ)
     fCO2_CO2 = o_one + (ambient_CO2 - base_ambient_CO2) / (ambient_CO2 - base_ambient_CO2 + sat_ambient_CO2)
-    gpp_f_vpd = clamp_zero_one(fVPD_VPD * fCO2_CO2)
+    # gpp_f_vpd = clamp_zero_one(fVPD_VPD * fCO2_CO2)
+    gpp_f_vpd = fVPD_VPD * fCO2_CO2
 
     ## pack land variables
+    @pack_nt fVPD_VPD ⇒ land.diagnostics
     @pack_nt gpp_f_vpd ⇒ land.diagnostics
     return land
 end

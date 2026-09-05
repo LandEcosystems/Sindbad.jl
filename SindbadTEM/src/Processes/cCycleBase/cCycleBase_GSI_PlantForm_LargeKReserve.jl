@@ -27,7 +27,13 @@ export cCycleBase_GSI_PlantForm_LargeKReserve, adjustPackPoolComponents
     c_τ_Reserve_scalar::T5 = 1.0 | (0.25, 4) | "scalar for Reserve does not respire, but has a small value to avoid numerical error" | "-" | ""
     c_τ_Soil_scalar::T6 = 1.0 | (0.25, 4) | "scalar for turnover rate of soil carbon pool" | "-" | ""
 
-    c_τ_tree::T7 = Float64.(1.0 ./ [1.0, 50.0, 1.0, 1.0e3]) | (1 ./[4.0, 200.0, 4.0, 4.0e3], 1 ./[0.25, 12.5, 0.25, 0.25e3]) | "turnover of different organs of trees" | "year-1" | "year"
+    # c_τ_tree::T7 = Float64.(1.0 ./ [1.0, 50.0, 1.0, 1.0e3]) | (1 ./[4.0, 200.0, 4.0, 4.0e3], 1 ./[0.25, 12.5, 0.25, 0.25e3]) | "turnover of different organs of trees" | "year-1" | "year"
+    c_τ_tree::T7 = Float64.([1.0, 1 / 50.0, 1.0, 1.0e-11]) |
+    (
+        Float64.([1 / 4.0, 1 / 200.0, 1 / 4.0, 1.0e-12]),
+        Float64.([1 / 0.25, 1 / 12.5, 1 / 0.25, 1.0]),
+    ) |
+    "turnover of different organs of trees" | "year-1" | "year"
     c_τ_shrub::T8 = Float64.(1.0 ./ [1.0, 5.0, 1.0, 1.0e3]) | (1 ./[4.0, 20.0, 4.0, 4.0e3], 1 ./[0.25, 1.25, 0.25, 0.25e3]) | "turnover of different organs of shrubs" | "year-1" | "year"
     c_τ_herb::T9 = Float64.(1.0 ./ [0.75, 0.75, 0.75, 0.75e3]) | (1 ./[3.0, 3.0, 3.0, 3.0e3], 1 ./[0.1875, 0.1875, 0.1875, 0.1875e3]) | "turnover of different organs of herbs" | "year-1" | "year"
 
@@ -48,7 +54,7 @@ export cCycleBase_GSI_PlantForm_LargeKReserve, adjustPackPoolComponents
     p_C_to_N_cVeg::T15 = Float64.([25.0, 260.0, 260.0, 10.0]) | (-Inf, Inf) | "carbon to nitrogen ratio in vegetation pools" | "gC/gN" | ""
     ηH::T16 = 1.0 | (0.125, 8.0) | "scaling factor for heterotrophic pools after spinup" | "" | ""
     ηA::T17 = 1.0 | (0.25, 4.0) | "scaling factor for vegetation pools after spinup" | "" | ""
-    c_remain::T18 = 50.0 | (0.1, 100.0) | "remaining carbon after disturbance" | "gC/m2" | ""
+    c_remain::T18 = 10.0 | (0.1, 100.0) | "remaining carbon after disturbance" | "gC/m2" | ""
 end
 #! format: on
 

@@ -2,7 +2,7 @@ export gppDirRadiation_Maekelae2008
 
 #! format: off
 @bounds @describe @units @timescale @with_kw struct gppDirRadiation_Maekelae2008{T1} <: gppDirRadiation
-    γ::T1 = 0.04 | (0.001, 0.1) | "empirical light response parameter" | "" | ""
+    γ::T1 = 0.002 | (0.0, 0.05) | "empirical light response parameter" | "" | ""
 end
 #! format: on
 
@@ -18,7 +18,7 @@ function compute(params::gppDirRadiation_Maekelae2008, forcing, land, helpers)
 
     o_one = one(γ)
     ## calculate variables
-    gpp_f_light =  o_one / (o_one * f_PAR * fAPAR + o_one)
+    gpp_f_light =  o_one / (γ * f_PAR * fAPAR + o_one)
 
     ## pack land variables
     @pack_nt gpp_f_light ⇒ land.diagnostics

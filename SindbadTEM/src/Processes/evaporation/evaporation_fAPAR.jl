@@ -17,13 +17,14 @@ function compute(params::evaporation_fAPAR, forcing, land, helpers)
         soilW ⇐ land.pools
         ΔsoilW ⇐ land.pools
         PET ⇐ land.fluxes
-        (z_zero, o_one) ⇐ land.constants
+        (z_zero, o_one, t_two) ⇐ land.constants
     end
     # multiply equilibrium PET with αSoil & [1.0 - fAPAR] to get potential soil evap
     tmp = PET * α * (o_one - fAPAR)
     PET_evaporation = at_least_zero(tmp)
     # scale the potential with the a fraction of available water & get the minimum of the current moisture
     evaporation = min(PET_evaporation, k_evaporation * (soilW[1] + ΔsoilW[1]))
+    # evaporation = k_evaporation * (soilW[1] + ΔsoilW[1])
 
     # update soil moisture changes
     @add_to_elem -evaporation ⇒ (ΔsoilW, 1, :soilW)

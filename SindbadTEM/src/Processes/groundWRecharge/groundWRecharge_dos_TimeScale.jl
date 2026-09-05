@@ -1,13 +1,13 @@
-export groundWRecharge_dos
+export groundWRecharge_dos_TimeScale
 
 #! format: off
-@bounds @describe @units @timescale @with_kw struct groundWRecharge_dos{T1, T2} <: groundWRecharge
+@bounds @describe @units @timescale @with_kw struct groundWRecharge_dos_TimeScale{T1, T2} <: groundWRecharge
     dos_exp::T1 = 1.5 | (1.0, 3.0) | "exponent of non-linearity for dos influence on drainage to groundwater" | "" | ""
     n24::T2 = 1.0 | (-Inf, Inf) | "Time scale (day to hour) Parameters" | "" | "day"
 end
 #! format: on
 
-function define(params::groundWRecharge_dos, forcing, land, helpers)
+function define(params::groundWRecharge_dos_TimeScale, forcing, land, helpers)
     ## unpack land variables
     @unpack_nt begin
         z_zero ⇐ land.constants
@@ -22,9 +22,9 @@ function define(params::groundWRecharge_dos, forcing, land, helpers)
     return land
 end
 
-function compute(params::groundWRecharge_dos, forcing, land, helpers)
+function compute(params::groundWRecharge_dos_TimeScale, forcing, land, helpers)
     ## unpack parameters
-    @unpack_groundWRecharge_dos params
+    @unpack_groundWRecharge_dos_TimeScale params
 
     ## unpack land variables
     @unpack_nt begin
@@ -51,11 +51,11 @@ function compute(params::groundWRecharge_dos, forcing, land, helpers)
 end
 
 
-purpose(::Type{groundWRecharge_dos}) = "Groundwater recharge as an exponential function of the degree of saturation of the lowermost soil layer."
+purpose(::Type{groundWRecharge_dos_TimeScale}) = "Groundwater recharge as an exponential function of the degree of saturation of the lowermost soil layer."
 
 @doc """
 
-$(getModelDocString(groundWRecharge_dos))
+$(getModelDocString(groundWRecharge_dos_TimeScale))
 
 ---
 
@@ -69,4 +69,4 @@ $(getModelDocString(groundWRecharge_dos))
 *Created by*
  - skoirala | @dr-ko
 """
-groundWRecharge_dos
+groundWRecharge_dos_TimeScale
