@@ -45,11 +45,11 @@ function compute(params::drainage_dos, forcing, land, helpers)
         holdCap = w_sat[sl+1] - (soilW[sl+1] + ΔsoilW[sl+1])
         drain = min(drainage_tmp, holdCap, lossCap)
         tmp = drain > tolerance ? drain : zero(drain)
-        @rep_elem tmp ⇒ (drainage, sl, :soilW)
+        @rep_elem tmp ⇒ (drainage, sl)
         @add_to_elem -tmp ⇒ (ΔsoilW, sl, :soilW)
         @add_to_elem tmp ⇒ (ΔsoilW, sl + 1, :soilW)
     end
-    @rep_elem z_zero ⇒ (drainage, lastindex(drainage), :soilW)
+    @rep_elem z_zero ⇒ (drainage, lastindex(drainage))
     ## pack land variables
     @pack_nt begin
         drainage ⇒ land.fluxes

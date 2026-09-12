@@ -12,58 +12,21 @@ end
 function define(params::cFlow_GSI, forcing, land, helpers)
     @unpack_cFlow_GSI params
     @unpack_nt begin
-        (cEco, soilW) ⇐ land.pools
-        (c_giver, c_taker) ⇐ land.constants
-        cEco_comps = cEco ⇐ helpers.pools.components
+        soilW ⇐ land.pools
         ∑w_sat ⇐ land.properties
     end
     ## Instantiate variables
 
-    # transfers
-    aTrg = []
-    for t_rg in c_taker
-        push!(aTrg, cEco_comps[t_rg])
-    end
-    aSrc = []
-    for s_rc in c_giver
-        push!(aSrc, cEco_comps[s_rc])
-    end
-
-    # aTrg_a = Tuple(aTrg_a)
-    # aSrc_b = Tuple(aSrc_a)
-
-    # flowVar = [:reserve_to_leaf, :reserve_to_root, :leaf_to_reserve, :root_to_reserve, :k_shedding_leaf, :k_shedding_root]
-    # aSrc = (:cVegReserve, :cVegReserve, :cVegLeaf, :cVegRoot, :cVegLeaf, :cVegRoot)
-    # aTrg = (:cVegLeaf, :cVegRoot, :cVegReserve, :cVegReserve, :cLitFast, :cLitFast)
-
-    aSrc = Tuple(aSrc)
-    aTrg = Tuple(aTrg)
-
-    # @show aSrc, aSrc_b
-    # @show aTrg, aTrg_a
-    c_flow_A_vec_ind = (reserve_to_leaf=findall((aSrc .== :cVegReserve) .* (aTrg .== :cVegLeaf) .== true)[1],
-        reserve_to_root=findall((aSrc .== :cVegReserve) .* (aTrg .== :cVegRoot) .== true)[1],
-        leaf_to_reserve=findall((aSrc .== :cVegLeaf) .* (aTrg .== :cVegReserve) .== true)[1],
-        root_to_reserve=findall((aSrc .== :cVegRoot) .* (aTrg .== :cVegReserve) .== true)[1],
-        k_shedding_leaf=findall((aSrc .== :cVegLeaf) .* (aTrg .== :cLitFast) .== true)[1],
-        k_shedding_root=findall((aSrc .== :cVegRoot) .* (aTrg .== :cLitFast) .== true)[1],
-        k_shedding_reserve=findall((aSrc .== :cVegReserve) .* (aTrg .== :cLitFast) .== true)[1])
-
-    # tc_print(c_flow_A_vec_ind)
-    c_flow_A_vec = one.(eltype(cEco).(zero([c_taker...])))
-
-    if cEco isa SVector
-        c_flow_A_vec = SVector{length(c_flow_A_vec)}(c_flow_A_vec)
-    end
-
+    # The transfer topology and the flow vector itself both belong to cCycleBase,
+    # which resolves them once. This approach only needs its own stressor state; it
+    # finds the flows it writes in compute through edgesBetween, a giver/taker
+    # pool-membership match.
     eco_stressor_prev = totalS(soilW) / ∑w_sat
     slope_eco_stressor_prev = zero(eco_stressor_prev)
 
     @pack_nt begin
-        c_flow_A_vec_ind ⇒ land.cFlow
         eco_stressor_prev ⇒ land.diagnostics
         slope_eco_stressor_prev ⇒ land.diagnostics
-        c_flow_A_vec ⇒ land.diagnostics
     end
 
     return land
@@ -75,7 +38,7 @@ function adjust_pk(c_eco_k, kValue, flowValue, maxValue, zix, helpers)
     for ix ∈ zix
         # get max possible loss and total loss per pool
         tmp = min(c_eco_k[ix] + kValue + flowValue, maxValue)
-        @rep_elem tmp ⇒ (c_eco_k, ix, :cEco)
+        @rep_elem tmp ⇒ (c_eco_k, ix)
         c_eco_k_f_sum = c_eco_k_f_sum + tmp
         # get max possible loss to litter and total loss to litter per pool
         tmp_k = at_least_zero(tmp - flowValue)
@@ -89,11 +52,13 @@ function compute(params::cFlow_GSI, forcing, land, helpers)
     @unpack_cFlow_GSI params
     ## unpack land variables
     @unpack_nt begin
-        c_flow_A_vec_ind ⇐ land.cFlow
+        (c_giver, c_taker) ⇐ land.cCycleBase
         (c_allocation_f_soilW, c_allocation_f_soilT, c_allocation_f_cloud, eco_stressor_prev, slope_eco_stressor_prev)  ⇐ land.diagnostics
         c_eco_k ⇐ land.diagnostics
         c_flow_A_vec ⇐ land.diagnostics
     end
+    (zix_cVegLeaf, zix_cVegRoot, zix_cVegReserve, zix_cLit) = (helpers.pools.zix.cVegLeaf,
+        helpers.pools.zix.cVegRoot, helpers.pools.zix.cVegReserve, helpers.pools.zix.cLit)
 
     # Compute sigmoid functions
     # LPJ-GSI formulation: In GSI; the stressors are smoothened per control variable. That means; gppfsoilW; fTair; and fRdiff should all have a GSI approach for 1:1 conversion. For now; the function below smoothens the combined stressors; & then calculates the slope for allocation
@@ -148,13 +113,27 @@ function compute(params::cFlow_GSI, forcing, land, helpers)
     k_shedding_reserve = reserve_k_sum
     k_shedding_reserve_frac = safe_divide(reserve_k_sum, reserve_k_f_sum)
     
-    c_flow_A_vec = repElem(c_flow_A_vec, reserve_to_leaf_frac, c_flow_A_vec, c_flow_A_vec, c_flow_A_vec_ind.reserve_to_leaf)
-    c_flow_A_vec = repElem(c_flow_A_vec, reserve_to_root_frac, c_flow_A_vec, c_flow_A_vec, c_flow_A_vec_ind.reserve_to_root)
-    c_flow_A_vec = repElem(c_flow_A_vec, leaf_to_reserve_frac, c_flow_A_vec, c_flow_A_vec, c_flow_A_vec_ind.leaf_to_reserve)
-    c_flow_A_vec = repElem(c_flow_A_vec, root_to_reserve_frac, c_flow_A_vec, c_flow_A_vec, c_flow_A_vec_ind.root_to_reserve)
-    c_flow_A_vec = repElem(c_flow_A_vec, k_shedding_leaf_frac, c_flow_A_vec, c_flow_A_vec, c_flow_A_vec_ind.k_shedding_leaf)
-    c_flow_A_vec = repElem(c_flow_A_vec, k_shedding_root_frac, c_flow_A_vec, c_flow_A_vec, c_flow_A_vec_ind.k_shedding_root)
-    c_flow_A_vec = repElem(c_flow_A_vec, k_shedding_reserve_frac, c_flow_A_vec, c_flow_A_vec, c_flow_A_vec_ind.k_shedding_reserve)
+    for flow ∈ edgesBetween(c_giver, c_taker, zix_cVegReserve, zix_cVegLeaf)
+        c_flow_A_vec = repElem(c_flow_A_vec, reserve_to_leaf_frac, flow)
+    end
+    for flow ∈ edgesBetween(c_giver, c_taker, zix_cVegReserve, zix_cVegRoot)
+        c_flow_A_vec = repElem(c_flow_A_vec, reserve_to_root_frac, flow)
+    end
+    for flow ∈ edgesBetween(c_giver, c_taker, zix_cVegLeaf, zix_cVegReserve)
+        c_flow_A_vec = repElem(c_flow_A_vec, leaf_to_reserve_frac, flow)
+    end
+    for flow ∈ edgesBetween(c_giver, c_taker, zix_cVegRoot, zix_cVegReserve)
+        c_flow_A_vec = repElem(c_flow_A_vec, root_to_reserve_frac, flow)
+    end
+    for flow ∈ edgesBetween(c_giver, c_taker, zix_cVegLeaf, zix_cLit)
+        c_flow_A_vec = repElem(c_flow_A_vec, k_shedding_leaf_frac, flow)
+    end
+    for flow ∈ edgesBetween(c_giver, c_taker, zix_cVegRoot, zix_cLit)
+        c_flow_A_vec = repElem(c_flow_A_vec, k_shedding_root_frac, flow)
+    end
+    for flow ∈ edgesBetween(c_giver, c_taker, zix_cVegReserve, zix_cLit)
+        c_flow_A_vec = repElem(c_flow_A_vec, k_shedding_reserve_frac, flow)
+    end
 
     # store the varibles in diagnostic structure
     reserve_to_leaf = Re2L_i
@@ -194,12 +173,22 @@ $(getModelDocString(cFlow_GSI))
 
 # Extended help
 
+The reserve-pool exchange and leaf/root shedding this approach models are located
+by pool membership (`edgesBetween`), not by naming an exact `<giver>_to_<taker>`
+edge, so the same code applies unchanged whether Leaf's shedding lands in one
+pool (`CarbonPoolsGSI`'s `cLitFast`) or several (`CarbonPoolsCASA`'s
+`cLitLeafFast`/`cLitLeafSlow`), and whether a reserve pool exists at all: an
+absent one (`CarbonPoolsCASA` has none) makes every reserve-related edge lookup
+return no matches, so those terms simply contribute nothing rather than erroring
+or silently mismatching the wrong edge.
+
 *References*
 
 *Versions*
  - 1.0 on 13.01.2020 [sbesnard]
- - 1.1 on 05.02.2021 [skoirala | @dr-ko]: changes with stressors & smoothing as well as handling the activation of leaf/root to reserve | reserve to leaf/root switches. Adjustment of total flow rates [cTau] of relevant pools  
- - 1.1 on 05.02.2021 [skoirala | @dr-ko]: move code from dyna. Add table etc.  
+ - 1.1 on 05.02.2021 [skoirala | @dr-ko]: changes with stressors & smoothing as well as handling the activation of leaf/root to reserve | reserve to leaf/root switches. Adjustment of total flow rates [cTau] of relevant pools
+ - 1.1 on 05.02.2021 [skoirala | @dr-ko]: move code from dyna. Add table etc.
+ - 1.2 on 10.09.2026 [skoirala]: edge selection generalized from exact `c_flow_named_edges.<giver>_to_<taker>` name lookups (which errored on any pool structure without a literal edge of that exact name, e.g. CarbonPoolsCASA's absent cVegReserve or its split cLitLeafFast/cLitLeafSlow in place of cLitFast) to `edgesBetween`, a giver/taker pool-membership match
 
 *Created by*
  - ncarvalhais, sbesnard, skoirala

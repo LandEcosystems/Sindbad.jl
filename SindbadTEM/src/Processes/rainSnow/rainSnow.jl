@@ -24,7 +24,7 @@ function update(params::rainSnow, forcing, land, helpers)
     @add_to_elem ΔsnowW[1] ⇒ (snowW, 1, :snowW)
 
     # reset delta storage	
-    @rep_elem zero(eltype(ΔsnowW)) ⇒ (ΔsnowW, 1, :snowW)
+    @rep_elem zero(eltype(ΔsnowW)) ⇒ (ΔsnowW, 1)
     ## pack land variables
     @pack_nt begin
         snowW ⇒ land.pools

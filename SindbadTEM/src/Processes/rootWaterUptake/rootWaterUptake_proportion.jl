@@ -36,7 +36,7 @@ function compute(params::rootWaterUptake_proportion, forcing, land, helpers)
     # extract from top to bottom
     for sl ∈ eachindex(land.pools.soilW)
         uptake_proportion = to_uptake * safe_divide(PAW[sl], PAWTotal)
-        @rep_elem uptake_proportion ⇒ (root_water_uptake, sl, :soilW)
+        @rep_elem uptake_proportion ⇒ (root_water_uptake, sl)
         @add_to_elem -root_water_uptake[sl] ⇒ (ΔsoilW, sl, :soilW)
     end
     # pack land variables

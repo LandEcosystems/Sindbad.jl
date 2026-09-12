@@ -15,10 +15,10 @@ function define(params::cCycle_GSI, forcing, land, helpers)
 
     cEco_prev = cEco
     # save the zix for cVeg, cLit, cSoil, and cProducts
-    zix_cVeg = getZix(land.pools.cVeg, helpers.pools.zix.cVeg)
-    zix_cLit = getZix(land.pools.cLit, helpers.pools.zix.cLit)
-    zix_cSoil = getZix(land.pools.cSoil, helpers.pools.zix.cSoil)
-    zix_cProducts = getZix(land.pools.cProducts, helpers.pools.zix.cProducts)
+    zix_cVeg = helpers.pools.zix.cVeg
+    zix_cLit = helpers.pools.zix.cLit
+    zix_cSoil = helpers.pools.zix.cSoil
+    zix_cProducts = helpers.pools.zix.cProducts
 
     zix_cLit_cSoil_cProducts = (zix_cLit..., zix_cSoil..., zix_cProducts...)
     zix_cVeg_cLit_cSoil = (zix_cVeg..., zix_cLit..., zix_cSoil...)
@@ -42,11 +42,11 @@ function compute(params::cCycle_GSI, forcing, land, helpers)
         (cEco, cVeg, ΔcEco) ⇐ land.pools
         cEco_prev ⇐ land.states
         gpp ⇐ land.fluxes
-        (c_flow_order, c_giver, c_taker) ⇐ land.constants
+        (c_flow_order, c_giver, c_taker) ⇐ land.cCycleBase
         c_model ⇐ land.models
         (zix_cLit_cSoil_cProducts, zix_cVeg_cLit_cSoil, zix_cLit_cSoil) ⇐ land.cCycle
     end
-    zix_cProducts = getZix(land.pools.cProducts, helpers.pools.zix.cProducts)
+    zix_cProducts = helpers.pools.zix.cProducts
 
     ## reset ecoflow and influx to be zero at every time step
     @rep_vec c_eco_flow ⇒ helpers.pools.zeros.cEco
@@ -56,20 +56,20 @@ function compute(params::cCycle_GSI, forcing, land, helpers)
     # reset the c_eco_efflux to zero, except for cVeg
     for zix ∈ zix_cLit_cSoil_cProducts
         tmp = zero(c_eco_efflux[zix])
-        @rep_elem tmp ⇒ (c_eco_efflux, zix, :cEco)
+        @rep_elem tmp ⇒ (c_eco_efflux, zix)
     end
 
     ## compute losses
     for cl ∈ eachindex(cEco)
         c_eco_out_cl = min(cEco[cl], cEco[cl] * c_eco_k[cl])
-        @rep_elem c_eco_out_cl ⇒ (c_eco_out, cl, :cEco)
+        @rep_elem c_eco_out_cl ⇒ (c_eco_out, cl)
     end
 
     ## gains to vegetation
     for zv ∈ getZix(cVeg, helpers.pools.zix.cVeg)
         c_eco_npp_zv = gpp * c_allocation[zv] - c_eco_efflux[zv]
-        @rep_elem c_eco_npp_zv ⇒ (c_eco_npp, zv, :cEco)
-        @rep_elem c_eco_npp_zv ⇒ (c_eco_influx, zv, :cEco)
+        @rep_elem c_eco_npp_zv ⇒ (c_eco_npp, zv)
+        @rep_elem c_eco_npp_zv ⇒ (c_eco_influx, zv)
     end
 
     # flows & losses
@@ -77,8 +77,8 @@ function compute(params::cCycle_GSI, forcing, land, helpers)
         tmp_out = c_eco_out[give_r] * A_value * QP_value
         tmp_flow = c_eco_flow[take_r] + tmp_out * ME_value
         tmp_efflux = c_eco_efflux[give_r] + tmp_out * (one(ME_value) - ME_value)
-        @rep_elem tmp_flow ⇒ (c_eco_flow, take_r, :cEco)
-        @rep_elem tmp_efflux ⇒ (c_eco_efflux, give_r, :cEco)
+        @rep_elem tmp_flow ⇒ (c_eco_flow, take_r)
+        @rep_elem tmp_efflux ⇒ (c_eco_efflux, give_r)
     end
 
     # balance
@@ -86,7 +86,7 @@ function compute(params::cCycle_GSI, forcing, land, helpers)
         ΔcEco_cl = c_eco_flow[cl] + c_eco_influx[cl] - c_eco_out[cl]
         @add_to_elem ΔcEco_cl ⇒ (ΔcEco, cl, :cEco)
         cEco_cl = cEco[cl] + c_eco_flow[cl] + c_eco_influx[cl] - c_eco_out[cl]
-        @rep_elem cEco_cl ⇒ (cEco, cl, :cEco)
+        @rep_elem cEco_cl ⇒ (cEco, cl)
     end
 
     # compute total fluxes

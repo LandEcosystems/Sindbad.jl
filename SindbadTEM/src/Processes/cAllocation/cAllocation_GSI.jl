@@ -9,11 +9,11 @@ function define(params::cAllocation_GSI, forcing, land, helpers)
     cVeg_names = (:cVegRoot, :cVegWood, :cVegLeaf)
 
     c_allocation_to_veg = zero(cEco)
-    cVeg_zix = Tuple{Int}[]
+    cVeg_zix = Tuple{Vararg{Int}}[]
     cVeg_nzix = eltype(cEco)[]
     cpI = 1
     for cpName ∈ cVeg_names
-        zix = getZix(getfield(land.pools, cpName), getfield(helpers.pools.zix, cpName))
+        zix = getfield(helpers.pools.zix, cpName)
         nZix = oftype(first(c_allocation), length(zix))
         push!(cVeg_zix, zix)
         push!(cVeg_nzix, nZix)
@@ -50,9 +50,9 @@ function compute(params::cAllocation_GSI, forcing, land, helpers)
     #     a2W = DASW./(DASW+DAST)./2;
     #     a2R = DAST./(DASW+DAST);
 
-    @rep_elem a_cVegRoot ⇒ (c_allocation_to_veg, 1, :cEco)
-    @rep_elem a_cVegWood ⇒ (c_allocation_to_veg, 2, :cEco)
-    @rep_elem a_cVegLeaf ⇒ (c_allocation_to_veg, 3, :cEco)
+    @rep_elem a_cVegRoot ⇒ (c_allocation_to_veg, 1)
+    @rep_elem a_cVegWood ⇒ (c_allocation_to_veg, 2)
+    @rep_elem a_cVegLeaf ⇒ (c_allocation_to_veg, 3)
 
     # distribute the allocation according to pools
     for cl in eachindex(cVeg_names)
@@ -60,7 +60,7 @@ function compute(params::cAllocation_GSI, forcing, land, helpers)
         nZix = cVeg_nzix[cl]
         for ix ∈ zix
             c_allocation_to_veg_ix = c_allocation_to_veg[cl] / nZix
-            @rep_elem c_allocation_to_veg_ix ⇒ (c_allocation, ix, :cEco)
+            @rep_elem c_allocation_to_veg_ix ⇒ (c_allocation, ix)
         end
     end
 

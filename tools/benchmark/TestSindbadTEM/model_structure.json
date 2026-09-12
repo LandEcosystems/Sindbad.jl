@@ -43,6 +43,9 @@
     "cCycleBase": {
         "approach": "GSI_PlantForm"
     },
+    "vegQualityTraits": {
+      "approach": "none"
+    },
     "cMicrobialEfficiency": {
       "approach": "texture"
     },
@@ -183,8 +186,11 @@
     "PET": {
       "approach": "Lu2005"
     },
-    "plantForm": {
-      "approach": "PFT"
+    "vegDynamics": {
+      "approach": "forcing"
+    },
+    "vegClassMap": {
+      "approach": "MODIS_IGBP_PlantForm"
     },
     "rainSnow": {
       "approach": "Tair"

@@ -13,20 +13,20 @@ Replace an element of a vector or static vector with a new value. This function 
 
 ```julia
 v = [1.0, 2.0, 3.0]
-v = repElem(v, 10.0, nothing, nothing, 2)  # Replace the second element with 10.0
+v = repElem(v, 10.0, 2)  # Replace the second element with 10.0
 ```
 
 ### `@rep_elem` Macro
 A macro that simplifies replacing elements in vectors defined in `land.pools`. The macro expands to a `repElem` call during compilation.
 
 ```julia
-@rep_elem pout[l] ⇒ (cEco, lc, :cEco)
+@rep_elem pout[l] ⇒ (cEco, lc)
 ```
 
 ::: info
 You can inspect the macro expansion using:
 ```julia
-@macroexpand @rep_elem pout[l] ⇒ (cEco, lc, :cEco)
+@macroexpand @rep_elem pout[l] ⇒ (cEco, lc)
 ```
 :::
 
@@ -104,7 +104,7 @@ A helper function to get the indices of certain components (e.g., cVeg) within a
 ```julia
 # Efficient element replacement
 v = [1.0, 2.0, 3.0]
-v = repElem(v, 10.0, nothing, nothing, 2)
+v = repElem(v, 10.0, 2)
 
 # In-place cumulative sum
 v = [1.0, 2.0, 3.0]

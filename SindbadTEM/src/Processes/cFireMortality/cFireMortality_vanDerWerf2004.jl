@@ -34,14 +34,14 @@ function compute(params::cFireMortality_vanDerWerf2004, forcing, land, helpers)
     mortality = a + (b / (o_one + exp((c - frac_tree) * d)))
     # wood mortality (wood / forest biomass lost)
     for izix in zix.cVegWood
-        @rep_elem mortality ⇒ (c_Fire_k, izix, :cEco)
+        @rep_elem mortality ⇒ (c_Fire_k, izix)
     end
 
     # for the other vegetation pools the mortality scales with the frac_tree, we assume all the pools in grass have a mortality of 𝟙
     mortSplit = mortality * frac_tree + o_one * (o_one - frac_tree)
     for c_izix in (zix.cVegRoot, zix.cVegLeaf, zix.cVegReserve)
         for izix in c_izix
-            @rep_elem mortSplit ⇒ (c_Fire_k, izix, :cEco)
+            @rep_elem mortSplit ⇒ (c_Fire_k, izix)
         end
     end
 

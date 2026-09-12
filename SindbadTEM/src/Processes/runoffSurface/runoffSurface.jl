@@ -23,7 +23,7 @@ function update(::runoffSurface, forcing, land, helpers)
     surfaceW = addVec(surfaceW, ΔsurfaceW)
 
     for l in eachindex(ΔsurfaceW)
-        @rep_elem zero(eltype(ΔsurfaceW)) ⇒ (ΔsurfaceW, l, :surfaceW)
+        @rep_elem zero(eltype(ΔsurfaceW)) ⇒ (ΔsurfaceW, l)
     end
 
     ## pack land variables

@@ -32,7 +32,7 @@ function compute(params::rootWaterUptake_topBottom, forcing, land, helpers)
 
     for sl ∈ eachindex(land.pools.soilW)
         uptake_from_layer = min(to_uptake, PAW[sl])
-        @rep_elem uptake_from_layer ⇒ (root_water_uptake, sl, :soilW)
+        @rep_elem uptake_from_layer ⇒ (root_water_uptake, sl)
         @add_to_elem -root_water_uptake[sl] ⇒ (ΔsoilW, sl, :soilW)
         to_uptake = to_uptake - uptake_from_layer
     end

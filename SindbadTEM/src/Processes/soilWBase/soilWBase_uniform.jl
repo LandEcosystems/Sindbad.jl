@@ -51,28 +51,28 @@ function precompute(params::soilWBase_uniform, forcing, land, helpers)
     end
 
     for sl ∈ eachindex(soilW)
-        @rep_elem sp_k_sat[sl] ⇒ (k_sat, sl, :soilW)
-        @rep_elem sp_k_fc[sl] ⇒ (k_fc, sl, :soilW)
-        @rep_elem sp_k_wp[sl] ⇒ (k_wp, sl, :soilW)
-        @rep_elem sp_ψ_sat[sl] ⇒ (ψ_sat, sl, :soilW)
-        @rep_elem sp_ψ_fc[sl] ⇒ (ψ_fc, sl, :soilW)
-        @rep_elem sp_ψ_wp[sl] ⇒ (ψ_wp, sl, :soilW)
-        @rep_elem sp_θ_sat[sl] ⇒ (θ_sat, sl, :soilW)
-        @rep_elem sp_θ_fc[sl] ⇒ (θ_fc, sl, :soilW)
-        @rep_elem sp_θ_wp[sl] ⇒ (θ_wp, sl, :soilW)
-        @rep_elem sp_α[sl] ⇒ (soil_α, sl, :soilW)
-        @rep_elem sp_β[sl] ⇒ (soil_β, sl, :soilW)
+        @rep_elem sp_k_sat[sl] ⇒ (k_sat, sl)
+        @rep_elem sp_k_fc[sl] ⇒ (k_fc, sl)
+        @rep_elem sp_k_wp[sl] ⇒ (k_wp, sl)
+        @rep_elem sp_ψ_sat[sl] ⇒ (ψ_sat, sl)
+        @rep_elem sp_ψ_fc[sl] ⇒ (ψ_fc, sl)
+        @rep_elem sp_ψ_wp[sl] ⇒ (ψ_wp, sl)
+        @rep_elem sp_θ_sat[sl] ⇒ (θ_sat, sl)
+        @rep_elem sp_θ_fc[sl] ⇒ (θ_fc, sl)
+        @rep_elem sp_θ_wp[sl] ⇒ (θ_wp, sl)
+        @rep_elem sp_α[sl] ⇒ (soil_α, sl)
+        @rep_elem sp_β[sl] ⇒ (soil_β, sl)
 
         sd_sl = soil_depths[sl]
-        @rep_elem sd_sl ⇒ (soil_layer_thickness, sl, :soilW)
+        @rep_elem sd_sl ⇒ (soil_layer_thickness, sl)
         p_w_fc_sl = θ_fc[sl] * sd_sl
-        @rep_elem p_w_fc_sl ⇒ (w_fc, sl, :soilW)
+        @rep_elem p_w_fc_sl ⇒ (w_fc, sl)
         w_wp_sl = θ_wp[sl] * sd_sl
-        @rep_elem w_wp_sl ⇒ (w_wp, sl, :soilW)
+        @rep_elem w_wp_sl ⇒ (w_wp, sl)
         p_w_sat_sl = θ_sat[sl] * sd_sl
-        @rep_elem p_w_sat_sl ⇒ (w_sat, sl, :soilW)
+        @rep_elem p_w_sat_sl ⇒ (w_sat, sl)
         # soilW_sl = min(soilW[sl], w_sat[sl])
-        # @rep_elem soilW_sl ⇒ (soilW, sl, :soilW)
+        # @rep_elem soilW_sl ⇒ (soilW, sl)
     end
 
     # get the plant available water capacity

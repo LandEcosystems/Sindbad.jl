@@ -1,13 +1,16 @@
 export @add_to_elem, @pack_nt, @rep_elem, @rep_vec, @unpack_nt
 export addToElem, addToEachElem, addVec
+export cFlowMatrix
+export edgesBetween
+export getVectorOfType
 export getZix
 export processPackNT, processUnpackNT
 export repElem, repVec
-export setComponentFromMainPool, setComponents, setMainFromComponentPool
+export setComponentFromMainPool, setFlowValue, setMainFromComponentPool
 export totalS
 export totalS_indices
 using ..SindbadTEM
-import StaticArraysCore: SVector
+import StaticArraysCore: SVector, StaticArray
 
 """
     @add_to_elem
@@ -211,6 +214,210 @@ function getZix(dat::SVector, zixhelpersPool)
 end
 
 """
+    getVectorOfType(source_vector, output_length)
+    getVectorOfType(source_vector, output_length, fill_value)
+    getVectorOfType(source_vector::StaticArray, output_length, fill_value)
+
+Return a vector of `output_length` elements shaped like `source_vector`: its element
+type and its container kind, filled with `fill_value(eltype(source_vector))`.
+
+# Arguments
+- `source_vector`: the vector whose element type and container kind to copy
+- `output_length`: length of the returned vector, which need not match
+  `length(source_vector)`
+- `fill_value`: `zero` or `one`, the function rather than a number, so the element
+  type comes from `source_vector` and the caller never repeats it. Defaults to `zero`
+
+# Returns
+- A vector of `output_length` elements, static when `source_vector` is static
+
+# Notes:
+- "Of type" is about the source's type, not its size: the two lengths differ at every
+  carbon-cycle call site, where `source_vector` is `cEco` with one entry per pool and
+  the result has one entry per carbon flow.
+- Dispatch on `StaticArray` replaces the `if x isa SVector` branch that every one of
+  those sites used to carry, which had to be repeated once per constructed vector.
+
+# Examples
+```jldoctest
+julia> getVectorOfType([1.0, 2.0, 3.0], 2)
+2-element Vector{Float64}:
+ 0.0
+ 0.0
+
+julia> getVectorOfType([1.0, 2.0, 3.0], 2, one)
+2-element Vector{Float64}:
+ 1.0
+ 1.0
+```
+"""
+function getVectorOfType end
+
+function getVectorOfType(source_vector, output_length)
+    return getVectorOfType(source_vector, output_length, zero)
+end
+
+function getVectorOfType(source_vector, output_length, fill_value)
+    return fill(fill_value(eltype(source_vector)), output_length)
+end
+
+function getVectorOfType(source_vector::StaticArray, output_length, fill_value)
+    return SVector{output_length}(fill(fill_value(eltype(source_vector)), output_length))
+end
+
+"""
+    cFlowMatrix(c_giver, c_taker, n_pools)
+    cFlowMatrix(approach, pool_names)
+
+Return the carbon flow topology as a square matrix of flow indices, with
+`matrix[taker, giver]` holding the position of that flow in the flow vector and `0`
+where the two pools are not connected.
+
+# Arguments
+- `c_giver`: the giver index of each flow, in flow-vector order
+- `c_taker`: the taker index of each flow, in flow-vector order
+- `n_pools`: the number of carbon pools, which is the size of the square matrix
+- `approach`: a `cCycleBase` approach, as a type or an instance, whose `cFlowEdges`
+  declare the topology
+- `pool_names`: the leaf pool names in `cEco` index order, which is
+  `helpers.pools.components.cEco` at runtime
+
+# Returns
+- A `Matrix{Int}` of size `n_pools` by `n_pools`
+
+# Examples
+```jldoctest
+julia> cFlowMatrix((1, 1, 2), (2, 3, 3), 3)
+3×3 Matrix{Int64}:
+ 0  0  0
+ 1  0  0
+ 2  3  0
+```
+
+# Notes:
+- **Row is the taker, column is the giver.** Every dense flow array in every model
+  follows this, from the `c_flow_A_array` the topology replaced to the
+  `c_flow_ME_array` that outlived it, and so does the flow-vector order itself:
+  `cFlowStructure` sorts by `(giver, taker)`, which is column-major over this matrix.
+- The two methods produce the same matrix. The three-argument one is the runtime
+  form, taking indices the base already resolved, so its flow numbers are
+  `c_flow_order` by construction. The two-argument one resolves an approach's
+  declared edges without a run, repeating `cFlowStructure`'s sort so that flow `k`
+  here is the flow `k` the model packs.
+- `pool_names` is an argument rather than something derived from `poolStructure`
+  because flattening a structure into ordered names is `getPoolInformation`, which
+  lives in `Sindbad.Setup`, and `Sindbad` depends on `SindbadTEM` and not the other
+  way round. Passing the names in keeps this inside `SindbadTEM` and avoids a second
+  flattener that could drift from the first.
+"""
+function cFlowMatrix end
+
+function cFlowMatrix(c_giver, c_taker, n_pools)
+    flow_matrix = zeros(Int, n_pools, n_pools)
+    for flow ∈ eachindex(c_giver, c_taker)
+        flow_matrix[c_taker[flow], c_giver[flow]] = flow
+    end
+    return flow_matrix
+end
+
+function cFlowMatrix(approach, pool_names)
+    approach_name = nameof(approach isa Type ? approach : typeof(approach))
+    edges = cFlowEdges(approach)
+    if isempty(edges)
+        error("$(approach_name) declares no carbon flow edges, so it has no flow " *
+              "matrix. Use an approach that declares `cFlowEdges`.")
+    end
+    givers = [cFlowNamePosition(approach_name, pool_names, first(edge), edge) for edge ∈ edges]
+    takers = [cFlowNamePosition(approach_name, pool_names, last(edge), edge) for edge ∈ edges]
+    flows = collect(zip(givers, takers))
+    if length(unique(flows)) < length(flows)
+        repeated = unique([edges[i] for i ∈ findall(flow -> count(==(flow), flows) > 1, flows)])
+        error("$(approach_name) declares the carbon flow edge(s) $(repeated) more than " *
+              "once. Each giver to taker link carries one flow, so list it once.")
+    end
+    order = sortperm(flows)
+    return cFlowMatrix(givers[order], takers[order], length(pool_names))
+end
+
+"""
+    cFlowNamePosition(approach_name, pool_names, pool_name, edge)
+
+Resolve one end of a flow edge to the single position it holds in `pool_names`,
+erroring with the offending name when it is absent or repeated.
+
+Mirrors `cFlowEdgeIndex`, which does the same against `helpers.pools.zix` at run time.
+A name spanning more than one position is a group, an alias, or a multi-layer pool, and
+an edge naming one would expand into a cross product of links rather than the single
+link it reads as.
+"""
+function cFlowNamePosition(approach_name, pool_names, pool_name, edge)
+    positions = findall(==(pool_name), collect(pool_names))
+    if isempty(positions)
+        error("$(approach_name) declares the carbon flow edge `$(edge)`, but this pool " *
+              "structure has no `$(pool_name)`. Known pools: " *
+              "$(join(String.(pool_names), ", ")).")
+    end
+    if length(positions) > 1
+        error("$(approach_name) declares the carbon flow edge `$(edge)`, but " *
+              "`$(pool_name)` spans $(length(positions)) pools ($(positions)). Flow " *
+              "edges must name leaf pools, not groups or aliases, because a group " *
+              "would expand into a cross product of links.")
+    end
+    return only(positions)
+end
+
+"""
+    edgesBetween(c_giver, c_taker, giver_zix, taker_zix)
+
+Every flow-vector position whose giver is in `giver_zix` and whose taker is in
+`taker_zix`, by pool-index membership rather than by matching a literal
+`<giver>_to_<taker>` name.
+
+This is what lets a caller work against more than one pool structure without
+naming either config's specific pools: e.g. leaf shedding lands in one pool under
+`CarbonPoolsGSI` (`cLitFast`) and two under `CarbonPoolsCASA` (`cLitLeafFast`,
+`cLitLeafSlow`), and this finds every one of them for the same `giver_zix`/
+`taker_zix` pair.
+
+An empty `giver_zix` or `taker_zix` -- a pool this structure does not have at all,
+e.g. `CarbonPoolsCASA`'s absent `cVegReserve` -- naturally returns no edges rather
+than erroring, so a caller written against a pool a structure lacks simply
+contributes nothing there.
+
+A name-based match (`<giver>_to_<taker>`, e.g. matching a literal alias like
+`CarbonPoolsCASA`'s `cLitSlow`) is not equivalent to this: an alias can union pools
+that individually need different treatment (`cLitSlow` = `cLitLeafSlow` +
+`cLitRootFineSlow` + `cLitRootCoarse` + `cLitWood`, but `cLitRootFineSlow`'s own
+transfer is calibrated separately from the other three's in
+`meCASAFlowsLitter`/`cCycleBase_CASA.jl`), so `giver_zix`/`taker_zix` should name
+the exact pools a caller means, not reach for a broader alias merely because one
+exists with a convenient name.
+"""
+function edgesBetween(c_giver, c_taker, giver_zix, taker_zix)
+    return Tuple(flow for flow ∈ eachindex(c_giver, c_taker)
+                 if c_giver[flow] ∈ giver_zix && c_taker[flow] ∈ taker_zix)
+end
+
+"""
+    setFlowValue(flow_vec, c_giver, c_taker, giver_zix, taker_zix, value)
+
+Write `value` into every flow-vector position whose giver is in `giver_zix` and
+whose taker is in `taker_zix` (via `edgesBetween`), and return the vector unchanged
+when no flow matches -- e.g. a pool structure that lacks either group entirely.
+
+`setMEFlow` is this function under the name `cMicrobialEfficiency` reads it in as.
+`cQualityPartition` goes through neither this nor named edges: its groups are
+resolved to flow-vector positions once, in `cCycleBase`'s `deriveQPGroups`, and its
+approaches write directly at those positions.
+"""
+function setFlowValue(flow_vec, c_giver, c_taker, giver_zix, taker_zix, value)
+    for flow ∈ edgesBetween(c_giver, c_taker, giver_zix, taker_zix)
+        flow_vec = repElem(flow_vec, value, flow)
+    end
+    return flow_vec
+end
+
+"""
     @pack_nt
 
 Macro to pack variables into a named tuple.
@@ -352,14 +559,13 @@ end
 Macro to replace an element of a vector or static vector.
 
 # Arguments
-- `outparams::Expr`: Expression in the form `value ⇒ (vector, index, pool_name)`
+- `outparams::Expr`: Expression in the form `value ⇒ (vector, index)`
 
 # Examples
 ```jldoctest
 julia> using StaticArraysCore: SVector
-julia> helpers = (; pools = (; zeros = (; cOther = SVector(0.0f0, 0.0f0),), ones = (; cOther = SVector(1.0f0, 1.0f0),)))
 julia> cOther = SVector(100.0f0, 1.0f0)
-julia> @rep_elem 50.0f0 ⇒ (cOther, 1, :cOther)
+julia> @rep_elem 50.0f0 ⇒ (cOther, 1)
 julia> cOther
 2-element SVector{2, Float32} with indices SOneTo(2):
   50.0f0
@@ -375,7 +581,6 @@ macro rep_elem(outparams::Expr)
     rhsa = rhs.args
     tar = esc(rhsa[1])
     indx = rhsa[2]
-    hp_pool = rhsa[3]
     outCode = [
         Expr(:(=),
             tar,
@@ -383,24 +588,20 @@ macro rep_elem(outparams::Expr)
                 repElem,
                 tar,
                 lhs,
-                esc(Expr(:., :(helpers.pools.zeros), hp_pool)),
-                esc(Expr(:., :(helpers.pools.ones), hp_pool)),
                 esc(indx)))
     ]
     return Expr(:block, outCode...)
 end
 
 """
-    repElem(v::AbstractVector, v_elem, _, _, ind::Int)
-    repElem(v::SVector, v_elem, v_zero, v_one, ind::Int)
+    repElem(v::AbstractVector, v_elem, ind::Int)
+    repElem(v::SVector, v_elem, ind::Int)
 
 Replace an element of a vector with a new value.
 
 # Arguments
 - `v`: A `StaticVector` or `AbstractVector`
 - `v_elem`: The new value to assign
-- `v_zero`: A `StaticVector` of zeros (used for `SVector` only)
-- `v_one`: A `StaticVector` of ones (used for `SVector` only)
 - `ind::Int`: The index of the element to replace
 
 # Returns
@@ -410,9 +611,7 @@ Replace an element of a vector with a new value.
 ```jldoctest
 julia> using StaticArraysCore: SVector
 julia> v = SVector(1.0, 2.0, 3.0)
-julia> v_zero = SVector(0.0, 0.0, 0.0)
-julia> v_one = SVector(1.0, 1.0, 1.0)
-julia> repElem(v, 5.0, v_zero, v_one, 2)
+julia> repElem(v, 5.0, 2)
 3-element SVector{3, Float64} with indices SOneTo(3):
  1.0
  5.0
@@ -421,20 +620,18 @@ julia> repElem(v, 5.0, v_zero, v_one, 2)
 """
 function repElem end
 
-function repElem(v::AbstractVector, v_elem, _, _, ind::Int)
+function repElem(v::AbstractVector, v_elem, ind::Int)
     v[ind] = v_elem
     return v
 end
 
-function repElem(v::SVector, v_elem, v_zero, v_one, ind::Int)
-    n_0 = zero(first(v_zero))
-    n_1 = one(first(v_zero))
-    v_zero = v_zero .* n_0
-    v_zero = Base.setindex(v_zero, n_1, ind)
-    v_one = v_one .* n_0 .+ n_1
-    v_one = Base.setindex(v_one, n_0, ind)
-    v = v .* v_one .+ v_zero .* v_elem
-    return v
+function repElem(v::SVector{N}, v_elem, ind::Int) where {N}
+    # Written as a per-element tuple selection (rather than a zero/one mask
+    # multiplied into v) because that arithmetic is not exact when v holds NaN or
+    # Inf: `0 * Inf` and `0 * NaN` are themselves NaN, so the mask poisons every
+    # position of v, not just the one being replaced. N is static, so this unrolls
+    # to plain scalar selects with no heap allocation.
+    return SVector(ntuple(i -> i == ind ? v_elem : v[i], Val(N)))
 end
 
 """
@@ -497,9 +694,11 @@ function repVec(v::AbstractVector, v_new)
 end
 
 function repVec(v::SVector, v_new)
-    n_0 = zero(first(v))
-    v = v .* n_0 + v_new
-    return v
+    # `zero(v)` depends only on v's type, not its runtime values, so this is exact
+    # even when v holds NaN or Inf -- unlike the `v .* zero(...)` mask this replaced,
+    # where `0 * Inf` and `0 * NaN` are themselves NaN. `v_new` is broadcast in via
+    # `.+`, matching both a scalar and a same-size vector.
+    return zero(v) .+ v_new
 end
 
 """
@@ -537,13 +736,9 @@ Set component pool values using values from the main pool.
             push!(gen_output.args, Expr(:(=),
                 s_comp,
                 Expr(:call,
-                    rep_elem,
+                    repElem,
                     s_comp,
                     Expr(:ref, s_main, ix),
-                    Expr(:., :(helpers.pools.zeros), QuoteNode(s_comp)),
-                    Expr(:., :(helpers.pools.ones), QuoteNode(s_comp)),
-                    :(land.constants.z_zero),
-                    :(land.constants.o_one),
                     c_ix)))
 
             c_ix += 1
@@ -559,64 +754,6 @@ Set component pool values using values from the main pool.
                             Expr(:kw, s_comp, s_comp))))))))
     end
     return gen_output
-end
-
-"""
-    setComponents(land, helpers, Val{s_main}, Val{s_comps}, Val{zix})
-
-Set component pools from main pool values.
-
-# Arguments
-- `land`: A core SINDBAD NamedTuple containing all variables for a given time step
-- `helpers`: Helper NamedTuple with necessary objects for model run and type consistencies
-- `::Val{s_main}`: A NamedTuple with names of the main pools
-- `::Val{s_comps}`: A NamedTuple with names of the component pools
-- `::Val{zix}`: A NamedTuple with zix (indices) of each pool
-
-# Returns
-- Generated code expression to set components
-
-# Notes
-- This function generates code at runtime to set component pools
-"""
-function setComponents(
-    land,
-    helpers,
-    ::Val{s_main},
-    ::Val{s_comps},
-    ::Val{zix}) where {s_main, s_comps, zix}
-    output = quote end
-    push!(output.args, Expr(:(=), s_main, Expr(:., :(land.pools), QuoteNode(s_main))))
-    foreach(s_comps) do s_comp
-        push!(output.args, Expr(:(=), s_comp, Expr(:., :(land.pools), QuoteNode(s_comp))))
-        zix_pool = getfield(zix, s_comp)
-        c_ix = 1
-        foreach(zix_pool) do ix
-            push!(output.args, Expr(:(=),
-                s_comp,
-                Expr(:call,
-                    rep_elem,
-                    s_comp,
-                    Expr(:ref, s_main, ix),
-                    Expr(:., :(helpers.pools.zeros), QuoteNode(s_comp)),
-                    Expr(:., :(helpers.pools.ones), QuoteNode(s_comp)),
-                    :(land.constants.z_zero),
-                    :(land.constants.o_one),
-                    c_ix)))
-
-            c_ix += 1
-        end
-        push!(output.args, Expr(:(=),
-            :land,
-            Expr(:tuple,
-                Expr(:(...), :land),
-                Expr(:(=),
-                    :pools,
-                    (Expr(:tuple,
-                        Expr(:parameters, Expr(:(...), :(land.pools)),
-                            Expr(:kw, s_comp, s_comp))))))))
-    end
-    return output
 end
 
 """
@@ -654,13 +791,9 @@ Set main pool values from component pool values.
             push!(gen_output.args, Expr(:(=),
                 s_main,
                 Expr(:call,
-                    rep_elem,
+                    repElem,
                     s_main,
                     Expr(:ref, s_comp, c_ix),
-                    Expr(:., :(helpers.pools.zeros), QuoteNode(s_main)),
-                    Expr(:., :(helpers.pools.ones), QuoteNode(s_main)),
-                    :(land.constants.z_zero),
-                    :(land.constants.o_one),
                     ix)))
             c_ix += 1
         end

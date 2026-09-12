@@ -35,6 +35,97 @@ module TEMTypes
 
     purpose(T::LandEcosystem) = purpose(typeof(T))
 
+    # ------------------------- carbon pool configuration traits -----------------------------------------------
+    # Declared here, one level above Processes, for the same reason `purpose` is declared above
+    # SindbadTEM: `Sindbad.Setup` reaches them unqualified through `using SindbadTEM`, while the
+    # configuration types themselves stay inside `Processes`. Setup never names a configuration
+    # type; it gets one back from `poolConfiguration` and hands it straight to the other two.
+    export poolAliases
+    export poolConfiguration
+    export poolStructure
+
+    """
+        poolConfiguration(T)
+
+    Return the pool configuration a model approach is written against, or `nothing` if it
+    declares none.
+
+    An approach declares one beside its `purpose`, e.g.
+    `poolConfiguration(::Type{cCycleBase_GSI}) = CarbonPoolsGSI`. The returned configuration is
+    a type, passed back to `poolStructure` and `poolAliases` to obtain the pool structure and
+    the alias map.
+    """
+    function poolConfiguration end
+    poolConfiguration(::Type{<:LandEcosystem}) = nothing
+    poolConfiguration(T::LandEcosystem) = poolConfiguration(typeof(T))
+
+    """
+        poolStructure(configuration)
+
+    Return the pool structure a configuration declares, shaped exactly like the `pools` block of
+    a model structure JSON (`combine` plus nested `components`), or `nothing` if none.
+
+    Nesting carries the grouping: every level becomes a pool with its own `zix` entry, so
+    declaring `cVeg.Root.{Fine,Coarse}` yields `cVegRoot` alongside `cVegRootFine` and `cVegRootCoarse`.
+    """
+    function poolStructure end
+    poolStructure(configuration) = nothing
+
+    """
+        poolAliases(configuration)
+
+    Return extra `zix` names a configuration wants that its nesting cannot produce, as
+    `alias => (pool names it spans)`.
+
+    Only for groupings that genuinely cut across the hierarchy. CASA needs two, because its
+    litter is nested by organ while the fast/slow axis is quality; GSI and MGMT need none.
+    """
+    function poolAliases end
+    poolAliases(configuration) = (;)
+
+    # ------------------------- vegetation-type catalog traits ------------------------------------------------
+    # Declared here for the same reason `poolConfiguration` is: `Sindbad.Setup` reaches them
+    # unqualified through `using SindbadTEM`, while the catalog types themselves stay inside
+    # Processes. Only `vegClassMap` approaches declare these two traits -- `vegDynamics`
+    # approaches obtain a raw code (from forcing or a constant) without ever naming a
+    # catalog. A `vegClassMap` approach never names a catalog directly in its `precompute`;
+    # it gets both back from these two traits and hands them to `resolveVegType`.
+    export vegTypeCatalog
+    export vegTypeClassification
+
+    """
+        vegTypeCatalog(T)
+
+    Return the source catalog a `vegClassMap` approach interprets `land.states.veg_type`
+    (set upstream by `vegDynamics`) against, or `nothing` if it declares none.
+
+    An approach declares one beside its `purpose`, e.g.
+    `vegTypeCatalog(::Type{vegClassMap_MODIS_IGBP}) = VegTypeCatalog_MODIS_IGBP`. The
+    returned catalog is a type, passed to `resolveVegType` to resolve a raw code to a
+    canonical name.
+    """
+    function vegTypeCatalog end
+    vegTypeCatalog(::Type{<:LandEcosystem}) = nothing
+    vegTypeCatalog(T::LandEcosystem) = vegTypeCatalog(typeof(T))
+
+    """
+        vegTypeClassification(T)
+
+    Return the target classification a `vegClassMap` approach crosswalks its resolved
+    canonical name into, or `nothing` if it declares none, in which case
+    `resolvedVegTypeClassification` (in `vegClassMap.jl`) resolves that to the canonical
+    vocabulary itself, `VegTypeCatalog_SINDBAD` -- i.e. no grouping.
+
+    An approach declares one beside its `purpose`, e.g.
+    `vegTypeClassification(::Type{vegClassMap_MODIS_IGBP_PlantForm}) =
+    VegTypeCatalog_PlantForm`. The returned classification is a type, passed to
+    `resolveVegType`/`vegTypeClassOf` to resolve a canonical name into that
+    classification's own class name.
+    """
+    function vegTypeClassification end
+    vegTypeClassification(::Type{<:LandEcosystem}) = nothing
+    vegTypeClassification(T::LandEcosystem) = vegTypeClassification(typeof(T))
+
     # ------------------------- model error handling type ------------------------------------------------------------
     export DoCatchModelErrors
     export DoNotCatchModelErrors

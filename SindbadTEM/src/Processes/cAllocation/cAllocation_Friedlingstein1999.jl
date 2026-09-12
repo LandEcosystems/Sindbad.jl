@@ -57,9 +57,9 @@ function compute(params::cAllocation_Friedlingstein1999, forcing, land, helpers)
     a_cVegWood = so * (rel_Y + o_one) * c_allocation_f_W_N / (rel_Y * c_allocation_f_LAI + c_allocation_f_W_N)
     a_cVegLeaf = o_one - a_cVegRoot - a_cVegWood
 
-    @rep_elem a_cVegRoot ⇒ (c_allocation_to_veg, 1, :cEco)
-    @rep_elem a_cVegWood ⇒ (c_allocation_to_veg, 2, :cEco)
-    @rep_elem a_cVegLeaf ⇒ (c_allocation_to_veg, 3, :cEco)
+    @rep_elem a_cVegRoot ⇒ (c_allocation_to_veg, 1)
+    @rep_elem a_cVegWood ⇒ (c_allocation_to_veg, 2)
+    @rep_elem a_cVegLeaf ⇒ (c_allocation_to_veg, 3)
 
 
     # distribute the allocation according to pools
@@ -68,7 +68,7 @@ function compute(params::cAllocation_Friedlingstein1999, forcing, land, helpers)
         nZix = cVeg_nzix[cl]
         for ix ∈ zix
             c_allocation_to_veg_ix = c_allocation_to_veg[cl] / nZix
-            @rep_elem c_allocation_to_veg_ix ⇒ (c_allocation, ix, :cEco)
+            @rep_elem c_allocation_to_veg_ix ⇒ (c_allocation, ix)
         end
     end
 

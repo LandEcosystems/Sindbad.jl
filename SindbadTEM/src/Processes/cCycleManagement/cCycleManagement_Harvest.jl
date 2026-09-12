@@ -6,22 +6,22 @@ struct cCycleManagement_Harvest <: cCycleManagement end
 
 function define(params::cCycleManagement_Harvest, forcing, land, helpers)
     @unpack_nt begin
-        (c_giver, c_taker) ⇐ land.constants
+        (c_giver, c_taker) ⇐ land.cCycleBase
         (cVeg, cEco) ⇐ land.pools
         zix ⇐ helpers.pools
         (z_zero, o_one) ⇐ land.constants
     end
     zix_veg_all = Tuple(vcat(getZix(cVeg, helpers.pools.zix.cVeg)...))
-    c_lose_to_zix_vec = Tuple{Int}[]
+    c_lose_to_zix_vec = Tuple{Vararg{Int}}[]
     is_crop_harvest_pool = one.(cEco)
     is_wood_harvest_pool = one.(cEco)
     for zixVeg ∈ zix_veg_all
         # define what is harvesed for export from the system
         if helpers.pools.components.cEco[zixVeg] == :cVegRoot
-            @rep_elem z_zero ⇒ (is_crop_harvest_pool, zixVeg, :cEco)
+            @rep_elem z_zero ⇒ (is_crop_harvest_pool, zixVeg)
         end
         if helpers.pools.components.cEco[zixVeg] ∈ (:cVegRoot, :cVegLeaf)
-            @rep_elem z_zero ⇒ (is_wood_harvest_pool, zixVeg, :cEco)
+            @rep_elem z_zero ⇒ (is_wood_harvest_pool, zixVeg)
         end
 
         # make reserve pool flow to slow litter pool/woody debris
@@ -30,8 +30,8 @@ function define(params::cCycleManagement_Harvest, forcing, land, helpers)
             # instead of just going in cLitSlow, which can be very specific to the WROASTED model structure
             c_lose_to_zix = something(
                 (
-                    hasproperty(helpers.pools.zix, p) ? getproperty(helpers.pools.zix, p) : 
-                    nothing for p in (:cLitSlow, :cLitFast, :cLit, :cSoilSlow, :cSoilOld, :cSoil)
+                    isempty(getproperty(helpers.pools.zix, p)) ? nothing : getproperty(helpers.pools.zix, p)
+                    for p in (:cLitSlow, :cLitFast, :cLit, :cSoilSlow, :cSoilOld, :cSoil)
                 )..., 
             nothing)
             isnothing(c_lose_to_zix) && 
@@ -74,7 +74,7 @@ function compute(params::cCycleManagement_Harvest, forcing, land, helpers)
         zix ⇐ helpers.pools
         c_remain ⇐ land.states
         (zix_veg_all, c_lose_to_zix_vec, is_crop_harvest_pool, is_wood_harvest_pool) ⇐ land.cCycleManagement 
-        (c_giver, c_taker) ⇐ land.constants
+        (c_giver, c_taker) ⇐ land.cCycleBase
         (z_zero, o_one) ⇐ land.constants
         c_model ⇐ land.models
     end
@@ -85,20 +85,20 @@ function compute(params::cCycleManagement_Harvest, forcing, land, helpers)
     # calculate the mortality and the product from crop and forestry harvest
     for izix in zix.cEco
         # set c_Crop_Harvest_Product, c_Crop_Harvest_Mortality, c_Wood_Harvest_Product, c_Wood_Harvest_Mortality to 0
-        # @rep_elem z_zero ⇒ (c_Crop_Harvest_Product, izix, :cEco)
-        # @rep_elem z_zero ⇒ (c_Crop_Harvest_Mortality, izix, :cEco)
-        # @rep_elem z_zero ⇒ (c_Wood_Harvest_Product, izix, :cEco)
-        # @rep_elem z_zero ⇒ (c_Wood_Harvest_Mortality, izix, :cEco)
+        # @rep_elem z_zero ⇒ (c_Crop_Harvest_Product, izix)
+        # @rep_elem z_zero ⇒ (c_Crop_Harvest_Mortality, izix)
+        # @rep_elem z_zero ⇒ (c_Wood_Harvest_Product, izix)
+        # @rep_elem z_zero ⇒ (c_Wood_Harvest_Mortality, izix)
         
         # the actual harvest fraction cannot leave less than c_remain in cEco[izix]
         max_to_harvest_intensity = 1 - (c_remain / cEco[izix])
         actual_crop_harvest_intensity = min(frac_crop_harvest_intensity, max_to_harvest_intensity) * is_crop_harvested
         actual_wood_harvest_intensity = min(frac_wood_harvest_intensity, max_to_harvest_intensity) * is_wood_harvested
     
-        @rep_elem cEco[izix] * actual_crop_harvest_intensity ⇒ (c_Crop_Harvest_Mortality, izix, :cEco)
-        @rep_elem cEco[izix] * actual_crop_harvest_intensity * frac_crop_harvest_efficiency * is_crop_harvest_pool[izix] ⇒ (c_Crop_Harvest_Product, izix, :cEco)
-        @rep_elem cEco[izix] * actual_wood_harvest_intensity ⇒ (c_Wood_Harvest_Mortality, izix, :cEco)
-        @rep_elem cEco[izix] * actual_wood_harvest_intensity * frac_wood_harvest_efficiency * is_wood_harvest_pool[izix] ⇒ (c_Wood_Harvest_Product, izix, :cEco)
+        @rep_elem cEco[izix] * actual_crop_harvest_intensity ⇒ (c_Crop_Harvest_Mortality, izix)
+        @rep_elem cEco[izix] * actual_crop_harvest_intensity * frac_crop_harvest_efficiency * is_crop_harvest_pool[izix] ⇒ (c_Crop_Harvest_Product, izix)
+        @rep_elem cEco[izix] * actual_wood_harvest_intensity ⇒ (c_Wood_Harvest_Mortality, izix)
+        @rep_elem cEco[izix] * actual_wood_harvest_intensity * frac_wood_harvest_efficiency * is_wood_harvest_pool[izix] ⇒ (c_Wood_Harvest_Product, izix)
     end
 
     # compute harvest, and splits to litter

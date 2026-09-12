@@ -57,20 +57,20 @@ function compute(params::soilWBase_smax2fRD4, forcing, land, helpers)
 
     ## calculate variables
     # get the rooting depth data & scale them
-    rootwater_capacities = repElem(rootwater_capacities, f_RDmax[1] * scalar_Fan, rootwater_capacities, rootwater_capacities, 1)
-    rootwater_capacities = repElem(rootwater_capacities, f_RDeff[1] * scalar_Yang, rootwater_capacities, rootwater_capacities, 2)
-    rootwater_capacities = repElem(rootwater_capacities, f_SWCmax[1] * scalar_Wang, rootwater_capacities, rootwater_capacities, 3)
+    rootwater_capacities = repElem(rootwater_capacities, f_RDmax[1] * scalar_Fan, 1)
+    rootwater_capacities = repElem(rootwater_capacities, f_RDeff[1] * scalar_Yang, 2)
+    rootwater_capacities = repElem(rootwater_capacities, f_SWCmax[1] * scalar_Wang, 3)
     AWC_tmp = is_invalid_number(f_AWC) ? smax_Tian : f_AWC
-    rootwater_capacities = repElem(rootwater_capacities, AWC_tmp * scalar_Tian, rootwater_capacities, rootwater_capacities, 4)
+    rootwater_capacities = repElem(rootwater_capacities, AWC_tmp * scalar_Tian, 4)
 
     # set the properties for each soil layer
     # 1st layer
-    @rep_elem smax1 * soil_layer_thickness[1] ⇒ (w_sat, 1, :soilW)
-    @rep_elem smax1 * soil_layer_thickness[1] ⇒ (w_fc, 1, :soilW)
+    @rep_elem smax1 * soil_layer_thickness[1] ⇒ (w_sat, 1)
+    @rep_elem smax1 * soil_layer_thickness[1] ⇒ (w_fc, 1)
 
     # 2nd layer - fill in by linaer combination of the RD data
-    @rep_elem sum(rootwater_capacities) ⇒ (w_sat, 2, :soilW)
-    @rep_elem sum(rootwater_capacities) ⇒ (w_fc, 2, :soilW)
+    @rep_elem sum(rootwater_capacities) ⇒ (w_sat, 2)
+    @rep_elem sum(rootwater_capacities) ⇒ (w_fc, 2)
 
     # get the plant available water available (all the water is plant available)
     w_awc = w_sat

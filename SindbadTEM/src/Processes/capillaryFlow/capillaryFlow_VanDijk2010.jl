@@ -41,7 +41,7 @@ function compute(params::capillaryFlow_VanDijk2010, forcing, land, helpers)
         lossCap = at_least_zero(max_frac * (soilW[sl+1] + ΔsoilW[sl+1]))
         minFlow = min(tmpCapFlow, holdCap, lossCap)
         tmp = minFlow > tolerance ? minFlow : zero(minFlow)
-        @rep_elem tmp ⇒ (soil_capillary_flux, sl, :soilW)
+        @rep_elem tmp ⇒ (soil_capillary_flux, sl)
         @add_to_elem soil_capillary_flux[sl] ⇒ (ΔsoilW, sl, :soilW)
         @add_to_elem -soil_capillary_flux[sl] ⇒ (ΔsoilW, sl + 1, :soilW)
     end

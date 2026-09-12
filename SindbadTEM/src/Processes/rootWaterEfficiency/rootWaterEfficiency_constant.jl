@@ -40,13 +40,13 @@ function precompute(params::rootWaterEfficiency_constant, forcing, land, helpers
         max_root_depth ⇐ land.diagnostics
     end
     if max_root_depth >= z_zero
-        @rep_elem constant_root_water_efficiency ⇒ (root_water_efficiency, 1, :soilW)
+        @rep_elem constant_root_water_efficiency ⇒ (root_water_efficiency, 1)
     end
     for sl ∈ eachindex(soilW)[2:end]
         soilcumuD = cumulative_soil_depths[sl-1]
         rootOver = max_root_depth - soilcumuD
         rootEff = rootOver >= z_zero ? constant_root_water_efficiency : zero(eltype(root_water_efficiency))
-        @rep_elem rootEff ⇒ (root_water_efficiency, sl, :soilW)
+        @rep_elem rootEff ⇒ (root_water_efficiency, sl)
     end
     ## pack land variables
     @pack_nt root_water_efficiency ⇒ land.diagnostics

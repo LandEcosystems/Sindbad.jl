@@ -41,12 +41,12 @@ function compute(params::cCycle_simple, forcing, land, helpers)
         zixVeg ⇐ land.cCycle
         (c_eco_efflux, c_eco_flow, c_eco_influx, c_eco_out, c_eco_npp, zero_c_eco_flow, zero_c_eco_influx) ⇐ land.fluxes
         cEco_prev ⇐ land.states
-        cEco ⇐ land.pools
+        (cEco, cVeg) ⇐ land.pools
         (c_flow_A_vec, c_eco_k, c_allocation) ⇐ land.diagnostics
         ΔcEco ⇐ land.pools
         gpp ⇐ land.fluxes
-        (c_giver, c_taker) ⇐ land.constants
-        (c_flow_order) ⇐ land.constants
+        (c_giver, c_taker) ⇐ land.cCycleBase
+        (c_flow_order) ⇐ land.cCycleBase
         (z_zero, o_one) ⇐ land.constants
     end
     ## reset ecoflow and influx to be zero at every time step
@@ -57,8 +57,8 @@ function compute(params::cCycle_simple, forcing, land, helpers)
 
     ## gains to vegetation
     for zv ∈ zixVeg
-        @rep_elem gpp * c_allocation[zv] - c_eco_efflux[zv] ⇒ (c_eco_npp, zv, :cEco)
-        @rep_elem c_eco_npp[zv] ⇒ (c_eco_influx, zv, :cEco)
+        @rep_elem gpp * c_allocation[zv] - c_eco_efflux[zv] ⇒ (c_eco_npp, zv)
+        @rep_elem c_eco_npp[zv] ⇒ (c_eco_influx, zv)
     end
 
     # flows & losses
@@ -71,12 +71,12 @@ function compute(params::cCycle_simple, forcing, land, helpers)
         take_r = c_taker[fO]
         give_r = c_giver[fO]
         # carbon coming into another pool
-        tmp_flow = c_eco_flow[take_r] + c_eco_out[give_r] * c_flow_A_vec[take_r, give_r]
-        @rep_elem tmp_flow ⇒ (c_eco_flow, take_r, :cEco)
+        tmp_flow = c_eco_flow[take_r] + c_eco_out[give_r] * c_flow_A_vec[fO]
+        @rep_elem tmp_flow ⇒ (c_eco_flow, take_r)
         # efflux from non vegetation pools
         if give_r ∉ getZix(cVeg, helpers.pools.zix.cVeg)
-            tmp_efflux = c_eco_efflux[give_r] + c_eco_out[give_r] * (1.0 - c_flow_A_vec[take_r, give_r])
-            @rep_elem tmp_efflux ⇒ (c_eco_efflux, give_r, :cEco)
+            tmp_efflux = c_eco_efflux[give_r] + c_eco_out[give_r] * (1.0 - c_flow_A_vec[fO])
+            @rep_elem tmp_efflux ⇒ (c_eco_efflux, give_r)
         end
     end
     # for jix = 1:length(p_taker)

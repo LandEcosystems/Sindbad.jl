@@ -26,7 +26,7 @@ exactly which check and why.
 ```julia
 using SindbadTEM, Test
 test_model("soilProperties_Saxton1986")
-test_model("soilProperties_Saxton1986", "plantForm_fixed")
+test_model("soilProperties_Saxton1986", "vegDynamics_constant")
 ```
 
 Needs `using Test` loaded alongside `SindbadTEM` (this method is provided by SindbadTEM's `Test`
@@ -56,7 +56,7 @@ failure to throw.
 ```julia
 using SindbadTEM, Test
 analyse_process("soilProperties")
-analyse_process("soilProperties", "plantForm")
+analyse_process("soilProperties", "vegClassMap")
 ```
 
 Errors immediately if a name doesn't match any process, listing the valid names. Same

@@ -2,41 +2,17 @@ export cMicrobialEfficiency_none
 
 struct cMicrobialEfficiency_none <: cMicrobialEfficiency end
 
-function define(params::cMicrobialEfficiency_none, forcing, land, helpers)
-    @unpack_nt begin
-        (c_flow_order, c_giver, c_taker) ⇐ land.constants
-        (cEco, cLit, cSoil) ⇐ land.pools
-    end
-
-    # Allocate one value per active carbon transfer. Start from 
-    # one so that vegetation flows, not mediated by microbial activity, are unchanged.
-    c_flow_ME_vec = one.(eltype(cEco).(zero([c_taker...])))
-    if cEco isa SVector
-        c_flow_ME_vec = SVector{length(c_flow_ME_vec)}(c_flow_ME_vec)
-    end
-
-    # Find litter and soil pools, where flows are mediated by microbial activity, 
-    # and attribute microbial efficiency.
-    zix_cLit = getZix(cLit, helpers.pools.zix.cLit)
-    zix_cSoil = getZix(cSoil, helpers.pools.zix.cSoil)
-
-    # "none" means zero microbial transfer efficiency for decomposition:
-    # decomposed carbon is not retained in a receiving carbon pool through the
-    # microbial-efficiency pathway, all goes to heterotrophic respiration. 
-    for fO ∈ c_flow_order
-        give_r = c_giver[fO]
-        is_decomposition = (give_r ∈ zix_cLit || give_r ∈ zix_cSoil)
-        me_value = is_decomposition ? zero(c_flow_ME_vec[fO]) : one(c_flow_ME_vec[fO])
-        c_flow_ME_vec = repElem(c_flow_ME_vec, me_value, c_flow_ME_vec, c_flow_ME_vec, fO)
-    end
-
-    @pack_nt c_flow_ME_vec ⇒ land.diagnostics
-	return land
+function precompute(params::cMicrobialEfficiency_none, forcing, land, helpers)
+    # Nothing to do: cCycleBase allocates c_flow_ME_vec neutral, one per flow, and this
+    # approach is the statement that no microbial efficiency control applies. The three
+    # pool-group factors are deliberately not read, so this holds whether or not they
+    # are selected.
+    return land
 end
 
-purpose(::Type{cMicrobialEfficiency_none}) = "Set microbial carbon-transfer efficiency in all flows originating from litter and soil pools to 0; flows from vegetation have an efficiency of one."
+purpose(::Type{cMicrobialEfficiency_none}) = "Applies no microbial carbon-transfer efficiency: every transfer keeps the neutral efficiency of one, so decomposing carbon is retained in full by the receiving pool."
 
-@doc """ 
+@doc """
 
 	$(getModelDocString(cMicrobialEfficiency_none))
 
@@ -44,13 +20,26 @@ purpose(::Type{cMicrobialEfficiency_none}) = "Set microbial carbon-transfer effi
 
 # Extended help
 
+A factor of one means perfect retention, not zero retention: carbon leaving a pool all
+arrives, and none of it respires through the microbial-efficiency pathway. `_none` means
+the same thing here as it does in [`cMicrobialEfficiencycLit_none`](@ref) and its two
+siblings, so the name reads the same at every level of the family.
+
+For the opposite endpoint, where all decomposed carbon respires, select
+[`cMicrobialEfficiency_constant`](@ref) with `constant_MicEff` at zero.
+
+Selecting this is equivalent to leaving `cMicrobialEfficiency` out of the model structure
+altogether, since `cCycleBase` allocates the vector neutral either way. It exists so that
+the intent can be stated in the model structure rather than inferred from an absence, and
+so that the three pool-group factors can stay selected while their result is ignored.
+
 *References*
 
 *Versions*
- - 1.0 on 27.08.2026 [sol]
+ - 1.0 on 04.09.2026 [skoirala]
 
 *Created by*
- - sol
+ - skoirala
 
 """
 cMicrobialEfficiency_none
