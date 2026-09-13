@@ -1,22 +1,22 @@
-export vegClassMap_MODIS_UMD
+export vegClass_MODIS_UMD
 
-struct vegClassMap_MODIS_UMD <: vegClassMap end
+struct vegClass_MODIS_UMD <: vegClass end
 
-vegTypeCatalog(::Type{vegClassMap_MODIS_UMD}) = VegTypeCatalog_MODIS_UMD
-vegTypeClassification(::Type{vegClassMap_MODIS_UMD}) = VegTypeCatalog_SINDBAD
+vegTypeCatalog(::Type{vegClass_MODIS_UMD}) = Classification_MODIS_UMD
+vegTypeClassification(::Type{vegClass_MODIS_UMD}) = Classification_SINDBAD
 
-purpose(::Type{vegClassMap_MODIS_UMD}) = "Gets the vegetation type from UMD-classified forcing data."
+purpose(::Type{vegClass_MODIS_UMD}) = "Gets the vegetation type from UMD-classified forcing data."
 
 @doc """
 
-$(getModelDocString(vegClassMap_MODIS_UMD))
+$(getModelDocString(vegClass_MODIS_UMD))
 
 ---
 
 # Extended help
 
-Same as [`vegClassMap_MODIS_IGBP`](@ref), interpreting `land.states.veg_type`
-against the University of Maryland legend (`VegTypeCatalog_MODIS_UMD`) instead of
+Same as [`vegClass_MODIS_IGBP`](@ref), interpreting `land.states.veg_type`
+against the University of Maryland legend (`Classification_MODIS_UMD`) instead of
 IGBP. Pair with `vegDynamics_forcing`, which sets `veg_type` from `f_pft`.
 
 *References*
@@ -32,12 +32,12 @@ IGBP. Pair with `vegDynamics_forcing`, which sets `veg_type` from `f_pft`.
    generic `vegTypes.jl` (every approach did exactly the same thing, modulo
    the two traits declared above) -- this file now only declares those traits
  - 5.0 on 12.09.2026 [skoirala]: renamed from `vegTypes_MODIS_UMD` (process
-   `vegTypes` -> `vegClassMap`, paired process `vegTypeDynamics` ->
+   `vegTypes` -> `vegClass`, paired process `vegTypeDynamics` ->
    `vegClassDynamics`)
  - 6.0 on 12.09.2026 [skoirala]: paired process renamed again,
-   `vegClassDynamics` -> `vegDynamics` (too easily confused with `vegClassMap`)
+   `vegClassDynamics` -> `vegDynamics` (too easily confused with `vegClass`)
 
 *Created by*
  - skoirala
 """
-vegClassMap_MODIS_UMD
+vegClass_MODIS_UMD

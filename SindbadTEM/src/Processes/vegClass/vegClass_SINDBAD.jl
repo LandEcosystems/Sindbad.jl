@@ -1,26 +1,26 @@
-export vegClassMap_SINDBAD
+export vegClass_SINDBAD
 
-struct vegClassMap_SINDBAD <: vegClassMap end
+struct vegClass_SINDBAD <: vegClass end
 
-vegTypeCatalog(::Type{vegClassMap_SINDBAD}) = VegTypeCatalog_SINDBAD
-vegTypeClassification(::Type{vegClassMap_SINDBAD}) = VegTypeCatalog_SINDBAD
+vegTypeCatalog(::Type{vegClass_SINDBAD}) = Classification_SINDBAD
+vegTypeClassification(::Type{vegClass_SINDBAD}) = Classification_SINDBAD
 
-purpose(::Type{vegClassMap_SINDBAD}) = "Resolves a vegetation-type code already given in SINDBAD's own canonical vocabulary."
+purpose(::Type{vegClass_SINDBAD}) = "Resolves a vegetation-type code already given in SINDBAD's own canonical vocabulary."
 
 @doc """
 
-$(getModelDocString(vegClassMap_SINDBAD))
+$(getModelDocString(vegClass_SINDBAD))
 
 ---
 
 # Extended help
 
-Unlike `vegClassMap_MODIS_*`, this approach has no real data source to interpret
+Unlike `vegClass_MODIS_*`, this approach has no real data source to interpret
 `land.states.veg_type` against, so it is written directly in terms of SINDBAD's
-canonical vegetation-type vocabulary (`VegTypeCatalog_SINDBAD`) rather than needing one
+canonical vegetation-type vocabulary (`Classification_SINDBAD`) rather than needing one
 variant per source catalog: the code is resolved via `resolveVegType`, which for this
 catalog is always the identity (`veg_type_name` and `veg_type_name_source` are always equal
-here). Pair with `vegDynamics_constant`, which produces a `VegTypeCatalog_SINDBAD`-
+here). Pair with `vegDynamics_constant`, which produces a `Classification_SINDBAD`-
 coded `veg_type`.
 
 *References*
@@ -43,12 +43,12 @@ coded `veg_type`.
    generic `vegTypes.jl` (every approach did exactly the same thing, modulo
    the two traits declared above) -- this file now only declares those traits
  - 7.0 on 12.09.2026 [skoirala]: renamed from `vegTypes_SINDBAD` (process
-   `vegTypes` -> `vegClassMap`, paired process `vegTypeDynamics` ->
+   `vegTypes` -> `vegClass`, paired process `vegTypeDynamics` ->
    `vegClassDynamics`)
  - 8.0 on 12.09.2026 [skoirala]: paired process renamed again,
-   `vegClassDynamics` -> `vegDynamics` (too easily confused with `vegClassMap`)
+   `vegClassDynamics` -> `vegDynamics` (too easily confused with `vegClass`)
 
 *Created by*
  - unknown [xxx]
 """
-vegClassMap_SINDBAD
+vegClass_SINDBAD

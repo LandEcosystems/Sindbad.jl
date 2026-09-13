@@ -14,13 +14,13 @@ end
 #! format: on
 
 function define(params::vegQualityTraits_vegType, forcing, land, helpers)
-    @unpack_nt veg_type_class_map ⇐ land.vegClassMap
+    @unpack_nt veg_type_class_map ⇐ land.vegClass
 
     # Re-keyed once, at define time, onto whichever classification the experiment's
-    # vegClassMap approach resolved into (the canonical vocabulary, or a grouping like
-    # VegTypeCatalog_PlantForm) -- see vegTypeCatalogFor.
-    lit_CN_ratio_per_vegtype = vegTypeCatalogFor(LIT_CN_RATIO_PER_VEGTYPE, typeof(veg_type_class_map))
-    lit_frac_lignin_per_vegtype = vegTypeCatalogFor(LIT_FRAC_LIGNIN_PER_VEGTYPE, typeof(veg_type_class_map))
+    # vegClass approach resolved into (the canonical vocabulary, or a grouping like
+    # Classification_PlantForm) -- see getParamsPerVegType.
+    lit_CN_ratio_per_vegtype = getParamsPerVegType(LIT_CN_RATIO_PER_VEGTYPE, typeof(veg_type_class_map))
+    lit_frac_lignin_per_vegtype = getParamsPerVegType(LIT_FRAC_LIGNIN_PER_VEGTYPE, typeof(veg_type_class_map))
 
     @pack_nt (lit_CN_ratio_per_vegtype, lit_frac_lignin_per_vegtype) ⇒ land.diagnostics
     return land
@@ -86,7 +86,7 @@ purpose(::Type{vegQualityTraits_vegType}) = "Metabolic litter fraction and the s
 
 The approach re-keys `LIT_FRAC_LIGNIN_PER_VEGTYPE` and `LIT_CN_RATIO_PER_VEGTYPE`
 (declared in `ParamsForVegClasses.jl`) onto whichever classification the experiment's
-`vegClassMap` approach resolved into (`define`), then looks up the lignin fraction and
+`vegClass` approach resolved into (`define`), then looks up the lignin fraction and
 the carbon-to-nitrogen ratio of litter for `land.states.veg_type_name` (`precompute`), each
 scaled by a bounded, optimizable multiplier (`lit_frac_lignin_scalar`,
 `lit_CN_ratio_scalar`) since the per-vegetation-type tables themselves are fixed data
@@ -132,7 +132,7 @@ original did not.
    struct fields cannot be optimized
  - 4.0 on 10.09.2026 [skoirala]: the fixed tables moved to the consolidated
    `vegTypeParamCatalog.jl`; a new `define` re-keys them at experiment setup
-   time onto the active `vegClassMap` classification via `vegTypeCatalogFor`
+   time onto the active `vegClass` classification via `getParamsPerVegType`
    instead of `precompute` reading them directly by canonical PFT name
  - 5.0 on 12.09.2026 [skoirala]: renamed from `vegQualityTraits_VegTypes` to
    `vegQualityTraits_vegType`

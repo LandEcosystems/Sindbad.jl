@@ -1,22 +1,22 @@
-export vegClassMap_MODIS_LAI
+export vegClass_MODIS_LAI
 
-struct vegClassMap_MODIS_LAI <: vegClassMap end
+struct vegClass_MODIS_LAI <: vegClass end
 
-vegTypeCatalog(::Type{vegClassMap_MODIS_LAI}) = VegTypeCatalog_MODIS_LAI
-vegTypeClassification(::Type{vegClassMap_MODIS_LAI}) = VegTypeCatalog_SINDBAD
+vegTypeCatalog(::Type{vegClass_MODIS_LAI}) = Classification_MODIS_LAI
+vegTypeClassification(::Type{vegClass_MODIS_LAI}) = Classification_SINDBAD
 
-purpose(::Type{vegClassMap_MODIS_LAI}) = "Gets the vegetation type from LAI/fPAR-biome-classified forcing data."
+purpose(::Type{vegClass_MODIS_LAI}) = "Gets the vegetation type from LAI/fPAR-biome-classified forcing data."
 
 @doc """
 
-$(getModelDocString(vegClassMap_MODIS_LAI))
+$(getModelDocString(vegClass_MODIS_LAI))
 
 ---
 
 # Extended help
 
-Same as [`vegClassMap_MODIS_IGBP`](@ref), interpreting `land.states.veg_type`
-against the LAI/fPAR biome legend (`VegTypeCatalog_MODIS_LAI`) instead of IGBP. Pair
+Same as [`vegClass_MODIS_IGBP`](@ref), interpreting `land.states.veg_type`
+against the LAI/fPAR biome legend (`Classification_MODIS_LAI`) instead of IGBP. Pair
 with `vegDynamics_forcing`, which sets `veg_type` from `f_pft`.
 
 *References*
@@ -32,12 +32,12 @@ with `vegDynamics_forcing`, which sets `veg_type` from `f_pft`.
    generic `vegTypes.jl` (every approach did exactly the same thing, modulo
    the two traits declared above) -- this file now only declares those traits
  - 5.0 on 12.09.2026 [skoirala]: renamed from `vegTypes_MODIS_LAI` (process
-   `vegTypes` -> `vegClassMap`, paired process `vegTypeDynamics` ->
+   `vegTypes` -> `vegClass`, paired process `vegTypeDynamics` ->
    `vegClassDynamics`)
  - 6.0 on 12.09.2026 [skoirala]: paired process renamed again,
-   `vegClassDynamics` -> `vegDynamics` (too easily confused with `vegClassMap`)
+   `vegClassDynamics` -> `vegDynamics` (too easily confused with `vegClass`)
 
 *Created by*
  - skoirala
 """
-vegClassMap_MODIS_LAI
+vegClass_MODIS_LAI

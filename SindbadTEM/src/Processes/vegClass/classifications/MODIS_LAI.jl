@@ -1,15 +1,15 @@
-export VegTypeCatalog_MODIS_LAI
+export Classification_MODIS_LAI
 
-struct VegTypeCatalog_MODIS_LAI <: VegTypeCatalog end
-purpose(::Type{VegTypeCatalog_MODIS_LAI}) = "MODIS MCD12Q1 Leaf Area Index biome legend (LC_Type3), 11 classes"
+struct Classification_MODIS_LAI <: VegClassification end
+purpose(::Type{Classification_MODIS_LAI}) = "MODIS MCD12Q1 Leaf Area Index biome legend (LC_Type3), 11 classes"
 
 """
-    vegTypeClasses(::Type{VegTypeCatalog_MODIS_LAI})
+    vegClasses(::Type{Classification_MODIS_LAI})
 
 The LAI/fPAR biome legend, Table 5 of the MCD12Q1 user guide (Myneni et al.,
 2002), transcribed exactly as documented for the `name => code` half of each
 entry. The forest, savanna, urban and water classes map directly onto the
-canonical `VegTypeCatalog_SINDBAD` name of the same meaning (itself copied
+canonical `Classification_SINDBAD` name of the same meaning (itself copied
 from IGBP). Three do not, and are placeholders needing the same
 literature/user confirmation as the other catalogs' non-direct mappings:
 
@@ -23,7 +23,7 @@ literature/user confirmation as the other catalogs' non-direct mappings:
 - `Non_Vegetated_Lands`: conflates barren ground with permanent snow/ice.
   Mapped to `Barren`, understating any snow/ice extent.
 """
-vegTypeClasses(::Type{VegTypeCatalog_MODIS_LAI}) = (
+vegClasses(::Type{Classification_MODIS_LAI}) = (
     (:Water_Bodies => 0, :Water_Bodies),
     (:Grasslands => 1, :Grasslands),
     (:Shrublands => 2, :Open_Shrublands),

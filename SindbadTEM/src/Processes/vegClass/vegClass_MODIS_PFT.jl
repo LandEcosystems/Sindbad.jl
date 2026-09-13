@@ -1,25 +1,25 @@
-export vegClassMap_MODIS_PFT
+export vegClass_MODIS_PFT
 
-struct vegClassMap_MODIS_PFT <: vegClassMap end
+struct vegClass_MODIS_PFT <: vegClass end
 
-vegTypeCatalog(::Type{vegClassMap_MODIS_PFT}) = VegTypeCatalog_MODIS_PFT
-vegTypeClassification(::Type{vegClassMap_MODIS_PFT}) = VegTypeCatalog_SINDBAD
+vegTypeCatalog(::Type{vegClass_MODIS_PFT}) = Classification_MODIS_PFT
+vegTypeClassification(::Type{vegClass_MODIS_PFT}) = Classification_SINDBAD
 
-purpose(::Type{vegClassMap_MODIS_PFT}) = "Gets the vegetation type from Plant-Functional-Type-classified (MCD12Q1 Type 5) forcing data."
+purpose(::Type{vegClass_MODIS_PFT}) = "Gets the vegetation type from Plant-Functional-Type-classified (MCD12Q1 Type 5) forcing data."
 
 @doc """
 
-$(getModelDocString(vegClassMap_MODIS_PFT))
+$(getModelDocString(vegClass_MODIS_PFT))
 
 ---
 
 # Extended help
 
-Same as [`vegClassMap_MODIS_IGBP`](@ref), interpreting `land.states.veg_type`
-against the MODIS PFT legend (`VegTypeCatalog_MODIS_PFT`, after Bonan (2002)) instead
-of IGBP. `veg_type_name` (canonical, `VegTypeCatalog_SINDBAD`-keyed) and `veg_type_name_source`
+Same as [`vegClass_MODIS_IGBP`](@ref), interpreting `land.states.veg_type`
+against the MODIS PFT legend (`Classification_MODIS_PFT`, after Bonan (2002)) instead
+of IGBP. `veg_type_name` (canonical, `Classification_SINDBAD`-keyed) and `veg_type_name_source`
 (this legend's own name) generally differ here: see
-`vegTypeClasses(::Type{VegTypeCatalog_MODIS_PFT})` for the
+`vegClasses(::Type{Classification_MODIS_PFT})` for the
 `Shrub`/`Cereal_Croplands`/`Broadleaf_Croplands` classes that collapse onto a
 single canonical class. Pair with `vegDynamics_forcing`, which sets
 `veg_type` from `f_pft`.
@@ -37,12 +37,12 @@ single canonical class. Pair with `vegDynamics_forcing`, which sets
    generic `vegTypes.jl` (every approach did exactly the same thing, modulo
    the two traits declared above) -- this file now only declares those traits
  - 5.0 on 12.09.2026 [skoirala]: renamed from `vegTypes_MODIS_PFT` (process
-   `vegTypes` -> `vegClassMap`, paired process `vegTypeDynamics` ->
+   `vegTypes` -> `vegClass`, paired process `vegTypeDynamics` ->
    `vegClassDynamics`)
  - 6.0 on 12.09.2026 [skoirala]: paired process renamed again,
-   `vegClassDynamics` -> `vegDynamics` (too easily confused with `vegClassMap`)
+   `vegClassDynamics` -> `vegDynamics` (too easily confused with `vegClass`)
 
 *Created by*
  - skoirala
 """
-vegClassMap_MODIS_PFT
+vegClass_MODIS_PFT

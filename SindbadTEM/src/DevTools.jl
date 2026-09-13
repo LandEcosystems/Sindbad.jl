@@ -56,7 +56,7 @@ failure to throw.
 ```julia
 using SindbadTEM, Test
 analyse_process("soilProperties")
-analyse_process("soilProperties", "vegClassMap")
+analyse_process("soilProperties", "vegClass")
 ```
 
 Errors immediately if a name doesn't match any process, listing the valid names. Same

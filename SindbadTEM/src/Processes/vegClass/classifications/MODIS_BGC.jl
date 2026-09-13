@@ -1,10 +1,10 @@
-export VegTypeCatalog_MODIS_BGC
+export Classification_MODIS_BGC
 
-struct VegTypeCatalog_MODIS_BGC <: VegTypeCatalog end
-purpose(::Type{VegTypeCatalog_MODIS_BGC}) = "MODIS MCD12Q1 BIOME-Biogeochemical Cycles legend (LC_Type4), 9 classes"
+struct Classification_MODIS_BGC <: VegClassification end
+purpose(::Type{Classification_MODIS_BGC}) = "MODIS MCD12Q1 BIOME-Biogeochemical Cycles legend (LC_Type4), 9 classes"
 
 """
-    vegTypeClasses(::Type{VegTypeCatalog_MODIS_BGC})
+    vegClasses(::Type{Classification_MODIS_BGC})
 
 The BIOME-BGC legend, Table 6 of the MCD12Q1 user guide (Running et al.,
 2004), transcribed exactly as documented for the `name => code` half of each
@@ -12,7 +12,7 @@ entry. Every vegetated class here is defined by leaf-habit/phenology alone
 with no canopy-height or cover threshold ("woody vegetation cover >10%," not
 IGBP's ">2m tree cover, >60%"), so each conflates trees and shrubs of the
 same phenology into one class -- coarser than the canonical
-`VegTypeCatalog_SINDBAD` split (itself copied from IGBP). All mappings below
+`Classification_SINDBAD` split (itself copied from IGBP). All mappings below
 are placeholders needing the same literature/user confirmation as the other
 catalogs' non-direct mappings:
 
@@ -24,11 +24,11 @@ catalogs' non-direct mappings:
   mapped to `Croplands`.
 - `Annual_Grass_Vegetation` (explicitly "including cereal croplands," per
   this legend's own definition): mapped to `Grasslands`, same caveat as
-  `VegTypeCatalog_MODIS_LAI`'s `Grasslands`.
+  `Classification_MODIS_LAI`'s `Grasslands`.
 - `Non_Vegetated_Lands`: conflates barren ground with permanent snow/ice, as
   in the UMD and LAI catalogs. Mapped to `Barren`.
 """
-vegTypeClasses(::Type{VegTypeCatalog_MODIS_BGC}) = (
+vegClasses(::Type{Classification_MODIS_BGC}) = (
     (:Water_Bodies => 0, :Water_Bodies),
     (:Evergreen_Needleleaf_Vegetation => 1, :Evergreen_Needleleaf_Forests),
     (:Evergreen_Broadleaf_Vegetation => 2, :Evergreen_Broadleaf_Forests),

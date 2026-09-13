@@ -189,7 +189,7 @@
     "vegDynamics": {
       "approach": "forcing"
     },
-    "vegClassMap": {
+    "vegClass": {
       "approach": "MODIS_IGBP_PlantForm"
     },
     "rainSnow": {

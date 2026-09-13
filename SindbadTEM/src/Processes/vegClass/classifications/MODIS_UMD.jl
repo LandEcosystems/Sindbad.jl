@@ -1,16 +1,16 @@
-export VegTypeCatalog_MODIS_UMD
+export Classification_MODIS_UMD
 
-struct VegTypeCatalog_MODIS_UMD <: VegTypeCatalog end
-purpose(::Type{VegTypeCatalog_MODIS_UMD}) = "MODIS MCD12Q1/MCD12C1 University of Maryland land cover legend (LC_Type2), 16 classes"
+struct Classification_MODIS_UMD <: VegClassification end
+purpose(::Type{Classification_MODIS_UMD}) = "MODIS MCD12Q1/MCD12C1 University of Maryland land cover legend (LC_Type2), 16 classes"
 
 """
-    vegTypeClasses(::Type{VegTypeCatalog_MODIS_UMD})
+    vegClasses(::Type{Classification_MODIS_UMD})
 
 The University of Maryland (UMD) legend, Table 4 of the MCD12Q1/MCD12C1 user
 guide (Hansen et al., 2000), transcribed exactly as documented for the
 `name => code` half of each entry. Classes 1-14 share their definitions
 verbatim with the IGBP legend, so they map onto the identically named class
-in the canonical `VegTypeCatalog_SINDBAD` vocabulary (itself copied from
+in the canonical `Classification_SINDBAD` vocabulary (itself copied from
 IGBP). Two classes do not:
 
 - `Non_Vegetated_Lands` (15) conflates IGBP's separate `Permanent_Snow_and_Ice`
@@ -20,7 +20,7 @@ IGBP). Two classes do not:
 - `Water_Bodies` is class 0 here (IGBP has it as 17); the crosswalk maps the
   code, not the number, so this is unaffected.
 """
-vegTypeClasses(::Type{VegTypeCatalog_MODIS_UMD}) = (
+vegClasses(::Type{Classification_MODIS_UMD}) = (
     (:Water_Bodies => 0, :Water_Bodies),
     (:Evergreen_Needleleaf_Forests => 1, :Evergreen_Needleleaf_Forests),
     (:Evergreen_Broadleaf_Forests => 2, :Evergreen_Broadleaf_Forests),

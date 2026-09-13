@@ -2,7 +2,7 @@ export vegDynamics_constant
 
 #! format: off
 @bounds @describe @units @timescale @with_kw struct vegDynamics_constant{T1} <: vegDynamics
-    veg_type::T1 = 1.0 | (1.0, 17.0) | "Vegetation type class, per SINDBAD's canonical vegetation-type vocabulary (VegTypeCatalog_SINDBAD)" | "class" | ""
+    veg_type::T1 = 1.0 | (1.0, 17.0) | "Vegetation type class, per SINDBAD's canonical vegetation-type vocabulary (Classification_SINDBAD)" | "class" | ""
 end
 #! format: on
 
@@ -29,9 +29,9 @@ $(getModelDocString(vegDynamics_constant))
 
 Unlike `vegDynamics_forcing`, this approach has no real data source to read a
 raw code from, so `veg_type` is a calibratable parameter, rounded to the
-nearest integer class number and published as-is. Pair with `vegClassMap_SINDBAD`,
+nearest integer class number and published as-is. Pair with `vegClass_SINDBAD`,
 which interprets a `vegDynamics_constant`-produced code directly against the
-canonical `VegTypeCatalog_SINDBAD` vocabulary.
+canonical `Classification_SINDBAD` vocabulary.
 
 *References*
 
@@ -51,9 +51,9 @@ canonical `VegTypeCatalog_SINDBAD` vocabulary.
    `vegTypes_SINDBAD`
  - 6.0 on 12.09.2026 [skoirala]: renamed from `vegTypeDynamics_constant`
    (process `vegTypeDynamics` -> `vegClassDynamics`, paired process
-   `vegTypes` -> `vegClassMap`)
+   `vegTypes` -> `vegClass`)
  - 7.0 on 12.09.2026 [skoirala]: process renamed again, `vegClassDynamics`
-   -> `vegDynamics` (too easily confused with `vegClassMap`)
+   -> `vegDynamics` (too easily confused with `vegClass`)
 
 *Created by*
  - unknown [xxx]

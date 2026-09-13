@@ -1,20 +1,20 @@
-export VegTypeCatalog_MODIS_IGBP
+export Classification_MODIS_IGBP
 
-struct VegTypeCatalog_MODIS_IGBP <: VegTypeCatalog end
-purpose(::Type{VegTypeCatalog_MODIS_IGBP}) = "MODIS MCD12Q1/MCD12C1 IGBP land cover legend (LC_Type1), 17 classes"
+struct Classification_MODIS_IGBP <: VegClassification end
+purpose(::Type{Classification_MODIS_IGBP}) = "MODIS MCD12Q1/MCD12C1 IGBP land cover legend (LC_Type1), 17 classes"
 
 """
-    vegTypeClasses(::Type{VegTypeCatalog_MODIS_IGBP})
+    vegClasses(::Type{Classification_MODIS_IGBP})
 
 The IGBP land cover legend, Table 3 of the MCD12Q1/MCD12C1 user guide
 (Sulla-Menashe & Friedl, 2018), transcribed exactly as documented for the
 `name => code` half of each entry. Every class here has the identically
-named class in the canonical `VegTypeCatalog_SINDBAD` vocabulary (which was
+named class in the canonical `Classification_SINDBAD` vocabulary (which was
 itself copied from this legend) as its crosswalk target -- a true identity
 mapping today, kept explicit rather than assumed so it is checked the same
 way as every other catalog's crosswalk (see `validateVegTypeCrosswalks`).
 """
-vegTypeClasses(::Type{VegTypeCatalog_MODIS_IGBP}) = (
+vegClasses(::Type{Classification_MODIS_IGBP}) = (
     (:Evergreen_Needleleaf_Forests => 1, :Evergreen_Needleleaf_Forests),
     (:Evergreen_Broadleaf_Forests => 2, :Evergreen_Broadleaf_Forests),
     (:Deciduous_Needleleaf_Forests => 3, :Deciduous_Needleleaf_Forests),

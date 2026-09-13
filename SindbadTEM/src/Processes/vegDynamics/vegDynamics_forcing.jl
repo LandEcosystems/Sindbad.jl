@@ -36,8 +36,8 @@ $(getModelDocString(vegDynamics_forcing))
 
 The raw vegetation-type class code is taken from the `f_pft` forcing variable and
 published, unchanged, as `land.states.veg_type` -- no catalog interpretation
-happens here, so one approach covers every `vegClassMap_MODIS_*` source legend: which
-legend the code is drawn from is entirely a `vegClassMap`-side concern
+happens here, so one approach covers every `vegClass_MODIS_*` source legend: which
+legend the code is drawn from is entirely a `vegClass`-side concern
 (`vegTypeCatalog`), not this process's. `f_pft` is indexed with `[1]` rather than used
 bare since real forcing pipelines publish a spatial-only variable like this as a
 one-element array per pixel, not a bare scalar; indexing a true scalar with `[1]`
@@ -63,9 +63,9 @@ once in `precompute`.
    catalog the code is interpreted against, only `vegTypes` does
  - 6.0 on 12.09.2026 [skoirala]: renamed from `vegTypeDynamics_forcing`
    (process `vegTypeDynamics` -> `vegClassDynamics`, paired process
-   `vegTypes` -> `vegClassMap`)
+   `vegTypes` -> `vegClass`)
  - 7.0 on 12.09.2026 [skoirala]: process renamed again, `vegClassDynamics`
-   -> `vegDynamics` (too easily confused with `vegClassMap`)
+   -> `vegDynamics` (too easily confused with `vegClass`)
 
 *Created by*
  - skoirala
