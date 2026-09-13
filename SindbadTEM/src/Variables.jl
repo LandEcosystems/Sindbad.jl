@@ -413,8 +413,8 @@ sindbad_tem_variables = orD{Symbol,orD{Symbol,String}}(
         :land_field => "diagnostics",
         :description => "an array containing the efficiency of each flow in the c_flow_A_array"
     ),
-    :diagnostics__C_to_N_cVeg => orD(
-        :standard_name => "C_to_N_cVeg",
+    :diagnostics__CN_ratio_cVeg => orD(
+        :standard_name => "CN_ratio_cVeg",
         :long_name => "carbon_to_nitrogen_ratio",
         :units => "ratio",
         :land_field => "diagnostics",

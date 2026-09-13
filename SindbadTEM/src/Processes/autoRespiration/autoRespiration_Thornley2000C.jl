@@ -36,7 +36,7 @@ function compute(params::autoRespiration_Thornley2000C, forcing, land, helpers)
         (c_eco_efflux, auto_respiration_growth, auto_respiration_maintain) ⇐ land.fluxes
         (cEco, cVeg) ⇐ land.pools
         gpp ⇐ land.fluxes
-        C_to_N_cVeg ⇐ land.diagnostics
+        CN_ratio_cVeg ⇐ land.diagnostics
         cVegZix = cVeg ⇐ helpers.pools.zix
         (auto_respiration_f_airT, c_allocation) ⇐ land.diagnostics
         lit_frac_metabolic ⇐ land.properties
@@ -56,7 +56,7 @@ function compute(params::autoRespiration_Thornley2000C, forcing, land, helpers)
         # scalars of maintenance respiration for models A; B & C
         # km is the maintenance respiration coefficient [d-1]
 
-        km_ix = at_most_one(o_one / C_to_N_cVeg[ix] * RMN * auto_respiration_f_airT)
+        km_ix = at_most_one(o_one / CN_ratio_cVeg[ix] * RMN * auto_respiration_f_airT)
         kd_ix = Fd[ix]
         k_respiration_maintain_ix = km_ix * kd_ix
         k_respiration_maintain_su_ix = k_respiration_maintain[ix] * (o_one - YG)

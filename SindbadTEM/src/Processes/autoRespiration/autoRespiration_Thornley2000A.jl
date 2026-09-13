@@ -35,7 +35,7 @@ function compute(params::autoRespiration_Thornley2000A, forcing, land, helpers)
         (c_eco_efflux, auto_respiration_growth, auto_respiration_maintain) ⇐ land.fluxes
         (cEco, cVeg) ⇐ land.pools
         gpp ⇐ land.fluxes
-        C_to_N_cVeg ⇐ land.diagnostics
+        CN_ratio_cVeg ⇐ land.diagnostics
         (c_allocation, auto_respiration_f_airT) ⇐ land.diagnostics
     end
     # adjust nitrogen efficiency rate of maintenance respiration to the current
@@ -48,7 +48,7 @@ function compute(params::autoRespiration_Thornley2000A, forcing, land, helpers)
 
         # scalars of maintenance respiration for models A; B & C
         # km is the maintenance respiration coefficient [d-1]
-        k_respiration_maintain_ix = at_most_one(one(eltype(C_to_N_cVeg)) / C_to_N_cVeg[ix] * RMN * auto_respiration_f_airT)
+        k_respiration_maintain_ix = at_most_one(one(eltype(CN_ratio_cVeg)) / CN_ratio_cVeg[ix] * RMN * auto_respiration_f_airT)
         k_respiration_maintain_su_ix = k_respiration_maintain[ix] * YG
 
         # maintenance respiration first: R_m = km * C
