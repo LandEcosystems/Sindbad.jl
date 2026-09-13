@@ -1,16 +1,16 @@
-export CarbonPoolsMGMT
+export MGMT
 
-struct CarbonPoolsMGMT <: CarbonPoolConfiguration end
-purpose(::Type{CarbonPoolsMGMT}) = "GSI carbon pools plus wood and crop product pools for land management, 10 pools"
+struct MGMT <: CarbonPoolConfiguration end
+purpose(::Type{MGMT}) = "GSI carbon pools plus wood and crop product pools for land management, 10 pools"
 
 """
-    poolStructure(::Type{CarbonPoolsMGMT})
+    poolStructure(::Type{MGMT})
 
 The GSI structure plus a `cProducts` component holding harvested wood and crop
 carbon, 10 pools in all.
 
 # Notes:
-- Built directly on `poolStructure(CarbonPoolsGSI)` (splatted in, both at the top
+- Built directly on `poolStructure(GSI)` (splatted in, both at the top
   level for `combine` and inside `components` for the eight shared pools) rather than
   repeating its leaf entries, so the two structures cannot drift apart on the eight
   pools they share. Declaration order is preserved by the splat, so the two structures
@@ -18,22 +18,26 @@ carbon, 10 pools in all.
   `cCycleBase_GSI_PlantForm_MGMT` reuses `GSI_FLOW_EDGES` unchanged.
 - Products are decay only: carbon enters them from management and leaves by turnover,
   with no pool-to-pool transfer, so they add no flow edges.
-- See `poolStructure(::Type{CarbonPoolsGSI})` for the shape and ordering rules that
+- See `poolStructure(::Type{GSI})` for the shape and ordering rules that
   apply to every structure.
 """
-poolStructure(::Type{CarbonPoolsMGMT}) = (;
-    poolStructure(CarbonPoolsGSI)...,
+poolStructure(::Type{MGMT}) = (;
+    poolStructure(GSI)...,
     components = (;
-        poolStructure(CarbonPoolsGSI).components...,
+        poolStructure(GSI).components...,
         cProducts = (; Wood = (1, 20.0), Crop = (1, 20.0)),
     ),
 )
+
+# Products are decay only (see poolStructure's notes), so they add no flow edges:
+# MGMT's topology is exactly GSI's.
+cFlowEdges(::Type{MGMT}) = GSI_FLOW_EDGES
 
 """
     MGMT_PRODUCTS_TAU
 
 Turnover *time* (years) of the two harvested-product pools
-`poolStructure(CarbonPoolsMGMT)` adds on top of the GSI structure:
+`poolStructure(MGMT)` adds on top of the GSI structure:
 `cProductsWood`/`cProductsCrop`. Fixed data, not a parameter -- calibration
 happens through `k_c_products_wood_scalar`/`k_c_products_crop_scalar` in
 `cCycleBase_GSI_PlantForm_MGMT` instead.
@@ -41,7 +45,7 @@ happens through `k_c_products_wood_scalar`/`k_c_products_crop_scalar` in
 Unlike every other pool that approach's turnover loop covers, these two do not
 vary by vegetation type: harvested-product decay does not depend on the pixel's
 vegetation-type classification, so `cCycleBase_GSI_PlantForm_MGMT`'s `precompute`
-merges this fixed pair into its runtime, per-vegtype organ-turnover table (built
+merges this fixed pair into its runtime, per-vegtype compartment-turnover table (built
 from `ParamsForVegClasses.jl`'s `CVEG_*_AGE_PER_VEGTYPE` tables) rather than
 looking them up by `veg_type_name` at all.
 

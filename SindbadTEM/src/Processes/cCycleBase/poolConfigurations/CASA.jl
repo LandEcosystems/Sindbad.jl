@@ -1,13 +1,13 @@
-export CarbonPoolsCASA
+export CASA
 
-struct CarbonPoolsCASA <: CarbonPoolConfiguration end
-purpose(::Type{CarbonPoolsCASA}) = "CASA carbon pools: 14 pools, vegetation split into fine and coarse roots and litter nested by organ"
+struct CASA <: CarbonPoolConfiguration end
+purpose(::Type{CASA}) = "CASA carbon pools: 14 pools, vegetation split into fine and coarse roots and litter nested by compartment"
 
 """
-    poolStructure(::Type{CarbonPoolsCASA})
+    poolStructure(::Type{CASA})
 
 Fourteen pools on a nested layout: roots split into fine and coarse, litter nested by
-organ and then by quality, and an explicit microbial component.
+compartment and then by quality, and an explicit microbial component.
 
 # Notes:
 - The nesting generates `cVegRoot`, `cLitLeaf`, `cLitRoot` and `cLitRootFine` without
@@ -16,14 +16,14 @@ organ and then by quality, and an explicit microbial component.
   `cLitRootFineSlow`, `cLitRootCoarse`, `cLitWood`, `cMicSurf`, `cMicSoil`,
   `cSoilSlow`, `cSoilOld`.
 - Fine-root litter carries the quality split and coarse-root litter does not, so
-  `cLitRoot` nests one level deeper than the other organs.
-- Litter nests by organ, so the fast/slow quality split cuts across the hierarchy and
+  `cLitRoot` nests one level deeper than the other C-compartments.
+- Litter nests by compartment, so the fast/slow quality split cuts across the hierarchy and
   cannot be a nesting level. It is declared as `poolAliases` instead, the only
   configuration that needs any.
-- See `poolStructure(::Type{CarbonPoolsGSI})` for the shape and ordering rules that
+- See `poolStructure(::Type{GSI})` for the shape and ordering rules that
   apply to every structure.
 """
-poolStructure(::Type{CarbonPoolsCASA}) = (;
+poolStructure(::Type{CASA}) = (;
     combine = :cEco,
     components = (;
         cVeg  = (; Root = (; Fine = (1, 25.0), Coarse = (1, 25.0)),
@@ -39,18 +39,18 @@ poolStructure(::Type{CarbonPoolsCASA}) = (;
 )
 
 """
-    poolAliases(::Type{CarbonPoolsCASA})
+    poolAliases(::Type{CASA})
 
 The fast/slow litter grouping, which this structure's nesting cannot produce.
 
 # Notes:
-- CASA litter is nested by organ, while the fast/slow axis is quality, so that split
+- CASA litter is nested by compartment, while the fast/slow axis is quality, so that split
   cannot be a nesting level. These two entries are the only groupings in any
   configuration that cut across the hierarchy.
 - An alias has no backing array in `land.pools`, so models must iterate
   `helpers.pools.zix.X` for these names rather than reach into `land.pools.X`.
 """
-poolAliases(::Type{CarbonPoolsCASA}) = (;
+poolAliases(::Type{CASA}) = (;
     cLitFast = (:cLitLeafFast, :cLitRootFineFast),                            # -> (5, 7)
     cLitSlow = (:cLitLeafSlow, :cLitRootFineSlow, :cLitRootCoarse, :cLitWood), # -> (6, 8, 9, 10)
 )
@@ -85,16 +85,18 @@ const CASA_FLOW_EDGES = (                    # giver => taker, in flow-vector or
     :cSoilOld         => :cMicSoil,                                          # giver 14
 )
 
+cFlowEdges(::Type{CASA}) = CASA_FLOW_EDGES
+
 """
     CASA_TAU
 
-Turnover *time* (years) of every CASA carbon pool except the four vegetation-organ
+Turnover *time* (years) of every CASA carbon pool except the four vegetation-compartment
 pools (`cVegRootFine`, `cVegRootCoarse`, `cVegWood`, `cVegLeaf`), per pool name.
 `k = 1.0/value` is computed at the point of use; fixed data, not a parameter --
 calibration happens through `k_c_scalar` in `cCycleBase_CASA` instead, since
 array-valued struct fields cannot be optimized.
 
-The four vegetation-organ pools are not here: their turnover now varies by
+The four vegetation-compartment pools are not here: their turnover now varies by
 `land.states.veg_type_name` at runtime, looked up from
 `CVEG_ROOTFINE_AGE_PER_VEGTYPE`/`CVEG_LEAF_AGE_PER_VEGTYPE`/
 `CVEG_ROOTCOARSE_AGE_PER_VEGTYPE`/`CVEG_WOOD_AGE_PER_VEGTYPE`
@@ -104,7 +106,7 @@ fixed value shared by every vegetation type. See that file's docstrings and
 
 Formerly `CASA_ANNK`, which stored the rate `k` directly (values `[1, 0.03, 0.03, 1,
 14.8, 3.9, 18.5, 4.8, 0.2424, 0.2424, 6, 7.3, 0.2, 0.0045]`, in the pool order
-`poolStructure(CarbonPoolsCASA)` declares). Renamed and re-expressed as time
+`poolStructure(CASA)` declares). Renamed and re-expressed as time
 (`1.0/k`) since turnover time in years is the more legible representation, and
 matches what the `c_τ_`-prefixed GSI fields already secretly stored (a time,
 immediately inverted) before this session's centralization.
@@ -138,7 +140,7 @@ const CASA_TAU = (;
 Carbon-to-nitrogen ratio of each CASA carbon pool, per pool name. Fixed data, not a
 parameter -- calibration happens through `CN_ratio_scalar` in `cCycleBase_CASA`
 instead. Only the four vegetation pools have a physically meaningful ratio; every
-other pool is `0.0`, exactly as `p_C_to_N_cVeg` (the vector field this replaces) was
+other pool is `0.0`, exactly as `p_CN_ratio_cVeg` (the vector field this replaces) was
 never read for any pool other than `cVeg`'s.
 """
 const CASA_CN_ratio = (;

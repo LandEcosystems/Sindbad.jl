@@ -17,12 +17,12 @@ fine roots sit between the two because they decompose in the soil rather than at
 surface.
 
 Only ever called from `cCycleBase_CASA`/`cCycleBase_CASA_Legacy`'s own `precompute`,
-so `zix` is always `CarbonPoolsCASA`'s. An earlier, name-keyed version of this table
-also carried two entries meant to generalize to `CarbonPoolsGSI`'s literal `cLitFast`/
+so `zix` is always `CASA`'s. An earlier, name-keyed version of this table
+also carried two entries meant to generalize to `GSI`'s literal `cLitFast`/
 `cLitSlow` leaf pools if this table were ever read under a GSI-based `cCycleBase` --
 which it never has been, since only the CASA approaches call it. Converting those two
 to `zix`-membership under CASA's own pool set would have been actively wrong rather
-than merely unused: `CarbonPoolsCASA` separately declares `cLitFast`/`cLitSlow` as
+than merely unused: `CASA` separately declares `cLitFast`/`cLitSlow` as
 *aliases* (`poolAliases`, `poolConfigurations/CASA.jl`) that union pools needing
 different treatment here -- `cLitSlow` = `cLitLeafSlow` + `cLitRootFineSlow` +
 `cLitRootCoarse` + `cLitWood`, but `cLitRootFineSlow`'s transfer is calibrated
@@ -102,7 +102,7 @@ function define(params::cCycleBase_CASA, forcing, land, helpers)
 
     @unpack_nt begin
         cEco ⇐ land.pools
-        veg_type_class_map ⇐ land.vegClassMap
+        veg_type_class_map ⇐ land.vegClass
     end
 
     # one flow per declared edge of this approach, resolved against the configured
@@ -116,23 +116,23 @@ function define(params::cCycleBase_CASA, forcing, land, helpers)
     ## sets up structure (topology, zero-initialized arrays) and runs once ever,
     ## never on later parameter realizations, so nothing here may depend on an
     ## actual parameter value -- that happens in precompute instead.
-    C_to_N_cVeg = zero(cEco)
+    CN_ratio_cVeg = zero(cEco)
     c_eco_k_base = zero(cEco)
 
     # Re-keyed once, at define time, onto whichever classification the experiment's
-    # vegClassMap approach resolved into (the canonical vocabulary, or a grouping like
-    # VegTypeCatalog_PlantForm) -- see vegTypeCatalogFor, and
+    # vegClass approach resolved into (the canonical vocabulary, or a grouping like
+    # Classification_PlantForm) -- see getParamsPerVegType, and
     # vegQualityTraits_vegType.jl for the same pattern applied to litter chemistry.
-    rootfine_age_per_vegtype = vegTypeCatalogFor(CVEG_ROOTFINE_AGE_PER_VEGTYPE, typeof(veg_type_class_map))
-    leaf_age_per_vegtype = vegTypeCatalogFor(CVEG_LEAF_AGE_PER_VEGTYPE, typeof(veg_type_class_map))
-    rootcoarse_age_per_vegtype = vegTypeCatalogFor(CVEG_ROOTCOARSE_AGE_PER_VEGTYPE, typeof(veg_type_class_map))
-    wood_age_per_vegtype = vegTypeCatalogFor(CVEG_WOOD_AGE_PER_VEGTYPE, typeof(veg_type_class_map))
+    rootfine_age_per_vegtype = getParamsPerVegType(CVEG_ROOTFINE_AGE_PER_VEGTYPE, typeof(veg_type_class_map))
+    leaf_age_per_vegtype = getParamsPerVegType(CVEG_LEAF_AGE_PER_VEGTYPE, typeof(veg_type_class_map))
+    rootcoarse_age_per_vegtype = getParamsPerVegType(CVEG_ROOTCOARSE_AGE_PER_VEGTYPE, typeof(veg_type_class_map))
+    wood_age_per_vegtype = getParamsPerVegType(CVEG_WOOD_AGE_PER_VEGTYPE, typeof(veg_type_class_map))
 
     c_model = params
 
     ## pack land variables
     @pack_nt begin
-        (C_to_N_cVeg, c_eco_k_base, c_flow_A_vec, c_flow_QP_vec, c_flow_ME_vec) ⇒ land.diagnostics
+        (CN_ratio_cVeg, c_eco_k_base, c_flow_A_vec, c_flow_QP_vec, c_flow_ME_vec) ⇒ land.diagnostics
         (rootfine_age_per_vegtype, leaf_age_per_vegtype, rootcoarse_age_per_vegtype, wood_age_per_vegtype) ⇒ land.diagnostics
         (c_flow_order, c_taker, c_giver, pool_names, flow_edges, c_flow_qp_groups) ⇒ land.cCycleBase
         c_model ⇒ land.models
@@ -146,7 +146,7 @@ function precompute(params::cCycleBase_CASA, forcing, land, helpers)
 
     ## unpack land variables
     @unpack_nt begin
-        C_to_N_cVeg ⇐ land.diagnostics
+        CN_ratio_cVeg ⇐ land.diagnostics
         c_eco_k_base ⇐ land.diagnostics
         c_flow_ME_vec ⇐ land.diagnostics
         (rootfine_age_per_vegtype, leaf_age_per_vegtype, rootcoarse_age_per_vegtype, wood_age_per_vegtype) ⇐ land.diagnostics
@@ -182,42 +182,41 @@ function precompute(params::cCycleBase_CASA, forcing, land, helpers)
     # Bulk tuple-indexed broadcasting assignment is not supported on the land array
     # types used here (land.diagnostics arrays are immutable SVectors); every
     # GSI-family cCycleBase carries that exact note for the same reason, replaced by
-    # applyPoolTable/applyPoolCNTable, their own functions rather than inline loops
+    # getKfromTau/getCNfromParams, their own functions rather than inline loops
     # here so Julia can infer this function's return type concretely (see
-    # applyPoolTable's docstring, poolConfigurations/poolConfigurations.jl).
-    C_to_N_cVeg = applyPoolCNTable(C_to_N_cVeg, CASA_CN_ratio, CN_ratio_scalar, helpers)
+    # getKfromTau's docstring, poolConfigurations/poolConfigurations.jl).
+    CN_ratio_cVeg = getCNfromParams(CN_ratio_cVeg, CASA_CN_ratio, CN_ratio_scalar, helpers)
 
-    # The four vegetation-organ pools' turnover varies by land.states.veg_type_name,
+    # The four vegetation-compartment pools' turnover varies by land.states.veg_type_name,
     # looked up in the tables define re-keyed from ParamsForVegClasses.jl, each
     # scaled by its own bounded multiplier (rootfine_age_scalar/leaf_age_scalar/
     # rootcoarse_age_scalar/wood_age_scalar) through the same
-    # applyPoolTable(scalar_for::NamedTuple) convention every other per-pool
+    # getKfromTau(scalar_for::NamedTuple) convention every other per-pool
     # scalar in this codebase uses: rate = (1/turnover_time) * scalar. Every
     # other CASA pool (litter/microbial/soil) is not vegetation-type dependent
     # and stays on the fixed CASA_TAU table with the single shared k_c_scalar.
-    casa_organ_tau = (;
+    casa_default_tau = (;
         cVegRootFine = getproperty(rootfine_age_per_vegtype, veg_type_name),
         cVegLeaf = getproperty(leaf_age_per_vegtype, veg_type_name),
         cVegRootCoarse = getproperty(rootcoarse_age_per_vegtype, veg_type_name),
         cVegWood = getproperty(wood_age_per_vegtype, veg_type_name),
     )
-    casa_organ_scalars = (;
+    casa_scalars = (;
         cVegRootFine = rootfine_age_scalar, cVegLeaf = leaf_age_scalar,
         cVegRootCoarse = rootcoarse_age_scalar, cVegWood = wood_age_scalar,
     )
-    c_eco_k_base = applyPoolTable(c_eco_k_base, casa_organ_tau, casa_organ_scalars, helpers)
-    c_eco_k_base = applyPoolTable(c_eco_k_base, CASA_TAU, k_c_scalar, helpers)
+    c_eco_k_base = getKfromTau(c_eco_k_base, casa_default_tau, casa_scalars, helpers)
+    c_eco_k_base = getKfromTau(c_eco_k_base, CASA_TAU, k_c_scalar, helpers)
 
     ## pack land variables
     @pack_nt begin
-        (C_to_N_cVeg, c_eco_k_base, c_flow_ME_vec) ⇒ land.diagnostics
+        (CN_ratio_cVeg, c_eco_k_base, c_flow_ME_vec) ⇒ land.diagnostics
         c_remain ⇒ land.states
     end
     return land
 end
 
-poolConfiguration(::Type{<:cCycleBase_CASA}) = CarbonPoolsCASA
-cFlowEdges(::Type{<:cCycleBase_CASA}) = CASA_FLOW_EDGES
+poolConfiguration(::Type{<:cCycleBase_CASA}) = CASA
 purpose(::Type{cCycleBase_CASA}) = "Structure and properties of the carbon cycle components used in the CASA approach."
 
 @doc """
@@ -232,7 +231,7 @@ $(getModelDocString(cCycleBase_CASA))
 
 The 22 giver-to-taker links of this approach are declared as `CASA_FLOW_EDGES` in
 `poolConfigurations/CASA.jl`, and the pools they name as
-`poolStructure(CarbonPoolsCASA)` beside it. `cFlowMatrix(cCycleBase_CASA, pool_names)`
+`poolStructure(CASA)` beside it. `cFlowMatrix(cCycleBase_CASA, pool_names)`
 returns them as a `[taker, giver]` matrix of flow indices, and `plotCarbonFlows`
 draws them, so neither has to be transcribed here to be read.
 
@@ -255,31 +254,31 @@ changes would never be picked up there.
 Likewise, `k_c_scalar`, `CN_ratio_scalar`, and the four `*_age_scalar` fields
 are resolved in `precompute`, following the same pattern
 `cCycleBase_GSI_PlantForm.jl` uses: `define` only allocates the zero-initialized
-`c_eco_k_base`/`C_to_N_cVeg` arrays and the flow topology, and `precompute` writes
+`c_eco_k_base`/`CN_ratio_cVeg` arrays and the flow topology, and `precompute` writes
 their actual values by pool name via `@rep_elem`, since the land arrays involved are
 immutable `SVector`s that bulk `.=`/tuple-indexed assignment cannot mutate in place.
 `CASA_TAU`/`CASA_CN_ratio` (in `poolConfigurations/CASA.jl`) carry the fixed
 per-pool turnover-time and C:N-ratio data this file used to hold inline (as
-`CASA_ANNK`, a rate rather than a time, and a 4-element `p_C_to_N_cVeg` vector read
+`CASA_ANNK`, a rate rather than a time, and a 4-element `p_CN_ratio_cVeg` vector read
 only for `cVeg` pools); only `k_c_scalar`/`CN_ratio_scalar` are optimizable, since
 array-valued struct fields are excluded from optimization entirely.
 
-`CASA_TAU` no longer covers the four vegetation-organ pools (`cVegRootFine`,
+`CASA_TAU` no longer covers the four vegetation-compartment pools (`cVegRootFine`,
 `cVegRootCoarse`, `cVegWood`, `cVegLeaf`): their turnover time now varies by
 `land.states.veg_type_name`. `define` re-keys `CVEG_ROOTFINE_AGE_PER_VEGTYPE`/
 `CVEG_LEAF_AGE_PER_VEGTYPE`/`CVEG_ROOTCOARSE_AGE_PER_VEGTYPE`/
 `CVEG_WOOD_AGE_PER_VEGTYPE` (`ParamsForVegClasses.jl`) onto whichever
-classification the experiment's `vegClassMap` approach resolved into
-(`vegTypeCatalogFor`), and `precompute` looks the current pixel's `veg_type_name` up in
-each, builds a small per-organ table (`casa_organ_tau`) and a matching per-organ
-scalar table (`casa_organ_scalars`, the four `*_age_scalar` fields -- finishing
+classification the experiment's `vegClass` approach resolved into
+(`getParamsPerVegType`), and `precompute` looks the current pixel's `veg_type_name` up in
+each, builds a small per-compartment table (`casa_default_tau`) and a matching per-compartment
+scalar table (`casa_scalars`, the four `*_age_scalar` fields -- finishing
 what versions 1.6/1.7 left these fields declared but unwired for), and applies
-both through `applyPoolTable`'s `scalar_for::NamedTuple` branch -- the same
+both through `getKfromTau`'s `scalar_for::NamedTuple` branch -- the same
 `rate = (1.0/turnover_time) * scalar` convention `k_c_scalar` uses against the
-now-organ-free `CASA_TAU` for every other pool, in a second `applyPoolTable` call.
+now-compartment-free `CASA_TAU` for every other pool, in a second `getKfromTau` call.
 This is the same pattern `vegQualityTraits_vegType.jl` uses for litter chemistry,
 and the same runtime lookup the GSI-family `cCycleBase` approaches now use for
-their own vegetation-organ pools.
+their own vegetation-compartment pools.
 
 `k_c_scalar` and the four `*_age_scalar` fields declare `"year"` as their
 timescale, not `CASA_TAU` or the per-vegtype tables themselves (plain `const`s,
@@ -305,13 +304,13 @@ something today's centralization introduced, just never exercised end to end (se
  - 1.1 on 04.09.2026 [skoirala]: c_flow_ME_vec allocated here; dead c_flow_MEQP_array parameter and the transcribed c_flow_A_array removed
  - 1.2 on 09.09.2026 [skoirala]: ingested cMicrobialEfficiency_CASA's 8 static constants as parameters here, applied to c_flow_ME_vec in define; cMicrobialEfficiency_CASA and the three per-group cMicrobialEfficiencyc{Lit,Mic,Soil}_CASA factors removed, since their static values duplicated these
  - 1.3 on 10.09.2026 [skoirala]: the four *_age_per_PFT fields (still unwired into precompute) keyed by canonical PFT name (PFTCatalog_SINDBAD_PFT) instead of a positional index; became fixed named lookups (CVEG_ROOTFINE_LEAF_AGE_PER_PFT, CVEG_ROOTCOARSE_WOOD_AGE_PER_PFT) plus bounded scalar multipliers, since array-valued struct fields cannot be optimized
- - 1.4 on 10.09.2026 [skoirala]: this file had never actually been run end to end -- ported it onto the working cCycleBase_GSI_PlantForm.jl pattern to fix what surfaced: `annk` became the fixed CASA_ANNK lookup plus an optimizable annk_scalar, matching the *_age_per_PFT treatment above; the ME-table and per-pool-turnover value computation moved from define into precompute, since define runs once ever and cannot pick up a parameter value the optimizer later changes; C_to_N_cVeg/c_eco_k_base's bulk `.=`/tuple-indexed assignments were replaced with @rep_elem loops, since land.diagnostics arrays are immutable SVectors; and c_eco_k_base, previously never allocated, is now defined and packed like every other diagnostic here
+ - 1.4 on 10.09.2026 [skoirala]: this file had never actually been run end to end -- ported it onto the working cCycleBase_GSI_PlantForm.jl pattern to fix what surfaced: `annk` became the fixed CASA_ANNK lookup plus an optimizable annk_scalar, matching the *_age_per_PFT treatment above; the ME-table and per-pool-turnover value computation moved from define into precompute, since define runs once ever and cannot pick up a parameter value the optimizer later changes; CN_ratio_cVeg/c_eco_k_base's bulk `.=`/tuple-indexed assignments were replaced with @rep_elem loops, since land.diagnostics arrays are immutable SVectors; and c_eco_k_base, previously never allocated, is now defined and packed like every other diagnostic here
  - 1.5 on 10.09.2026 [skoirala]: meCASAFlowsLitter/meCASAFlowsSoil moved here from cMicrobialEfficiencycLit/cMicrobialEfficiencycSoil, since this is their only caller and a plain helper function has no reason to live in a different process's namespace than the one approach that calls it
  - 1.6 on 10.09.2026 [skoirala]: CVEG_ROOTFINE_LEAF_AGE_PER_PFT and CVEG_ROOTCOARSE_WOOD_AGE_PER_PFT moved to the consolidated vegTypeParamCatalog.jl as CVEG_ROOTFINE_LEAF_AGE_PER_VEGTYPE/CVEG_ROOTCOARSE_WOOD_AGE_PER_VEGTYPE, alongside every other per-vegetation-type fixed table; the four *_age_scalar fields stay here since they are this approach's own calibration parameters, still unwired into precompute
  - 1.7 on 11.09.2026 [skoirala]: CASA_ANNK moved to poolConfigurations/CASA.jl as
    CASA_TAU, re-expressed as turnover time (years) instead of rate, renamed
    annk_scalar to k_c_scalar to match the same convention now used in GSI; the
-   4-element p_C_to_N_cVeg vector (read only for cVeg pools) replaced by the
+   4-element p_CN_ratio_cVeg vector (read only for cVeg pools) replaced by the
    full-pool-coverage CASA_CN_ratio table (poolConfigurations/CASA.jl, 0.0 for every
    non-vegetation pool) plus a single CN_ratio_scalar; both turnover and C:N
    now applied via a generic per-pool-name loop instead of one hand-written loop per
@@ -324,7 +323,7 @@ something today's centralization introduced, just never exercised end to end (se
    `cVegRootCoarse_age_scalar`/`cVegWood_age_scalar`/`cVegLeaf_age_scalar`
    renamed to `rootfine_age_scalar`/`rootcoarse_age_scalar`/`wood_age_scalar`/
    `leaf_age_scalar`, dropping the redundant `cVeg` prefix to match the lowercase
-   organ-name style `k_c_root_scalar` etc. already use.
+   compartment-name style `k_c_root_scalar` etc. already use.
  - 1.8 on 11.09.2026 [skoirala]: fixed a bug that predates this file's ever
    having run end to end (see 1.4): `k_c_scalar` (and `annk_scalar` before it)
    had `""` (no) declared timescale, and neither did `CASA_ANNK`/`CASA_TAU` (a
@@ -342,18 +341,18 @@ something today's centralization introduced, just never exercised end to end (se
  - 1.9 on 11.09.2026 [skoirala]: `rootfine_age_scalar`/`rootcoarse_age_scalar`/
    `wood_age_scalar`/`leaf_age_scalar` wired into `precompute` at last (dead
    since 1.6). `CASA_TAU` (`poolConfigurations/CASA.jl`) no longer carries the
-   four vegetation-organ pools; `define` re-keys
+   four vegetation-compartment pools; `define` re-keys
    `CVEG_ROOTFINE_AGE_PER_VEGTYPE`/`CVEG_LEAF_AGE_PER_VEGTYPE`/
    `CVEG_ROOTCOARSE_AGE_PER_VEGTYPE`/`CVEG_WOOD_AGE_PER_VEGTYPE`
    (`vegTypeParamCatalog.jl`, split from the former combined
    `CVEG_ROOTFINE_LEAF_AGE_PER_VEGTYPE`/`CVEG_ROOTCOARSE_WOOD_AGE_PER_VEGTYPE`)
-   onto the experiment's active `vegClassMap` classification via
-   `vegTypeCatalogFor`, and `precompute` looks the pixel's `land.states.veg_type_name`
-   up in each, so organ turnover now varies by vegetation type instead of being
+   onto the experiment's active `vegClass` classification via
+   `getParamsPerVegType`, and `precompute` looks the pixel's `land.states.veg_type_name`
+   up in each, so compartment turnover now varies by vegetation type instead of being
    one fixed value for every type. The four `*_age_scalar` fields now declare
    `"year"` as their timescale (previously `""`), for the same reason `k_c_scalar`
    needed it fixed in 1.8. The frozen pre-change behavior, with fixed
-   organ-turnover values, is preserved unchanged as `cCycleBase_CASA_Legacy`.
+   compartment-turnover values, is preserved unchanged as `cCycleBase_CASA_Legacy`.
 
 *Created by*
  - ncarvalhais

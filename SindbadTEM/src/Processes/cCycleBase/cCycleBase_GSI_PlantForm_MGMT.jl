@@ -36,10 +36,10 @@ function define(params::cCycleBase_GSI_PlantForm_MGMT, forcing, land, helpers)
     @unpack_cCycleBase_GSI_PlantForm_MGMT params
     @unpack_nt begin
         cEco ⇐ land.pools
-        veg_type_class_map ⇐ land.vegClassMap
+        veg_type_class_map ⇐ land.vegClass
     end
     ## Instantiate variables
-    C_to_N_cVeg = zero(cEco) #sujan
+    CN_ratio_cVeg = zero(cEco) #sujan
     c_eco_k_base = zero(cEco)
     c_eco_τ = zero(cEco)
 
@@ -51,21 +51,21 @@ function define(params::cCycleBase_GSI_PlantForm_MGMT, forcing, land, helpers)
         c_flow_QP_vec, c_flow_ME_vec) = cFlowStructure(params, cEco, helpers)
 
     # Re-keyed once, at define time, onto whichever classification the experiment's
-    # vegClassMap approach resolved into (the canonical vocabulary, or a grouping like
-    # VegTypeCatalog_PlantForm) -- see vegTypeCatalogFor, and
+    # vegClass approach resolved into (the canonical vocabulary, or a grouping like
+    # Classification_PlantForm) -- see getParamsPerVegType, and
     # vegQualityTraits_vegType.jl for the same pattern applied to litter chemistry.
     # No coarse-root table here: GSI has a single, undifferentiated cVegRoot pool
     # (no cVegRootCoarse), unlike CASA.
-    rootfine_age_per_vegtype = vegTypeCatalogFor(CVEG_ROOTFINE_AGE_PER_VEGTYPE, typeof(veg_type_class_map))
-    leaf_age_per_vegtype = vegTypeCatalogFor(CVEG_LEAF_AGE_PER_VEGTYPE, typeof(veg_type_class_map))
-    wood_age_per_vegtype = vegTypeCatalogFor(CVEG_WOOD_AGE_PER_VEGTYPE, typeof(veg_type_class_map))
+    rootfine_age_per_vegtype = getParamsPerVegType(CVEG_ROOTFINE_AGE_PER_VEGTYPE, typeof(veg_type_class_map))
+    leaf_age_per_vegtype = getParamsPerVegType(CVEG_LEAF_AGE_PER_VEGTYPE, typeof(veg_type_class_map))
+    wood_age_per_vegtype = getParamsPerVegType(CVEG_WOOD_AGE_PER_VEGTYPE, typeof(veg_type_class_map))
 
     c_model = params
 
     ## pack land variables
     @pack_nt begin
         (c_flow_order, c_taker, c_giver, pool_names, flow_edges, c_flow_qp_groups) ⇒ land.cCycleBase
-        (C_to_N_cVeg, c_eco_τ, c_eco_k_base, c_flow_A_vec, c_flow_QP_vec, c_flow_ME_vec) ⇒ land.diagnostics
+        (CN_ratio_cVeg, c_eco_τ, c_eco_k_base, c_flow_A_vec, c_flow_QP_vec, c_flow_ME_vec) ⇒ land.diagnostics
         (rootfine_age_per_vegtype, leaf_age_per_vegtype, wood_age_per_vegtype) ⇒ land.diagnostics
         c_model ⇒ land.models
     end
@@ -75,17 +75,17 @@ end
 function precompute(params::cCycleBase_GSI_PlantForm_MGMT, forcing, land, helpers)
     @unpack_cCycleBase_GSI_PlantForm_MGMT params
     @unpack_nt begin
-        (C_to_N_cVeg, c_eco_k_base, c_eco_τ) ⇐ land.diagnostics
+        (CN_ratio_cVeg, c_eco_k_base, c_eco_τ) ⇐ land.diagnostics
         (rootfine_age_per_vegtype, leaf_age_per_vegtype, wood_age_per_vegtype) ⇐ land.diagnostics
         veg_type_name ⇐ land.states
     end
 
-    # Select this pixel's vegetation-organ turnover from the tables define
-    # re-keyed onto the active vegClassMap classification, by name rather than a
+    # Select this pixel's vegetation-compartment turnover from the tables define
+    # re-keyed onto the active vegClass classification, by name rather than a
     # hardcoded per-group branch. cProductsWood/cProductsCrop are appended fixed
     # (not vegetation-type dependent, see MGMT_PRODUCTS_TAU's docstring) so they
     # still flow through the same generic loop as every other pool here.
-    c_τ_organs = (;
+    c_τ_default = (;
         cVegRoot = getproperty(rootfine_age_per_vegtype, veg_type_name),
         cVegWood = getproperty(wood_age_per_vegtype, veg_type_name),
         cVegLeaf = getproperty(leaf_age_per_vegtype, veg_type_name),
@@ -104,11 +104,11 @@ function precompute(params::cCycleBase_GSI_PlantForm_MGMT, forcing, land, helper
     )
     # c_eco_τ is written by pool name rather than by cEco position, so a structure
     # that orders or omits pools differently still gets its turnovers in the right
-    # slots. Both applyPoolTable/applyPoolCNTable calls are their own functions, not
+    # slots. Both getKfromTau/getCNfromParams calls are their own functions, not
     # inline loops here, so Julia can infer this function's return type concretely
-    # (see applyPoolTable's docstring, poolConfigurations/poolConfigurations.jl).
-    c_eco_τ = applyPoolTable(c_eco_τ, c_τ_organs, k_c_scalars, helpers)
-    C_to_N_cVeg = applyPoolCNTable(C_to_N_cVeg, GSI_CN_ratio, CN_ratio_scalar, helpers)
+    # (see getKfromTau's docstring, poolConfigurations/poolConfigurations.jl).
+    c_eco_τ = getKfromTau(c_eco_τ, c_τ_default, k_c_scalars, helpers)
+    CN_ratio_cVeg = getCNfromParams(CN_ratio_cVeg, GSI_CN_ratio, CN_ratio_scalar, helpers)
     for i ∈ eachindex(c_eco_k_base)
         tmp = c_eco_τ[i]
         @rep_elem tmp ⇒ (c_eco_k_base, i)
@@ -116,15 +116,14 @@ function precompute(params::cCycleBase_GSI_PlantForm_MGMT, forcing, land, helper
 
     ## pack land variables
     @pack_nt begin
-        (C_to_N_cVeg, c_eco_τ, c_eco_k_base, ηA, ηH) ⇒ land.diagnostics
+        (CN_ratio_cVeg, c_eco_τ, c_eco_k_base, ηA, ηH) ⇒ land.diagnostics
         c_remain ⇒ land.states
         k_c_scalars ⇒ land.cCycleBase
     end
     return land
 end
 
-poolConfiguration(::Type{<:cCycleBase_GSI_PlantForm_MGMT}) = CarbonPoolsMGMT
-cFlowEdges(::Type{<:cCycleBase_GSI_PlantForm_MGMT}) = GSI_FLOW_EDGES
+poolConfiguration(::Type{<:cCycleBase_GSI_PlantForm_MGMT}) = MGMT
 purpose(::Type{cCycleBase_GSI_PlantForm_MGMT}) = "Same as GSI, additionally allowing for scaling of turnover parameters based on plant forms."
 
 @doc """
@@ -135,12 +134,12 @@ $(getModelDocString(cCycleBase_GSI_PlantForm_MGMT))
 
 # Extended help
 
-Reads `land.states.veg_type_name` and looks its vegetation-organ turnover up in tables
-`define` re-keyed (via `vegTypeCatalogFor`) from `ParamsForVegClasses.jl`'s
+Reads `land.states.veg_type_name` and looks its vegetation-compartment turnover up in tables
+`define` re-keyed (via `getParamsPerVegType`) from `ParamsForVegClasses.jl`'s
 `CVEG_ROOTFINE_AGE_PER_VEGTYPE`/`CVEG_WOOD_AGE_PER_VEGTYPE`/
 `CVEG_LEAF_AGE_PER_VEGTYPE` onto whichever classification the experiment's
-`vegClassMap` approach resolved into -- any classification works, not just
-`VegTypeCatalog_PlantForm`, exactly like `vegQualityTraits_vegType.jl`. Turnover
+`vegClass` approach resolved into -- any classification works, not just
+`Classification_PlantForm`, exactly like `vegQualityTraits_vegType.jl`. Turnover
 is `k = (1.0 / turnover_time) * scalar`, `scalar` being one of the eight
 `k_c_*_scalar` fields (shared across pools that don't get an individual one:
 `k_c_litter_scalar` for both litter pools, `k_c_soil_scalar` for both soil
@@ -177,7 +176,7 @@ exist as struct fields at all.
 
 **Calibration-space note**: before this table-driven design, `c_τ_tree`/
 `c_τ_shrub`/`c_τ_herb` were themselves bounded, independently-optimizable fields
-(12 numbers: 4 organs × 3 forms), on top of which the `*_scalar` fields applied a
+(12 numbers: 4 C-compartments × 3 forms), on top of which the `*_scalar` fields applied a
 further, generic adjustment, and `c_τ_cProductsWood`/`c_τ_cProductsCrop` were
 independently-bounded rate fields in their own right. The per-vegtype tables'
 entries (and `MGMT_PRODUCTS_TAU`'s) are fixed data, not parameters, so only the
@@ -197,7 +196,7 @@ is preserved unchanged as `cCycleBase_GSI_PlantForm_MGMT_Legacy`.
    processes into `vegTypes`; branch structure and field names unchanged
  - 1.3 on 11.09.2026 [skoirala]: `c_τ_tree`/`c_τ_shrub`/`c_τ_herb`,
    `c_τ_LitFast`/`c_τ_LitSlow`/`c_τ_SoilSlow`/`c_τ_SoilOld`, and the 4-element
-   `p_C_to_N_cVeg` vector removed as struct fields; turnover and C:N now read
+   `p_CN_ratio_cVeg` vector removed as struct fields; turnover and C:N now read
    from the centralized `GSI_TAU_PLANTFORM`/`GSI_CN_ratio` tables
    (`poolConfigurations/GSI.jl`) via `GSI_TAU_PLANTFORM[veg_type_name]` and a generic
    per-pool-name loop, replacing the hardcoded
@@ -238,12 +237,12 @@ is preserved unchanged as `cCycleBase_GSI_PlantForm_MGMT_Legacy`.
  - 1.6 on 11.09.2026 [skoirala]: `MGMT_TAU[veg_type_name]` replaced by a runtime
    lookup into `CVEG_ROOTFINE_AGE_PER_VEGTYPE`/`CVEG_WOOD_AGE_PER_VEGTYPE`/
    `CVEG_LEAF_AGE_PER_VEGTYPE` (`vegTypeParamCatalog.jl`), re-keyed in `define`
-   onto the active `vegClassMap` classification via `vegTypeCatalogFor` and looked
+   onto the active `vegClass` classification via `getParamsPerVegType` and looked
    up by `veg_type_name` in `precompute`, with `cProductsWood`/`cProductsCrop`
    appended from the new fixed `MGMT_PRODUCTS_TAU` (replacing `MGMT_TAU`,
    removed, `poolConfigurations/MGMT.jl`) since those two do not vary by
    vegetation type. Same pattern `vegQualityTraits_vegType.jl` uses, and no
-   longer tied to `VegTypeCatalog_PlantForm` specifically.
+   longer tied to `Classification_PlantForm` specifically.
 
 *Created by*
  - ncarvalhais

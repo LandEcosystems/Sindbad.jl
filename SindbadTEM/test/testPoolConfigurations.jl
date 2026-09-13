@@ -54,9 +54,9 @@
     end
 
     @testset "aliases are declared only where nesting cannot express them" begin
-        @test isempty(poolAliases(P.CarbonPoolsGSI))
-        @test isempty(poolAliases(P.CarbonPoolsMGMT))
-        @test propertynames(poolAliases(P.CarbonPoolsCASA)) == (:cLitFast, :cLitSlow)
+        @test isempty(poolAliases(P.GSI))
+        @test isempty(poolAliases(P.MGMT))
+        @test propertynames(poolAliases(P.CASA)) == (:cLitFast, :cLitSlow)
     end
 
     # Enumerated rather than listed, so a configuration added as a new file in
@@ -66,7 +66,7 @@
     configurations = SindbadTEM.subtypes(P.CarbonPoolConfiguration)
 
     @testset "every configuration is discoverable and declares a structure" begin
-        for known in (P.CarbonPoolsCASA, P.CarbonPoolsGSI, P.CarbonPoolsMGMT)
+        for known in (P.CASA, P.GSI, P.MGMT)
             @test known ∈ configurations
         end
         for configuration in configurations
@@ -305,7 +305,7 @@ end
         return names
     end
 
-    pool_names = Tuple(leafNames(poolStructure(P.CarbonPoolsCASA).components))
+    pool_names = Tuple(leafNames(poolStructure(P.CASA).components))
     n_pools = length(pool_names)
     flow_matrix = cFlowMatrix(P.cCycleBase_CASA, pool_names)
     n_flows = maximum(flow_matrix)
@@ -322,7 +322,7 @@ end
     # which match by giver/taker pool-index membership instead).
     edge_name(flow) = Symbol(String(pool_names[givers[flow]]) * "_to_" * String(pool_names[takers[flow]]))
 
-    # zix, both per-leaf (exact name, needed by applyPoolTable/applyPoolCNTable for
+    # zix, both per-leaf (exact name, needed by getKfromTau/getCNfromParams for
     # every CASA_TAU/CASA_CN_ratio entry) and the three branch groups
     # meCASAFlowsLitter/meCASAFlowsSoil match against (cLitLeaf, cLitRootFine, cSoil)
     zixOf(prefix) = Tuple(findall(nm -> startswith(String(nm), prefix), pool_names))
@@ -332,7 +332,7 @@ end
                             zeros = (; cEco = zeros(n_pools)), ones = (; cEco = ones(n_pools))))
     land = (; pools = (; cEco = zeros(n_pools)), diagnostics = (;), cCycleBase = (;),
               models = (;), states = (; veg_type_name = :Evergreen_Needleleaf_Forests),
-              vegClassMap = (; veg_type_class_map = P.VegTypeCatalog_SINDBAD()))
+              vegClass = (; veg_type_class_map = P.Classification_SINDBAD()))
 
     approach_instance = P.cCycleBase_CASA()
     land2 = P.define(approach_instance, nothing, land, helpers)

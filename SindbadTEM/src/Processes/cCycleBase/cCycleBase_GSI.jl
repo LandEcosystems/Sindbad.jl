@@ -19,10 +19,10 @@ function define(params::cCycleBase_GSI, forcing, land, helpers)
     @unpack_cCycleBase_GSI params
     @unpack_nt begin
         cEco ⇐ land.pools
-        veg_type_class_map ⇐ land.vegClassMap
+        veg_type_class_map ⇐ land.vegClass
     end
     ## Instantiate variables
-    C_to_N_cVeg = zero(cEco) #sujan
+    CN_ratio_cVeg = zero(cEco) #sujan
     c_eco_k_base = zero(cEco)
     c_eco_τ = zero(cEco)
 
@@ -34,21 +34,21 @@ function define(params::cCycleBase_GSI, forcing, land, helpers)
         c_flow_QP_vec, c_flow_ME_vec) = cFlowStructure(params, cEco, helpers)
 
     # Re-keyed once, at define time, onto whichever classification the experiment's
-    # vegClassMap approach resolved into (the canonical vocabulary, or a grouping like
-    # VegTypeCatalog_PlantForm) -- see vegTypeCatalogFor, and
+    # vegClass approach resolved into (the canonical vocabulary, or a grouping like
+    # Classification_PlantForm) -- see getParamsPerVegType, and
     # vegQualityTraits_vegType.jl for the same pattern applied to litter chemistry.
     # No coarse-root table here: GSI has a single, undifferentiated cVegRoot pool
     # (no cVegRootCoarse), unlike CASA.
-    rootfine_age_per_vegtype = vegTypeCatalogFor(CVEG_ROOTFINE_AGE_PER_VEGTYPE, typeof(veg_type_class_map))
-    leaf_age_per_vegtype = vegTypeCatalogFor(CVEG_LEAF_AGE_PER_VEGTYPE, typeof(veg_type_class_map))
-    wood_age_per_vegtype = vegTypeCatalogFor(CVEG_WOOD_AGE_PER_VEGTYPE, typeof(veg_type_class_map))
+    rootfine_age_per_vegtype = getParamsPerVegType(CVEG_ROOTFINE_AGE_PER_VEGTYPE, typeof(veg_type_class_map))
+    leaf_age_per_vegtype = getParamsPerVegType(CVEG_LEAF_AGE_PER_VEGTYPE, typeof(veg_type_class_map))
+    wood_age_per_vegtype = getParamsPerVegType(CVEG_WOOD_AGE_PER_VEGTYPE, typeof(veg_type_class_map))
 
     c_model = params
 
     ## pack land variables
     @pack_nt begin
         (c_flow_order, c_taker, c_giver, pool_names, flow_edges, c_flow_qp_groups) ⇒ land.cCycleBase
-        (C_to_N_cVeg, c_eco_τ, c_eco_k_base, c_flow_A_vec, c_flow_QP_vec, c_flow_ME_vec) ⇒ land.diagnostics
+        (CN_ratio_cVeg, c_eco_τ, c_eco_k_base, c_flow_A_vec, c_flow_QP_vec, c_flow_ME_vec) ⇒ land.diagnostics
         (rootfine_age_per_vegtype, leaf_age_per_vegtype, wood_age_per_vegtype) ⇒ land.diagnostics
         c_model ⇒ land.models
     end
@@ -58,7 +58,7 @@ end
 function precompute(params::cCycleBase_GSI, forcing, land, helpers)
     @unpack_cCycleBase_GSI params
     @unpack_nt begin
-        (C_to_N_cVeg, c_eco_k_base, c_eco_τ) ⇐ land.diagnostics
+        (CN_ratio_cVeg, c_eco_k_base, c_eco_τ) ⇐ land.diagnostics
         (rootfine_age_per_vegtype, leaf_age_per_vegtype, wood_age_per_vegtype) ⇐ land.diagnostics
         veg_type_name ⇐ land.states
     end
@@ -69,13 +69,13 @@ function precompute(params::cCycleBase_GSI, forcing, land, helpers)
     # litter/soil/reserve pools stay fixed, from GSI_TAU_DEFAULT, since they are
     # not vegetation-type dependent. c_eco_τ is written by pool name rather than
     # by cEco position, so a structure that orders or omits pools differently
-    # still gets its turnovers in the right slots. Both applyPoolTable/
-    # applyPoolCNTable calls are generic over whatever pools the table covers,
+    # still gets its turnovers in the right slots. Both getKfromTau/
+    # getCNfromParams calls are generic over whatever pools the table covers,
     # rather than one hand-written loop per pool -- and live as their own
     # functions, not inline loops here, so Julia can infer this function's return
-    # type concretely (see applyPoolTable's docstring,
+    # type concretely (see getKfromTau's docstring,
     # poolConfigurations/poolConfigurations.jl).
-    c_τ_organs = (;
+    c_τ_default = (;
         cVegRoot = getproperty(rootfine_age_per_vegtype, veg_type_name),
         cVegWood = getproperty(wood_age_per_vegtype, veg_type_name),
         cVegLeaf = getproperty(leaf_age_per_vegtype, veg_type_name),
@@ -89,8 +89,8 @@ function precompute(params::cCycleBase_GSI, forcing, land, helpers)
         cLitFast = k_c_litter_scalar, cLitSlow = k_c_litter_scalar,
         cSoilSlow = k_c_soil_scalar, cSoilOld = k_c_soil_scalar,
     )
-    c_eco_τ = applyPoolTable(c_eco_τ, c_τ_organs, k_c_scalars, helpers)
-    C_to_N_cVeg = applyPoolCNTable(C_to_N_cVeg, GSI_CN_ratio, CN_ratio_scalar, helpers)
+    c_eco_τ = getKfromTau(c_eco_τ, c_τ_default, k_c_scalars, helpers)
+    CN_ratio_cVeg = getCNfromParams(CN_ratio_cVeg, GSI_CN_ratio, CN_ratio_scalar, helpers)
     for i ∈ eachindex(c_eco_k_base)
         tmp = c_eco_τ[i]
         @rep_elem tmp ⇒ (c_eco_k_base, i)
@@ -98,15 +98,14 @@ function precompute(params::cCycleBase_GSI, forcing, land, helpers)
 
     ## pack land variables
     @pack_nt begin
-        (C_to_N_cVeg, c_eco_τ, c_eco_k_base, ηA, ηH) ⇒ land.diagnostics
+        (CN_ratio_cVeg, c_eco_τ, c_eco_k_base, ηA, ηH) ⇒ land.diagnostics
         c_remain ⇒ land.states
         k_c_scalars ⇒ land.cCycleBase
     end
     return land
 end
 
-poolConfiguration(::Type{<:cCycleBase_GSI}) = CarbonPoolsGSI
-cFlowEdges(::Type{<:cCycleBase_GSI}) = GSI_FLOW_EDGES
+poolConfiguration(::Type{<:cCycleBase_GSI}) = GSI
 purpose(::Type{cCycleBase_GSI}) = "Structure and properties of the carbon cycle components as needed for a dynamic phenology-based carbon cycle in the GSI approach."
 
 @doc """
@@ -117,15 +116,15 @@ $(getModelDocString(cCycleBase_GSI))
 
 # Extended help
 
-Turnover for the four vegetation organs (root, wood, leaf, reserve) and the four
+Turnover for the four vegetation C-compartments (root, wood, leaf, reserve) and the four
 litter/soil pools is `k = (1.0 / turnover_time) * scalar`, where `scalar` is one of
 the six `k_c_*_scalar` fields, shared across pools that don't get their own
 individual scalar (`k_c_litter_scalar` for both litter pools, `k_c_soil_scalar` for
 both soil pools). `turnover_time` for `cVegRoot`/`cVegWood`/`cVegLeaf` now varies by
 `land.states.veg_type_name`: `define` re-keys `CVEG_ROOTFINE_AGE_PER_VEGTYPE`/
 `CVEG_WOOD_AGE_PER_VEGTYPE`/`CVEG_LEAF_AGE_PER_VEGTYPE` (`ParamsForVegClasses.jl`)
-onto whichever classification the experiment's `vegClassMap` approach resolved into
-(`vegTypeCatalogFor`), and `precompute` looks the current pixel's `veg_type_name` up in
+onto whichever classification the experiment's `vegClass` approach resolved into
+(`getParamsPerVegType`), and `precompute` looks the current pixel's `veg_type_name` up in
 each -- the same pattern `vegQualityTraits_vegType.jl` uses for litter chemistry.
 `cVegReserve` stays `TAU_DORMANT` (not vegetation-type dependent), and
 `cLitFast`/`cLitSlow`/`cSoilSlow`/`cSoilOld` stay fixed at `GSI_TAU_DEFAULT`'s
@@ -154,7 +153,7 @@ fields (`c_τ_Root` etc., see `cCycleBase_GSI_Legacy`) used to do.
  - 1.0 on 28.02.2020 [skoirala | @dr-ko]
  - 1.1 on 04.09.2026 [skoirala]: c_flow_ME_vec allocated here alongside c_flow_A_vec and c_flow_QP_vec
  - 1.2 on 11.09.2026 [skoirala]: the 8 independently-bounded turnover fields and
-   the 4-element `p_C_to_N_cVeg` vector replaced by 6 shared `k_c_*_scalar` fields
+   the 4-element `p_CN_ratio_cVeg` vector replaced by 6 shared `k_c_*_scalar` fields
    and `CN_ratio_scalar`, applied against the centralized `GSI_TAU_DEFAULT`/
    `GSI_CN_ratio` tables (`poolConfigurations/GSI.jl`) via a generic per-pool-name
    loop; matches the field shape `cCycleBase_GSI_PlantForm` already had. Default
@@ -183,9 +182,9 @@ fields (`c_τ_Root` etc., see `cCycleBase_GSI_Legacy`) used to do.
    longer reads the fixed `GSI_TAU_DEFAULT` values -- `define` re-keys
    `CVEG_ROOTFINE_AGE_PER_VEGTYPE`/`CVEG_WOOD_AGE_PER_VEGTYPE`/
    `CVEG_LEAF_AGE_PER_VEGTYPE` (`vegTypeParamCatalog.jl`) onto the experiment's
-   active `vegClassMap` classification and `precompute` looks the pixel's
+   active `vegClass` classification and `precompute` looks the pixel's
    `land.states.veg_type_name` up in each, so this approach -- previously documented
-   as having "no plant-form distinction" -- now varies vegetation-organ
+   as having "no plant-form distinction" -- now varies vegetation-compartment
    turnover by vegetation type like `cCycleBase_GSI_PlantForm` did, just at
    finer granularity. `cVegReserve`/litter/soil turnover is unchanged, still
    fixed from `GSI_TAU_DEFAULT`.

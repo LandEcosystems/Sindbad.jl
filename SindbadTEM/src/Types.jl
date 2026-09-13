@@ -51,7 +51,7 @@ module TEMTypes
     declares none.
 
     An approach declares one beside its `purpose`, e.g.
-    `poolConfiguration(::Type{cCycleBase_GSI}) = CarbonPoolsGSI`. The returned configuration is
+    `poolConfiguration(::Type{cCycleBase_GSI}) = GSI`. The returned configuration is
     a type, passed back to `poolStructure` and `poolAliases` to obtain the pool structure and
     the alias map.
     """
@@ -78,7 +78,7 @@ module TEMTypes
     `alias => (pool names it spans)`.
 
     Only for groupings that genuinely cut across the hierarchy. CASA needs two, because its
-    litter is nested by organ while the fast/slow axis is quality; GSI and MGMT need none.
+    litter is nested by compartment while the fast/slow axis is quality; GSI and MGMT need none.
     """
     function poolAliases end
     poolAliases(configuration) = (;)
@@ -86,9 +86,9 @@ module TEMTypes
     # ------------------------- vegetation-type catalog traits ------------------------------------------------
     # Declared here for the same reason `poolConfiguration` is: `Sindbad.Setup` reaches them
     # unqualified through `using SindbadTEM`, while the catalog types themselves stay inside
-    # Processes. Only `vegClassMap` approaches declare these two traits -- `vegDynamics`
+    # Processes. Only `vegClass` approaches declare these two traits -- `vegDynamics`
     # approaches obtain a raw code (from forcing or a constant) without ever naming a
-    # catalog. A `vegClassMap` approach never names a catalog directly in its `precompute`;
+    # catalog. A `vegClass` approach never names a catalog directly in its `precompute`;
     # it gets both back from these two traits and hands them to `resolveVegType`.
     export vegTypeCatalog
     export vegTypeClassification
@@ -96,11 +96,11 @@ module TEMTypes
     """
         vegTypeCatalog(T)
 
-    Return the source catalog a `vegClassMap` approach interprets `land.states.veg_type`
+    Return the source catalog a `vegClass` approach interprets `land.states.veg_type`
     (set upstream by `vegDynamics`) against, or `nothing` if it declares none.
 
     An approach declares one beside its `purpose`, e.g.
-    `vegTypeCatalog(::Type{vegClassMap_MODIS_IGBP}) = VegTypeCatalog_MODIS_IGBP`. The
+    `vegTypeCatalog(::Type{vegClass_MODIS_IGBP}) = Classification_MODIS_IGBP`. The
     returned catalog is a type, passed to `resolveVegType` to resolve a raw code to a
     canonical name.
     """
@@ -111,15 +111,15 @@ module TEMTypes
     """
         vegTypeClassification(T)
 
-    Return the target classification a `vegClassMap` approach crosswalks its resolved
+    Return the target classification a `vegClass` approach crosswalks its resolved
     canonical name into, or `nothing` if it declares none, in which case
-    `resolvedVegTypeClassification` (in `vegClassMap.jl`) resolves that to the canonical
-    vocabulary itself, `VegTypeCatalog_SINDBAD` -- i.e. no grouping.
+    `resolvedVegClassification` (in `vegClass.jl`) resolves that to the canonical
+    vocabulary itself, `Classification_SINDBAD` -- i.e. no grouping.
 
     An approach declares one beside its `purpose`, e.g.
-    `vegTypeClassification(::Type{vegClassMap_MODIS_IGBP_PlantForm}) =
-    VegTypeCatalog_PlantForm`. The returned classification is a type, passed to
-    `resolveVegType`/`vegTypeClassOf` to resolve a canonical name into that
+    `vegTypeClassification(::Type{vegClass_MODIS_IGBP_PlantForm}) =
+    Classification_PlantForm`. The returned classification is a type, passed to
+    `resolveVegType`/`resolveVegClassification` to resolve a canonical name into that
     classification's own class name.
     """
     function vegTypeClassification end

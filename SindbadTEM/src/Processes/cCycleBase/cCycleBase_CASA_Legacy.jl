@@ -6,7 +6,7 @@ export cCycleBase_CASA_Legacy
 Turnover rate of each CASA ecosystem carbon pool, per pool name, exactly as
 originally transcribed for `cCycleBase_CASA` (values `[1, 0.03, 0.03, 1, 14.8,
 3.9, 18.5, 4.8, 0.2424, 0.2424, 6, 7.3, 0.2, 0.0045]`, in the pool order
-`poolStructure(CarbonPoolsCASA)` declares). Fixed data, not a parameter --
+`poolStructure(CASA)` declares). Fixed data, not a parameter --
 calibration happens through `annk_scalar` in `cCycleBase_CASA_Legacy` instead, since
 array-valued struct fields cannot be optimized.
 
@@ -39,7 +39,7 @@ const CASA_ANNK_Legacy = (;
     cVegRootCoarse_age_scalar::T3 = 1.0 | (0.25, 4.0) | "scalar for the per-PFT mean age of coarse roots" | "-" | ""
     cVegWood_age_scalar::T4 = 1.0 | (0.25, 4.0) | "scalar for the per-PFT mean age of wood" | "-" | ""
     cVegLeaf_age_scalar::T5 = 1.0 | (0.25, 4.0) | "scalar for the per-PFT mean age of leaves" | "-" | ""
-    p_C_to_N_cVeg::T6 = Float64.([25.0, 260.0, 260.0, 25.0]) | (-Inf, Inf) | "carbon to nitrogen ratio in vegetation pools" | "gC/gN" | ""
+    p_CN_ratio_cVeg::T6 = Float64.([25.0, 260.0, 260.0, 25.0]) | (-Inf, Inf) | "carbon to nitrogen ratio in vegetation pools" | "gC/gN" | ""
     eff_cLit_to_cMicSurf::T7 = 0.4 | (0.0, 1.0) | "Microbial carbon-transfer efficiency of litter decomposition into the surface microbial pool." | "fraction" | ""
     eff_cLitRootFine_to_cMicSoil::T8 = 0.45 | (0.0, 1.0) | "Microbial carbon-transfer efficiency of fine-root litter decomposition into the soil microbial pool." | "fraction" | ""
     eff_cLitRootCoarse_to_cMicSoil::T9 = 0.4 | (0.0, 1.0) | "Microbial carbon-transfer efficiency of coarse-root litter decomposition into the soil microbial pool." | "fraction" | ""
@@ -70,14 +70,14 @@ function define(params::cCycleBase_CASA_Legacy, forcing, land, helpers)
     ## sets up structure (topology, zero-initialized arrays) and runs once ever,
     ## never on later parameter realizations, so nothing here may depend on an
     ## actual parameter value -- that happens in precompute instead.
-    C_to_N_cVeg = zero(cEco)
+    CN_ratio_cVeg = zero(cEco)
     c_eco_k_base = zero(cEco)
 
     c_model = cCycleBase_CASA_Legacy()
 
     ## pack land variables
     @pack_nt begin
-        (C_to_N_cVeg, c_eco_k_base, c_flow_A_vec, c_flow_QP_vec, c_flow_ME_vec) ⇒ land.diagnostics
+        (CN_ratio_cVeg, c_eco_k_base, c_flow_A_vec, c_flow_QP_vec, c_flow_ME_vec) ⇒ land.diagnostics
         (c_flow_order, c_taker, c_giver, pool_names, flow_edges, c_flow_qp_groups) ⇒ land.cCycleBase
         c_model ⇒ land.models
     end
@@ -90,7 +90,7 @@ function precompute(params::cCycleBase_CASA_Legacy, forcing, land, helpers)
 
     ## unpack land variables
     @unpack_nt begin
-        C_to_N_cVeg ⇐ land.diagnostics
+        CN_ratio_cVeg ⇐ land.diagnostics
         c_eco_k_base ⇐ land.diagnostics
         c_flow_ME_vec ⇐ land.diagnostics
         (c_giver, c_taker) ⇐ land.cCycleBase
@@ -119,14 +119,14 @@ function precompute(params::cCycleBase_CASA_Legacy, forcing, land, helpers)
     end
 
     # carbon to nitrogen ratio [gC.gN-1]. Bulk tuple-indexed broadcasting
-    # assignment (C_to_N_cVeg[helpers.pools.zix.cVeg] .= p_C_to_N_cVeg) is not
+    # assignment (CN_ratio_cVeg[helpers.pools.zix.cVeg] .= p_CN_ratio_cVeg) is not
     # supported on the land array types used here (land.diagnostics arrays are
     # immutable SVectors); every GSI-family cCycleBase carries that exact line
     # commented out for the same reason, replaced by this type-stable
     # per-element loop.
     vegZix = helpers.pools.zix.cVeg
     for ix ∈ eachindex(vegZix)
-        @rep_elem p_C_to_N_cVeg[ix] ⇒ (C_to_N_cVeg, vegZix[ix])
+        @rep_elem p_CN_ratio_cVeg[ix] ⇒ (CN_ratio_cVeg, vegZix[ix])
     end
 
     # turnover rates, by pool name rather than by cEco position, so a
@@ -177,14 +177,13 @@ function precompute(params::cCycleBase_CASA_Legacy, forcing, land, helpers)
 
     ## pack land variables
     @pack_nt begin
-        (C_to_N_cVeg, c_eco_k_base, c_flow_ME_vec) ⇒ land.diagnostics
+        (CN_ratio_cVeg, c_eco_k_base, c_flow_ME_vec) ⇒ land.diagnostics
         c_remain ⇒ land.states
     end
     return land
 end
 
-poolConfiguration(::Type{<:cCycleBase_CASA_Legacy}) = CarbonPoolsCASA
-cFlowEdges(::Type{<:cCycleBase_CASA_Legacy}) = CASA_FLOW_EDGES
+poolConfiguration(::Type{<:cCycleBase_CASA_Legacy}) = CASA
 purpose(::Type{cCycleBase_CASA_Legacy}) = "Structure and properties of the carbon cycle components used in the CASA approach. Frozen pre-centralization baseline, kept for side-by-side comparison against cCycleBase_CASA."
 
 @doc """
@@ -204,7 +203,7 @@ redesign can be run side by side against it and diffed.
 
 The 22 giver-to-taker links of this approach are declared as `CASA_FLOW_EDGES` in
 `poolConfigurations/CASA.jl`, and the pools they name as
-`poolStructure(CarbonPoolsCASA)` beside it.
+`poolStructure(CASA)` beside it.
 
 # Microbial efficiency
 

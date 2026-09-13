@@ -1,10 +1,10 @@
-export CarbonPoolsGSI
+export GSI
 
-struct CarbonPoolsGSI <: CarbonPoolConfiguration end
-purpose(::Type{CarbonPoolsGSI}) = "GSI carbon pools: 8 pools with a vegetation reserve and litter split into fast and slow"
+struct GSI <: CarbonPoolConfiguration end
+purpose(::Type{GSI}) = "GSI carbon pools: 8 pools with a vegetation reserve and litter split into fast and slow"
 
 """
-    poolStructure(::Type{CarbonPoolsGSI})
+    poolStructure(::Type{GSI})
 
 Eight pools: vegetation split into root, wood, leaf and reserve, litter split by
 quality into fast and slow, and soil into slow and old.
@@ -20,7 +20,7 @@ quality into fast and slow, and soil into slow and old.
 - Litter is nested by quality here, so `cLitFast` and `cLitSlow` are generated
   directly and this configuration needs no `poolAliases`.
 """
-poolStructure(::Type{CarbonPoolsGSI}) = (;
+poolStructure(::Type{GSI}) = (;
     combine = :cEco,
     components = (;
         cVeg  = (; Root = (1, 25.0), Wood = (1, 25.0), Leaf = (1, 25.0), Reserve = (1, 10.0)),
@@ -55,6 +55,8 @@ const GSI_FLOW_EDGES = (            # giver => taker, in flow-vector order
     :cSoilSlow   => :cSoilOld,      # giver 7: cSoilSlow
 )
 
+cFlowEdges(::Type{GSI}) = GSI_FLOW_EDGES
+
 """
     GSI_TAU_DEFAULT
 
@@ -63,17 +65,17 @@ computed at the point of use; fixed data, not a parameter.
 
 Only `cLitFast`/`cLitSlow`/`cSoilSlow`/`cSoilOld`/`cVegReserve` are read from this
 table directly any more -- none of them vary by vegetation type. The three
-vegetation-organ pools that do (`cVegRoot`, `cVegWood`, `cVegLeaf`) are no longer
+vegetation-compartment pools that do (`cVegRoot`, `cVegWood`, `cVegLeaf`) are no longer
 read from here: every GSI-family `cCycleBase` approach
 (`cCycleBase_GSI`/`_GSI_PlantForm`/`_GSI_PlantForm_MGMT`) now looks their turnover
 up at runtime from `CVEG_ROOTFINE_AGE_PER_VEGTYPE`/`CVEG_WOOD_AGE_PER_VEGTYPE`/
 `CVEG_LEAF_AGE_PER_VEGTYPE` (`ParamsForVegClasses.jl`), re-keyed onto the
-experiment's active `vegClassMap` classification and looked up by
+experiment's active `vegClass` classification and looked up by
 `land.states.veg_type_name`, exactly like `vegQualityTraits_vegType.jl` already does
 for litter chemistry. This table's own `cVegRoot`/`cVegWood`/`cVegLeaf` entries
 are kept only as a historical record of the pre-refactor "tree" defaults.
 
-The four vegetation-organ values (`cVegRoot`, `cVegWood`, `cVegLeaf`,
+The four vegetation-compartment values (`cVegRoot`, `cVegWood`, `cVegLeaf`,
 `cVegReserve`) are exactly what `cCycleBase_GSI_PlantForm`'s `c_τ_tree` field
 defaulted to before this table existed (already time-valued, no conversion
 needed); the litter/soil values are converted from the rate these pools were
@@ -100,7 +102,7 @@ const GSI_TAU_DEFAULT = (;
 Carbon-to-nitrogen ratio of each GSI carbon pool, per pool name. Fixed data, not a
 parameter -- calibration happens through `CN_ratio_scalar` in the owning
 approach instead. Only the four vegetation pools have a physically meaningful ratio
-(the values `cCycleBase_GSI`/`_PlantForm`/`_MGMT`'s `p_C_to_N_cVeg` field already
+(the values `cCycleBase_GSI`/`_PlantForm`/`_MGMT`'s `p_CN_ratio_cVeg` field already
 defaulted to); every other pool is `0.0`, exactly as that vector field was never
 read for any pool other than `cVeg`'s.
 """

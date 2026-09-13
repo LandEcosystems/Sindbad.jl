@@ -10,7 +10,7 @@ export cCycleBase_GSI_Legacy
     c_τ_LitSlow::T6 = 3.9 | (0.39, 39.0) | "turnover rate of slow litter carbon (wood litter) pool" | "year-1" | "year"
     c_τ_SoilSlow::T7 = 0.2 | (0.02, 2.0) | "turnover rate of slow soil carbon pool" | "year-1" | "year"
     c_τ_SoilOld::T8 = 0.0045 | (0.00045, 0.045) | "turnover rate of old soil carbon pool" | "year-1" | "year"
-    p_C_to_N_cVeg::T9 = Float64.([25.0, 260.0, 260.0, 10.0]) | (-Inf, Inf) | "carbon to nitrogen ratio in vegetation pools" | "gC/gN" | ""
+    p_CN_ratio_cVeg::T9 = Float64.([25.0, 260.0, 260.0, 10.0]) | (-Inf, Inf) | "carbon to nitrogen ratio in vegetation pools" | "gC/gN" | ""
     ηH::T10 = 1.0 | (0.01, 100.0) | "scaling factor for heterotrophic pools after spinup" | "" | ""
     ηA::T11 = 1.0 | (0.01, 100.0) | "scaling factor for vegetation pools after spinup" | "" | ""
     c_remain::T12 = 10.0 | (0.1, 100.0) | "remaining carbon after disturbance" | "" | ""
@@ -21,8 +21,8 @@ function define(params::cCycleBase_GSI_Legacy, forcing, land, helpers)
     @unpack_cCycleBase_GSI_Legacy params
     @unpack_nt cEco ⇐ land.pools
     ## Instantiate variables
-    C_to_N_cVeg = zero(cEco) #sujan
-    # C_to_N_cVeg[helpers.pools.zix.cVeg] .= p_C_to_N_cVeg
+    CN_ratio_cVeg = zero(cEco) #sujan
+    # CN_ratio_cVeg[helpers.pools.zix.cVeg] .= p_CN_ratio_cVeg
     c_eco_k_base = zero(cEco)
     c_eco_τ = zero(cEco)
 
@@ -38,7 +38,7 @@ function define(params::cCycleBase_GSI_Legacy, forcing, land, helpers)
     ## pack land variables
     @pack_nt begin
         (c_flow_order, c_taker, c_giver, pool_names, flow_edges, c_flow_qp_groups) ⇒ land.cCycleBase
-        (C_to_N_cVeg, c_eco_τ, c_eco_k_base, c_flow_A_vec, c_flow_QP_vec, c_flow_ME_vec) ⇒ land.diagnostics
+        (CN_ratio_cVeg, c_eco_τ, c_eco_k_base, c_flow_A_vec, c_flow_QP_vec, c_flow_ME_vec) ⇒ land.diagnostics
         c_model ⇒ land.models
     end
     return land
@@ -47,7 +47,7 @@ end
 function precompute(params::cCycleBase_GSI_Legacy, forcing, land, helpers)
     @unpack_cCycleBase_GSI_Legacy params
     @unpack_nt begin
-        (C_to_N_cVeg, c_eco_k_base, c_eco_τ) ⇐ land.diagnostics
+        (CN_ratio_cVeg, c_eco_k_base, c_eco_τ) ⇐ land.diagnostics
         (z_zero, o_one) ⇐ land.constants
     end
 
@@ -82,7 +82,7 @@ function precompute(params::cCycleBase_GSI_Legacy, forcing, land, helpers)
 
     vegZix = helpers.pools.zix.cVeg
     for ix ∈ eachindex(vegZix)
-        @rep_elem p_C_to_N_cVeg[ix] ⇒ (C_to_N_cVeg, vegZix[ix])
+        @rep_elem p_CN_ratio_cVeg[ix] ⇒ (CN_ratio_cVeg, vegZix[ix])
     end
     for i ∈ eachindex(c_eco_k_base)
         tmp = c_eco_τ[i]
@@ -91,14 +91,13 @@ function precompute(params::cCycleBase_GSI_Legacy, forcing, land, helpers)
 
     ## pack land variables
     @pack_nt begin
-        (C_to_N_cVeg, c_eco_τ, c_eco_k_base, ηA, ηH) ⇒ land.diagnostics
+        (CN_ratio_cVeg, c_eco_τ, c_eco_k_base, ηA, ηH) ⇒ land.diagnostics
         c_remain ⇒ land.states
     end
     return land
 end
 
-poolConfiguration(::Type{<:cCycleBase_GSI_Legacy}) = CarbonPoolsGSI
-cFlowEdges(::Type{<:cCycleBase_GSI_Legacy}) = GSI_FLOW_EDGES
+poolConfiguration(::Type{<:cCycleBase_GSI_Legacy}) = GSI
 purpose(::Type{cCycleBase_GSI_Legacy}) = "Structure and properties of the carbon cycle components as needed for a dynamic phenology-based carbon cycle in the GSI approach. Frozen pre-centralization baseline, kept for side-by-side comparison against cCycleBase_GSI."
 
 @doc """

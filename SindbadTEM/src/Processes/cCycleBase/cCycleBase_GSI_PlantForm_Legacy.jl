@@ -15,7 +15,7 @@ export cCycleBase_GSI_PlantForm_Legacy
     T11, # c_τ_LitSlow
     T12, # c_τ_SoilSlow
     T13, # c_τ_SoilOld
-    T14, # p_C_to_N_cVeg
+    T14, # p_CN_ratio_cVeg
     T15, # ηH
     T16, # ηA
     T17  # c_remain
@@ -27,15 +27,15 @@ export cCycleBase_GSI_PlantForm_Legacy
     c_τ_Reserve_scalar::T5 = 1.0 | (0.25, 4) | "scalar for Reserve does not respire, but has a small value to avoid numerical error" | "-" | ""
     c_τ_Soil_scalar::T6 = 1.0 | (0.25, 4) | "scalar for turnover rate of soil carbon pool" | "-" | ""
 
-    c_τ_tree::T7 = Float64.(1.0 ./ [1.0, 50.0, 1.0, 1.0e11]) | (1 ./[4.0, 200.0, 4.0, 4.0e11], 1 ./[0.25, 12.5, 0.25, 0.25e11]) | "turnover of different organs of trees" | "year-1" | "year"
-    c_τ_shrub::T8 = Float64.(1.0 ./ [1.0, 5.0, 1.0, 1.0e11]) | (1 ./[4.0, 20.0, 4.0, 4.0e11], 1 ./[0.25, 1.25, 0.25, 0.25e11]) | "turnover of different organs of shrubs" | "year-1" | "year"
-    c_τ_herb::T9 = Float64.(1.0 ./ [0.75, 0.75, 0.75, 0.75e11]) | (1 ./[3.0, 3.0, 3.0, 3.0e11], 1 ./[0.1875, 0.1875, 0.1875, 0.1875e11]) | "turnover of different organs of herbs" | "year-1" | "year"
+    c_τ_tree::T7 = Float64.(1.0 ./ [1.0, 50.0, 1.0, 1.0e11]) | (1 ./[4.0, 200.0, 4.0, 4.0e11], 1 ./[0.25, 12.5, 0.25, 0.25e11]) | "turnover of different C-compartments of trees" | "year-1" | "year"
+    c_τ_shrub::T8 = Float64.(1.0 ./ [1.0, 5.0, 1.0, 1.0e11]) | (1 ./[4.0, 20.0, 4.0, 4.0e11], 1 ./[0.25, 1.25, 0.25, 0.25e11]) | "turnover of different C-compartments of shrubs" | "year-1" | "year"
+    c_τ_herb::T9 = Float64.(1.0 ./ [0.75, 0.75, 0.75, 0.75e11]) | (1 ./[3.0, 3.0, 3.0, 3.0e11], 1 ./[0.1875, 0.1875, 0.1875, 0.1875e11]) | "turnover of different C-compartments of herbs" | "year-1" | "year"
 
     c_τ_LitFast::T10 = 14.8 | (0.5, 148.0) | "turnover rate of fast litter (leaf litter) carbon pool" | "year-1" | "year"
     c_τ_LitSlow::T11 = 3.9 | (0.39, 39.0) | "turnover rate of slow litter carbon (wood litter) pool" | "year-1" | "year"
     c_τ_SoilSlow::T12 = 0.2 | (0.02, 2.0) | "turnover rate of slow soil carbon pool" | "year-1" | "year"
     c_τ_SoilOld::T13 = 0.0045 | (0.00045, 0.045) | "turnover rate of old soil carbon pool" | "year-1" | "year"
-    p_C_to_N_cVeg::T14 = Float64.([25.0, 260.0, 260.0, 10.0]) | (-Inf, Inf) | "carbon to nitrogen ratio in vegetation pools" | "gC/gN" | ""
+    p_CN_ratio_cVeg::T14 = Float64.([25.0, 260.0, 260.0, 10.0]) | (-Inf, Inf) | "carbon to nitrogen ratio in vegetation pools" | "gC/gN" | ""
     ηH::T15 = 1.0 | (0.125, 8.0) | "scaling factor for heterotrophic pools after spinup" | "" | ""
     ηA::T16 = 1.0 | (0.25, 4.0) | "scaling factor for vegetation pools after spinup" | "" | ""
     c_remain::T17 = 50.0 | (0.1, 100.0) | "remaining carbon after disturbance" | "gC/m2" | ""
@@ -46,8 +46,8 @@ function define(params::cCycleBase_GSI_PlantForm_Legacy, forcing, land, helpers)
     @unpack_cCycleBase_GSI_PlantForm_Legacy params
     @unpack_nt cEco ⇐ land.pools
     ## Instantiate variables
-    C_to_N_cVeg = zero(cEco) #sujan
-    # C_to_N_cVeg[helpers.pools.zix.cVeg] .= p_C_to_N_cVeg
+    CN_ratio_cVeg = zero(cEco) #sujan
+    # CN_ratio_cVeg[helpers.pools.zix.cVeg] .= p_CN_ratio_cVeg
     c_eco_k_base = zero(cEco)
     c_eco_τ = zero(cEco)
 
@@ -65,7 +65,7 @@ function define(params::cCycleBase_GSI_PlantForm_Legacy, forcing, land, helpers)
     ## pack land variables
     @pack_nt begin
         (c_flow_order, c_taker, c_giver, pool_names, flow_edges, c_flow_qp_groups) ⇒ land.cCycleBase
-        (C_to_N_cVeg, c_eco_τ, c_eco_k_base, zero_c_τ_pf, c_flow_A_vec, c_flow_QP_vec, c_flow_ME_vec) ⇒ land.diagnostics
+        (CN_ratio_cVeg, c_eco_τ, c_eco_k_base, zero_c_τ_pf, c_flow_A_vec, c_flow_QP_vec, c_flow_ME_vec) ⇒ land.diagnostics
         c_model ⇒ land.models
     end
     return land
@@ -82,7 +82,7 @@ end
 function precompute(params::cCycleBase_GSI_PlantForm_Legacy, forcing, land, helpers)
     @unpack_cCycleBase_GSI_PlantForm_Legacy params
     @unpack_nt begin
-        (C_to_N_cVeg, c_eco_k_base, c_eco_τ, zero_c_τ_pf) ⇐ land.diagnostics
+        (CN_ratio_cVeg, c_eco_k_base, c_eco_τ, zero_c_τ_pf) ⇐ land.diagnostics
         (z_zero, o_one) ⇐ land.constants
         veg_type_name ⇐ land.states
     end
@@ -129,7 +129,7 @@ function precompute(params::cCycleBase_GSI_PlantForm_Legacy, forcing, land, help
 
     vegZix = helpers.pools.zix.cVeg
     for ix ∈ eachindex(vegZix)
-        @rep_elem p_C_to_N_cVeg[ix] ⇒ (C_to_N_cVeg, vegZix[ix])
+        @rep_elem p_CN_ratio_cVeg[ix] ⇒ (CN_ratio_cVeg, vegZix[ix])
     end
     for i ∈ eachindex(c_eco_k_base)
         tmp = c_eco_τ[i]
@@ -138,14 +138,13 @@ function precompute(params::cCycleBase_GSI_PlantForm_Legacy, forcing, land, help
 
     ## pack land variables
     @pack_nt begin
-        (C_to_N_cVeg, c_eco_τ, c_eco_k_base, ηA, ηH) ⇒ land.diagnostics
+        (CN_ratio_cVeg, c_eco_τ, c_eco_k_base, ηA, ηH) ⇒ land.diagnostics
         c_remain ⇒ land.states
     end
     return land
 end
 
-poolConfiguration(::Type{<:cCycleBase_GSI_PlantForm_Legacy}) = CarbonPoolsGSI
-cFlowEdges(::Type{<:cCycleBase_GSI_PlantForm_Legacy}) = GSI_FLOW_EDGES
+poolConfiguration(::Type{<:cCycleBase_GSI_PlantForm_Legacy}) = GSI
 purpose(::Type{cCycleBase_GSI_PlantForm_Legacy}) = "Same as GSI, additionally allowing for scaling of turnover parameters based on plant forms. Frozen pre-centralization baseline, kept for side-by-side comparison against cCycleBase_GSI_PlantForm."
 
 @doc """
@@ -161,8 +160,8 @@ had before its turnover/C:N defaults were centralized into `poolConfigurations/G
 kept here unchanged so the redesign can be run side by side against it and diffed.
 
 Reads `land.states.veg_type_name` and branches on `:tree`/`:shrub`/`:herb`, so the
-experiment's `vegClassMap` approach must resolve into `VegTypeCatalog_PlantForm` (e.g.
-`vegClassMap_MODIS_IGBP_PlantForm`) for this to select anything other than the
+experiment's `vegClass` approach must resolve into `Classification_PlantForm` (e.g.
+`vegClass_MODIS_IGBP_PlantForm`) for this to select anything other than the
 zero-initialized default from `define`.
 
 *References*

@@ -12,11 +12,11 @@ per-pool defaults an approach reads rather than declares inline -- turnover time
 for the pools that are not vegetation-type dependent (`GSI_TAU_DEFAULT`/
 `CASA_TAU`/`MGMT_PRODUCTS_TAU`) and vegetation carbon-to-nitrogen ratio
 (`GSI_CN_ratio`/`CASA_CN_ratio`) today, alongside the flow-edge topology
-(`GSI_FLOW_EDGES`/`CASA_FLOW_EDGES`) that was already here. The vegetation-organ
+(`GSI_FLOW_EDGES`/`CASA_FLOW_EDGES`) that was already here. The vegetation-compartment
 pools' turnover (`cVegRoot`/`cVegRootFine`/`cVegRootCoarse`/`cVegWood`/`cVegLeaf`)
 is not fixed here: every `cCycleBase` approach looks it up at runtime by
 `land.states.veg_type_name`, from the per-vegetation-type tables in
-`vegClassMap/mapSources/ParamsForVegClasses.jl`.
+`vegClass/mapSources/ParamsForVegClasses.jl`.
 
 An approach names its configuration with `poolConfiguration`, and the configuration
 answers `poolStructure` and `poolAliases`.
@@ -61,7 +61,7 @@ const TAU_DORMANT = 1.0e11
 Extra `zix` names a configuration needs that its nesting cannot produce, `(;)` unless
 the configuration declares otherwise.
 
-Only `CarbonPoolsCASA` declares any: its litter nests by organ, so the fast/slow
+Only `CASA` declares any: its litter nests by compartment, so the fast/slow
 quality split cuts across the hierarchy. Every other structure nests litter by quality
 already and generates those names directly.
 """
@@ -74,12 +74,15 @@ Return the pool-to-pool carbon flow edges of an approach as `giver => taker` pai
 or `()` if it declares none.
 
 # Notes:
-- Topology is an approach property rather than a pool-structure one: a base that adds
-  or drops a link declares its own list, without a new configuration. The lists
-  themselves sit in the configuration files even so, because an edge list is written in
-  the pool names of one structure and resolves against no other: `GSI_FLOW_EDGES` in
-  `GSI.jl`, `CASA_FLOW_EDGES` in `CASA.jl`. Which approach uses which is still declared
-  by the approach.
+- Topology is a pool-configuration property: every approach already names its
+  configuration via `poolConfiguration`, so `cFlowEdges` on an approach type looks
+  that configuration up and asks it directly, rather than every approach repeating
+  the same one-line dispatch. The lists themselves sit in the configuration files,
+  because an edge list is written in the pool names of one structure and resolves
+  against no other: `GSI_FLOW_EDGES` in `GSI.jl`, `CASA_FLOW_EDGES` in `CASA.jl`. A
+  configuration that adds no topology of its own -- `MGMT`, whose extra pools are
+  decay-only -- declares `cFlowEdges` as reusing another configuration's list
+  instead of repeating it.
 - An edge list rather than a transfer matrix, because the matrix carried no
   information beyond the adjacency. `cFlowMatrix` rebuilds the matrix view from an
   edge list when one is wanted, in the `[taker, giver]` orientation every dense flow
@@ -101,8 +104,48 @@ or `()` if it declares none.
 """
 function cFlowEdges end
 
-cFlowEdges(::Type{<:cCycleBase}) = ()
+cFlowEdges(::Type{<:CarbonPoolConfiguration}) = ()
+function cFlowEdges(A::Type{<:cCycleBase})
+    configuration = poolConfiguration(A)
+    return isnothing(configuration) ? () : cFlowEdges(configuration)
+end
 cFlowEdges(T::cCycleBase) = cFlowEdges(typeof(T))
+
+"""
+    carbonPoolConfiguration(name::Symbol)
+
+Resolve a `CarbonPoolConfiguration` by name. Errors with what was tried rather than
+surfacing an `UndefVarError` or silently returning `nothing`.
+"""
+function carbonPoolConfiguration(name::Symbol)
+    if !isdefined(@__MODULE__, name) || !(getfield(@__MODULE__, name) isa Type) ||
+       !(getfield(@__MODULE__, name) <: CarbonPoolConfiguration)
+        error("`$(name)` does not name a known carbon pool configuration. Use a " *
+              "configuration name such as `GSI`, `CASA`, or `MGMT`.")
+    end
+    return getfield(@__MODULE__, name)
+end
+
+"""
+    poolStructure(name), poolAliases(name), cFlowEdges(name)
+    poolStructure(configuration::CarbonPoolConfiguration), ...
+
+Sister methods so a `CarbonPoolConfiguration` can be named by string (`"GSI"`),
+symbol (`:GSI`), or instance (`GSI()`), not only by type (`GSI`). Each method
+performs exactly one conversion and calls the next-more-resolved form: string to
+symbol, symbol to type via `carbonPoolConfiguration`, instance to its own type.
+"""
+poolStructure(name::AbstractString) = poolStructure(Symbol(name))
+poolStructure(name::Symbol) = poolStructure(carbonPoolConfiguration(name))
+poolStructure(configuration::CarbonPoolConfiguration) = poolStructure(typeof(configuration))
+
+poolAliases(name::AbstractString) = poolAliases(Symbol(name))
+poolAliases(name::Symbol) = poolAliases(carbonPoolConfiguration(name))
+poolAliases(configuration::CarbonPoolConfiguration) = poolAliases(typeof(configuration))
+
+cFlowEdges(name::AbstractString) = cFlowEdges(Symbol(name))
+cFlowEdges(name::Symbol) = cFlowEdges(carbonPoolConfiguration(name))
+cFlowEdges(configuration::CarbonPoolConfiguration) = cFlowEdges(typeof(configuration))
 
 """
     cFlowStructure(params::cCycleBase, cEco, helpers)
@@ -234,12 +277,12 @@ actually has a matching split in this structure's topology).
 The `cVeg`/`cLit` name-prefix restrictions and the `cMic`/`cSoil` more-than-one-edge
 requirement are not cosmetic: without them, a giver like `cSoilSlow` (taker set
 `cMicSoil`/`cSoilOld`, i.e. one `cMic`-prefixed and one `cSoil`-prefixed taker) would
-also match the `cLit` rule, and a single-outflow `cSoilSlow` (as in `CarbonPoolsGSI`,
+also match the `cLit` rule, and a single-outflow `cSoilSlow` (as in `GSI`,
 which has no `cMicSoil` pool) would match the `cSoil` rule on its lone edge to
 `cSoilOld` with no complementary edge to divide against -- silently replacing that
 edge's neutral partition of one with a fraction meant for an actual two-way split.
 
-A structure with no matching pattern for a given field (e.g. `CarbonPoolsGSI`, whose
+A structure with no matching pattern for a given field (e.g. `GSI`, whose
 litter and soil pools aren't split by quality) resolves that field to `()`; no
 per-configuration declaration is needed for that to happen correctly.
 """
@@ -308,7 +351,7 @@ function deriveQPGroups(c_giver, c_taker, cEco_components)
 end
 
 """
-    applyPoolTable(c_eco, table, scalar, helpers)
+    getKfromTau(c_eco, table, scalar, helpers)
 
 Multiply each pool in `table` (a per-pool-name `NamedTuple` mapping to a turnover
 *time*, e.g. `GSI_TAU_DEFAULT`/`CASA_TAU`) by `one(T) / T(value) * scalar`, `T` being
@@ -316,7 +359,7 @@ Multiply each pool in `table` (a per-pool-name `NamedTuple` mapping to a turnove
 `repElem`, and return the updated `c_eco`. `scalar` is either one value applied to
 every pool (`cCycleBase_CASA`'s single `k_c_scalar`) or a per-pool-name `NamedTuple`
 with the same keys as `table` (`cCycleBase_GSI`'s `k_c_scalars`, one shared scalar
-per organ/pool group), dispatched on `scalar`'s type.
+per compartment/pool group), dispatched on `scalar`'s type.
 
 # Notes:
 - The explicit `T(value)` conversion is not cosmetic: `table`'s entries are `Float64`
@@ -343,7 +386,7 @@ per organ/pool group), dispatched on `scalar`'s type.
   `cCycleBase_CASA` (`c_eco_k_base`, the single `k_c_scalar`) -- the target array's
   name and whether the scalar varies by pool differ by approach, the loop does not.
 """
-function applyPoolTable(c_eco, table, scalar::Real, helpers)
+function getKfromTau(c_eco, table, scalar::Real, helpers)
     T = eltype(c_eco)
     for (pool_name, turnover_time) in pairs(table)
         for ix in getproperty(helpers.pools.zix, pool_name)
@@ -353,7 +396,7 @@ function applyPoolTable(c_eco, table, scalar::Real, helpers)
     end
     return c_eco
 end
-function applyPoolTable(c_eco, table, scalar_for::NamedTuple, helpers)
+function getKfromTau(c_eco, table, scalar_for::NamedTuple, helpers)
     T = eltype(c_eco)
     for (pool_name, turnover_time) in pairs(table)
         scalar = getproperty(scalar_for, pool_name)
@@ -366,27 +409,27 @@ function applyPoolTable(c_eco, table, scalar_for::NamedTuple, helpers)
 end
 
 """
-    applyPoolCNTable(C_to_N_cVeg, table, cn_scalar, helpers)
+    getCNfromParams(CN_ratio_cVeg, table, cn_scalar, helpers)
 
-Same idea as `applyPoolTable`, for the vegetation carbon-to-nitrogen ratio: multiplies
+Same idea as `getKfromTau`, for the vegetation carbon-to-nitrogen ratio: multiplies
 each `table` (`GSI_CN_ratio`/`CASA_CN_ratio`) entry by `cn_scalar` directly, no
-turnover-time inversion, writing into `C_to_N_cVeg`. Every `cCycleBase` approach
-applies one shared `CN_ratio_scalar` across all pools, so unlike `applyPoolTable` this
+turnover-time inversion, writing into `CN_ratio_cVeg`. Every `cCycleBase` approach
+applies one shared `CN_ratio_scalar` across all pools, so unlike `getKfromTau` this
 has only the single-scalar form. Kept as its own function, separate from
-`applyPoolTable`, since the two write different target arrays for a different
+`getKfromTau`, since the two write different target arrays for a different
 physical quantity even though the loop shape matches -- but for the same
-type-stability reason (see `applyPoolTable`'s notes), it must remain its own function
+type-stability reason (see `getKfromTau`'s notes), it must remain its own function
 barrier rather than get inlined into `precompute`.
 """
-function applyPoolCNTable(C_to_N_cVeg, table, cn_scalar, helpers)
-    T = eltype(C_to_N_cVeg)
-    for (pool_name, c_to_n) in pairs(table)
+function getCNfromParams(CN_ratio_cVeg, table, cn_scalar, helpers)
+    T = eltype(CN_ratio_cVeg)
+    for (pool_name, CN_ratio) in pairs(table)
         for ix in getproperty(helpers.pools.zix, pool_name)
-            tmp = T(c_to_n) * cn_scalar
-            C_to_N_cVeg = repElem(C_to_N_cVeg, tmp, ix)
+            tmp = T(CN_ratio) * cn_scalar
+            CN_ratio_cVeg = repElem(CN_ratio_cVeg, tmp, ix)
         end
     end
-    return C_to_N_cVeg
+    return CN_ratio_cVeg
 end
 
 # One file per pool structure, listed rather than globbed so only files meant to load
