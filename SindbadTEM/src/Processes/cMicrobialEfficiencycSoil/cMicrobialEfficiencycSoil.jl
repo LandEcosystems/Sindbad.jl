@@ -22,7 +22,7 @@ form `c_flow_ME_vec`. No other factor touches a `cSoil` giver, which is what let
 three be combined.
 
 Every pool structure has soil pools, so this factor is active on all of them: the
-three CASA soil transfers under `CarbonPoolsCASA`, and `cSoilSlow` into `cSoilOld`
+three CASA soil transfers under `CASA`, and `cSoilSlow` into `cSoilOld`
 alone under the GSI structures.
 
 `_none`, `_constant` and `_texture` decide which transfers are theirs from

@@ -2,23 +2,47 @@ export createInitPools
 export createInitStates
 export resolvePoolStructure
 export setPoolsInfo
+export poolNames
 
 """
     POOL_ELEMENT_PROCESS
 
-Which process owns each pool element, for resolving a JSON block's aliases from the
-approach that is actually selected. Only `carbon` has configurations today;
-`wCycleBase_simple` declares none, so `water` keeps whatever its block says.
+Which process owns each pool element: used both to default an entirely absent
+`pools.<element>` to the configuration its selected approach declares, and to
+resolve an explicit block's aliases from that same approach when the block has no
+`aliases` key of its own. Only `carbon` has configurations today; `wCycleBase_simple`
+declares none, so `water` is never defaulted and keeps whatever its block says.
 """
 const POOL_ELEMENT_PROCESS = (; carbon = :cCycleBase, water = :wCycleBase)
 
 """
+    poolConfigurationForApproach(info, element)
+
+Return the pool configuration the approach selected for `pools.<element>`'s owning
+process declares, or `nothing` if there is none to derive: no entry in
+`POOL_ELEMENT_PROCESS`, no model selected for that process, or a `poolConfiguration`
+(or `poolStructure`) the selected approach doesn't declare.
+"""
+function poolConfigurationForApproach(info, element)
+    hasproperty(POOL_ELEMENT_PROCESS, element) || return nothing
+    process = getproperty(POOL_ELEMENT_PROCESS, element)
+    models = info.settings.model_structure.models
+    hasproperty(models, process) || return nothing
+    approach_name = Symbol(String(process) * "_" * string(getproperty(getproperty(models, process), :approach)))
+    hasproperty(SindbadTEM.Processes, approach_name) || return nothing
+    configuration = poolConfiguration(getproperty(SindbadTEM.Processes, approach_name))
+    return isnothing(configuration) || isnothing(poolStructure(configuration)) ? nothing : configuration
+end
+
+"""
     generatedPoolNames(structure)
 
-Return `(leaf_names, group_names)` for a pool structure: the names
+Return `(sub_pool_names, main_pool_names)` for a pool structure: the names
 `getPoolInformation` flattens it into, and the intermediate nesting levels that
-become groups. Every nesting level is a real pool with its own `zix` entry, so a
-two-level layout yields `cVegRoot` alongside `cVegRootFine`.
+become main pools. Every nesting level is a real pool with its own `zix` entry, so a
+two-level layout yields `cVegRoot` (a main pool) alongside `cVegRootFine` (a sub
+pool). Named to match `getPoolInformation`'s own vocabulary, not "leaf"/"group" --
+`cVegLeaf` is itself a sub pool, which "leaf" reads backwards for.
 """
 function generatedPoolNames(structure)
     components = getfield(structure, :components)
@@ -28,11 +52,31 @@ function generatedPoolNames(structure)
 end
 
 """
+    poolNames(configuration)
+
+Return the sub pool names of one carbon pool configuration, as a single tuple in
+the same order as `helpers.pools.components.cEco` -- named by type, symbol, string,
+or instance, exactly like `poolStructure`/`poolAliases`/`cFlowEdges` already are,
+since `poolStructure` alone resolves all four forms.
+
+# Notes:
+- Same order because it's the same computation: `setPoolsInfo` builds
+  `components.cEco` by deduping `sub_pool_name` on first occurrence, and
+  `generatedPoolNames` returns `unique(sub_pool_name)` from that same
+  `getPoolInformation` traversal of this configuration's own `components`.
+- Sub pools only, no main pools -- `cEco`'s components are sub pools as well.
+"""
+function poolNames(configuration)
+    sub_pool_names, _ = generatedPoolNames(poolStructure(configuration))
+    return Tuple(sub_pool_names)
+end
+
+"""
     carbonPoolNames()
 
-Every carbon pool name any configuration can produce: the leaves and groups of each
-`CarbonPoolConfiguration`'s structure, plus the alias names its nesting cannot
-generate.
+Every carbon pool name any configuration can produce: the sub pools and main pools
+of each `CarbonPoolConfiguration`'s structure, plus the alias names its nesting
+cannot generate.
 
 `setPoolsInfo` emits a `zix` entry for each, so a name a configuration lacks resolves
 to `()` rather than a missing field. A loop over an empty entry runs zero times,
@@ -55,46 +99,27 @@ function carbonPoolNames()
     for configuration ∈ SindbadTEM.subtypes(SindbadTEM.Processes.CarbonPoolConfiguration)
         structure = poolStructure(configuration)
         isnothing(structure) && continue
-        leaves, groups = generatedPoolNames(structure)
-        append!(names, groups)
-        append!(names, leaves)
+        sub_pool_names, main_pool_names = generatedPoolNames(structure)
+        append!(names, main_pool_names)
+        append!(names, sub_pool_names)
         append!(names, propertynames(poolAliases(configuration)))
     end
     return Tuple(unique(names))
 end
 
 """
-    poolConfigurationFor(info, element, spec)
+    poolConfigurationFor(spec)
 
 Resolve a string in a `pools` block to a pool configuration.
 
-A string naming a process (`"cCycleBase"`) resolves through that process's selected
-approach in `models`; any other string is taken as an approach type name directly.
-Errors name what was tried rather than surfacing an `UndefVarError`.
+A string is a pool configuration name (`GSI`, `CASA`, `MGMT`, ...), resolved by
+`SindbadTEM.Processes.carbonPoolConfiguration`, which lives beside the
+configurations themselves. Errors name what was tried rather than surfacing an
+`UndefVarError`; the caller adds which `pools` element it was resolving, since
+this function has no notion of that.
 """
-function poolConfigurationFor(info::NamedTuple, element, spec::AbstractString)
-    models = info.settings.model_structure.models
-    sym = Symbol(spec)
-    approach_name = if hasproperty(models, sym)
-        Symbol(spec * "_" * string(getproperty(getproperty(models, sym), :approach)))
-    else
-        sym
-    end
-    if !hasproperty(SindbadTEM.Processes, approach_name)
-        error("pools.$(element) is set to `$(spec)`, which resolves to the approach " *
-              "`$(approach_name)`, but no such approach exists in SindbadTEM.Processes. Set " *
-              "pools.$(element) to a process name whose approach is selected in `models`, to an " *
-              "approach name, or write the pool block out in full.")
-    end
-    approach_type = getproperty(SindbadTEM.Processes, approach_name)
-    configuration = poolConfiguration(approach_type)
-    if isnothing(configuration)
-        error("pools.$(element) is set to `$(spec)`, which resolves to the approach " *
-              "`$(approach_name)`, but that approach declares no poolConfiguration. Add " *
-              "`poolConfiguration(::Type{$(approach_name)}) = <a configuration>` beside its " *
-              "purpose, or write the pool block out in full.")
-    end
-    return approach_name, configuration
+function poolConfigurationFor(spec::AbstractString)
+    return SindbadTEM.Processes.carbonPoolConfiguration(Symbol(spec))
 end
 
 """
@@ -105,8 +130,8 @@ must be a pool the structure actually has, and an alias may not shadow a name th
 nesting already generates, which would otherwise silently replace real indices.
 """
 function validatePoolStructure(element, structure, aliases)
-    leaves, groups = generatedPoolNames(structure)
-    known = vcat(leaves, groups)
+    sub_pool_names, main_pool_names = generatedPoolNames(structure)
+    known = vcat(sub_pool_names, main_pool_names)
     for alias in propertynames(aliases)
         if alias in known
             error("pools.$(element) declares the alias `$(alias)`, but the pool structure already " *
@@ -136,6 +161,10 @@ block carried, `state_variables` included, is passed through untouched.
 
 An element's value may be:
 
+- **absent**: structure and aliases both come from the configuration the selected
+  approach for that element's process declares (`poolConfigurationForApproach`), if
+  it declares one; an element that resolves to nothing this way is simply not in
+  the result, exactly as if it had been absent before this default existed.
 - a **String**: structure and aliases both come from the configuration it names.
 - a **NamedTuple**: the block supplies the structure verbatim. Aliases come from its
   own `aliases` key if it has one, otherwise from the configuration of the approach
@@ -149,40 +178,45 @@ is the sole interface between setup and the models.
 function resolvePoolStructure(info::NamedTuple)
     pools = info.settings.model_structure.pools
     resolved = (;)
-    for element ∈ propertynames(pools)
-        block = getproperty(pools, element)
-        if isa(block, AbstractString)
-            _, configuration = poolConfigurationFor(info, element, block)
+    elements = unique(vcat(collect(propertynames(pools)), collect(propertynames(POOL_ELEMENT_PROCESS))))
+    for element ∈ elements
+        if !hasproperty(pools, element)
+            configuration = poolConfigurationForApproach(info, element)
+            isnothing(configuration) && continue
             structure = poolStructure(configuration)
-            if isnothing(structure)
-                error("pools.$(element) resolves to the configuration `$(nameof(configuration))`, " *
-                      "which declares no poolStructure.")
-            end
             aliases = poolAliases(configuration)
         else
-            structure = block
-            aliases = hasproperty(block, :aliases) ? block.aliases : (;)
-            if !hasproperty(block, :aliases) && hasproperty(POOL_ELEMENT_PROCESS, element)
-                process = getproperty(POOL_ELEMENT_PROCESS, element)
-                models = info.settings.model_structure.models
-                if hasproperty(models, process)
-                    approach_name = Symbol(String(process) * "_" * string(getproperty(getproperty(models, process), :approach)))
-                    if hasproperty(SindbadTEM.Processes, approach_name)
-                        configuration = poolConfiguration(getproperty(SindbadTEM.Processes, approach_name))
-                        if !isnothing(configuration) && !isnothing(poolStructure(configuration))
-                            aliases = poolAliases(configuration)
-                            if !isempty(aliases)
-                                block_leaves, _ = generatedPoolNames(block)
-                                config_leaves, _ = generatedPoolNames(poolStructure(configuration))
-                                if Set(block_leaves) != Set(config_leaves)
-                                    error("pools.$(element) is written out in full, and its aliases are " *
-                                          "taken from `$(nameof(configuration))`, but the two disagree on " *
-                                          "which pools exist. Only in the block: " *
-                                          "$(join(sort(String.(setdiff(block_leaves, config_leaves))), ", ")). " *
-                                          "Only in the configuration: " *
-                                          "$(join(sort(String.(setdiff(config_leaves, block_leaves))), ", ")). " *
-                                          "Declare an `aliases` key in the block, or match the configuration.")
-                                end
+            block = getproperty(pools, element)
+            if isa(block, AbstractString)
+                configuration = try
+                    poolConfigurationFor(block)
+                catch e
+                    error("pools.$(element) is set to `$(block)`: $(e.msg)")
+                end
+                structure = poolStructure(configuration)
+                if isnothing(structure)
+                    error("pools.$(element) resolves to the configuration `$(nameof(configuration))`, " *
+                          "which declares no poolStructure.")
+                end
+                aliases = poolAliases(configuration)
+            else
+                structure = block
+                aliases = hasproperty(block, :aliases) ? block.aliases : (;)
+                if !hasproperty(block, :aliases)
+                    configuration = poolConfigurationForApproach(info, element)
+                    if !isnothing(configuration)
+                        aliases = poolAliases(configuration)
+                        if !isempty(aliases)
+                            block_sub_pool_names, _ = generatedPoolNames(block)
+                            config_sub_pool_names, _ = generatedPoolNames(poolStructure(configuration))
+                            if Set(block_sub_pool_names) != Set(config_sub_pool_names)
+                                error("pools.$(element) is written out in full, and its aliases are " *
+                                      "taken from `$(nameof(configuration))`, but the two disagree on " *
+                                      "which pools exist. Only in the block: " *
+                                      "$(join(sort(String.(setdiff(block_sub_pool_names, config_sub_pool_names))), ", ")). " *
+                                      "Only in the configuration: " *
+                                      "$(join(sort(String.(setdiff(config_sub_pool_names, block_sub_pool_names))), ", ")). " *
+                                      "Declare an `aliases` key in the block, or match the configuration.")
                             end
                         end
                     end

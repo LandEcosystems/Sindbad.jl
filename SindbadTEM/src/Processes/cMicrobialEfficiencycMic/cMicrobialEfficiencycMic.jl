@@ -21,7 +21,7 @@ The factor is one everywhere except on the transfers leaving the microbial pools
 form `c_flow_ME_vec`. No other factor touches a `cMic` giver, which is what lets the
 three be combined.
 
-Only `CarbonPoolsCASA` has explicit microbial pools. Under the GSI structures
+Only `CASA` has explicit microbial pools. Under the GSI structures
 `zix.cMic` is empty, no flow matches, and this factor stays neutral with no special
 case, because microbial mediation there is folded into the litter and soil transfers.
 

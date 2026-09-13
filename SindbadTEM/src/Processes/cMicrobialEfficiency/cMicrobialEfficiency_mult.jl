@@ -50,7 +50,7 @@ All three factor processes must be selected in the model structure alongside thi
 approach; a missing one is an absent diagnostic rather than a neutral factor, so it fails
 at unpack rather than silently leaving that group's transfers at perfect retention.
 Leaving `cMicrobialEfficiency` out entirely instead gives every flow the efficiency of
-one that `cCycleBase` allocates, except under `CarbonPoolsCASA`, where
+one that `cCycleBase` allocates, except under `CASA`, where
 `cCycleBase_CASA` itself seeds `c_flow_ME_vec` with CASA's static defaults regardless
 of what `cMicrobialEfficiency` approach, if any, is selected — this approach still
 overwrites every edge the three factors own on top of those defaults.

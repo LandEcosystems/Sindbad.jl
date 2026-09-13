@@ -22,7 +22,7 @@ form `c_flow_ME_vec`. No other factor touches a `cLit` giver, which is what lets
 three be combined.
 
 Every pool structure has litter pools, so this factor is active on all of them: the
-ten CASA litter transfers under `CarbonPoolsCASA`, and the two aggregated
+ten CASA litter transfers under `CASA`, and the two aggregated
 `cLitFast`/`cLitSlow` transfers into slow soil under the GSI structures.
 
 `_none`, `_constant` and `_texture` decide which transfers are theirs from

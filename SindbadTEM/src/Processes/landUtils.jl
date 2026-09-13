@@ -376,17 +376,17 @@ Every flow-vector position whose giver is in `giver_zix` and whose taker is in
 
 This is what lets a caller work against more than one pool structure without
 naming either config's specific pools: e.g. leaf shedding lands in one pool under
-`CarbonPoolsGSI` (`cLitFast`) and two under `CarbonPoolsCASA` (`cLitLeafFast`,
+`GSI` (`cLitFast`) and two under `CASA` (`cLitLeafFast`,
 `cLitLeafSlow`), and this finds every one of them for the same `giver_zix`/
 `taker_zix` pair.
 
 An empty `giver_zix` or `taker_zix` -- a pool this structure does not have at all,
-e.g. `CarbonPoolsCASA`'s absent `cVegReserve` -- naturally returns no edges rather
+e.g. `CASA`'s absent `cVegReserve` -- naturally returns no edges rather
 than erroring, so a caller written against a pool a structure lacks simply
 contributes nothing there.
 
 A name-based match (`<giver>_to_<taker>`, e.g. matching a literal alias like
-`CarbonPoolsCASA`'s `cLitSlow`) is not equivalent to this: an alias can union pools
+`CASA`'s `cLitSlow`) is not equivalent to this: an alias can union pools
 that individually need different treatment (`cLitSlow` = `cLitLeafSlow` +
 `cLitRootFineSlow` + `cLitRootCoarse` + `cLitWood`, but `cLitRootFineSlow`'s own
 transfer is calibrated separately from the other three's in
