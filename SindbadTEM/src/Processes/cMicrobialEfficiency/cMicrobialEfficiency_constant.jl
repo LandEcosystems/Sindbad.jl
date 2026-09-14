@@ -13,7 +13,7 @@ function precompute(params::cMicrobialEfficiency_constant, forcing, land, helper
     ## unpack land variables
     @unpack_nt begin
         c_flow_ME_vec ⇐ land.diagnostics
-        (c_flow_order, c_giver) ⇐ land.cCycleBase
+        (c_flow_order, c_giver, zix_cDecomposition) ⇐ land.cCycleBase
     end
 
     ## calculate variables
@@ -24,10 +24,8 @@ function precompute(params::cMicrobialEfficiency_constant, forcing, land, helper
     # helpers.pools.zix is read directly rather than through getZix(land.pools.X, ..),
     # because a structure without a group's pools has no land.pools array for it at all
     # while zix always carries the name, empty where the group is absent.
-    zix_decomposition = (helpers.pools.zix.cLit..., helpers.pools.zix.cMic...,
-        helpers.pools.zix.cSoil...)
     for fO ∈ c_flow_order
-        c_giver[fO] ∈ zix_decomposition || continue
+        c_giver[fO] ∈ zix_cDecomposition || continue
         c_flow_ME_vec = repElem(c_flow_ME_vec, constant_MicEff, fO)
     end
 
