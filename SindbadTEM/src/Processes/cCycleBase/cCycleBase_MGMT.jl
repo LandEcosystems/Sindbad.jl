@@ -1,39 +1,40 @@
-export cCycleBase_GSI_PlantForm_MGMT
+export cCycleBase_MGMT 
 
 #! format: off
-@bounds @describe @units @timescale @with_kw struct cCycleBase_GSI_PlantForm_MGMT{
+@bounds @describe @units @timescale @with_kw struct cCycleBase_MGMT{
     T1,  # k_c_root_scalar
     T2,  # k_c_wood_scalar
     T3,  # k_c_leaf_scalar
-    T4,  # k_c_litter_scalar
-    T5,  # k_c_reserve_scalar
-    T6,  # k_c_soil_scalar
-    T7,  # k_c_products_wood_scalar
-    T8,  # k_c_products_crop_scalar
-    T9,  # CN_ratio_scalar
-    T10, # ηH
-    T11, # ηA
-    T12  # c_remain
+    T4,  # k_c_reserve_scalar
+    T5,  # k_c_veg_scalar
+    T6,  # k_c_litter_scalar
+    T7,  # k_c_soil_scalar
+    T8,  # k_c_products_wood_scalar
+    T9,  # k_c_products_crop_scalar
+    T10,  # CN_ratio_scalar
+    T11, # ηH
+    T12, # ηA
+    T13  # c_remain
 } <: cCycleBase
     k_c_root_scalar::T1 = 1.0 | (0.25, 4) | "scalar for turnover rate of root carbon pool" | "-" | "year"
     k_c_wood_scalar::T2 = 1.0 | (0.25, 4) | "scalar for turnover rate of wood carbon pool" | "-" | "year"
     k_c_leaf_scalar::T3 = 1.0 | (0.25, 4) | "scalar for turnover rate of leaf carbon pool" | "-" | "year"
-    k_c_litter_scalar::T4 = 1.0 | (0.25, 4) | "scalar for turnover rate of litter carbon pools" | "-" | "year"
-    k_c_reserve_scalar::T5 = 1.0 | (0.25, 4) | "scalar for turnover rate of reserve carbon pool" | "-" | "year"
-    k_c_soil_scalar::T6 = 1.0 | (0.25, 4) | "scalar for turnover rate of soil carbon pools" | "-" | "year"
+    k_c_reserve_scalar::T4 = 1.0 | (0.25, 4) | "scalar for turnover rate of reserve carbon pool" | "-" | "year"
+    k_c_veg_scalar::T5 = 1.0 | (0.25, 4.0) | "scalar for turnover rate of all vegetation carbon pools" | "-" | "year"
 
-    k_c_products_wood_scalar::T7 = 1.0 | (0.25, 4) | "scalar for turnover rate of harvested wood product carbon pool" | "-" | "year"
-    k_c_products_crop_scalar::T8 = 1.0 | (0.25, 4) | "scalar for turnover rate of harvested crop product carbon pool" | "-" | "year"
-
-    CN_ratio_scalar::T9 = 1.0 | (0.25, 4) | "scalar for the vegetation carbon-to-nitrogen ratio" | "-" | ""
-    ηH::T10 = 1.0 | (0.125, 8.0) | "scaling factor for heterotrophic pools after spinup" | "" | ""
-    ηA::T11 = 1.0 | (0.25, 4.0) | "scaling factor for vegetation pools after spinup" | "" | ""
-    c_remain::T12 = 50.0 | (0.1, 100.0) | "remaining carbon after disturbance" | "gC/m2" | ""
+    k_c_litter_scalar::T6 = 1.0 | (0.25, 4) | "scalar for turnover rate of litter carbon pools" | "-" | "year"
+    k_c_soil_scalar::T7 = 1.0 | (0.25, 4) | "scalar for turnover rate of soil carbon pools" | "-" | "year"
+    k_c_products_wood_scalar::T8 = 1.0 | (0.25, 4) | "scalar for turnover rate of harvested wood product carbon pool" | "-" | "year"
+    k_c_products_crop_scalar::T9 = 1.0 | (0.25, 4) | "scalar for turnover rate of harvested crop product carbon pool" | "-" | "year"
+    CN_ratio_scalar::T10 = 1.0 | (0.25, 4) | "scalar for the vegetation carbon-to-nitrogen ratio" | "-" | ""
+    ηH::T11 = 1.0 | (0.125, 8.0) | "scaling factor for heterotrophic pools after spinup" | "" | ""
+    ηA::T12 = 1.0 | (0.25, 4.0) | "scaling factor for vegetation pools after spinup" | "" | ""
+    c_remain::T13 = 50.0 | (0.1, 100.0) | "remaining carbon after disturbance" | "gC/m2" | ""
 end
 #! format: on
 
-function define(params::cCycleBase_GSI_PlantForm_MGMT, forcing, land, helpers)
-    @unpack_cCycleBase_GSI_PlantForm_MGMT params
+function define(params::cCycleBase_MGMT , forcing, land, helpers)
+    @unpack_cCycleBase_MGMT  params
     @unpack_nt begin
         cEco ⇐ land.pools
         veg_type_class_map ⇐ land.vegClass
@@ -47,7 +48,7 @@ function define(params::cCycleBase_GSI_PlantForm_MGMT, forcing, land, helpers)
     # pool structure, rather than a transfer matrix carried as a parameter. The same
     # call keys the flows by pool-name pair and sizes the neutral flow vector, so a
     # cFlow approach reads the topology and fills in values instead of rederiving both
-    (c_flow_order, c_taker, c_giver, pool_names, flow_edges, c_flow_qp_groups, c_flow_A_vec,
+    (c_flow_order, c_taker, c_giver, pool_names, flow_edges, c_flow_taker_turnover_rank, c_flow_A_vec,
         c_flow_QP_vec, c_flow_ME_vec) = cFlowStructure(params, cEco, helpers)
 
     # Re-keyed once, at define time, onto whichever classification the experiment's
@@ -64,7 +65,7 @@ function define(params::cCycleBase_GSI_PlantForm_MGMT, forcing, land, helpers)
 
     ## pack land variables
     @pack_nt begin
-        (c_flow_order, c_taker, c_giver, pool_names, flow_edges, c_flow_qp_groups) ⇒ land.cCycleBase
+        (c_flow_order, c_taker, c_giver, pool_names, flow_edges, c_flow_taker_turnover_rank) ⇒ land.cCycleBase
         (CN_ratio_cVeg, c_eco_τ, c_eco_k_base, c_flow_A_vec, c_flow_QP_vec, c_flow_ME_vec) ⇒ land.diagnostics
         (rootfine_age_per_vegtype, leaf_age_per_vegtype, wood_age_per_vegtype) ⇒ land.diagnostics
         c_model ⇒ land.models
@@ -72,8 +73,8 @@ function define(params::cCycleBase_GSI_PlantForm_MGMT, forcing, land, helpers)
     return land
 end
 
-function precompute(params::cCycleBase_GSI_PlantForm_MGMT, forcing, land, helpers)
-    @unpack_cCycleBase_GSI_PlantForm_MGMT params
+function precompute(params::cCycleBase_MGMT , forcing, land, helpers)
+    @unpack_cCycleBase_MGMT  params
     @unpack_nt begin
         (CN_ratio_cVeg, c_eco_k_base, c_eco_τ) ⇐ land.diagnostics
         (rootfine_age_per_vegtype, leaf_age_per_vegtype, wood_age_per_vegtype) ⇐ land.diagnostics
@@ -96,8 +97,8 @@ function precompute(params::cCycleBase_GSI_PlantForm_MGMT, forcing, land, helper
     )
 
     k_c_scalars = (;
-        cVegRoot = k_c_root_scalar, cVegWood = k_c_wood_scalar,
-        cVegLeaf = k_c_leaf_scalar, cVegReserve = k_c_reserve_scalar,
+        cVegRoot = k_c_root_scalar * k_c_veg_scalar, cVegWood = k_c_wood_scalar * k_c_veg_scalar,
+        cVegLeaf = k_c_leaf_scalar * k_c_veg_scalar, cVegReserve = k_c_reserve_scalar * k_c_veg_scalar,
         cLitFast = k_c_litter_scalar, cLitSlow = k_c_litter_scalar,
         cSoilSlow = k_c_soil_scalar, cSoilOld = k_c_soil_scalar,
         cProductsWood = k_c_products_wood_scalar, cProductsCrop = k_c_products_crop_scalar,
@@ -123,12 +124,12 @@ function precompute(params::cCycleBase_GSI_PlantForm_MGMT, forcing, land, helper
     return land
 end
 
-poolConfiguration(::Type{<:cCycleBase_GSI_PlantForm_MGMT}) = MGMT
-purpose(::Type{cCycleBase_GSI_PlantForm_MGMT}) = "Same as GSI, additionally allowing for scaling of turnover parameters based on plant forms."
+poolConfiguration(::Type{<:cCycleBase_MGMT }) = MGMT
+purpose(::Type{cCycleBase_MGMT }) = "Same as GSI, additionally allowing for scaling of turnover parameters based on plant forms."
 
 @doc """
 
-$(getModelDocString(cCycleBase_GSI_PlantForm_MGMT))
+$(getModelDocString(cCycleBase_MGMT ))
 
 ---
 
@@ -169,7 +170,7 @@ becomes `1/365` for a daily model -- so `turnover_time` can stay expressed in
 years while `(1.0/turnover_time) * scalar` still comes out already correctly
 scaled to the model's own timestep. The old, now-removed `c_τ_tree`/
 `c_τ_shrub`/`c_τ_herb`/`c_τ_LitFast`/etc. fields (see
-`cCycleBase_GSI_PlantForm_MGMT_Legacy`) carried `"year"` themselves, not their
+`cCycleBase_MGMT _Legacy`) carried `"year"` themselves, not their
 scalars, and `c_τ_cProductsWood`/`c_τ_cProductsCrop` carried it too -- the
 annotation moved here because the absolute values it used to sit on no longer
 exist as struct fields at all.
@@ -183,7 +184,7 @@ entries (and `MGMT_PRODUCTS_TAU`'s) are fixed data, not parameters, so only the
 eight shared scalars remain optimizable now -- a real reduction in calibration
 degrees of freedom, not a pure refactor. The frozen pre-change behavior, with the
 old per-plant-form bounded fields and independently-bounded product rates intact,
-is preserved unchanged as `cCycleBase_GSI_PlantForm_MGMT_Legacy`.
+is preserved unchanged as `cCycleBase_MGMT _Legacy`.
 
 *References*
  - Potter; C. S.; J. T. Randerson; C. B. Field; P. A. Matson; P. M.  Vitousek; H. A. Mooney; & S. A. Klooster. 1993. Terrestrial ecosystem  production: A process model based on global satellite & surface data.  Global Biogeochemical Cycles. 7: 811-841.
@@ -206,7 +207,7 @@ is preserved unchanged as `cCycleBase_GSI_PlantForm_MGMT_Legacy`.
    with `cCycleBase_CASA`/`cCycleBase_GSI`. `c_τ_cProductsWood`/
    `c_τ_cProductsCrop` and their dedicated loop are unchanged. Dead `get_c_τ`
    helper removed. The frozen pre-change behavior is preserved, unchanged, as
-   `cCycleBase_GSI_PlantForm_MGMT_Legacy`.
+   `cCycleBase_MGMT _Legacy`.
  - 1.4 on 11.09.2026 [skoirala]: `c_τ_cProductsWood`/`c_τ_cProductsCrop`
    (independently-bounded rate fields) removed as struct fields, replaced by
    `k_c_products_wood_scalar`/`k_c_products_crop_scalar`; their real turnover
@@ -216,9 +217,9 @@ is preserved unchanged as `cCycleBase_GSI_PlantForm_MGMT_Legacy`.
    loop as every other pool, rather than a separate dedicated loop. `MGMT_TAU`
    gives `cProductsWood`/`cProductsCrop` the same turnover time in every group,
    including `unknown`, unlike the other eight pools. The frozen pre-change
-   behavior is preserved, unchanged, as `cCycleBase_GSI_PlantForm_MGMT_Legacy`.
+   behavior is preserved, unchanged, as `cCycleBase_MGMT _Legacy`.
    Also: `define`'s `c_model` now packs `params` itself rather than a freshly
-   constructed `cCycleBase_GSI_PlantForm_MGMT()`, since `land.models` is only
+   constructed `cCycleBase_MGMT ()`, since `land.models` is only
    ever read for its type (pure dispatch), so the fresh instance only threw away
    whatever values `params` actually held for no benefit. `k_c_scalars` is now
    also packed into `land.cCycleBase`, not just used locally to build `c_eco_τ`.
@@ -231,7 +232,7 @@ is preserved unchanged as `cCycleBase_GSI_PlantForm_MGMT_Legacy`.
    turnover rate came out roughly 365x too fast. Declaring the scalars `"year"`
    instead fixes it, since `getTypedModel`/`getParameters` rescale a
    `"year"`-timescale field's default (and bounds) to the model's timestep
-   before a run starts. Verified against `cCycleBase_GSI_PlantForm_MGMT_Legacy`
+   before a run starts. Verified against `cCycleBase_MGMT _Legacy`
    at a daily timestep: turnover now matches to floating-point precision on
    every pool.
  - 1.6 on 11.09.2026 [skoirala]: `MGMT_TAU[veg_type_name]` replaced by a runtime
@@ -247,4 +248,4 @@ is preserved unchanged as `cCycleBase_GSI_PlantForm_MGMT_Legacy`.
 *Created by*
  - ncarvalhais
 """
-cCycleBase_GSI_PlantForm_MGMT
+cCycleBase_MGMT 

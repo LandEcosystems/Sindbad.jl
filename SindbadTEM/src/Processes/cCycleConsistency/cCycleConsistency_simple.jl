@@ -50,9 +50,17 @@ function checkCcycleErrors(params::cCycleConsistency_simple, forcing, land, help
     @unpack_nt begin
         c_allocation ⇐ land.diagnostics
         c_flow_A_vec ⇐ land.diagnostics
+        c_flow_QP_vec ⇐ land.diagnostics
+        c_flow_ME_vec ⇐ land.diagnostics
+        (c_giver, c_taker) ⇐ land.cCycleBase
         (giver_lower_unique, giver_lower_indices, giver_upper_unique, giver_upper_indices) ⇐ land.cCycleConsistency
         tolerance ⇐ helpers.numbers
     end
+
+    zix_cVeg = helpers.pools.zix.cVeg
+    zix_cLit = helpers.pools.zix.cLit
+    zix_cMic = helpers.pools.zix.cMic
+    zix_cSoil = helpers.pools.zix.cSoil
 
     # check allocation
     for i in eachindex(c_allocation)
@@ -74,11 +82,61 @@ function checkCcycleErrors(params::cCycleConsistency_simple, forcing, land, help
     # Check carbon flow vector
     # A -1 in diagonals, 0 or a number in off-diagonals
 
-    # sum per column of QP values > 0 must be 1
+    # TO SIMPLIFY QP must be finite, must remain neutral for vegetation takers, and must sum to one per giver over litter, microbial, and soil takers.
+    if !isempty(c_giver)
+        current_giver = c_giver[1]
+        qp_sum = zero(eltype(c_flow_QP_vec))
+        n_qp_flows = 0
 
-    # off diagonal ME values must be between 0 and 1
+        @inbounds for fO ∈ eachindex(c_giver, c_taker, c_flow_QP_vec)
+            giver = c_giver[fO]
 
-    # ME values in vegetation columns must be 0
+            if giver != current_giver
+                if n_qp_flows > 0 && (!isfinite(qp_sum) || abs(qp_sum - one(qp_sum)) > tolerance)
+                    throwError(land, "cQualityPartition does not contain finite values summing to one for giver pool $(current_giver). Cannot continue")
+                end
+
+                current_giver = giver
+                qp_sum = zero(qp_sum)
+                n_qp_flows = 0
+            end
+
+            taker = c_taker[fO]
+            QP = c_flow_QP_vec[fO]
+
+            if !isfinite(QP)
+                throwError(land, "cQualityPartition contains a non-finite value at flow index $(fO). Cannot continue")
+            end
+
+            # TO SIMPLIFY QP must not modify transfers whose taker is a vegetation pool.
+            if taker ∈ zix_cVeg
+                if QP != one(QP)
+                    throwError(land, "cQualityPartition modifies a flow into a vegetation pool at index $(fO). Cannot continue")
+                end
+            elseif taker ∈ zix_cLit || taker ∈ zix_cMic || taker ∈ zix_cSoil
+                qp_sum += QP
+                n_qp_flows += 1
+            end
+        end
+
+        if n_qp_flows > 0 && (!isfinite(qp_sum) || abs(qp_sum - one(qp_sum)) > tolerance)
+            throwError(land, "cQualityPartition does not contain finite values summing to one for giver pool $(current_giver). Cannot continue")
+        end
+    end
+
+    # TO SIMPLIFY ME must be finite and bounded between zero and one on every carbon-flow edge.
+    @inbounds for fO ∈ eachindex(c_giver, c_flow_ME_vec)
+        ME = c_flow_ME_vec[fO]
+
+        if !isfinite(ME) || ME < zero(ME) || ME > one(ME)
+            throwError(land, "microbial efficiency must be finite and inside [0, 1] at flow index $(fO). Cannot continue")
+        end
+
+        # TO SIMPLIFY ME must remain neutral on transfers originating from vegetation pools.
+        if c_giver[fO] ∈ cVeg && ME != one(ME)
+            throwError(land, "microbial efficiency modifies a vegetation-originating flow at index $(fO). Cannot continue")
+        end
+    end
 
     # check if any of the off-diagonal values of flow vector is negative
     for i in eachindex(c_flow_A_vec)

@@ -17,33 +17,17 @@ function define(params::cQualityPartitioncLit_vegQualityTraits, forcing, land, h
 end
 
 function precompute(params::cQualityPartitioncLit_vegQualityTraits, forcing, land, helpers)
-    ## unpack land variables
+
     @unpack_nt begin
-        c_flow_QP_f_cLit ⇐ land.diagnostics
-        c_flow_qp_groups ⇐ land.cCycleBase
+        (c_flow_QP_f_cLit, k_hilo_lit_split) ⇐ land.diagnostics
+        (c_flow_order, c_giver, c_flow_taker_turnover_rank) ⇐ land.cCycleBase
         (lit_frac_lignin_struct, lit_frac_lignin_wood) ⇐ land.properties
         o_one ⇐ land.constants
     end
 
-    ## calculate variables
-    for (soil_positions, mic_positions) ∈ c_flow_qp_groups.cLit.structural
-        for i ∈ soil_positions
-            c_flow_QP_f_cLit = repElem(c_flow_QP_f_cLit, lit_frac_lignin_struct, i)
-        end
-        for i ∈ mic_positions
-            c_flow_QP_f_cLit = repElem(c_flow_QP_f_cLit, o_one - lit_frac_lignin_struct, i)
-        end
-    end
-    for (soil_positions, mic_positions) ∈ c_flow_qp_groups.cLit.wood
-        for i ∈ soil_positions
-            c_flow_QP_f_cLit = repElem(c_flow_QP_f_cLit, lit_frac_lignin_wood, i)
-        end
-        for i ∈ mic_positions
-            c_flow_QP_f_cLit = repElem(c_flow_QP_f_cLit, o_one - lit_frac_lignin_wood, i)
-        end
-    end
+    c_flow_QP_f_cLit = getQP(c_flow_QP_f_cLit, c_flow_order, c_giver, c_taker, helpers.pools.zix.cLit, 
+        c_flow_taker_turnover_rank, frac_lignin_wood, frac_lignin_struct, k_hilo_lit_split, c_eco_k_base)
 
-    ## pack land variables
     @pack_nt c_flow_QP_f_cLit ⇒ land.diagnostics
     return land
 end
@@ -60,8 +44,9 @@ purpose(::Type{cQualityPartitioncLit_vegQualityTraits}) = "Lignin control of the
 
 Reads `lit_frac_lignin_struct` and `lit_frac_lignin_wood` from `land.properties`,
 published by whichever `vegQualityTraits` approach is selected, and writes each,
-with its complement, into the flows of `land.cCycleBase.c_flow_qp_groups.cLit.structural`
-and `c_flow_qp_groups.cLit.wood`. No parameters of its own: the litter chemistry
+with its complement, into `cLit` flows selected by
+`land.cCycleBase.c_flow_taker_turnover_rank`. No parameters of its own: the
+litter chemistry
 is declared exactly once, in `vegQualityTraits`.
 
 This is the properly-connected replacement for a former per-PFT-table approach

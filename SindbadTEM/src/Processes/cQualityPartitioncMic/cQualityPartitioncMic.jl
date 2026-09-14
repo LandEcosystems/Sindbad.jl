@@ -7,38 +7,22 @@ purpose(::Type{cQualityPartitioncMic}) = "Effect of soil texture on the carbon-q
 includeApproaches(cQualityPartitioncMic, @__DIR__)
 
 @doc """
-	$(getModelDocString(cQualityPartitioncMic))
+    $(getModelDocString(cQualityPartitioncMic))
 
 ---
 # Extended help
 
 `cQualityPartitioncMic` provides `c_flow_QP_f_cMic`, a flow-aligned factor of the
-carbon-quality partition with one entry per active carbon transfer, in the same
-order as `c_flow_order`, `c_giver` and `c_taker`.
+carbon-quality partition. The approach operates on flows whose giver belongs to
+`cMic` and uses `land.cCycleBase.c_flow_taker_turnover_rank` to select the fast or
+slow share without identifying a particular taker pool by name.
 
-The factor is one everywhere except on the flows leaving `cMicSoil`, in
-`land.cCycleBase.c_flow_qp_groups.cMic`: clay-rich soils stabilize a larger share
-of decomposing soil-microbial carbon into the old soil pool.
+For each flow, `c_flow_taker_turnover_rank` is `1` for the faster of two
+non-vegetation takers, `-1` for the slower taker, and `0` when the flow is not a
+two-taker quality partition. The soil-stabilization fraction is therefore assigned
+as `slowPart`; its complement is `fastPart`.
+
 [`cQualityPartition_mult`](@ref) multiplies this factor with the `cVeg`, `cLit`
 and `cSoil` factors to form `c_flow_QP_vec`.
-
-`c_flow_qp_groups.cMic` is derived once, from the resolved flow topology, by
-`deriveQPGroups` (`cCycleBase/poolConfigurations/poolConfigurations.jl`): it is
-the `(stabilized_positions, other_positions)` pair for the giver named
-`cMicSoil`, present only when that giver exists and has more than one outgoing
-edge. A structure without an explicit microbial pool, or where `cMicSoil` has
-only a single outflow, resolves to an empty group and simply keeps its neutral
-partition of one on those flows.
-
-Named after the giver pool group it owns (`cMic`), the way
-[`cMicrobialEfficiencycLit`](@ref)/`cMic`/`cSoil` are. This and
-[`cQualityPartitioncSoil`](@ref) used to be combined into one process,
-`cQualityPartitionSoilProperties`, which mixed the `cSoilSlow` and `cMicSoil`
-giver groups; splitting them apart keeps every `cQualityPartition` factor
-strictly single-giver-group, as `cMicrobialEfficiency`'s already are.
-
-This is the partition counterpart of [`cTauSoilProperties`](@ref) and
-[`cMicrobialEfficiencycMic`](@ref), which carry the texture control of
-decomposition rates and of microbial transfer efficiency respectively.
 """
 cQualityPartitioncMic

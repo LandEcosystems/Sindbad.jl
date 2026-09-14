@@ -27,20 +27,12 @@ function precompute(params::cQualityPartitioncSoil_constant, forcing, land, help
     ## unpack land variables
     @unpack_nt begin
         c_flow_QP_f_cSoil ⇐ land.diagnostics
-        c_flow_qp_groups ⇐ land.cCycleBase
+        (c_flow_order, c_giver, c_flow_taker_turnover_rank) ⇐ land.cCycleBase
         o_one ⇐ land.constants
     end
 
-    ## calculate variables
-    if !isempty(c_flow_qp_groups.cSoil)
-        (stabilized_positions, other_positions) = only(c_flow_qp_groups.cSoil)
-        for i ∈ stabilized_positions
-            c_flow_QP_f_cSoil = repElem(c_flow_QP_f_cSoil, frac_cSoilSlow_to_cSoilOld, i)
-        end
-        for i ∈ other_positions
-            c_flow_QP_f_cSoil = repElem(c_flow_QP_f_cSoil, o_one - frac_cSoilSlow_to_cSoilOld, i)
-        end
-    end
+    c_flow_QP_f_cSoil = getQP(c_flow_QP_f_cSoil, c_flow_order, c_giver, c_taker, helpers.pools.zix.cSoil, 
+        c_flow_taker_turnover_rank, frac_cSoilSlow_to_cSoilOld)
 
     ## pack land variables
     @pack_nt c_flow_QP_f_cSoil ⇒ land.diagnostics

@@ -154,7 +154,7 @@ function compute(params::cFlow_GSI, forcing, land, helpers)
             k_shedding, 
             k_shedding_leaf, k_shedding_leaf_frac, leaf_k_sum, 
             k_shedding_root, k_shedding_root_frac, root_k_sum, 
-            k_shedding_reserve, k_shedding_reserve_frac, root_k_sum, 
+            k_shedding_reserve, k_shedding_reserve_frac, 
             eco_stressor, slope_eco_stressor, 
             eco_stressor_prev, slope_eco_stressor_prev, 
             c_eco_k

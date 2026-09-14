@@ -1,6 +1,7 @@
 export CarbonPoolConfiguration
 export cFlowEdges
 export TAU_DORMANT
+export TAU_HILO_LIT_SPLIT
 
 """
     CarbonPoolConfiguration
@@ -54,6 +55,7 @@ GSI-family `cCycleBase` approach's runtime `cVegReserve` entry, since the Reserv
 pool is not vegetation-type dependent).
 """
 const TAU_DORMANT = 1.0e11
+const TAU_HILO_LIT_SPLIT = 1.0
 
 """
     poolAliases(configuration)
@@ -162,17 +164,14 @@ c_flow_A_vec, c_flow_QP_vec, c_flow_ME_vec)`, in the order the approaches pack i
   out by `findall`, and its one remaining reader, `cCycleConsistency_simple`, asks
   only whether a flow sits above or below the diagonal, which is `c_taker` against
   `c_giver`.
-- All nine come from one call so they cannot disagree about how many flows there are
+- All eight come from one call so they cannot disagree about how many flows there are
   or what order they sit in, which is what an approach rederiving each of them
   separately from a matrix left open. `pool_names` is `cEco_index => pool_name`
   pairs and `flow_edges` is `flow_order => (giver_name => taker_name)` pairs, one
   per flow -- readable, at-a-glance context for inspecting `land.cCycleBase` (e.g.
   what pool 3 or flow 5 actually is), not something any process matches against:
-  every process either resolves positions once here (`c_flow_qp_groups`) or matches
-  by giver/taker pool-index membership at the point of use (`edgesBetween`/
-  `setFlowValue`/`setMEFlow`, `landUtils.jl`/`cMicrobialEfficiency.jl`).
-  `c_flow_qp_groups` is the `cQualityPartition` giver/taker split groups, derived
-  from the same topology by `deriveQPGroups`.
+  every process matches by giver/taker pool-index membership or uses the
+  flow-aligned taker turnover rank derived later in `cCycleBase.precompute`.
 - `c_flow_A_vec`, `c_flow_QP_vec` and `c_flow_ME_vec` are neutral, one per flow, and
   are built here rather than in a `cFlow`, `cQualityPartition` or
   `cMicrobialEfficiency` approach for the same reason: their length and order are the
@@ -213,11 +212,26 @@ function cFlowStructure(params::cCycleBase, cEco, helpers)
     flow_edges = ntuple(
         i -> c_flow_order[i] => (cEco_components[c_giver[i]] => cEco_components[c_taker[i]]),
         length(c_taker))
+#=
+    # TO SIMPLIFY
     c_flow_qp_groups = deriveQPGroups(c_giver, c_taker, cEco_components)
+=#
+    # TO SIMPLIFY Allocate the flow-aligned rank once; precompute only updates its values.
+    c_flow_taker_turnover_rank = getVectorOfType(cEco, length(c_taker), zero)
+    c_flow_taker_turnover_rank = getTakerTurnoverRank(
+        c_flow_taker_turnover_rank,
+        c_flow_order,
+        c_giver,
+        c_taker,
+        c_eco_k_base,
+        helpers.pools.zix.cVeg,
+    )
+
     c_flow_A_vec = getVectorOfType(cEco, length(c_taker), one)
     c_flow_QP_vec = getVectorOfType(cEco, length(c_taker), one)
-    c_flow_ME_vec = getVectorOfType(cEco, length(c_taker), one)
-    return c_flow_order, c_taker, c_giver, pool_names, flow_edges, c_flow_qp_groups,
+    c_flow_ME_vec = getVectorOfType(cEco, length(c_taker), zero)
+
+    return c_flow_order, c_taker, c_giver, pool_names, flow_edges, c_flow_taker_turnover_rank,
         c_flow_A_vec, c_flow_QP_vec, c_flow_ME_vec
 end
 
@@ -249,6 +263,101 @@ function cFlowEdgeIndex(params, helpers, pool_name, edge)
     return only(zix)
 end
 
+"""
+    getTakerTurnoverRank(
+        c_flow_taker_turnover_rank,
+        c_flow_order,
+        c_giver,
+        c_taker,
+        c_eco_k_base,
+        cVeg,
+    )
+
+Classify each carbon-flow taker by turnover relative to the other non-vegetation
+taker of the same giver. The returned flow-aligned rank is:
+
+- `1`: faster of two non-vegetation takers;
+- `-1`: slower of two non-vegetation takers;
+- `0`: the flow is not a two-taker quality partition (including flows to vegetation
+  and givers with one non-vegetation taker).
+
+Only non-vegetation takers participate in the count. For every giver that has a
+non-vegetation taker, the number of non-vegetation takers must therefore be one or
+two; more than two is an invalid quality-partition topology. Two takers with equal
+base turnover rates are also invalid because their rank is undefined.
+
+The destination vector is supplied by the caller and updated with `repElem`, so the
+function does not construct per-giver collections or use `findall`, `unique`, or a
+`Dict` in the ranking loop.
+"""
+function getTakerTurnoverRank(
+        c_flow_taker_turnover_rank,
+        c_flow_order,
+        c_giver,
+        c_taker,
+        c_eco_k_base,
+        cVeg,
+    )
+
+    # @inbounds # for efficiency over checks
+    for fO ∈ c_flow_order
+        taker = c_taker[fO]
+
+        # TO SIMPLIFY QP does not rank transfers whose taker is vegetation.
+        if taker ∈ cVeg
+            c_flow_taker_turnover_rank = repElem(
+                c_flow_taker_turnover_rank,
+                zero(eltype(c_flow_taker_turnover_rank)),
+                fO,
+            )
+            continue
+        end
+
+        # TO SIMPLIFY count # of takers and identify the other flow (to compare tau below)
+        giver = c_giver[fO]
+        nTakers = 0
+        otherFlow = 0
+        for j ∈ c_flow_order
+            if c_giver[j] == giver && !(c_taker[j] ∈ cVeg)
+                nTakers += 1
+                j != fO && (otherFlow = j)
+            end
+        end
+        
+        # TO SIMPLIFY 
+        if nTakers == 1
+            turnoverRank = zero(eltype(c_flow_taker_turnover_rank))
+        elseif nTakers == 2
+            kTaker = c_eco_k_base[taker]
+            kOtherTaker = c_eco_k_base[c_taker[otherFlow]]
+            # TO SIMPLIFY the fastest?
+            if kTaker > kOtherTaker
+                turnoverRank = one(eltype(c_flow_taker_turnover_rank))
+            elseif kTaker < kOtherTaker
+                turnoverRank = -one(eltype(c_flow_taker_turnover_rank))
+            else
+                # TO SIMPLIFY this can be done more informative
+                error("Cannot rank two non-vegetation takers with identical base turnover rates.") 
+            end
+        else
+            # TO SIMPLIFY this can be done more informative
+            error(
+                "Carbon quality partition requires one or two non-vegetation takers per giver; " *
+                "found $(nTakers) for giver index $(giver).",
+            )
+        end
+
+        c_flow_taker_turnover_rank = repElem(
+            c_flow_taker_turnover_rank,
+            turnoverRank,
+            fO,
+        )
+    end
+
+    return c_flow_taker_turnover_rank
+end
+
+#= TO SIMPLIFY OLD name-derived QP grouping retained for reference; turnover rank is now used.
 """
     deriveQPGroups(c_giver, c_taker, cEco_components)
 
@@ -350,6 +459,8 @@ function deriveQPGroups(c_giver, c_taker, cEco_components)
     )
 end
 
+=#
+
 """
     getKfromTau(c_eco, table, scalar, helpers)
 
@@ -382,7 +493,7 @@ per compartment/pool group), dispatched on `scalar`'s type.
   a dozen struct fields, unpacking and repacking several `land` namespaces), rather
   than adding to it.
 - Used identically by `cCycleBase_GSI`, `cCycleBase_GSI_PlantForm`,
-  `cCycleBase_GSI_PlantForm_MGMT` (`c_eco_τ`, per-pool `k_c_scalars`) and
+  `cCycleBase_MGMT ` (`c_eco_τ`, per-pool `k_c_scalars`) and
   `cCycleBase_CASA` (`c_eco_k_base`, the single `k_c_scalar`) -- the target array's
   name and whether the scalar varies by pool differ by approach, the loop does not.
 """

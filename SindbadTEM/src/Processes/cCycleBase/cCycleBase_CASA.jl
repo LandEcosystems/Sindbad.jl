@@ -109,7 +109,7 @@ function define(params::cCycleBase_CASA, forcing, land, helpers)
     # pool structure, rather than a transfer matrix carried as a parameter. The same
     # call keys the flows by pool-name pair and sizes the neutral flow vector, so a
     # cFlow approach reads the topology and fills in values instead of rederiving both
-    (c_flow_order, c_taker, c_giver, pool_names, flow_edges, c_flow_qp_groups, c_flow_A_vec,
+    (c_flow_order, c_taker, c_giver, pool_names, flow_edges, c_flow_taker_turnover_rank, c_flow_A_vec,
         c_flow_QP_vec, c_flow_ME_vec) = cFlowStructure(params, cEco, helpers)
 
     ## Instantiate variables, matching cCycleBase_GSI_PlantForm.jl: define only
@@ -128,13 +128,25 @@ function define(params::cCycleBase_CASA, forcing, land, helpers)
     rootcoarse_age_per_vegtype = getParamsPerVegType(CVEG_ROOTCOARSE_AGE_PER_VEGTYPE, typeof(veg_type_class_map))
     wood_age_per_vegtype = getParamsPerVegType(CVEG_WOOD_AGE_PER_VEGTYPE, typeof(veg_type_class_map))
 
+    # zix for the carbon cycle...
+    zix_cVeg = helpers.pools.zix.cVeg
+    zix_cLit = helpers.pools.zix.cLit
+    zix_cMic = helpers.pools.zix.cMic
+    zix_cSoil = helpers.pools.zix.cSoil
+
+    zix_cNonVeg = (zix_cLit..., zix_cMic..., zix_cSoil...)
+    zix_cNatural = (zix_cVeg..., zix_cLit..., zix_cMic..., zix_cSoil...)
+    zix_cHeterotrophic = (zix_cLit..., zix_cMic..., zix_cSoil...)
+    zix_cProducts = similar(zix_cVeg, 0)
+
     c_model = params
 
     ## pack land variables
     @pack_nt begin
         (CN_ratio_cVeg, c_eco_k_base, c_flow_A_vec, c_flow_QP_vec, c_flow_ME_vec) ⇒ land.diagnostics
         (rootfine_age_per_vegtype, leaf_age_per_vegtype, rootcoarse_age_per_vegtype, wood_age_per_vegtype) ⇒ land.diagnostics
-        (c_flow_order, c_taker, c_giver, pool_names, flow_edges, c_flow_qp_groups) ⇒ land.cCycleBase
+        (c_flow_order, c_taker, c_giver, pool_names, flow_edges, c_flow_taker_turnover_rank) ⇒ land.cCycleBase
+        (zix_cNonVeg, zix_cNatural, zix_cHeterotrophic, zix_cProducts) ⇒ land.cCycle
         c_model ⇒ land.models
     end
     return land

@@ -15,7 +15,7 @@ carbon, 10 pools in all.
   repeating its leaf entries, so the two structures cannot drift apart on the eight
   pools they share. Declaration order is preserved by the splat, so the two structures
   still agree on every `cEco` index they share -- that is why
-  `cCycleBase_GSI_PlantForm_MGMT` reuses `GSI_FLOW_EDGES` unchanged.
+  `cCycleBase_MGMT ` reuses `GSI_FLOW_EDGES` unchanged.
 - Products are decay only: carbon enters them from management and leaves by turnover,
   with no pool-to-pool transfer, so they add no flow edges.
 - See `poolStructure(::Type{GSI})` for the shape and ordering rules that
@@ -40,11 +40,11 @@ Turnover *time* (years) of the two harvested-product pools
 `poolStructure(MGMT)` adds on top of the GSI structure:
 `cProductsWood`/`cProductsCrop`. Fixed data, not a parameter -- calibration
 happens through `k_c_products_wood_scalar`/`k_c_products_crop_scalar` in
-`cCycleBase_GSI_PlantForm_MGMT` instead.
+`cCycleBase_MGMT ` instead.
 
 Unlike every other pool that approach's turnover loop covers, these two do not
 vary by vegetation type: harvested-product decay does not depend on the pixel's
-vegetation-type classification, so `cCycleBase_GSI_PlantForm_MGMT`'s `precompute`
+vegetation-type classification, so `cCycleBase_MGMT `'s `precompute`
 merges this fixed pair into its runtime, per-vegtype compartment-turnover table (built
 from `ParamsForVegClasses.jl`'s `CVEG_*_AGE_PER_VEGTYPE` tables) rather than
 looking them up by `veg_type_name` at all.

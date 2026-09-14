@@ -7,38 +7,23 @@ purpose(::Type{cQualityPartitioncVeg}) = "Effect of the metabolic litter fractio
 includeApproaches(cQualityPartitioncVeg, @__DIR__)
 
 @doc """
-	$(getModelDocString(cQualityPartitioncVeg))
+    $(getModelDocString(cQualityPartitioncVeg))
 
 ---
 # Extended help
 
 `cQualityPartitioncVeg` provides `c_flow_QP_f_cVeg`, a flow-aligned factor of the
-carbon-quality partition with one entry per active carbon transfer, in the same
-order as `c_flow_order`, `c_giver` and `c_taker`.
+carbon-quality partition. The approach operates on flows whose giver belongs to
+`cVeg` and uses `land.cCycleBase.c_flow_taker_turnover_rank` to select the fast or
+slow share without identifying takers by pool name.
 
-The factor is one everywhere except on the flows leaving `cVegLeaf` and
-`cVegRootFine`, in `land.cCycleBase.c_flow_qp_groups.cVeg`: lignin-rich,
-nitrogen-poor litter routes less of its litterfall to the fast-cycling metabolic
-pools and more to the structural ones. [`cQualityPartition_mult`](@ref)
-multiplies this factor with the `cLit`, `cMic` and `cSoil` factors to form
-`c_flow_QP_vec`.
+For each flow, `c_flow_taker_turnover_rank` is `1` for the faster of two
+non-vegetation takers, `-1` for the slower taker, and `0` when the flow is not a
+two-taker quality partition. A rank of zero therefore leaves the flow neutral
+(`QP = 1`), including GSI transfers to vegetation and one-taker litterfall.
 
-`c_flow_qp_groups.cVeg` is derived once, from the resolved flow topology, by
-`deriveQPGroups` (`cCycleBase/poolConfigurations/poolConfigurations.jl`): a
-giver whose name starts with `cVeg` and whose outgoing edges include a taker
-pair sharing a base name suffixed `Fast`/`Slow` (e.g. `cLitLeafFast`/
-`cLitLeafSlow`) contributes a `(fast_positions, slow_positions)` pair. A
-structure without the explicit metabolic/structural litter split -- e.g. GSI,
-where `cVegLeaf`/`cVegRoot` each reach only a single, unsplit `cLitFast` pool --
-resolves to an empty group and simply keeps its neutral partition of one on
-those flows.
-
-Named after the giver pool group it owns (`cVeg`), the way
-[`cMicrobialEfficiencycLit`](@ref)/`cMic`/`cSoil` are, rather than after the
-control it applies (this used to be `cQualityPartitionMetabolicFraction`).
-[`cQualityPartitioncVeg_vegQualityTraits`](@ref) reads the metabolic fraction
-directly from `land.properties`, published by whichever `vegQualityTraits`
-approach is selected, so the partition and the decomposition-rate side can never
-disagree about it.
+The individual approaches only determine `fastPart` and `slowPart` (for example,
+from the metabolic litter fraction); the same rank-based equation is then applied
+to every `cVeg` flow.
 """
 cQualityPartitioncVeg

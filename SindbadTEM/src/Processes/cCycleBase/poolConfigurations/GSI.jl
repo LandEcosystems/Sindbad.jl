@@ -34,7 +34,7 @@ poolStructure(::Type{GSI}) = (;
 
 The 11 edges shared by every GSI-derived base. Transcribed from the `c_flow_A_array`
 those approaches carried, which is identical across `cCycleBase_GSI` and
-`_GSI_PlantForm`, and the same 11 under `_GSI_PlantForm_MGMT`, whose products are
+`_GSI_PlantForm`, and the same 11 under `_MGMT `, whose products are
 decay only and so add no edges.
 
 Lives here rather than with the approaches because every name in it is a pool of this
@@ -67,7 +67,7 @@ Only `cLitFast`/`cLitSlow`/`cSoilSlow`/`cSoilOld`/`cVegReserve` are read from th
 table directly any more -- none of them vary by vegetation type. The three
 vegetation-compartment pools that do (`cVegRoot`, `cVegWood`, `cVegLeaf`) are no longer
 read from here: every GSI-family `cCycleBase` approach
-(`cCycleBase_GSI`/`_GSI_PlantForm`/`_GSI_PlantForm_MGMT`) now looks their turnover
+(`cCycleBase_GSI`/`_GSI_PlantForm`/`_MGMT `) now looks their turnover
 up at runtime from `CVEG_ROOTFINE_AGE_PER_VEGTYPE`/`CVEG_WOOD_AGE_PER_VEGTYPE`/
 `CVEG_LEAF_AGE_PER_VEGTYPE` (`ParamsForVegClasses.jl`), re-keyed onto the
 experiment's active `vegClass` classification and looked up by
@@ -107,6 +107,6 @@ defaulted to); every other pool is `0.0`, exactly as that vector field was never
 read for any pool other than `cVeg`'s.
 """
 const GSI_CN_ratio = (;
-    cVegRoot = 25.0, cVegWood = 260.0, cVegLeaf = 260.0, cVegReserve = 10.0,
+    cVegRoot = 25.0, cVegWood = 260.0, cVegLeaf = 25.0, cVegReserve = 50.0,
     cLitFast = 0.0, cLitSlow = 0.0, cSoilSlow = 0.0, cSoilOld = 0.0,
 )

@@ -2,7 +2,7 @@ export cQualityPartitioncVeg_constant
 
 #! format: off
 @bounds @describe @units @timescale @with_kw struct cQualityPartitioncVeg_constant{T1} <: cQualityPartitioncVeg
-    frac_metabolic::T1 = 0.85 | (0.0, 1.0) | "fraction of leaf and fine-root litterfall routed to the metabolic litter pools" | "fraction" | ""
+    lit_frac_metabolic::T1 = 0.85 | (0.0, 1.0) | "fraction of leaf and fine-root litterfall routed to the metabolic litter pools" | "fraction" | ""
 end
 #! format: on
 
@@ -31,15 +31,8 @@ function precompute(params::cQualityPartitioncVeg_constant, forcing, land, helpe
         o_one ⇐ land.constants
     end
 
-    ## calculate variables
-    for (fast_positions, slow_positions) ∈ c_flow_qp_groups.cVeg
-        for i ∈ fast_positions
-            c_flow_QP_f_cVeg = repElem(c_flow_QP_f_cVeg, frac_metabolic, i)
-        end
-        for i ∈ slow_positions
-            c_flow_QP_f_cVeg = repElem(c_flow_QP_f_cVeg, o_one - frac_metabolic, i)
-        end
-    end
+    c_flow_QP_f_cVeg = getQP(c_flow_QP_f_cVeg, c_flow_order, c_giver, c_taker, helpers.pools.zix.cVeg, 
+        c_flow_taker_turnover_rank, o_one - lit_frac_metabolic)
 
     ## pack land variables
     @pack_nt c_flow_QP_f_cVeg ⇒ land.diagnostics

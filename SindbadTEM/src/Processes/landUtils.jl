@@ -2,6 +2,7 @@ export @add_to_elem, @pack_nt, @rep_elem, @rep_vec, @unpack_nt
 export addToElem, addToEachElem, addVec
 export cFlowMatrix
 export edgesBetween
+export getQPEqual
 export getVectorOfType
 export getZix
 export processPackNT, processUnpackNT
@@ -264,6 +265,56 @@ end
 
 function getVectorOfType(source_vector::StaticArray, output_length, fill_value)
     return SVector{output_length}(fill(fill_value(eltype(source_vector)), output_length))
+end
+
+function getQPEqual(c_flow_QP_vec, c_flow_order, c_giver, c_taker, zix_of_source)
+    for fO ∈ c_flow_order
+        c_taker[fO] ∈ zix_of_source && continue
+        give_r = c_giver[fO]
+        take_r = c_taker[fO]
+
+        n_out = oftype(c_flow_QP_vec[fO],
+            count(
+                fO_i -> c_giver[fO_i] == give_r && !(c_taker[fO_i] ∈ zix_of_source),
+                c_flow_order,
+            )
+        )
+        frac_out = safe_divide(one(n_out), n_out)
+        c_flow_QP_vec = repElem(c_flow_QP_vec, frac_out, fO)
+    end
+    return c_flow_QP_vec
+end
+
+function getQPperFlow(turnoverRank, slowPart)
+    QP =
+        (o_one - abs(turnoverRank)) +
+        at_least_zero(turnoverRank) * (one(slowPart) - slowPart) +
+        at_least_zero(-turnoverRank) * slowPart
+    return QP
+end
+
+function getQP(c_flow_QP_vec, c_flow_order, c_giver, c_taker, zix_of_source, 
+    c_flow_taker_turnover_rank, slowPart)
+    for fO ∈ c_flow_order
+        c_giver[fO] ∈ zix_of_source || continue
+        turnoverRank = c_flow_taker_turnover_rank[fO]
+        QP = getQPperFlow(turnoverRank, slowPart)
+        c_flow_QP_vec = repElem(c_flow_QP_vec, QP, fO)
+    end
+    return c_flow_QP_vec
+end
+
+function getQP(c_flow_QP_vec, c_flow_order, c_giver, c_taker, zix_of_source, 
+    c_flow_taker_turnover_rank, slowPartLoK, slowPartHiK, k_hilo_lit_split, c_eco_k_base)
+    for fO ∈ c_flow_order
+        c_giver[fO] ∈ zix_of_source || continue
+        slowPart = c_eco_k_base[c_giver[fO]] < k_hilo_lit_split ? slowPartLoK : slowPartHiK
+        turnoverRank = c_flow_taker_turnover_rank[fO]
+        QP = getQPperFlow(turnoverRank, slowPart)
+        c_flow_QP_vec = repElem(c_flow_QP_vec, QP, fO)
+    end
+
+    return c_flow_QP_vec
 end
 
 """

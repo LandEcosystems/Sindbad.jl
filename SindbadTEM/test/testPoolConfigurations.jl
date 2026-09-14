@@ -11,7 +11,7 @@
     edge_counts = Dict(
         P.cCycleBase_GSI => 11,
         P.cCycleBase_GSI_PlantForm => 11,
-        P.cCycleBase_GSI_PlantForm_MGMT => 11,
+        P.cCycleBase_MGMT  => 11,
         P.cCycleBase_CASA => 22,
     )
 
@@ -107,7 +107,7 @@ end
     edge_counts = Dict(
         P.cCycleBase_GSI => 11,
         P.cCycleBase_GSI_PlantForm => 11,
-        P.cCycleBase_GSI_PlantForm_MGMT => 11,
+        P.cCycleBase_MGMT  => 11,
         P.cCycleBase_CASA => 22,
     )
 

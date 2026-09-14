@@ -22,35 +22,17 @@ function define(params::cQualityPartitioncLit_constant, forcing, land, helpers)
 end
 
 function precompute(params::cQualityPartitioncLit_constant, forcing, land, helpers)
-    ## unpack parameters
     @unpack_cQualityPartitioncLit_constant params
 
-    ## unpack land variables
     @unpack_nt begin
-        c_flow_QP_f_cLit ⇐ land.diagnostics
-        c_flow_qp_groups ⇐ land.cCycleBase
+        (c_flow_QP_f_cLit, c_eco_k_base, k_hilo_lit_split) ⇐ land.diagnostics
+        (c_flow_order, c_giver, c_taker, c_flow_taker_turnover_rank) ⇐ land.cCycleBase
         o_one ⇐ land.constants
     end
 
-    ## calculate variables
-    for (soil_positions, mic_positions) ∈ c_flow_qp_groups.cLit.structural
-        for i ∈ soil_positions
-            c_flow_QP_f_cLit = repElem(c_flow_QP_f_cLit, frac_lignin_struct, i)
-        end
-        for i ∈ mic_positions
-            c_flow_QP_f_cLit = repElem(c_flow_QP_f_cLit, o_one - frac_lignin_struct, i)
-        end
-    end
-    for (soil_positions, mic_positions) ∈ c_flow_qp_groups.cLit.wood
-        for i ∈ soil_positions
-            c_flow_QP_f_cLit = repElem(c_flow_QP_f_cLit, frac_lignin_wood, i)
-        end
-        for i ∈ mic_positions
-            c_flow_QP_f_cLit = repElem(c_flow_QP_f_cLit, o_one - frac_lignin_wood, i)
-        end
-    end
+    c_flow_QP_f_cLit = getQP(c_flow_QP_f_cLit, c_flow_order, c_giver, c_taker, helpers.pools.zix.cLit, 
+        c_flow_taker_turnover_rank, frac_lignin_wood, frac_lignin_struct, k_hilo_lit_split, c_eco_k_base)
 
-    ## pack land variables
     @pack_nt c_flow_QP_f_cLit ⇒ land.diagnostics
     return land
 end

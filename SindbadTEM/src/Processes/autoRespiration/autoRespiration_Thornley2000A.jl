@@ -56,14 +56,6 @@ function compute(params::autoRespiration_Thornley2000A, forcing, land, helpers)
         # no negative maintenance respiration
         RA_M_ix = at_least_zero(RA_M_ix)
 
-        #TODO: check if this is correct
-        # if helpers.pools.components.cEco[ix] == :cVegReserve
-        #     if (cEco[ix] - RA_M_ix) < land.states.c_remain
-        #         RA_M_ix = zero(RA_M_ix)
-        #     end
-        # end
-
-
         # growth respiration: R_g = (1.0 - YG) * (GPP * allocationToPool - R_m)
         RA_G_ix = (one(YG) - YG) * (gpp * c_allocation[ix] - RA_M_ix)
 

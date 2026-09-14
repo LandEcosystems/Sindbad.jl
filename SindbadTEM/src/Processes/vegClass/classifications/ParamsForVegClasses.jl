@@ -107,7 +107,7 @@ Drives vegetation-compartment turnover at runtime: `cCycleBase_CASA`'s `define`
 re-keys this table (via `getParamsPerVegType`) onto whichever classification
 the experiment's `vegClass` approach resolved into, and `precompute` looks up
 the current pixel's `land.states.veg_type_name` in it for `cVegRootFine`'s
-turnover time. `cCycleBase_GSI`/`_GSI_PlantForm`/`_GSI_PlantForm_MGMT` do the
+turnover time. `cCycleBase_GSI`/`_GSI_PlantForm`/`_MGMT ` do the
 same for their single, undifferentiated `cVegRoot` pool.
 
 Transcribed from the legacy 12-element array (values `[1.8, 1.2, 1.2, 5.0,

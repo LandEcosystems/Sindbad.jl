@@ -7,39 +7,24 @@ purpose(::Type{cQualityPartitioncLit}) = "Effect of litter lignin content on the
 includeApproaches(cQualityPartitioncLit, @__DIR__)
 
 @doc """
-	$(getModelDocString(cQualityPartitioncLit))
+    $(getModelDocString(cQualityPartitioncLit))
 
 ---
 # Extended help
 
 `cQualityPartitioncLit` provides `c_flow_QP_f_cLit`, a flow-aligned factor of the
-carbon-quality partition with one entry per active carbon transfer, in the same
-order as `c_flow_order`, `c_giver` and `c_taker`.
+carbon-quality partition. The approach operates on flows whose giver belongs to
+`cLit` and uses `land.cCycleBase.c_flow_taker_turnover_rank` to select the fast or
+slow taker without identifying takers by pool name.
 
-The factor is one everywhere except on the flows leaving the structural and woody
-litter pools, in `land.cCycleBase.c_flow_qp_groups.cLit.structural` and
-`c_flow_qp_groups.cLit.wood`: the lignin-rich part of decomposing litter is
-stabilized directly into the slow soil pool, and the rest passes through the
-microbial pools. [`cQualityPartition_mult`](@ref) multiplies this factor with
-the `cVeg`, `cMic` and `cSoil` factors to form `c_flow_QP_vec`.
+For each flow, `c_flow_taker_turnover_rank` is `1` for the faster of two
+non-vegetation takers, `-1` for the slower taker, and `0` when the flow is not a
+two-taker quality partition. Lignin controls the slow share, while its complement
+is the fast share. The existing structural-versus-woody litter distinction remains
+a giver-side ecological distinction because those two litter classes use different
+lignin fractions; it is independent of identifying the taker.
 
-`c_flow_qp_groups.cLit` is derived once, from the resolved flow topology, by
-`deriveQPGroups` (`cCycleBase/poolConfigurations/poolConfigurations.jl`): a
-giver whose name starts with `cLit` and whose outgoing edges include both a
-`cSoil`-prefixed taker and a `cMic`-prefixed taker contributes a
-`(soil_positions, mic_positions)` pair, filed under `wood` if the giver's name
-contains `Wood`/`RootCoarse` and `structural` otherwise. `cLitLeafFast` and
-`cLitRootFineFast` are single-outflow (to a `cMic`-prefixed pool only) and so
-never match, keeping that neutral partition. A structure without the explicit
-structural-litter and microbial pools -- e.g. GSI, whose `cLitFast`/`cLitSlow`
-each reach only `cSoilSlow` -- resolves both fields to `()`.
-
-Named after the giver pool group it owns (`cLit`), the way
-[`cMicrobialEfficiencycLit`](@ref)/`cMic`/`cSoil` are, rather than after the
-control it applies (this used to be `cQualityPartitionLignin`).
-[`cQualityPartitioncLit_vegQualityTraits`](@ref) reads the lignin fractions
-directly from `land.properties`, published by whichever `vegQualityTraits`
-approach is selected, so the partition and the decomposition-rate side can never
-disagree about them.
+[`cQualityPartition_mult`](@ref) multiplies this factor with the `cVeg`, `cMic`
+and `cSoil` factors to form `c_flow_QP_vec`.
 """
 cQualityPartitioncLit

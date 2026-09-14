@@ -21,28 +21,18 @@ function define(params::cQualityPartitioncMic_constant, forcing, land, helpers)
 end
 
 function precompute(params::cQualityPartitioncMic_constant, forcing, land, helpers)
-    ## unpack parameters
     @unpack_cQualityPartitioncMic_constant params
 
-    ## unpack land variables
     @unpack_nt begin
         c_flow_QP_f_cMic ⇐ land.diagnostics
-        c_flow_qp_groups ⇐ land.cCycleBase
+        (c_flow_order, c_giver, c_flow_taker_turnover_rank) ⇐ land.cCycleBase
         o_one ⇐ land.constants
     end
 
-    ## calculate variables
-    if !isempty(c_flow_qp_groups.cMic)
-        (stabilized_positions, other_positions) = only(c_flow_qp_groups.cMic)
-        for i ∈ stabilized_positions
-            c_flow_QP_f_cMic = repElem(c_flow_QP_f_cMic, frac_cMicSoil_to_cSoilOld, i)
-        end
-        for i ∈ other_positions
-            c_flow_QP_f_cMic = repElem(c_flow_QP_f_cMic, o_one - frac_cMicSoil_to_cSoilOld, i)
-        end
-    end
+    c_flow_QP_f_cMic = getQP(c_flow_QP_f_cMic, c_flow_order, c_giver, c_taker, helpers.pools.zix.cMic, 
+        c_flow_taker_turnover_rank, frac_cMicSoil_to_cSoilOld)
 
-    ## pack land variables
+    ## TO SIMPLIFY pack land variables
     @pack_nt c_flow_QP_f_cMic ⇒ land.diagnostics
     return land
 end
