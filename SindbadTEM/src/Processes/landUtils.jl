@@ -2,6 +2,7 @@ export @add_to_elem, @pack_nt, @rep_elem, @rep_vec, @unpack_nt
 export addToElem, addToEachElem, addVec
 export cFlowMatrix
 export edgesBetween
+export getQP
 export getQPEqual
 export getVectorOfType
 export getZix
