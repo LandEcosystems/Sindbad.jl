@@ -15,7 +15,7 @@ function define(params::cMicrobialEfficiencycLit_texture, forcing, land, helpers
 
     # One value per active carbon transfer, neutral so that every flow this process does
     # not own leaves the efficiency to the other factors.
-    c_flow_ME_f_cLit = getVectorOfType(cEco, length(c_taker), one)
+    c_flow_ME_f_cLit = getVectorOfType(cEco, length(c_taker), zero)
 
     @pack_nt c_flow_ME_f_cLit ⇒ land.diagnostics
     return land

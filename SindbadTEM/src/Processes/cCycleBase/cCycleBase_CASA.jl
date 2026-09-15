@@ -78,22 +78,36 @@ function meCASAFlowsSoil(eff_cSoil_to_cMicSoil, eff_cSoilSlow_to_cSoilOld, zix)
 end
 
 #! format: off
-@bounds @describe @units @timescale @with_kw struct cCycleBase_CASA{T1,T2,T3,T4,T5,T6,T7,T8,T9,T10,T11,T12,T13,T14,T15} <: cCycleBase
-    k_c_scalar::T1 = 1.0 | (0.25, 4.0) | "scalar for the per-pool turnover rate of ecosystem carbon pools" | "-" | "year"
-    rootfine_age_scalar::T2 = 1.0 | (0.25, 4.0) | "scalar for the per-vegetation-type turnover rate of fine roots" | "-" | "year"
-    rootcoarse_age_scalar::T3 = 1.0 | (0.25, 4.0) | "scalar for the per-vegetation-type turnover rate of coarse roots" | "-" | "year"
-    wood_age_scalar::T4 = 1.0 | (0.25, 4.0) | "scalar for the per-vegetation-type turnover rate of wood" | "-" | "year"
-    leaf_age_scalar::T5 = 1.0 | (0.25, 4.0) | "scalar for the per-vegetation-type turnover rate of leaves" | "-" | "year"
-    CN_ratio_scalar::T6 = 1.0 | (0.25, 4.0) | "scalar for the vegetation carbon-to-nitrogen ratio" | "-" | ""
-    eff_cLit_to_cMicSurf::T7 = 0.4 | (0.0, 1.0) | "Microbial carbon-transfer efficiency of litter decomposition into the surface microbial pool." | "fraction" | ""
-    eff_cLitRootFine_to_cMicSoil::T8 = 0.45 | (0.0, 1.0) | "Microbial carbon-transfer efficiency of fine-root litter decomposition into the soil microbial pool." | "fraction" | ""
-    eff_cLitRootCoarse_to_cMicSoil::T9 = 0.4 | (0.0, 1.0) | "Microbial carbon-transfer efficiency of coarse-root litter decomposition into the soil microbial pool." | "fraction" | ""
-    eff_cLit_to_cSoilSlow::T10 = 0.6 | (0.0, 1.0) | "Microbial carbon-transfer efficiency of structural and woody litter decomposition into the slow soil pool." | "fraction" | ""
-    eff_cLitRootFine_to_cSoilSlow::T11 = 0.55 | (0.0, 1.0) | "Microbial carbon-transfer efficiency of fine-root structural litter decomposition into the slow soil pool." | "fraction" | ""
-    eff_cMicSurf_to_cSoilSlow::T12 = 0.4 | (0.0, 1.0) | "Microbial carbon-transfer efficiency of surface microbial turnover into the slow soil pool." | "fraction" | ""
-    eff_cSoil_to_cMicSoil::T13 = 0.45 | (0.0, 1.0) | "Microbial carbon-transfer efficiency of slow and old soil decomposition returning to the soil microbial pool." | "fraction" | ""
-    eff_cSoilSlow_to_cSoilOld::T14 = 0.45 | (0.0, 1.0) | "Microbial carbon-transfer efficiency of slow soil decomposition stabilized into old soil carbon." | "fraction" | ""
-    c_remain::T15 = 50.0 | (0.1, 100.0) | "remaining carbon after disturbance" | "gC/m2" | ""
+@bounds @describe @units @timescale @with_kw struct cCycleBase_CASA{T1,T2,T3,T4,T5,T6,T7,T8,T9,T10,T11,T12,T13,T14,T15,T16,T17,T18,T19,T20,T21,T22,T23,T24} <: cCycleBase
+    rootfine_age_scalar::T1 = 1.0 | (0.25, 4.0) | "scalar for the per-vegetation-type turnover rate of fine roots" | "-" | "year"
+    rootcoarse_age_scalar::T2 = 1.0 | (0.25, 4.0) | "scalar for the per-vegetation-type turnover rate of coarse roots" | "-" | "year"
+    wood_age_scalar::T3 = 1.0 | (0.25, 4.0) | "scalar for the per-vegetation-type turnover rate of wood" | "-" | "year"
+    leaf_age_scalar::T4 = 1.0 | (0.25, 4.0) | "scalar for the per-vegetation-type turnover rate of leaves" | "-" | "year"
+
+    k_c_litfast_scalar::T5 = 1.0 | (0.25, 4) | "scalar for turnover rate of fast litter carbon pools" | "-" | "year"
+    k_c_litslow_scalar::T6 = 1.0 | (0.25, 4) | "scalar for turnover rate of slow litter carbon pools" | "-" | "year"
+
+    k_c_micsurf_scalar::T7 = 1.0 | (0.25, 4.0) | "scalar for the per-pool turnover rate of ecosystem carbon pools" | "-" | "year"
+    k_c_micsoil_scalar::T8 = 1.0 | (0.25, 4.0) | "scalar for the per-pool turnover rate of ecosystem carbon pools" | "-" | "year"
+
+    k_c_soilslow_scalar::T9 = 1.0 | (0.25, 4) | "scalar for turnover rate of soil slow carbon pool" | "-" | "year"
+    k_c_soilold_scalar::T10 = 1.0 | (0.25, 4) | "scalar for turnover rate of soil old carbon pool" | "-" | "year"
+
+    k_c_allVeg_scalar::T11 = 1.0 | (0.25, 4.0) | "scalar for turnover rate of all vegetation carbon pools; it has no timescale, since it scales the original pool level k." | "-" | ""
+    k_c_allLitter_scalar::T12 = 1.0 | (0.25, 4) | "scalar for turnover rate of all litter carbon pools; it has no timescale, since it scales the original pool level k." | "-" | ""
+    k_c_allSoil_scalar::T13 = 1.0 | (0.25, 4) | "scalar for turnover rate of all soil carbon pools; it has no timescale, since it scales the original pool level k." | "-" | ""
+    k_c_allMicrobial_scalar::T14 = 1.0 | (0.25, 4) | "scalar for turnover rate of all microbial carbon pools; it has no timescale, since it scales the original pool level k." | "-" | ""
+
+    CN_ratio_scalar::T15 = 1.0 | (0.25, 4.0) | "scalar for the vegetation carbon-to-nitrogen ratio" | "-" | ""
+    eff_cLit_to_cMicSurf::T16 = 0.4 | (0.0, 1.0) | "Microbial carbon-transfer efficiency of litter decomposition into the surface microbial pool." | "fraction" | ""
+    eff_cLitRootFine_to_cMicSoil::T17 = 0.45 | (0.0, 1.0) | "Microbial carbon-transfer efficiency of fine-root litter decomposition into the soil microbial pool." | "fraction" | ""
+    eff_cLitRootCoarse_to_cMicSoil::T18 = 0.4 | (0.0, 1.0) | "Microbial carbon-transfer efficiency of coarse-root litter decomposition into the soil microbial pool." | "fraction" | ""
+    eff_cLit_to_cSoilSlow::T19 = 0.6 | (0.0, 1.0) | "Microbial carbon-transfer efficiency of structural and woody litter decomposition into the slow soil pool." | "fraction" | ""
+    eff_cLitRootFine_to_cSoilSlow::T20 = 0.55 | (0.0, 1.0) | "Microbial carbon-transfer efficiency of fine-root structural litter decomposition into the slow soil pool." | "fraction" | ""
+    eff_cMicSurf_to_cSoilSlow::T21 = 0.4 | (0.0, 1.0) | "Microbial carbon-transfer efficiency of surface microbial turnover into the slow soil pool." | "fraction" | ""
+    eff_cSoil_to_cMicSoil::T22 = 0.45 | (0.0, 1.0) | "Microbial carbon-transfer efficiency of slow and old soil decomposition returning to the soil microbial pool." | "fraction" | ""
+    eff_cSoilSlow_to_cSoilOld::T23 = 0.45 | (0.0, 1.0) | "Microbial carbon-transfer efficiency of slow soil decomposition stabilized into old soil carbon." | "fraction" | ""
+    c_remain::T24 = 50.0 | (0.1, 100.0) | "remaining carbon after disturbance" | "gC/m2" | ""
 end
 #! format: on
 
@@ -205,13 +219,29 @@ function precompute(params::cCycleBase_CASA, forcing, land, helpers)
         cVegWood = getproperty(wood_age_per_vegtype, veg_type_name),
     )
     casa_k_veg_scalars = (;
-        cVegRootFine = rootfine_age_scalar, cVegLeaf = leaf_age_scalar,
-        cVegRootCoarse = rootcoarse_age_scalar, cVegWood = wood_age_scalar,
+        cVegRootFine = rootfine_age_scalar * k_c_allVeg_scalar, 
+        cVegLeaf = leaf_age_scalar * k_c_allVeg_scalar,
+        cVegRootCoarse = rootcoarse_age_scalar * k_c_allVeg_scalar, 
+        cVegWood = wood_age_scalar * k_c_allVeg_scalar,
     )
-    c_eco_k_base = getKfromTau(c_eco_k_base, casa_tau_default_veg_pools, casa_k_veg_scalars, helpers)
-    c_eco_k_base = getKfromTau(c_eco_k_base, CASA_TAU_NON_VEG_POOLS, k_c_scalar, helpers)
 
-    k_hilo_lit_split = (one(TAU_HILO_LIT_SPLIT) / eltype(c_eco_k_base)(TAU_HILO_LIT_SPLIT)) * k_c_scalar # this is a place holder to convert TAU_HILO_LIT_SPLIT to k time units...
+    casa_k_non_veg_scalars = (;
+        cLitLeafFast = k_c_litfast_scalar * k_c_allLitter_scalar,
+        cLitLeafSlow = k_c_litslow_scalar * k_c_allLitter_scalar,
+        cLitRootFineFast = k_c_litfast_scalar * k_c_allLitter_scalar,
+        cLitRootFineSlow = k_c_litslow_scalar * k_c_allLitter_scalar,
+        cLitRootCoarse = k_c_litslow_scalar * k_c_allLitter_scalar,
+        cLitWood = k_c_litslow_scalar * k_c_allLitter_scalar,
+        cMicSurf = k_c_micsurf_scalar * k_c_allMicrobial_scalar,
+        cMicSoil = k_c_micsoil_scalar * k_c_allMicrobial_scalar,
+        cSoilSlow = k_c_soilslow_scalar * k_c_allSoil_scalar,
+        cSoilOld = k_c_soilold_scalar * k_c_allSoil_scalar,
+    )
+
+    c_eco_k_base = getKfromTau(c_eco_k_base, casa_tau_default_veg_pools, casa_k_veg_scalars, helpers)
+    c_eco_k_base = getKfromTau(c_eco_k_base, CASA_TAU_NON_VEG_POOLS, casa_k_non_veg_scalars, helpers)
+
+    k_hilo_lit_split = one(TAU_HILO_LIT_SPLIT) / ((eltype(c_eco_k_base)(TAU_HILO_LIT_SPLIT)) * (eltype(c_eco_k_base)(helpers.dates.timesteps_in_year))) # this is a place holder to convert TAU_HILO_LIT_SPLIT to k time units...
 
     # c_flow_taker_turnover_rank ranks by base turnover rate, so it can only be
     # derived now that c_eco_k_base above holds real values -- define only

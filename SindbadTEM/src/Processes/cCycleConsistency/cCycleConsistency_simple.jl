@@ -88,7 +88,7 @@ function checkCcycleErrors(params::cCycleConsistency_simple, forcing, land, help
         qp_sum = zero(eltype(c_flow_QP_vec))
         n_qp_flows = 0
 
-        @inbounds for fO ∈ eachindex(c_giver, c_taker, c_flow_QP_vec)
+        @inbounds for fO ∈ eachindex(c_giver)
             giver = c_giver[fO]
 
             if giver != current_giver
@@ -125,7 +125,7 @@ function checkCcycleErrors(params::cCycleConsistency_simple, forcing, land, help
     end
 
     # TO SIMPLIFY ME must be finite and bounded between zero and one on every carbon-flow edge.
-    @inbounds for fO ∈ eachindex(c_giver, c_flow_ME_vec)
+    @inbounds for fO ∈ eachindex(c_giver)
         ME = c_flow_ME_vec[fO]
 
         if !isfinite(ME) || ME < zero(ME) || ME > one(ME)
@@ -133,7 +133,7 @@ function checkCcycleErrors(params::cCycleConsistency_simple, forcing, land, help
         end
 
         # TO SIMPLIFY ME must remain neutral on transfers originating from vegetation pools.
-        if c_giver[fO] ∈ cVeg && ME != one(ME)
+        if c_giver[fO] ∈ zix_cVeg && ME != zero(ME)
             throwError(land, "microbial efficiency modifies a vegetation-originating flow at index $(fO). Cannot continue")
         end
     end
@@ -162,7 +162,7 @@ function checkCcycleErrors(params::cCycleConsistency_simple, forcing, land, help
             s = s + c_flow_A_vec[ind]
         end
         if (s - one(s)) > helpers.numbers.tolerance
-            throwError(land, "sum of giver flow greater than one in upper cFlow vector for $(info.helpers.pools.components.cEco[giv]) pool. Cannot continue.")
+            throwError(land, "sum of giver flow greater than one in upper cFlow vector for $(helpers.pools.components.cEco[giv]) pool. Cannot continue.")
         end
     end
 
@@ -172,7 +172,7 @@ function checkCcycleErrors(params::cCycleConsistency_simple, forcing, land, help
             s = s + c_flow_A_vec[ind]
         end
         if (s - one(s)) > helpers.numbers.tolerance
-            throwError(land, "sum of giver flow greater than one in lower cFlow vector for $(info.helpers.pools.components.cEco[giv]) pool. Cannot continue.")
+            throwError(land, "sum of giver flow greater than one in lower cFlow vector for $(helpers.pools.components.cEco[giv]) pool. Cannot continue.")
         end
     end
 
@@ -182,7 +182,12 @@ end
 function checkCcycleErrors(params::cCycleConsistency_simple, forcing, land, helpers, ::DoNotCatchModelErrors) #when check is off/false
     return nothing
 end
-
+#=
+function precompute(params::cCycleConsistency_simple, forcing, land, helpers)
+    checkCcycleErrors(params, forcing, land, helpers, DoCatchModelErrors())
+    return land
+end
+=#
 function compute(params::cCycleConsistency_simple, forcing, land, helpers)
     checkCcycleErrors(params, forcing, land, helpers, helpers.run.catch_model_errors)
     return land

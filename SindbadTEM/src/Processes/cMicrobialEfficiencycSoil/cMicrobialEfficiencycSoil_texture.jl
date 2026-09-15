@@ -15,7 +15,7 @@ function define(params::cMicrobialEfficiencycSoil_texture, forcing, land, helper
 
     # One value per active carbon transfer, neutral so that every flow this process does
     # not own leaves the efficiency to the other factors.
-    c_flow_ME_f_cSoil = getVectorOfType(cEco, length(c_taker), one)
+    c_flow_ME_f_cSoil = getVectorOfType(cEco, length(c_taker), zero)
 
     @pack_nt c_flow_ME_f_cSoil ⇒ land.diagnostics
     return land
