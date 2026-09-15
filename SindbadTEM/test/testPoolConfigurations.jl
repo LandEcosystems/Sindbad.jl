@@ -323,7 +323,7 @@ end
     edge_name(flow) = Symbol(String(pool_names[givers[flow]]) * "_to_" * String(pool_names[takers[flow]]))
 
     # zix, both per-leaf (exact name, needed by getKfromTau/getCNfromParams for
-    # every CASA_TAU/CASA_CN_ratio entry) and the three branch groups
+    # every CASA_TAU_NON_VEG_POOLS/CASA_CN_ratio entry) and the three branch groups
     # meCASAFlowsLitter/meCASAFlowsSoil match against (cLitLeaf, cLitRootFine, cSoil)
     zixOf(prefix) = Tuple(findall(nm -> startswith(String(nm), prefix), pool_names))
     group_names = (pool_names..., :cLitLeaf, :cLitRootFine, :cSoil)

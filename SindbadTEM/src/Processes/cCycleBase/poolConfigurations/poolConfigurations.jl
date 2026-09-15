@@ -11,7 +11,7 @@ Abstract supertype of the carbon pool configurations: the pool structure a
 needs. Each configuration's file also centralizes that structure's own fixed
 per-pool defaults an approach reads rather than declares inline -- turnover time
 for the pools that are not vegetation-type dependent (`GSI_TAU_DEFAULT`/
-`CASA_TAU`/`MGMT_PRODUCTS_TAU`) and vegetation carbon-to-nitrogen ratio
+`CASA_TAU_NON_VEG_POOLS`/`MGMT_PRODUCTS_TAU`) and vegetation carbon-to-nitrogen ratio
 (`GSI_CN_ratio`/`CASA_CN_ratio`) today, alongside the flow-edge topology
 (`GSI_FLOW_EDGES`/`CASA_FLOW_EDGES`) that was already here. The vegetation-compartment
 pools' turnover (`cVegRoot`/`cVegRootFine`/`cVegRootCoarse`/`cVegWood`/`cVegLeaf`)
@@ -216,17 +216,12 @@ function cFlowStructure(params::cCycleBase, cEco, helpers)
     # TO SIMPLIFY
     c_flow_qp_groups = deriveQPGroups(c_giver, c_taker, cEco_components)
 =#
-    # TO SIMPLIFY Allocate the flow-aligned rank once; precompute only updates its values.
+    # Allocated here so the flow-aligned rank exists as soon as the topology does.
+    # Its values depend on c_eco_k_base, which this function has no access to and
+    # which only holds real turnover rates once an approach's own precompute has
+    # run -- so precompute calls getTakerTurnoverRank itself to fill these in,
+    # this function only sizes and zero-fills the vector.
     c_flow_taker_turnover_rank = getVectorOfType(cEco, length(c_taker), zero)
-    c_flow_taker_turnover_rank = getTakerTurnoverRank(
-        c_flow_taker_turnover_rank,
-        c_flow_order,
-        c_giver,
-        c_taker,
-        c_eco_k_base,
-        helpers.pools.zix.cVeg,
-    )
-
     c_flow_A_vec = getVectorOfType(cEco, length(c_taker), one)
     c_flow_QP_vec = getVectorOfType(cEco, length(c_taker), one)
     c_flow_ME_vec = getVectorOfType(cEco, length(c_taker), zero)
@@ -465,7 +460,7 @@ end
     getKfromTau(c_eco, table, scalar, helpers)
 
 Multiply each pool in `table` (a per-pool-name `NamedTuple` mapping to a turnover
-*time*, e.g. `GSI_TAU_DEFAULT`/`CASA_TAU`) by `one(T) / T(value) * scalar`, `T` being
+*time*, e.g. `GSI_TAU_DEFAULT`/`CASA_TAU_NON_VEG_POOLS`) by `one(T) / T(value) * scalar`, `T` being
 `eltype(c_eco)`, writing the result into `c_eco` at that pool's `cEco` index via
 `repElem`, and return the updated `c_eco`. `scalar` is either one value applied to
 every pool (`cCycleBase_CASA`'s single `k_c_scalar`) or a per-pool-name `NamedTuple`
@@ -474,7 +469,7 @@ per compartment/pool group), dispatched on `scalar`'s type.
 
 # Notes:
 - The explicit `T(value)` conversion is not cosmetic: `table`'s entries are `Float64`
-  literals (`GSI_TAU_DEFAULT`/`CASA_TAU` are defined once, independent of any
+  literals (`GSI_TAU_DEFAULT`/`CASA_TAU_NON_VEG_POOLS` are defined once, independent of any
   approach's working precision), but `c_eco` and `scalar` are typically `Float32` in
   a model configured that way. Without converting, `one(turnover_time) /
   turnover_time` (an untouched `Float64`) times a `Float32` `scalar` promotes to

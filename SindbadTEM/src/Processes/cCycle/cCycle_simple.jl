@@ -35,7 +35,7 @@ function compute(params::cCycle_simple, forcing, land, helpers)
         gpp ⇐ land.fluxes
         (c_flow_order, c_giver, c_taker) ⇐ land.cCycleBase
         c_model ⇐ land.models
-        (zix_cNonVeg, zix_cNatural, zix_cHeterotrophic, zix_cProducts) ⇐ land.cCycle
+        (zix_cNonVeg, zix_cNatural, zix_cHeterotrophic, zix_cProducts) ⇐ land.cCycleBase
     end
 
     ## reset ecoflow and influx to be zero at every time step

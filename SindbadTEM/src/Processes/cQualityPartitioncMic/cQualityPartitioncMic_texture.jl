@@ -27,7 +27,7 @@ function precompute(params::cQualityPartitioncMic_texture, forcing, land, helper
 
     @unpack_nt begin
         c_flow_QP_f_cMic ⇐ land.diagnostics
-        (c_flow_order, c_giver, c_flow_taker_turnover_rank) ⇐ land.cCycleBase
+        (c_flow_order, c_giver, c_taker,c_flow_taker_turnover_rank) ⇐ land.cCycleBase
         st_clay ⇐ land.properties
         o_one ⇐ land.constants
     end

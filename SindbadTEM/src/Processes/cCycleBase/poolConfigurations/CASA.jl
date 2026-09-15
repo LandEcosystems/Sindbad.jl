@@ -88,7 +88,7 @@ const CASA_FLOW_EDGES = (                    # giver => taker, in flow-vector or
 cFlowEdges(::Type{CASA}) = CASA_FLOW_EDGES
 
 """
-    CASA_TAU
+    CASA_TAU_NON_VEG_POOLS
 
 Turnover *time* (years) of every CASA carbon pool except the four vegetation-compartment
 pools (`cVegRootFine`, `cVegRootCoarse`, `cVegWood`, `cVegLeaf`), per pool name.
@@ -121,7 +121,7 @@ about `0.6%` and `0.01%` off the original), not merely a representation change.
 `cSoilSlow`'s reciprocal (`1.0/0.2 = 5.0`) already rounds to the same value, so it
 is unaffected.
 """
-const CASA_TAU = (;
+const CASA_TAU_NON_VEG_POOLS = (;
     cLitLeafFast = 1.0/14.8,
     cLitLeafSlow = 1.0/3.9,
     cLitRootFineFast = 1.0/18.5,

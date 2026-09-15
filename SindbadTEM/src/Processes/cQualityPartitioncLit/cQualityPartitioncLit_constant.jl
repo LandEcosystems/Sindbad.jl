@@ -25,8 +25,8 @@ function precompute(params::cQualityPartitioncLit_constant, forcing, land, helpe
     @unpack_cQualityPartitioncLit_constant params
 
     @unpack_nt begin
-        (c_flow_QP_f_cLit, c_eco_k_base, k_hilo_lit_split) ⇐ land.diagnostics
-        (c_flow_order, c_giver, c_taker, c_flow_taker_turnover_rank) ⇐ land.cCycleBase
+        (c_flow_QP_f_cLit, c_eco_k_base) ⇐ land.diagnostics
+        (c_flow_order, c_giver, c_taker, c_flow_taker_turnover_rank, k_hilo_lit_split) ⇐ land.cCycleBase
         o_one ⇐ land.constants
     end
 

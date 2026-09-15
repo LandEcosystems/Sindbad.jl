@@ -57,23 +57,16 @@ function define(params::cCycleBase_GSI, forcing, land, helpers)
     wood_age_per_vegtype = getParamsPerVegType(CVEG_WOOD_AGE_PER_VEGTYPE, typeof(veg_type_class_map))
 
     # zix for the carbon cycle...
-    zix_cVeg = helpers.pools.zix.cVeg
-    zix_cLit = helpers.pools.zix.cLit
-    zix_cSoil = helpers.pools.zix.cSoil
-    zix_cProducts = helpers.pools.zix.cProducts
-
-    zix_cNonVeg = (zix_cLit..., zix_cSoil..., zix_cProducts)
-    zix_cNatural = (zix_cVeg..., zix_cLit..., zix_cSoil..., zix_cProducts)
-    zix_cHeterotrophic = (zix_cLit..., zix_cSoil...)
-    zix_cProducts = zix_cProducts
+    zix_cNonVeg, zix_cNatural, zix_cHeterotrophic, zix_cProducts = cCycleBaseZixGroups(helpers)
 
     c_model = params
 
     ## pack land variables
     @pack_nt begin
-        (c_flow_order, c_taker, c_giver, pool_names, flow_edges, c_flow_taker_turnover_rank) ⇒ land.cCycleBase
+        (c_flow_order, c_taker, c_giver, pool_names, flow_edges, c_flow_taker_turnover_rank, k_hilo_lit_split) ⇒ land.cCycleBase
         (CN_ratio_cVeg, c_eco_τ, c_eco_k_base, c_flow_A_vec, c_flow_QP_vec, c_flow_ME_vec) ⇒ land.diagnostics
         (rootfine_age_per_vegtype, leaf_age_per_vegtype, wood_age_per_vegtype) ⇒ land.diagnostics
+        (zix_cNonVeg, zix_cNatural, zix_cHeterotrophic, zix_cProducts) ⇒ land.cCycleBase
         c_model ⇒ land.models
     end
     return land
@@ -84,6 +77,7 @@ function precompute(params::cCycleBase_GSI, forcing, land, helpers)
     @unpack_nt begin
         (CN_ratio_cVeg, c_eco_k_base, c_eco_τ) ⇐ land.diagnostics
         (rootfine_age_per_vegtype, leaf_age_per_vegtype, wood_age_per_vegtype) ⇐ land.diagnostics
+        (c_flow_order, c_giver, c_taker, c_flow_taker_turnover_rank) ⇐ land.cCycleBase
         veg_type_name ⇐ land.states
     end
 
@@ -119,13 +113,26 @@ function precompute(params::cCycleBase_GSI, forcing, land, helpers)
         tmp = c_eco_τ[i]
         @rep_elem tmp ⇒ (c_eco_k_base, i)
     end
-    k_hilo_lit_split = (one(TAU_HILO_LIT_SPLIT) / T(TAU_HILO_LIT_SPLIT)) * k_c_veg_scalar # this is a place holder to convert TAU_HILO_LIT_SPLIT to k time units...
+    k_hilo_lit_split = (one(TAU_HILO_LIT_SPLIT) / eltype(c_eco_k_base)(TAU_HILO_LIT_SPLIT)) * k_c_veg_scalar # this is a place holder to convert TAU_HILO_LIT_SPLIT to k time units...
+
+    # c_flow_taker_turnover_rank ranks by base turnover rate, so it can only be
+    # derived now that c_eco_k_base above holds real values -- define only
+    # allocated it, zero-filled, since it runs before any precompute.
+    c_flow_taker_turnover_rank = getTakerTurnoverRank(
+        c_flow_taker_turnover_rank,
+        c_flow_order,
+        c_giver,
+        c_taker,
+        c_eco_k_base,
+        helpers.pools.zix.cVeg,
+    )
 
     ## pack land variables
     @pack_nt begin
-        (CN_ratio_cVeg, c_eco_τ, c_eco_k_base, ηA, ηH, k_hilo_lit_split) ⇒ land.diagnostics
+        (CN_ratio_cVeg, c_eco_τ, c_eco_k_base, ηA, ηH) ⇒ land.diagnostics
         c_remain ⇒ land.states
         k_c_scalars ⇒ land.cCycleBase
+        (c_flow_taker_turnover_rank, k_hilo_lit_split) ⇒ land.cCycleBase
     end
     return land
 end

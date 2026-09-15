@@ -20,13 +20,13 @@ function precompute(params::cQualityPartitioncVeg_vegQualityTraits, forcing, lan
     ## unpack land variables
     @unpack_nt begin
         c_flow_QP_f_cVeg ⇐ land.diagnostics
-        c_flow_qp_groups ⇐ land.cCycleBase
         lit_frac_metabolic ⇐ land.properties
         o_one ⇐ land.constants
+        (c_flow_order, c_giver, c_taker, c_flow_taker_turnover_rank) ⇐ land.cCycleBase
     end
 
     c_flow_QP_f_cVeg = getQP(c_flow_QP_f_cVeg, c_flow_order, c_giver, c_taker, helpers.pools.zix.cVeg, 
-        c_flow_taker_turnover_rank, o_one - lit_frac_metabolic)
+        c_flow_taker_turnover_rank, one(lit_frac_metabolic) - lit_frac_metabolic)
 
     ## pack land variables
     @pack_nt c_flow_QP_f_cVeg ⇒ land.diagnostics
@@ -44,8 +44,7 @@ purpose(::Type{cQualityPartitioncVeg_vegQualityTraits}) = "Metabolic litter frac
 # Extended help
 
 Reads `lit_frac_metabolic` from `land.properties`, published by whichever
-`vegQualityTraits` approach is selected, and writes it with its complement into
-the flows of `land.cCycleBase.c_flow_qp_groups.cVeg`. No parameters of its own:
+`vegQualityTraits` approach is selected. No parameters of its own:
 the litter chemistry is declared exactly once, in `vegQualityTraits`.
 
 This is the properly-connected replacement for a former per-PFT-table approach

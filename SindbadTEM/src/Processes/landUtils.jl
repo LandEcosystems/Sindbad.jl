@@ -287,7 +287,7 @@ end
 
 function getQPperFlow(turnoverRank, slowPart)
     QP =
-        (o_one - abs(turnoverRank)) +
+        (one(turnoverRank) - abs(turnoverRank)) +
         at_least_zero(turnoverRank) * (one(slowPart) - slowPart) +
         at_least_zero(-turnoverRank) * slowPart
     return QP

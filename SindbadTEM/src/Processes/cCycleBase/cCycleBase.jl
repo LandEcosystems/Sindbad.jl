@@ -1,4 +1,4 @@
-export cCycleBase, adjustPackPoolComponents
+export cCycleBase, adjustPackPoolComponents, cCycleBaseZixGroups
 
 abstract type cCycleBase <: LandEcosystem end
 
@@ -22,6 +22,25 @@ function adjustPackPoolComponents(land, helpers, ::cCycleBase)
         helpers.pools.vals.self.cEco,
         helpers.pools.vals.all_components.cEco,
         helpers.pools.vals.zix.cEco)
+end
+
+"""
+    cCycleBaseZixGroups(helpers)
+Get the zix for the groups relevant for different models of carbon cycle.
+"""
+function cCycleBaseZixGroups(helpers)
+    # zix for the carbon cycle...
+    zix_cVeg = helpers.pools.zix.cVeg
+    zix_cLit = helpers.pools.zix.cLit
+    zix_cMic = helpers.pools.zix.cMic
+    zix_cSoil = helpers.pools.zix.cSoil
+
+    zix_cNonVeg = (zix_cLit..., zix_cMic..., zix_cSoil...)
+    zix_cNatural = (zix_cVeg..., zix_cLit..., zix_cMic..., zix_cSoil...)
+    zix_cHeterotrophic = (zix_cLit..., zix_cMic..., zix_cSoil...)
+    zix_cProducts = zix_cVeg
+
+    return zix_cNonVeg, zix_cNatural, zix_cHeterotrophic, zix_cProducts
 end
 
 # Pool structures and flow topologies the approaches below declare against. One file

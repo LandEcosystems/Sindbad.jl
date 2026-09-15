@@ -19,14 +19,14 @@ end
 function precompute(params::cQualityPartitioncLit_vegQualityTraits, forcing, land, helpers)
 
     @unpack_nt begin
-        (c_flow_QP_f_cLit, k_hilo_lit_split) ⇐ land.diagnostics
-        (c_flow_order, c_giver, c_flow_taker_turnover_rank) ⇐ land.cCycleBase
+        (c_flow_QP_f_cLit, c_eco_k_base) ⇐ land.diagnostics
+        (c_flow_order, c_giver, c_taker, c_flow_taker_turnover_rank, k_hilo_lit_split) ⇐ land.cCycleBase
         (lit_frac_lignin_struct, lit_frac_lignin_wood) ⇐ land.properties
         o_one ⇐ land.constants
     end
 
     c_flow_QP_f_cLit = getQP(c_flow_QP_f_cLit, c_flow_order, c_giver, c_taker, helpers.pools.zix.cLit, 
-        c_flow_taker_turnover_rank, frac_lignin_wood, frac_lignin_struct, k_hilo_lit_split, c_eco_k_base)
+        c_flow_taker_turnover_rank, lit_frac_lignin_wood, lit_frac_lignin_struct, k_hilo_lit_split, c_eco_k_base)
 
     @pack_nt c_flow_QP_f_cLit ⇒ land.diagnostics
     return land
