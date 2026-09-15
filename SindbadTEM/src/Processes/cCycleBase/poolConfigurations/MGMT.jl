@@ -58,3 +58,8 @@ here are `>= 1`, rounded to one decimal place), `cProductsWood` is stored as
 `1.0` is unaffected by rounding.
 """
 const MGMT_PRODUCTS_TAU = (; cProductsWood = 33.3, cProductsCrop = 1.0)
+
+# MGMT's pool set is GSI's plus cProductsWood/cProductsCrop, which neither
+# GSI_FIRE_CC_VANDERWERF nor the old cc_lut-based code ever covered, so they
+# stay at the same implicit no-burn-by-omission both already gave them.
+fireCCTable(::Type{MGMT}) = fireCCTable(GSI)

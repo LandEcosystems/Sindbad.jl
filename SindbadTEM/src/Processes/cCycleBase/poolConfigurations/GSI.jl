@@ -110,3 +110,31 @@ const GSI_CN_ratio = (;
     cVegRoot = 25.0, cVegWood = 260.0, cVegLeaf = 25.0, cVegReserve = 50.0,
     cLitFast = 0.0, cLitSlow = 0.0, cSoilSlow = 0.0, cSoilOld = 0.0,
 )
+
+const GSI_POOL_NAMES = propertynames(GSI_TAU_DEFAULT)
+
+"""
+    fireCCTable(::Type{GSI})
+
+Derived from `CASA_FIRE_CC_VANDERWERF` (`poolConfigurations/CASA.jl`) via
+`deriveFireCCTable` rather than hand-duplicated -- see that function's
+docstring for the direct-name/`poolAliases` two-tier rule. `cVegRoot` (CASA
+generates it from its own `Root.{Fine,Coarse}` nesting, not a declared
+`poolAlias`) and `cVegReserve` (no CASA pool at all) are merged in
+afterward as the two pools neither tier can resolve.
+
+Computed here in a method body, not as a top-level `const`, so it can live
+beside GSI's own pool names even though `GSI.jl` loads before `CASA.jl` in
+`poolConfigurations.jl`'s fixed include order -- a method body's global
+references resolve at call time, once every configuration file has already
+loaded, unlike a top-level `const` initializer.
+"""
+function fireCCTable(::Type{GSI})
+    return merge(
+        deriveFireCCTable(CASA_FIRE_CC_VANDERWERF, GSI_POOL_NAMES, CASA),
+        (;
+            cVegRoot = FIRE_CC_NO_BURN,           # CASA generates cVegRoot from Root.{Fine,Coarse} nesting, not a poolAlias
+            cVegReserve = (0.2f0, 0.3f0, 1.0f0),  # no CASA counterpart at all; matches cVegWood's value, same as the old cc_lut's cVegReserve => fcc_stem mapping
+        ),
+    )
+end

@@ -1,5 +1,6 @@
 export CarbonPoolConfiguration
 export cFlowEdges
+export fireCCTable
 export TAU_DORMANT
 export TAU_HILO_LIT_SPLIT
 
@@ -114,6 +115,27 @@ end
 cFlowEdges(T::cCycleBase) = cFlowEdges(typeof(T))
 
 """
+    fireCCTable(configuration)
+
+The fixed, per-pool-name `(ccMin, ccMax, weight)` fire combustion-completeness
+table for a `CarbonPoolConfiguration` -- the same kind of "structure's own
+fixed per-pool defaults an approach reads rather than declares inline" this
+file's `CarbonPoolConfiguration` docstring already describes for turnover and
+carbon-to-nitrogen ratio. Named by type, symbol, string, or a `cCycleBase`
+type/instance, exactly like `cFlowEdges`, since a single shared approach
+(`cFireCombustionCompleteness_vanDerWerf2006`) must resolve the right table at
+runtime for whichever pool configuration is actually active.
+"""
+function fireCCTable end
+
+fireCCTable(::Type{<:CarbonPoolConfiguration}) = error("No fire combustion completeness table is defined for this carbon pool configuration.")
+function fireCCTable(A::Type{<:cCycleBase})
+    configuration = poolConfiguration(A)
+    return isnothing(configuration) ? error("No fire combustion completeness table is defined for this carbon pool configuration.") : fireCCTable(configuration)
+end
+fireCCTable(T::cCycleBase) = fireCCTable(typeof(T))
+
+"""
     carbonPoolConfiguration(name::Symbol)
 
 Resolve a `CarbonPoolConfiguration` by name. Errors with what was tried rather than
@@ -148,6 +170,10 @@ poolAliases(configuration::CarbonPoolConfiguration) = poolAliases(typeof(configu
 cFlowEdges(name::AbstractString) = cFlowEdges(Symbol(name))
 cFlowEdges(name::Symbol) = cFlowEdges(carbonPoolConfiguration(name))
 cFlowEdges(configuration::CarbonPoolConfiguration) = cFlowEdges(typeof(configuration))
+
+fireCCTable(name::AbstractString) = fireCCTable(Symbol(name))
+fireCCTable(name::Symbol) = fireCCTable(carbonPoolConfiguration(name))
+fireCCTable(configuration::CarbonPoolConfiguration) = fireCCTable(typeof(configuration))
 
 """
     cFlowStructure(params::cCycleBase, cEco, helpers)
@@ -536,6 +562,59 @@ function getCNfromParams(CN_ratio_cVeg, table, cn_scalar, helpers)
         end
     end
     return CN_ratio_cVeg
+end
+
+"""
+    getFireCCFromParams(c_fire_ccMin, c_fire_ccMax, table, scalar, helpers)
+
+Same idea as `getKfromTau`/`getCNfromParams`, but scattering a two-component
+`(ccMin, ccMax)` pair per pool instead of a single scalar -- `table`'s
+entries are `(ccMin, ccMax, weight)` triples (`CASA_FIRE_CC_VANDERWERF`/
+`GSI_FIRE_CC_VANDERWERF`, resolved for the active configuration via
+`fireCCTable`); `weight`, a reserved autoregressive filter weight, is
+intentionally not read here. Both components are scaled by the same shared
+`scalar` and written into `c_fire_ccMin`/`c_fire_ccMax` via `repElem`.
+"""
+function getFireCCFromParams(c_fire_ccMin, c_fire_ccMax, table, scalar, helpers)
+    Tmin = eltype(c_fire_ccMin)
+    Tmax = eltype(c_fire_ccMax)
+    for (pool_name, cc) in pairs(table)
+        cc_min, cc_max, _ = cc
+        for ix in getproperty(helpers.pools.zix, pool_name)
+            c_fire_ccMin = repElem(c_fire_ccMin, Tmin(cc_min) * scalar, ix)
+            c_fire_ccMax = repElem(c_fire_ccMax, Tmax(cc_max) * scalar, ix)
+        end
+    end
+    return c_fire_ccMin, c_fire_ccMax
+end
+
+"""
+    deriveFireCCTable(fine_table, coarse_pool_names, fine_configuration)
+
+Build a coarser pool-name-keyed fire combustion completeness table from a
+finer one. For each name in `coarse_pool_names`: a name `fine_table` already
+has directly is passed through unchanged; a name declared in
+`poolAliases(fine_configuration)` is averaged over its constituent pools --
+the same "average over however many targets this entry names" rule
+`getParamsPerVegType` uses for vegetation classifications, applied along the
+pool-name axis instead. A name that is neither is left out of the result and
+must be supplied independently afterward.
+"""
+function deriveFireCCTable(fine_table, coarse_pool_names, fine_configuration)
+    aliases = poolAliases(fine_configuration)
+    names = Symbol[]
+    vals = []
+    for coarse_name in coarse_pool_names
+        if hasproperty(fine_table, coarse_name)
+            push!(names, coarse_name)
+            push!(vals, getproperty(fine_table, coarse_name))
+        elseif hasproperty(aliases, coarse_name)
+            components = [getproperty(fine_table, n) for n in getproperty(aliases, coarse_name)]
+            push!(names, coarse_name)
+            push!(vals, ntuple(i -> sum(c[i] for c in components) / length(components), length(first(components))))
+        end
+    end
+    return NamedTuple{Tuple(names)}(Tuple(vals))
 end
 
 # One file per pool structure, listed rather than globbed so only files meant to load

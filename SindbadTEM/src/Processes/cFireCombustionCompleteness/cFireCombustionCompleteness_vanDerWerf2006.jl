@@ -1,57 +1,60 @@
 export cFireCombustionCompleteness_vanDerWerf2006
 
-@with_kw struct cFireCombustionCompleteness_vanDerWerf2006{T1, T2, T3, T4, T5, T6, T7} <: cFireCombustionCompleteness
-    # fire combustion completeness parameters for stems, leaf; for the metabolic and structural parts of fine leaf litter (fcc_leaf_lit_m, fcc_leaf_lit_s)< for the coarse woody debris (literSlow) and for the organic soil layer (sol)
-    fcc_stem::T1 = [0.2f0, 0.3f0, 0.0f0, 1.0f0] # min, max, prev, current
-    fcc_leaf::T2 = [0.8f0, 1.0f0, 0.0f0, 1.0f0]
-    fcc_leaf_lit_m::T3 = [0.9f0, 1.0f0, 0.1f0, 0.9f0]
-    fcc_leaf_lit_s::T4 = [0.9f0, 1.0f0, 0.1f0, 0.9f0]
-    # fcc_sol::T5 = [0.9f0, 1.0f0, 0.1f0, 0.9f0] # we don't burnt organic soil
-    fcc_sol::T5 = [0.0f0, 0.0f0, 0.0f0, 1.0f0]
-    fcc_root::T6 = [0.0f0, 0.0f0, 0.0f0, 1.0f0]
-    fcc_cwd::T7 = [0.5f0, 0.6f0, 0.4f0, 0.6f0]
+#! format: off
+@bounds @describe @units @timescale @with_kw struct cFireCombustionCompleteness_vanDerWerf2006{T1} <: cFireCombustionCompleteness
+    fire_cc_scalar::T1 = 1.0 | (0.5, 2.0) | "scalar for the per-pool fire combustion completeness (ccMin/ccMax)" | "-" | ""
 end
+#! format: on
 
 function define(params::cFireCombustionCompleteness_vanDerWerf2006, forcing, land, helpers)
-    # @unpack_cFireCombustionCompleteness_vanDerWerf2006 params
     ## instantiate variables
     @unpack_nt begin
         cEco ⇐ land.pools
         zix ⇐ helpers.pools
+        c_model ⇐ land.models
     end
 
     c_fire_ccMax = zero.(cEco)
     c_fire_ccMin = zero.(cEco)
     c_Fire_cci = zero.(cEco)
     c_Fire_cc_fW = zero.(cEco)
-    # create CombustionCompletenessArray for each pool in zix
-    cc_lut = (
-        :cVegRoot => :fcc_root,
-        :cVegWood => :fcc_stem,
-        :cVegReserve => :fcc_stem,
-        :cVegLeaf => :fcc_leaf,
-        :cLitFast => :fcc_leaf_lit_m,
-        :cLitSlow => :fcc_cwd,
-        :cSoilSlow => :fcc_sol,
-        )
 
-    for (k,v) in cc_lut
-        zix_keys = getproperty(zix, k)
-        imin, imax, _, _ = getproperty(params, v) # min, max, prev, current
-        # c_fire_ccMax[[zix_keys...]] .= imax
-        # c_fire_ccMin[[zix_keys...]] .= imin
-        for izix in zix_keys
-            @rep_elem imax ⇒ (c_fire_ccMax, izix)
-            @rep_elem imin ⇒ (c_fire_ccMin, izix)
-        end
-    end
-    zix_lit_soil = (zix.cLit..., zix.cSoil...)
+    # The fixed per-pool-name (ccMin, ccMax, weight) table for whichever
+    # cCycleBase family is actually active, resolved once here since it is
+    # structural, not a value precompute could ever change -- see fireCCTable
+    # (poolConfigurations/poolConfigurations.jl) and its per-configuration
+    # methods (CASA.jl/GSI.jl/MGMT.jl).
+    fire_cc_table = fireCCTable(c_model)
+
+    # zix_lit_soil_mic: every non-vegetation pool whose combustion completeness
+    # is scaled by soil water in compute below (litter, soil, and microbial --
+    # the microbial pools are new here; the old cc_lut-based code never gave
+    # them any ccMin/ccMax at all, so they never combusted).
+    zix_lit_soil_mic = (zix.cLit..., zix.cSoil..., zix.cMic...)
 
     ## pack land variables
     @pack_nt begin
-        (c_fire_ccMin, c_fire_ccMax, c_Fire_cci, c_Fire_cc_fW) ⇒ land.diagnostics
-        zix_lit_soil ⇒ land.cFireCombustionCompleteness
+        (c_fire_ccMin, c_fire_ccMax, c_Fire_cci, c_Fire_cc_fW, fire_cc_table) ⇒ land.diagnostics
+        zix_lit_soil_mic ⇒ land.cFireCombustionCompleteness
     end
+    return land
+end
+
+function precompute(params::cFireCombustionCompleteness_vanDerWerf2006, forcing, land, helpers)
+    ## unpack parameters
+    @unpack_cFireCombustionCompleteness_vanDerWerf2006 params
+
+    ## unpack land variables
+    @unpack_nt begin
+        fire_cc_table ⇐ land.diagnostics
+        (c_fire_ccMin, c_fire_ccMax) ⇐ land.diagnostics
+    end
+
+    ## calculate variables
+    (c_fire_ccMin, c_fire_ccMax) = getFireCCFromParams(c_fire_ccMin, c_fire_ccMax, fire_cc_table, fire_cc_scalar, helpers)
+
+    ## pack land variables
+    @pack_nt (c_fire_ccMin, c_fire_ccMax) ⇒ land.diagnostics
     return land
 end
 
@@ -65,14 +68,14 @@ function compute(params::cFireCombustionCompleteness_vanDerWerf2006, forcing, la
         soilW ⇐ land.pools
         ∑w_sat ⇐ land.properties
         (z_zero, o_one) ⇐ land.constants
-        zix_lit_soil ⇐ land.cFireCombustionCompleteness
+        zix_lit_soil_mic ⇐ land.cFireCombustionCompleteness
     end
 
     totalSoilW = at_least_zero(totalS(soilW))
     soilW_nor = at_most_one(totalSoilW / ∑w_sat)
 
-    # for all soil pools c_Fire_cc_fW = soilW_nor
-    for izix in zix_lit_soil
+    # for all litter/soil/microbial pools c_Fire_cc_fW = soilW_nor
+    for izix in zix_lit_soil_mic
         @rep_elem soilW_nor ⇒ (c_Fire_cc_fW, izix)
     end
     # for all veg pools c_Fire_cc_fW = gpp_f_soilW
@@ -102,6 +105,53 @@ $(getModelDocString(cFireCombustionCompleteness_vanDerWerf2006))
 ---
 
 # Extended help
+
+Combustion completeness used to be 7 hardcoded struct fields, one per
+compartment (`fcc_stem`, `fcc_leaf`, `fcc_leaf_lit_m`, `fcc_leaf_lit_s`,
+`fcc_sol`, `fcc_root`, `fcc_cwd`), each a `[min, max, prev, current]`
+4-vector, mapped onto pool indices by a hardcoded `cc_lut` written against
+GSI's pool shape (`cVegRoot`/`cVegWood`/`cVegReserve`/`cVegLeaf`). This is
+now generalized onto the same fixed-table-plus-bounded-scalar pattern
+`cCycleBase` uses for turnover and carbon-to-nitrogen ratio:
+`CASA_FIRE_CC_VANDERWERF`/`GSI_FIRE_CC_VANDERWERF`
+(`poolConfigurations/CASA.jl`/`GSI.jl`) hold the fixed `(ccMin, ccMax,
+weight)` data, keyed by each configuration's own pool names; `fireCCTable`
+(`poolConfigurations/poolConfigurations.jl`) resolves the right table for
+whichever `cCycleBase` family is active at runtime, and `getFireCCFromParams`
+scales both `ccMin`/`ccMax` by the single bounded `fire_cc_scalar` and
+scatters them by pool name, the same convention `getKfromTau`/
+`getCNfromParams` use. `weight` (an autoregressive filter weight) is carried
+in the table but not yet read anywhere -- reserved for a future filtering
+feature.
+
+`GSI_FIRE_CC_VANDERWERF` is derived from `CASA_FIRE_CC_VANDERWERF`
+(`deriveFireCCTable`), not hand-duplicated, which shifts `cLitFast`/
+`cLitSlow`'s values slightly from what the old `cc_lut` gave GSI (`cLitFast`
+`(0.9,1.0,0.9)` -> `(0.45,0.5,0.95)`, `cLitSlow` `(0.5,0.6,0.6)` ->
+`(0.35,0.4,0.875)`, both before `fire_cc_scalar`), since CASA's finer
+resolution distinguishes leaf litter (burns) from root-fine litter (does
+not) where GSI's single `cLitFast`/`cLitSlow` pools cannot. Every other GSI
+pool's value is unchanged.
+
+The old `cc_lut` never gave microbial pools any `ccMin`/`ccMax` at all, so
+they never combusted; `CASA_FIRE_CC_VANDERWERF` now does
+(`cMicSurf`/`cMicSoil`), and `compute`'s soil-water-scaling loop was
+extended to cover `zix.cMic` alongside litter/soil so those values actually
+take effect instead of leaving `c_Fire_cc_fW` at its zero-init (which would
+otherwise combust `cMicSurf` at `ccMax` unconditionally, every timestep).
+
+The old `cc_lut`'s keys matched GSI's pool shape, not CASA's (CASA has no
+undifferentiated `cVegRoot`/`cVegReserve` -- it has
+`cVegRootFine`/`cVegRootCoarse`, no reserve pool at all), which is why this
+approach was only ever tested under GSI (`reference_approaches`) and CASA was
+a tracked `allowed_to_fail_approaches` mismatch. `fireCCTable`'s
+per-configuration dispatch fixes that for CASA as well.
+
+*Versions*
+ - 1.0 [nunocarvalhais]: original hardcoded per-compartment struct and `cc_lut`
+ - 2.0 on 15.09.2026 [skoirala]: generalized onto `cCycleBase`'s
+   fixed-table-plus-bounded-scalar pattern, fixing the CASA pool-shape
+   mismatch and extending soil-water scaling to microbial pools
 
 *Created by*
   - Nuno | nunocarvalhais

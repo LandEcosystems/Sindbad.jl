@@ -1,14 +1,15 @@
 export cFireMortality_vanDerWerf2004
 
-@with_kw struct cFireMortality_vanDerWerf2004{T1, T2, T3, T4} <: cFireMortality
-    a::T1 = 0.01f0
-    b::T2 = 0.59f0
-    c::T3 = 0.6f0
-    d::T4 = 0.25f0
+#! format: off
+@bounds @describe @units @timescale @with_kw struct cFireMortality_vanDerWerf2004{T1, T2, T3, T4} <: cFireMortality
+    a::T1 = 0.01f0 | (0.0, 0.5) | "baseline (intercept) fire mortality fraction" | "-" | ""
+    b::T2 = 0.59f0 | (0.0, 1.0) | "amplitude of the frac_tree-dependent mortality response" | "-" | ""
+    c::T3 = 0.6f0 | (0.0, 1.0) | "frac_tree value at the inflection point of the mortality response" | "-" | ""
+    d::T4 = 0.25f0 | (0.01, 5.0) | "steepness of the mortality response transition around the inflection point" | "-" | ""
 end
+#! format: on
 
 function define(params::cFireMortality_vanDerWerf2004, forcing, land, helpers)
-    # @unpack_cFireMortality_vanDerWerf2006 params
     ## instantiate variables
     @unpack_nt begin
         cEco ⇐ land.pools

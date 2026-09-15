@@ -1,4 +1,6 @@
 export CASA
+export FIRE_CC_NO_BURN
+export FIRE_CC_HIGH_BURN
 
 struct CASA <: CarbonPoolConfiguration end
 purpose(::Type{CASA}) = "CASA carbon pools: 14 pools, vegetation split into fine and coarse roots and litter nested by compartment"
@@ -159,32 +161,58 @@ const CASA_CN_ratio = (;
     cSoilSlow = 0.0,
     cSoilOld = 0.0,
 )
-#=
 """
-    Combustion completeness parameters
+    FIRE_CC_NO_BURN, FIRE_CC_HIGH_BURN
+
+Shared `(ccMin, ccMax, weight)` fire combustion-completeness triples reused
+by several pools across the per-configuration tables below: pools that
+essentially never burn (`FIRE_CC_NO_BURN`, `ccMin = ccMax = 0`) and pools
+that burn almost completely once fire reaches them (`FIRE_CC_HIGH_BURN`).
+`weight` is a reserved autoregressive filter weight, not yet consumed by any
+approach (see `getFireCCFromParams`,
+`poolConfigurations/poolConfigurations.jl`).
+
+Defined here rather than in `poolConfigurations.jl` since `CASA_FIRE_CC_VANDERWERF`
+below is the only *top-level* `const` that needs them (a `const` initializer
+is evaluated immediately, so it needs both defined first, in the same file).
+`GSI.jl`'s `fireCCTable(::Type{GSI})` also references `FIRE_CC_NO_BURN`, but
+only inside its own method body, which resolves lazily at call time -- after
+every configuration file has already loaded -- so it does not matter that
+`GSI.jl` loads before this file.
 """
-# ccMin, ccMax, 1-autoregressive coefficient (current weight)
-const FIRE_CC_VANDERWERF = (;
+const FIRE_CC_NO_BURN = (0.0f0, 0.0f0, 1.0f0)
+const FIRE_CC_HIGH_BURN = (0.9f0, 1.0f0, 0.9f0)
+
+"""
+    CASA_FIRE_CC_VANDERWERF
+
+Van der Werf et al. (2006) fire combustion completeness -- `(ccMin, ccMax,
+weight)` triples, see `FIRE_CC_NO_BURN`/`FIRE_CC_HIGH_BURN` above -- per CASA
+pool name. Fixed data, not a parameter -- calibration happens through
+`fire_cc_scalar` in `cFireCombustionCompleteness_vanDerWerf2006` instead.
+
+Root pools and every fine litter/soil pool downstream of them do not burn;
+leaf and its litter, wood and its litter, and the surface microbial pool do.
+Consumed via `getFireCCFromParams`
+(`poolConfigurations/poolConfigurations.jl`), the same table-plus-scalar
+convention `CASA_TAU_NON_VEG_POOLS`/`CASA_CN_ratio` use, dispatched to by
+`fireCCTable`.
+"""
+const CASA_FIRE_CC_VANDERWERF = (;
+    cVegRootFine = FIRE_CC_NO_BURN,
+    cVegRootCoarse = FIRE_CC_NO_BURN,
     cVegWood = (0.2f0, 0.3f0, 1.0f0),
     cVegLeaf = (0.8f0, 1.0f0, 1.0f0),
-    cLitLeafFast = (0.9f0, 1.0f0, 0.9f0),
-    cLitLeafSlow = (0.9f0, 1.0f0, 0.9f0),
-    cLitRootFineFast = (),
-    cLitRootFineSlow = (),
-    cLitRootCoarse = (),
+    cLitLeafFast = FIRE_CC_HIGH_BURN,
+    cLitLeafSlow = FIRE_CC_HIGH_BURN,
+    cLitRootFineFast = FIRE_CC_NO_BURN,
+    cLitRootFineSlow = FIRE_CC_NO_BURN,
+    cLitRootCoarse = FIRE_CC_NO_BURN,
     cLitWood = (0.5f0, 0.6f0, 0.6f0),
-    cMicSurf = (0.9f0, 1.0f0, 0.9f0),
-    cMicSoil = (),
-    cSoilSlow = (0.0f0, 0.0f0, 1.0f0),
-    cSoilOld = (0.0f0, 0.0f0, 1.0f0),   # old soil does not burn...
+    cMicSurf = FIRE_CC_HIGH_BURN,
+    cMicSoil = FIRE_CC_NO_BURN,
+    cSoilSlow = FIRE_CC_NO_BURN,
+    cSoilOld = FIRE_CC_NO_BURN,   # old soil does not burn
 )
 
-    cVegWood::T1 = [0.2f0, 0.3f0, 0.0f0, 1.0f0] # min, max, prev, current
-    cVegLeaf::T2 = [0.8f0, 1.0f0, 0.0f0, 1.0f0]
-    cLitFast::T3 = [0.9f0, 1.0f0, 0.1f0, 0.9f0]
-    fcc_leaf_lit_s::T4 = [0.9f0, 1.0f0, 0.1f0, 0.9f0]
-    # fcc_sol::T5 = [0.9f0, 1.0f0, 0.1f0, 0.9f0] # we don't burnt organic soil
-    fcc_sol::T5 = [0.0f0, 0.0f0, 0.0f0, 1.0f0]
-    fcc_root::T6 = [0.0f0, 0.0f0, 0.0f0, 1.0f0]
-    fcc_cwd::T7 = [0.5f0, 0.6f0, 0.4f0, 0.6f0]
-=#
+fireCCTable(::Type{CASA}) = CASA_FIRE_CC_VANDERWERF
