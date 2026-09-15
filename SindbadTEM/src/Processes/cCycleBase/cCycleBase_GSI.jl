@@ -35,7 +35,7 @@ export cCycleBase_GSI
     CN_ratio_scalar::T12 = 1.0 | (0.25, 4.0) | "scalar for the vegetation carbon-to-nitrogen ratio" | "-" | ""
     ηH::T13 = 1.0 | (0.01, 100.0) | "scaling factor for heterotrophic pools after spinup" | "" | ""
     ηA::T14 = 1.0 | (0.01, 100.0) | "scaling factor for vegetation pools after spinup" | "" | ""
-    c_remain::T15 = 10.0 | (0.1, 100.0) | "remaining carbon after disturbance" | "" | ""
+    c_remain::T15 = 50.0 | (0.1, 100.0) | "remaining carbon after disturbance" | "" | ""
 end
 #! format: on
 

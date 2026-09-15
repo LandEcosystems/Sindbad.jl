@@ -159,3 +159,32 @@ const CASA_CN_ratio = (;
     cSoilSlow = 0.0,
     cSoilOld = 0.0,
 )
+#=
+"""
+    Combustion completeness parameters
+"""
+# ccMin, ccMax, 1-autoregressive coefficient (current weight)
+const FIRE_CC_VANDERWERF = (;
+    cVegWood = (0.2f0, 0.3f0, 1.0f0),
+    cVegLeaf = (0.8f0, 1.0f0, 1.0f0),
+    cLitLeafFast = (0.9f0, 1.0f0, 0.9f0),
+    cLitLeafSlow = (0.9f0, 1.0f0, 0.9f0),
+    cLitRootFineFast = (),
+    cLitRootFineSlow = (),
+    cLitRootCoarse = (),
+    cLitWood = (0.5f0, 0.6f0, 0.6f0),
+    cMicSurf = (0.9f0, 1.0f0, 0.9f0),
+    cMicSoil = (),
+    cSoilSlow = (0.0f0, 0.0f0, 1.0f0),
+    cSoilOld = (0.0f0, 0.0f0, 1.0f0),   # old soil does not burn...
+)
+
+    cVegWood::T1 = [0.2f0, 0.3f0, 0.0f0, 1.0f0] # min, max, prev, current
+    cVegLeaf::T2 = [0.8f0, 1.0f0, 0.0f0, 1.0f0]
+    cLitFast::T3 = [0.9f0, 1.0f0, 0.1f0, 0.9f0]
+    fcc_leaf_litter_s::T4 = [0.9f0, 1.0f0, 0.1f0, 0.9f0]
+    # fcc_sol::T5 = [0.9f0, 1.0f0, 0.1f0, 0.9f0] # we don't burnt organic soil
+    fcc_sol::T5 = [0.0f0, 0.0f0, 0.0f0, 1.0f0]
+    fcc_root::T6 = [0.0f0, 0.0f0, 0.0f0, 1.0f0]
+    fcc_cwd::T7 = [0.5f0, 0.6f0, 0.4f0, 0.6f0]
+=#

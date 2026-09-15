@@ -79,19 +79,19 @@ end
 
 #! format: off
 @bounds @describe @units @timescale @with_kw struct cCycleBase_CASA{T1,T2,T3,T4,T5,T6,T7,T8,T9,T10,T11,T12,T13,T14,T15,T16,T17,T18,T19,T20,T21,T22,T23,T24} <: cCycleBase
-    rootfine_age_scalar::T1 = 1.0 | (0.25, 4.0) | "scalar for the per-vegetation-type turnover rate of fine roots" | "-" | "year"
-    rootcoarse_age_scalar::T2 = 1.0 | (0.25, 4.0) | "scalar for the per-vegetation-type turnover rate of coarse roots" | "-" | "year"
-    wood_age_scalar::T3 = 1.0 | (0.25, 4.0) | "scalar for the per-vegetation-type turnover rate of wood" | "-" | "year"
-    leaf_age_scalar::T4 = 1.0 | (0.25, 4.0) | "scalar for the per-vegetation-type turnover rate of leaves" | "-" | "year"
+    rootfine_age_scalar::T1 = 1.0 | (0.25, 4.0) | "scalar for the per-vegetation-type turnover rate of fine roots" | "year-1" | "year"
+    rootcoarse_age_scalar::T2 = 1.0 | (0.25, 4.0) | "scalar for the per-vegetation-type turnover rate of coarse roots" | "year-1" | "year"
+    wood_age_scalar::T3 = 1.0 | (0.25, 4.0) | "scalar for the per-vegetation-type turnover rate of wood" | "year-1" | "year"
+    leaf_age_scalar::T4 = 1.0 | (0.25, 4.0) | "scalar for the per-vegetation-type turnover rate of leaves" | "year-1" | "year"
 
-    k_c_litfast_scalar::T5 = 1.0 | (0.25, 4) | "scalar for turnover rate of fast litter carbon pools" | "-" | "year"
-    k_c_litslow_scalar::T6 = 1.0 | (0.25, 4) | "scalar for turnover rate of slow litter carbon pools" | "-" | "year"
+    k_c_litfast_scalar::T5 = 1.0 | (0.25, 4) | "scalar for turnover rate of fast litter carbon pools" | "year-1" | "year"
+    k_c_litslow_scalar::T6 = 1.0 | (0.25, 4) | "scalar for turnover rate of slow litter carbon pools" | "year-1" | "year"
 
-    k_c_micsurf_scalar::T7 = 1.0 | (0.25, 4.0) | "scalar for the per-pool turnover rate of ecosystem carbon pools" | "-" | "year"
-    k_c_micsoil_scalar::T8 = 1.0 | (0.25, 4.0) | "scalar for the per-pool turnover rate of ecosystem carbon pools" | "-" | "year"
+    k_c_micsurf_scalar::T7 = 1.0 | (0.25, 4.0) | "scalar for the per-pool turnover rate of ecosystem carbon pools" | "year-1" | "year"
+    k_c_micsoil_scalar::T8 = 1.0 | (0.25, 4.0) | "scalar for the per-pool turnover rate of ecosystem carbon pools" | "year-1" | "year"
 
-    k_c_soilslow_scalar::T9 = 1.0 | (0.25, 4) | "scalar for turnover rate of soil slow carbon pool" | "-" | "year"
-    k_c_soilold_scalar::T10 = 1.0 | (0.25, 4) | "scalar for turnover rate of soil old carbon pool" | "-" | "year"
+    k_c_soilslow_scalar::T9 = 1.0 | (0.25, 4) | "scalar for turnover rate of soil slow carbon pool" | "year-1" | "year"
+    k_c_soilold_scalar::T10 = 1.0 | (0.25, 4) | "scalar for turnover rate of soil old carbon pool" | "year-1" | "year"
 
     k_c_allVeg_scalar::T11 = 1.0 | (0.25, 4.0) | "scalar for turnover rate of all vegetation carbon pools; it has no timescale, since it scales the original pool level k." | "-" | ""
     k_c_allLitter_scalar::T12 = 1.0 | (0.25, 4) | "scalar for turnover rate of all litter carbon pools; it has no timescale, since it scales the original pool level k." | "-" | ""

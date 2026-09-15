@@ -257,9 +257,26 @@ runtime -- the same `define`/`precompute` pattern applies here.
 """
 const CVEG_WOOD_AGE_PER_VEGTYPE = CVEG_ROOTCOARSE_AGE_PER_VEGTYPE
 
-
-
-
+const CREMAIN_PER_VEGTYPE = (;
+    Evergreen_Needleleaf_Forests = 100.0,
+    Evergreen_Broadleaf_Forests = 100.0,
+    Deciduous_Needleleaf_Forests = 100.0,
+    Deciduous_Broadleaf_Forests = 100.0,
+    Mixed_Forests = 100.0,
+    Closed_Shrublands = 50.0,
+    Open_Shrublands = 50.0,
+    Woody_Savannas = 50.0,
+    Savannas = 50.0,
+    Grasslands = 10.0,
+    Permanent_Wetlands = 10.0,
+    Croplands = 10.0,
+    Urban_and_Built_up_Lands = 0.0,
+    Cropland_Natural_Vegetation_Mosaics = 50.0,
+    Permanent_Snow_and_Ice = 0.0,
+    Barren = 0.0,
+    Water_Bodies = 0.0,
+    Unclassified = 0.0,
+)
 
 # Pool structures and flow topologies the approaches below declare against. One file
 # per structure in that folder; this entry point pulls them in. Included explicitly
