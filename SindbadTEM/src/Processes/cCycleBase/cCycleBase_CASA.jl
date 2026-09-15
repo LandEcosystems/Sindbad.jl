@@ -78,11 +78,11 @@ function meCASAFlowsSoil(eff_cSoil_to_cMicSoil, eff_cSoilSlow_to_cSoilOld, zix)
 end
 
 #! format: off
-@bounds @describe @units @timescale @with_kw struct cCycleBase_CASA{T1,T2,T3,T4,T5,T6,T7,T8,T9,T10,T11,T12,T13,T14,T15,T16,T17,T18,T19,T20,T21,T22,T23,T24} <: cCycleBase
-    rootfine_age_scalar::T1 = 1.0 | (0.25, 4.0) | "scalar for the per-vegetation-type turnover rate of fine roots" | "year-1" | "year"
-    rootcoarse_age_scalar::T2 = 1.0 | (0.25, 4.0) | "scalar for the per-vegetation-type turnover rate of coarse roots" | "year-1" | "year"
-    wood_age_scalar::T3 = 1.0 | (0.25, 4.0) | "scalar for the per-vegetation-type turnover rate of wood" | "year-1" | "year"
-    leaf_age_scalar::T4 = 1.0 | (0.25, 4.0) | "scalar for the per-vegetation-type turnover rate of leaves" | "year-1" | "year"
+@bounds @describe @units @timescale @with_kw struct cCycleBase_CASA{T1,T2,T3,T4,T5,T6,T7,T8,T9,T10,T11,T12,T13,T14,T15,T16,T17,T18,T19,T20,T21,T22,T23,T24,T25} <: cCycleBase
+    k_c_rootfine_scalar::T1 = 1.0 | (0.25, 4.0) | "scalar for the per-vegetation-type turnover rate of fine roots" | "year-1" | "year"
+    k_c_rootcoarse_scalar::T2 = 1.0 | (0.25, 4.0) | "scalar for the per-vegetation-type turnover rate of coarse roots" | "year-1" | "year"
+    k_c_wood_scalar::T3 = 1.0 | (0.25, 4.0) | "scalar for the per-vegetation-type turnover rate of wood" | "year-1" | "year"
+    k_c_leaf_scalar::T4 = 1.0 | (0.25, 4.0) | "scalar for the per-vegetation-type turnover rate of leaves" | "year-1" | "year"
 
     k_c_litfast_scalar::T5 = 1.0 | (0.25, 4) | "scalar for turnover rate of fast litter carbon pools" | "year-1" | "year"
     k_c_litslow_scalar::T6 = 1.0 | (0.25, 4) | "scalar for turnover rate of slow litter carbon pools" | "year-1" | "year"
@@ -93,10 +93,10 @@ end
     k_c_soilslow_scalar::T9 = 1.0 | (0.25, 4) | "scalar for turnover rate of soil slow carbon pool" | "year-1" | "year"
     k_c_soilold_scalar::T10 = 1.0 | (0.25, 4) | "scalar for turnover rate of soil old carbon pool" | "year-1" | "year"
 
-    k_c_allVeg_scalar::T11 = 1.0 | (0.25, 4.0) | "scalar for turnover rate of all vegetation carbon pools; it has no timescale, since it scales the original pool level k." | "-" | ""
-    k_c_allLitter_scalar::T12 = 1.0 | (0.25, 4) | "scalar for turnover rate of all litter carbon pools; it has no timescale, since it scales the original pool level k." | "-" | ""
-    k_c_allSoil_scalar::T13 = 1.0 | (0.25, 4) | "scalar for turnover rate of all soil carbon pools; it has no timescale, since it scales the original pool level k." | "-" | ""
-    k_c_allMicrobial_scalar::T14 = 1.0 | (0.25, 4) | "scalar for turnover rate of all microbial carbon pools; it has no timescale, since it scales the original pool level k." | "-" | ""
+    k_c_veg_scalar::T11 = 1.0 | (0.25, 4.0) | "scalar for turnover rate of all vegetation carbon pools; it has no timescale, since it scales the original pool level k." | "-" | ""
+    k_c_lit_scalar::T12 = 1.0 | (0.25, 4) | "scalar for turnover rate of all litter carbon pools; it has no timescale, since it scales the original pool level k." | "-" | ""
+    k_c_soil_scalar::T13 = 1.0 | (0.25, 4) | "scalar for turnover rate of all soil carbon pools; it has no timescale, since it scales the original pool level k." | "-" | ""
+    k_c_mic_scalar::T14 = 1.0 | (0.25, 4) | "scalar for turnover rate of all microbial carbon pools; it has no timescale, since it scales the original pool level k." | "-" | ""
 
     CN_ratio_scalar::T15 = 1.0 | (0.25, 4.0) | "scalar for the vegetation carbon-to-nitrogen ratio" | "-" | ""
     eff_cLit_to_cMicSurf::T16 = 0.4 | (0.0, 1.0) | "Microbial carbon-transfer efficiency of litter decomposition into the surface microbial pool." | "fraction" | ""
@@ -107,7 +107,8 @@ end
     eff_cMicSurf_to_cSoilSlow::T21 = 0.4 | (0.0, 1.0) | "Microbial carbon-transfer efficiency of surface microbial turnover into the slow soil pool." | "fraction" | ""
     eff_cSoil_to_cMicSoil::T22 = 0.45 | (0.0, 1.0) | "Microbial carbon-transfer efficiency of slow and old soil decomposition returning to the soil microbial pool." | "fraction" | ""
     eff_cSoilSlow_to_cSoilOld::T23 = 0.45 | (0.0, 1.0) | "Microbial carbon-transfer efficiency of slow soil decomposition stabilized into old soil carbon." | "fraction" | ""
-    c_remain::T24 = 50.0 | (0.1, 100.0) | "remaining carbon after disturbance" | "gC/m2" | ""
+    c_remain_scalar::T24 = 1.0 | (0.1, 10.0) | "scalar for the per-vegetation-type minimum remaining carbon after disturbance" | "-" | ""
+    k_hilo_scalar::T25 = 1.0 | (-Inf, Inf) | "timescale factor for split of high and low turnover rates" | "-" | "year"
 end
 #! format: on
 
@@ -141,6 +142,7 @@ function define(params::cCycleBase_CASA, forcing, land, helpers)
     leaf_age_per_vegtype = getParamsPerVegType(CVEG_LEAF_AGE_PER_VEGTYPE, typeof(veg_type_class_map))
     rootcoarse_age_per_vegtype = getParamsPerVegType(CVEG_ROOTCOARSE_AGE_PER_VEGTYPE, typeof(veg_type_class_map))
     wood_age_per_vegtype = getParamsPerVegType(CVEG_WOOD_AGE_PER_VEGTYPE, typeof(veg_type_class_map))
+    c_remain_per_vegtype = getParamsPerVegType(C_REMAIN_PER_VEGTYPE, typeof(veg_type_class_map))
 
     # zix for the carbon cycle...
     zix_cNonVeg, zix_cNatural, zix_cHeterotrophic, zix_cProducts = cCycleBaseZixGroups(helpers)
@@ -150,6 +152,7 @@ function define(params::cCycleBase_CASA, forcing, land, helpers)
     @pack_nt begin
         (CN_ratio_cVeg, c_eco_k_base, c_flow_A_vec, c_flow_QP_vec, c_flow_ME_vec) ⇒ land.diagnostics
         (rootfine_age_per_vegtype, leaf_age_per_vegtype, rootcoarse_age_per_vegtype, wood_age_per_vegtype) ⇒ land.diagnostics
+        c_remain_per_vegtype ⇒ land.diagnostics
         (c_flow_order, c_taker, c_giver, pool_names, flow_edges, c_flow_taker_turnover_rank) ⇒ land.cCycleBase
         (zix_cNonVeg, zix_cNatural, zix_cHeterotrophic, zix_cProducts) ⇒ land.cCycleBase
         c_model ⇒ land.models
@@ -167,6 +170,7 @@ function precompute(params::cCycleBase_CASA, forcing, land, helpers)
         c_eco_k_base ⇐ land.diagnostics
         c_flow_ME_vec ⇐ land.diagnostics
         (rootfine_age_per_vegtype, leaf_age_per_vegtype, rootcoarse_age_per_vegtype, wood_age_per_vegtype) ⇐ land.diagnostics
+        c_remain_per_vegtype ⇐ land.diagnostics
         (c_flow_order, c_giver, c_taker, c_flow_taker_turnover_rank) ⇐ land.cCycleBase
         veg_type_name ⇐ land.states
     end
@@ -206,8 +210,8 @@ function precompute(params::cCycleBase_CASA, forcing, land, helpers)
 
     # The four vegetation-compartment pools' turnover varies by land.states.veg_type_name,
     # looked up in the tables define re-keyed from ParamsForVegClasses.jl, each
-    # scaled by its own bounded multiplier (rootfine_age_scalar/leaf_age_scalar/
-    # rootcoarse_age_scalar/wood_age_scalar) through the same
+    # scaled by its own bounded multiplier (k_c_rootfine_scalar/k_c_leaf_scalar/
+    # k_c_rootcoarse_scalar/k_c_wood_scalar) through the same
     # getKfromTau(scalar_for::NamedTuple) convention every other per-pool
     # scalar in this codebase uses: rate = (1/turnover_time) * scalar. Every
     # other CASA pool (litter/microbial/soil) is not vegetation-type dependent
@@ -219,29 +223,35 @@ function precompute(params::cCycleBase_CASA, forcing, land, helpers)
         cVegWood = getproperty(wood_age_per_vegtype, veg_type_name),
     )
     casa_k_veg_scalars = (;
-        cVegRootFine = rootfine_age_scalar * k_c_allVeg_scalar, 
-        cVegLeaf = leaf_age_scalar * k_c_allVeg_scalar,
-        cVegRootCoarse = rootcoarse_age_scalar * k_c_allVeg_scalar, 
-        cVegWood = wood_age_scalar * k_c_allVeg_scalar,
+        cVegRootFine = k_c_rootfine_scalar * k_c_veg_scalar, 
+        cVegLeaf = k_c_leaf_scalar * k_c_veg_scalar,
+        cVegRootCoarse = k_c_rootcoarse_scalar * k_c_veg_scalar, 
+        cVegWood = k_c_wood_scalar * k_c_veg_scalar,
     )
 
     casa_k_non_veg_scalars = (;
-        cLitLeafFast = k_c_litfast_scalar * k_c_allLitter_scalar,
-        cLitLeafSlow = k_c_litslow_scalar * k_c_allLitter_scalar,
-        cLitRootFineFast = k_c_litfast_scalar * k_c_allLitter_scalar,
-        cLitRootFineSlow = k_c_litslow_scalar * k_c_allLitter_scalar,
-        cLitRootCoarse = k_c_litslow_scalar * k_c_allLitter_scalar,
-        cLitWood = k_c_litslow_scalar * k_c_allLitter_scalar,
-        cMicSurf = k_c_micsurf_scalar * k_c_allMicrobial_scalar,
-        cMicSoil = k_c_micsoil_scalar * k_c_allMicrobial_scalar,
-        cSoilSlow = k_c_soilslow_scalar * k_c_allSoil_scalar,
-        cSoilOld = k_c_soilold_scalar * k_c_allSoil_scalar,
+        cLitLeafFast = k_c_litfast_scalar * k_c_lit_scalar,
+        cLitLeafSlow = k_c_litslow_scalar * k_c_lit_scalar,
+        cLitRootFineFast = k_c_litfast_scalar * k_c_lit_scalar,
+        cLitRootFineSlow = k_c_litslow_scalar * k_c_lit_scalar,
+        cLitRootCoarse = k_c_litslow_scalar * k_c_lit_scalar,
+        cLitWood = k_c_litslow_scalar * k_c_lit_scalar,
+        cMicSurf = k_c_micsurf_scalar * k_c_mic_scalar,
+        cMicSoil = k_c_micsoil_scalar * k_c_mic_scalar,
+        cSoilSlow = k_c_soilslow_scalar * k_c_soil_scalar,
+        cSoilOld = k_c_soilold_scalar * k_c_soil_scalar,
     )
 
     c_eco_k_base = getKfromTau(c_eco_k_base, casa_tau_default_veg_pools, casa_k_veg_scalars, helpers)
     c_eco_k_base = getKfromTau(c_eco_k_base, CASA_TAU_NON_VEG_POOLS, casa_k_non_veg_scalars, helpers)
 
-    k_hilo_lit_split = one(TAU_HILO_LIT_SPLIT) / ((eltype(c_eco_k_base)(TAU_HILO_LIT_SPLIT)) * (eltype(c_eco_k_base)(helpers.dates.timesteps_in_year))) # this is a place holder to convert TAU_HILO_LIT_SPLIT to k time units...
+    # minimum remaining carbon after disturbance, by land.states.veg_type_name,
+    # looked up in the table define re-keyed from C_REMAIN_PER_VEGTYPE, scaled
+    # by the bounded c_remain_scalar -- same getParamForVegType idiom
+    # vegQualityTraits_vegType.jl uses for litter chemistry.
+    c_remain = getParamForVegType(c_remain_per_vegtype, veg_type_name, c_remain_scalar)
+
+    k_hilo_lit_split = k_hilo_scalar / (oftype(k_hilo_scalar, TAU_HILO_LIT_SPLIT)) # TAU_HILO_LIT_SPLIT is changed to actual time scale through 'year' timescale of k_hilo_scalar which will be 1/365 for daily model run ...
 
     # c_flow_taker_turnover_rank ranks by base turnover rate, so it can only be
     # derived now that c_eco_k_base above holds real values -- define only
@@ -369,8 +379,8 @@ something today's centralization introduced, just never exercised end to end (se
    type (pure dispatch), so the fresh instance only threw away whatever values
    `params` actually held for no benefit. `cVegRootFine_age_scalar`/
    `cVegRootCoarse_age_scalar`/`cVegWood_age_scalar`/`cVegLeaf_age_scalar`
-   renamed to `rootfine_age_scalar`/`rootcoarse_age_scalar`/`wood_age_scalar`/
-   `leaf_age_scalar`, dropping the redundant `cVeg` prefix to match the lowercase
+   renamed to `k_c_rootfine_scalar`/`k_c_rootcoarse_scalar`/`k_c_wood_scalar`/
+   `k_c_leaf_scalar`, dropping the redundant `cVeg` prefix to match the lowercase
    compartment-name style `k_c_root_scalar` etc. already use.
  - 1.8 on 11.09.2026 [skoirala]: fixed a bug that predates this file's ever
    having run end to end (see 1.4): `k_c_scalar` (and `annk_scalar` before it)
@@ -386,8 +396,8 @@ something today's centralization introduced, just never exercised end to end (se
    (the pre-existing, already-tracked `allowed_to_fail_approaches` pool-
    structure-mismatch issue), but confirmed correct via direct inspection of
    `getTypedModel(:cCycleBase_CASA, "day", Float32).k_c_scalar == 1/365`.
- - 1.9 on 11.09.2026 [skoirala]: `rootfine_age_scalar`/`rootcoarse_age_scalar`/
-   `wood_age_scalar`/`leaf_age_scalar` wired into `precompute` at last (dead
+ - 1.9 on 11.09.2026 [skoirala]: `k_c_rootfine_scalar`/`k_c_rootcoarse_scalar`/
+   `k_c_wood_scalar`/`k_c_leaf_scalar` wired into `precompute` at last (dead
    since 1.6). `CASA_TAU_NON_VEG_POOLS` (`poolConfigurations/CASA.jl`) no longer carries the
    four vegetation-compartment pools; `define` re-keys
    `CVEG_ROOTFINE_AGE_PER_VEGTYPE`/`CVEG_LEAF_AGE_PER_VEGTYPE`/
@@ -401,6 +411,16 @@ something today's centralization introduced, just never exercised end to end (se
    `"year"` as their timescale (previously `""`), for the same reason `k_c_scalar`
    needed it fixed in 1.8. The frozen pre-change behavior, with fixed
    compartment-turnover values, is preserved unchanged as `cCycleBase_CASA_Legacy`.
+ - 2.0 on 15.09.2026 [skoirala]: `c_remain` (a flat `50.0 | (0.1, 100.0)`
+   bounded parameter) replaced by `c_remain_scalar` (`1.0 | (0.1, 10.0)`,
+   dimensionless), following the same per-vegetation-type pattern as the
+   turnover ages above: `define` re-keys `C_REMAIN_PER_VEGTYPE`
+   (`cCycleBase.jl`) via `getParamsPerVegType`, and `precompute` looks the
+   pixel's `veg_type_name` up in it and scales by `c_remain_scalar` via the
+   new `getParamForVegType` (`classifications.jl`), which also replaces the
+   equivalent inline expression in `vegQualityTraits_vegType.jl`.
+   `land.states.c_remain` itself is unchanged, so every downstream consumer
+   (`cCycleDisturbance_*`, `cCycleManagement_Harvest`, `spinupTEM`) needs no changes.
 
 *Created by*
  - ncarvalhais

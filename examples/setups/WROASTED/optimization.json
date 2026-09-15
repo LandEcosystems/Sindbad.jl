@@ -13,7 +13,7 @@
     "cCycleBase,k_c_wood_scalar": null,
     "cCycleBase,k_c_leaf_scalar": null,
     "cCycleBase,k_c_reserve_scalar": null,
-    "cCycleBase,k_c_litter_scalar": null,
+    "cCycleBase,k_c_lit_scalar": null,
     "cFlow,f_τ": null,
     "cFlow,k_shedding": null,
     "cFlow,slope_leaf_root_to_reserve": null,

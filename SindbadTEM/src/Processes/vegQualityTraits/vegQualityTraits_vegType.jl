@@ -41,12 +41,12 @@ function precompute(params::vegQualityTraits_vegType, forcing, land, helpers)
     ## calculate variables
     # Select the litter chemistry of land.states.veg_type_name, whatever classification
     # (fine canonical, or a grouping such as tree/shrub/herb) produced it, by name
-    # rather than by a positional index into an array. The per-vegetation-type tables
-    # are plain Float64 literals; oftype matches each looked-up value to its scalar's
-    # type before multiplying, so the result stays the parameter type instead of
-    # silently widening to Float64.
-    lit_CN_ratio = oftype(lit_CN_ratio_scalar, getproperty(lit_CN_ratio_per_vegtype, veg_type_name)) * lit_CN_ratio_scalar
-    lit_frac_lignin = oftype(lit_frac_lignin_scalar, getproperty(lit_frac_lignin_per_vegtype, veg_type_name)) * lit_frac_lignin_scalar
+    # rather than by a positional index into an array, via getParamForVegType
+    # (classifications.jl), which also matches each looked-up value to its
+    # scalar's type through oftype so the result stays the parameter type
+    # instead of silently widening to Float64.
+    lit_CN_ratio = getParamForVegType(lit_CN_ratio_per_vegtype, veg_type_name, lit_CN_ratio_scalar)
+    lit_frac_lignin = getParamForVegType(lit_frac_lignin_per_vegtype, veg_type_name, lit_frac_lignin_scalar)
 
     # lignin-to-nitrogen ratio of litter
     lignin_to_N = (lit_CN_ratio * lit_frac_lignin) * lit_nonsol_to_sol_lignin
@@ -136,6 +136,11 @@ original did not.
    instead of `precompute` reading them directly by canonical PFT name
  - 5.0 on 12.09.2026 [skoirala]: renamed from `vegQualityTraits_VegTypes` to
    `vegQualityTraits_vegType`
+ - 6.0 on 15.09.2026 [skoirala]: `lit_CN_ratio`/`lit_frac_lignin`'s inline
+   `oftype(scalar, getproperty(per_vegtype, veg_type_name)) * scalar`
+   expression replaced by the equivalent `getParamForVegType`
+   (`classifications.jl`), factored out for `cCycleBase`'s new
+   `c_remain_scalar`, which uses the identical idiom; no behavior change here
 
 *Created by*
  - ncarvalhais

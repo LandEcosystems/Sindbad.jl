@@ -12,14 +12,15 @@ export cCycleBase_MGMT
     T8,  # k_c_soilold_scalar
     T9,  # k_c_products_wood_scalar
     T10, # k_c_products_crop_scalar
-    T11, # k_c_allVeg_scalar
-    T12, # k_c_allLitter_scalar
-    T13, # k_c_allSoil_scalar
+    T11, # k_c_veg_scalar
+    T12, # k_c_lit_scalar
+    T13, # k_c_soil_scalar
     T14, # k_c_allProducts_scalar
     T15, # CN_ratio_scalar
     T16, # ηH
     T17, # ηA
-    T18 # c_remain
+    T18, # c_remain_scalar
+    T19  # k_hilo_scalar
 } <: cCycleBase
     k_c_root_scalar::T1 = 1.0 | (0.25, 4) | "scalar for turnover rate of root carbon pool" | "-" | "year"
     k_c_wood_scalar::T2 = 1.0 | (0.25, 4) | "scalar for turnover rate of wood carbon pool" | "-" | "year"
@@ -34,15 +35,16 @@ export cCycleBase_MGMT
     k_c_products_wood_scalar::T9 = 1.0 | (0.25, 4) | "scalar for turnover rate of harvested wood product carbon pool" | "-" | "year"
     k_c_products_crop_scalar::T10 = 1.0 | (0.25, 4) | "scalar for turnover rate of harvested crop product carbon pool" | "-" | "year"
 
-    k_c_allVeg_scalar::T11 = 1.0 | (0.25, 4.0) | "scalar for turnover rate of all vegetation carbon pools; it has no timescale, since it scales the original pool level k." | "-" | ""
-    k_c_allLitter_scalar::T12 = 1.0 | (0.25, 4) | "scalar for turnover rate of all litter carbon pools; it has no timescale, since it scales the original pool level k." | "-" | ""
-    k_c_allSoil_scalar::T13 = 1.0 | (0.25, 4) | "scalar for turnover rate of all soil carbon pools; it has no timescale, since it scales the original pool level k." | "-" | ""
+    k_c_veg_scalar::T11 = 1.0 | (0.25, 4.0) | "scalar for turnover rate of all vegetation carbon pools; it has no timescale, since it scales the original pool level k." | "-" | ""
+    k_c_lit_scalar::T12 = 1.0 | (0.25, 4) | "scalar for turnover rate of all litter carbon pools; it has no timescale, since it scales the original pool level k." | "-" | ""
+    k_c_soil_scalar::T13 = 1.0 | (0.25, 4) | "scalar for turnover rate of all soil carbon pools; it has no timescale, since it scales the original pool level k." | "-" | ""
     k_c_allProducts_scalar::T14 = 1.0 | (0.25, 4) | "scalar for turnover rate of all wood product carbon pools; it has no timescale, since it scales the original pool level k." | "-" | ""
     
     CN_ratio_scalar::T15 = 1.0 | (0.25, 4) | "scalar for the vegetation carbon-to-nitrogen ratio" | "-" | ""
     ηH::T16 = 1.0 | (0.125, 8.0) | "scaling factor for heterotrophic pools after spinup" | "" | ""
     ηA::T17 = 1.0 | (0.25, 4.0) | "scaling factor for vegetation pools after spinup" | "" | ""
-    c_remain::T18 = 50.0 | (0.1, 100.0) | "remaining carbon after disturbance" | "gC/m2" | ""
+    c_remain_scalar::T18 = 1.0 | (0.1, 10.0) | "scalar for the per-vegetation-type minimum remaining carbon after disturbance" | "-" | ""
+    k_hilo_scalar::T19 = 1.0 | (-Inf, Inf) | "timescale factor for split of high and low turnover rates" | "-" | "year"
 end
 #! format: on
 
@@ -73,6 +75,7 @@ function define(params::cCycleBase_MGMT , forcing, land, helpers)
     rootfine_age_per_vegtype = getParamsPerVegType(CVEG_ROOTFINE_AGE_PER_VEGTYPE, typeof(veg_type_class_map))
     leaf_age_per_vegtype = getParamsPerVegType(CVEG_LEAF_AGE_PER_VEGTYPE, typeof(veg_type_class_map))
     wood_age_per_vegtype = getParamsPerVegType(CVEG_WOOD_AGE_PER_VEGTYPE, typeof(veg_type_class_map))
+    c_remain_per_vegtype = getParamsPerVegType(C_REMAIN_PER_VEGTYPE, typeof(veg_type_class_map))
 
     c_model = params
 
@@ -86,6 +89,7 @@ function define(params::cCycleBase_MGMT , forcing, land, helpers)
         (c_flow_order, c_taker, c_giver, pool_names, flow_edges, c_flow_taker_turnover_rank) ⇒ land.cCycleBase
         (CN_ratio_cVeg, c_eco_τ, c_eco_k_base, c_flow_A_vec, c_flow_QP_vec, c_flow_ME_vec) ⇒ land.diagnostics
         (rootfine_age_per_vegtype, leaf_age_per_vegtype, wood_age_per_vegtype) ⇒ land.diagnostics
+        c_remain_per_vegtype ⇒ land.diagnostics
         c_model ⇒ land.models
         (zix_cNonVeg, zix_cNatural, zix_cHeterotrophic, zix_cProducts) ⇒ land.cCycleBase
     end
@@ -97,6 +101,7 @@ function precompute(params::cCycleBase_MGMT , forcing, land, helpers)
     @unpack_nt begin
         (CN_ratio_cVeg, c_eco_k_base, c_eco_τ) ⇐ land.diagnostics
         (rootfine_age_per_vegtype, leaf_age_per_vegtype, wood_age_per_vegtype) ⇐ land.diagnostics
+        c_remain_per_vegtype ⇐ land.diagnostics
         (c_flow_order, c_giver, c_taker, c_flow_taker_turnover_rank) ⇐ land.cCycleBase
         veg_type_name ⇐ land.states
     end
@@ -117,14 +122,14 @@ function precompute(params::cCycleBase_MGMT , forcing, land, helpers)
     )
 
     k_c_scalars = (;
-        cVegRoot = k_c_root_scalar * k_c_allVeg_scalar, 
-        cVegWood = k_c_wood_scalar * k_c_allVeg_scalar,
-        cVegLeaf = k_c_leaf_scalar * k_c_allVeg_scalar, 
-        cVegReserve = k_c_reserve_scalar * k_c_allVeg_scalar,
-        cLitFast = k_c_litfast_scalar * k_c_allLitter_scalar, 
-        cLitSlow = k_c_litslow_scalar * k_c_allLitter_scalar,
-        cSoilSlow = k_c_soilslow_scalar * k_c_allSoil_scalar, 
-        cSoilOld = k_c_soilold_scalar * k_c_allSoil_scalar,
+        cVegRoot = k_c_root_scalar * k_c_veg_scalar, 
+        cVegWood = k_c_wood_scalar * k_c_veg_scalar,
+        cVegLeaf = k_c_leaf_scalar * k_c_veg_scalar, 
+        cVegReserve = k_c_reserve_scalar * k_c_veg_scalar,
+        cLitFast = k_c_litfast_scalar * k_c_lit_scalar, 
+        cLitSlow = k_c_litslow_scalar * k_c_lit_scalar,
+        cSoilSlow = k_c_soilslow_scalar * k_c_soil_scalar, 
+        cSoilOld = k_c_soilold_scalar * k_c_soil_scalar,
         cProductsWood = k_c_products_wood_scalar * k_c_allProducts_scalar, 
         cProductsCrop = k_c_products_crop_scalar * k_c_allProducts_scalar,
     )
@@ -141,7 +146,13 @@ function precompute(params::cCycleBase_MGMT , forcing, land, helpers)
         @rep_elem tmp ⇒ (c_eco_k_base, i)
     end
 
-    k_hilo_lit_split = one(TAU_HILO_LIT_SPLIT) / ((eltype(c_eco_k_base)(TAU_HILO_LIT_SPLIT)) * (eltype(c_eco_k_base)(helpers.dates.timesteps_in_year))) # this is a place holder to convert TAU_HILO_LIT_SPLIT to k time units...
+    # minimum remaining carbon after disturbance, by land.states.veg_type_name,
+    # looked up in the table define re-keyed from C_REMAIN_PER_VEGTYPE, scaled
+    # by the bounded c_remain_scalar -- same getParamForVegType idiom
+    # vegQualityTraits_vegType.jl uses for litter chemistry.
+    c_remain = getParamForVegType(c_remain_per_vegtype, veg_type_name, c_remain_scalar)
+
+    k_hilo_lit_split = k_hilo_scalar / (oftype(k_hilo_scalar, TAU_HILO_LIT_SPLIT)) # TAU_HILO_LIT_SPLIT is changed to actual time scale through 'year' timescale of k_hilo_scalar which will be 1/365 for daily model run ...
 
     # c_flow_taker_turnover_rank ranks by base turnover rate, so it can only be
     # derived now that c_eco_k_base above holds real values -- define only
@@ -184,7 +195,7 @@ Reads `land.states.veg_type_name` and looks its vegetation-compartment turnover 
 `Classification_PlantForm`, exactly like `vegQualityTraits_vegType.jl`. Turnover
 is `k = (1.0 / turnover_time) * scalar`, `scalar` being one of the eight
 `k_c_*_scalar` fields (shared across pools that don't get an individual one:
-`k_c_litter_scalar` for both litter pools, `k_c_soil_scalar` for both soil
+`k_c_lit_scalar` for both litter pools, `k_c_soil_scalar` for both soil
 pools). `cVegReserve` stays `TAU_DORMANT` and `cLitFast`/`cLitSlow`/`cSoilSlow`/
 `cSoilOld` stay fixed at `GSI_TAU_DEFAULT`'s values (`poolConfigurations/GSI.jl`),
 neither being vegetation-type dependent. `k_c_products_wood_scalar`/
@@ -285,6 +296,16 @@ is preserved unchanged as `cCycleBase_MGMT _Legacy`.
    removed, `poolConfigurations/MGMT.jl`) since those two do not vary by
    vegetation type. Same pattern `vegQualityTraits_vegType.jl` uses, and no
    longer tied to `Classification_PlantForm` specifically.
+ - 1.7 on 15.09.2026 [skoirala]: `c_remain` (a flat `50.0 | (0.1, 100.0)`
+   bounded parameter) replaced by `c_remain_scalar` (`1.0 | (0.1, 10.0)`,
+   dimensionless), following the same per-vegetation-type pattern as the
+   turnover ages above: `define` re-keys `C_REMAIN_PER_VEGTYPE`
+   (`cCycleBase.jl`) via `getParamsPerVegType`, and `precompute` looks the
+   pixel's `veg_type_name` up in it and scales by `c_remain_scalar` via the
+   new `getParamForVegType` (`classifications.jl`), which also replaces the
+   equivalent inline expression in `vegQualityTraits_vegType.jl`.
+   `land.states.c_remain` itself is unchanged, so every downstream consumer
+   needs no changes.
 
 *Created by*
  - ncarvalhais

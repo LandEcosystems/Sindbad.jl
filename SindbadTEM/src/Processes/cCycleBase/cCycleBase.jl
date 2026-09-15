@@ -144,7 +144,7 @@ const LIT_CN_RATIO_PER_VEGTYPE = (;
 
 Mean age (turnover time, years) of fine roots, per canonical vegetation type
 (`Classification_SINDBAD`) name. Fixed data, not a parameter -- calibration
-happens through `rootfine_age_scalar` in `cCycleBase_CASA` (and the
+happens through `k_c_rootfine_scalar` in `cCycleBase_CASA` (and the
 equivalent `k_c_root_scalar` in the GSI-family `cCycleBase` approaches)
 instead.
 
@@ -189,7 +189,7 @@ const CVEG_ROOTFINE_AGE_PER_VEGTYPE = (;
 
 Mean age (turnover time, years) of leaves, per canonical vegetation type
 (`Classification_SINDBAD`) name. Fixed data, not a parameter -- calibration
-happens through `leaf_age_scalar` in `cCycleBase_CASA` (and the equivalent
+happens through `k_c_leaf_scalar` in `cCycleBase_CASA` (and the equivalent
 `k_c_leaf_scalar` in the GSI-family `cCycleBase` approaches) instead.
 
 Presently a plain alias of `CVEG_ROOTFINE_AGE_PER_VEGTYPE` (the legacy
@@ -206,7 +206,7 @@ const CVEG_LEAF_AGE_PER_VEGTYPE = CVEG_ROOTFINE_AGE_PER_VEGTYPE
 
 Mean age (turnover time, years) of coarse roots, per canonical vegetation
 type (`Classification_SINDBAD`) name. Fixed data, not a parameter --
-calibration happens through `rootcoarse_age_scalar` in `cCycleBase_CASA`
+calibration happens through `k_c_rootcoarse_scalar` in `cCycleBase_CASA`
 instead.
 
 Drives vegetation-compartment turnover at runtime the same way
@@ -245,7 +245,7 @@ const CVEG_ROOTCOARSE_AGE_PER_VEGTYPE = (;
 
 Mean age (turnover time, years) of wood, per canonical vegetation type
 (`Classification_SINDBAD`) name. Fixed data, not a parameter -- calibration
-happens through `wood_age_scalar` in `cCycleBase_CASA` (and the equivalent
+happens through `k_c_wood_scalar` in `cCycleBase_CASA` (and the equivalent
 `k_c_wood_scalar` in the GSI-family `cCycleBase` approaches) instead.
 
 Presently a plain alias of `CVEG_ROOTCOARSE_AGE_PER_VEGTYPE` (the legacy
@@ -257,7 +257,14 @@ runtime -- the same `define`/`precompute` pattern applies here.
 """
 const CVEG_WOOD_AGE_PER_VEGTYPE = CVEG_ROOTCOARSE_AGE_PER_VEGTYPE
 
-const CREMAIN_PER_VEGTYPE = (;
+"""
+    C_REMAIN_PER_VEGTYPE
+
+default minimum remaining carbon content (gC/m2) of each vegetation pool after fire or site disturbance, per canonical vegetation type (`Classification_SINDBAD`) name.
+
+These numbers are ingested by cCycleBase and scaled by a scalar parameter that can be optimized in a calibration run. 
+"""
+const C_REMAIN_PER_VEGTYPE = (;
     Evergreen_Needleleaf_Forests = 100.0,
     Evergreen_Broadleaf_Forests = 100.0,
     Deciduous_Needleleaf_Forests = 100.0,

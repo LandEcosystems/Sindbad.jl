@@ -1,11 +1,11 @@
 export cFireCombustionCompleteness_vanDerWerf2006
 
 @with_kw struct cFireCombustionCompleteness_vanDerWerf2006{T1, T2, T3, T4, T5, T6, T7} <: cFireCombustionCompleteness
-    # fire combustion completeness parameters for stems, leaf; for the metabolic and structural parts of fine leaf litter (fcc_leaf_litter_m, fcc_leaf_litter_s)< for the coarse woody debris (literSlow) and for the organic soil layer (sol)
+    # fire combustion completeness parameters for stems, leaf; for the metabolic and structural parts of fine leaf litter (fcc_leaf_lit_m, fcc_leaf_lit_s)< for the coarse woody debris (literSlow) and for the organic soil layer (sol)
     fcc_stem::T1 = [0.2f0, 0.3f0, 0.0f0, 1.0f0] # min, max, prev, current
     fcc_leaf::T2 = [0.8f0, 1.0f0, 0.0f0, 1.0f0]
-    fcc_leaf_litter_m::T3 = [0.9f0, 1.0f0, 0.1f0, 0.9f0]
-    fcc_leaf_litter_s::T4 = [0.9f0, 1.0f0, 0.1f0, 0.9f0]
+    fcc_leaf_lit_m::T3 = [0.9f0, 1.0f0, 0.1f0, 0.9f0]
+    fcc_leaf_lit_s::T4 = [0.9f0, 1.0f0, 0.1f0, 0.9f0]
     # fcc_sol::T5 = [0.9f0, 1.0f0, 0.1f0, 0.9f0] # we don't burnt organic soil
     fcc_sol::T5 = [0.0f0, 0.0f0, 0.0f0, 1.0f0]
     fcc_root::T6 = [0.0f0, 0.0f0, 0.0f0, 1.0f0]
@@ -30,7 +30,7 @@ function define(params::cFireCombustionCompleteness_vanDerWerf2006, forcing, lan
         :cVegWood => :fcc_stem,
         :cVegReserve => :fcc_stem,
         :cVegLeaf => :fcc_leaf,
-        :cLitFast => :fcc_leaf_litter_m,
+        :cLitFast => :fcc_leaf_lit_m,
         :cLitSlow => :fcc_cwd,
         :cSoilSlow => :fcc_sol,
         )

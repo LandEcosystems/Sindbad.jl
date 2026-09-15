@@ -5,6 +5,7 @@ export vegTypeCode
 export vegTypeCanonicalName
 export resolveVegClassification
 export getParamsPerVegType
+export getParamForVegType
 
 """
     VegClassification
@@ -185,6 +186,18 @@ function getParamsPerVegType(base_table::NamedTuple, ::Type{Classification}) whe
         push!(vals, sum(getproperty(base_table, t) for t in targets) / length(targets))
     end
     return NamedTuple{Tuple(names)}(Tuple(vals))
+end
+
+"""
+    getParamForVegType(per_vegtype, veg_type_name, scalar)
+
+Look up `veg_type_name` in a table already re-keyed by `getParamsPerVegType`,
+and scale it by `scalar` (a bounded, optimizable parameter), matching the
+scalar's numeric type via `oftype` so the result doesn't silently widen to
+Float64.
+"""
+function getParamForVegType(per_vegtype, veg_type_name, scalar)
+    return oftype(scalar, getproperty(per_vegtype, veg_type_name)) * scalar
 end
 
 # One file per catalog, listed rather than globbed so only files meant to load do.

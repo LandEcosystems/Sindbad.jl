@@ -1213,14 +1213,14 @@ sindbad_tem_variables = orD{Symbol,orD{Symbol,String}}(
     ),
     :properties__lit_frac_lignin_wood => orD(
         :standard_name => "lit_frac_lignin_wood",
-        :long_name => "woody_litter_lignin_fraction",
+        :long_name => "woody_lit_lignin_fraction",
         :units => "fraction",
         :land_field => "properties",
         :description => "lignin fraction of woody litter, which controls the partitioning of woody and coarse-root litter decomposition"
     ),
     :properties__lit_frac_metabolic => orD(
         :standard_name => "lit_frac_metabolic",
-        :long_name => "metabolic_litter_fraction",
+        :long_name => "metabolic_lit_fraction",
         :units => "fraction",
         :land_field => "properties",
         :description => "fraction of leaf and fine-root litterfall routed to the metabolic litter pools; the complement goes to the structural pools"
