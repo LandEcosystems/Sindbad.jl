@@ -223,23 +223,17 @@ end
 
 Return a vector of `output_length` elements shaped like `source_vector`: its element
 type and its container kind, filled with `fill_value(eltype(source_vector))`.
+`output_length` need not match `length(source_vector)`: at carbon-cycle call sites,
+`source_vector` is typically `cEco` (one entry per pool) while the result has one
+entry per carbon flow.
 
 # Arguments
 - `source_vector`: the vector whose element type and container kind to copy
-- `output_length`: length of the returned vector, which need not match
-  `length(source_vector)`
-- `fill_value`: `zero` or `one`, the function rather than a number, so the element
-  type comes from `source_vector` and the caller never repeats it. Defaults to `zero`
+- `output_length`: length of the returned vector
+- `fill_value`: `zero` or `one`, the function rather than a number. Defaults to `zero`
 
 # Returns
 - A vector of `output_length` elements, static when `source_vector` is static
-
-# Notes:
-- "Of type" is about the source's type, not its size: the two lengths differ at every
-  carbon-cycle call site, where `source_vector` is `cEco` with one entry per pool and
-  the result has one entry per carbon flow.
-- Dispatch on `StaticArray` replaces the `if x isa SVector` branch that every one of
-  those sites used to carry, which had to be repeated once per constructed vector.
 
 # Examples
 ```jldoctest
@@ -348,20 +342,15 @@ julia> cFlowMatrix((1, 1, 2), (2, 3, 3), 3)
 ```
 
 # Notes:
-- **Row is the taker, column is the giver.** Every dense flow array in every model
-  follows this, from the `c_flow_A_array` the topology replaced to the
-  `c_flow_ME_array` that outlived it, and so does the flow-vector order itself:
-  `cFlowStructure` sorts by `(giver, taker)`, which is column-major over this matrix.
-- The two methods produce the same matrix. The three-argument one is the runtime
-  form, taking indices the base already resolved, so its flow numbers are
-  `c_flow_order` by construction. The two-argument one resolves an approach's
-  declared edges without a run, repeating `cFlowStructure`'s sort so that flow `k`
-  here is the flow `k` the model packs.
-- `pool_names` is an argument rather than something derived from `poolStructure`
-  because flattening a structure into ordered names is `getPoolInformation`, which
-  lives in `Sindbad.Setup`, and `Sindbad` depends on `SindbadTEM` and not the other
-  way round. Passing the names in keeps this inside `SindbadTEM` and avoids a second
-  flattener that could drift from the first.
+- Row is the taker, column is the giver, matching every dense flow array in the
+  models (`c_flow_A_array`, `c_flow_ME_array`).
+- The two methods produce the same matrix. The three-argument form takes indices
+  the base already resolved; the two-argument form resolves an approach's
+  declared edges directly, repeating `cFlowStructure`'s `(giver, taker)` sort so
+  flow `k` here is the flow `k` the model packs.
+- `pool_names` is passed in rather than derived from `poolStructure`, since that
+  flattening (`getPoolInformation`) lives in `Sindbad.Setup`, which depends on
+  `SindbadTEM` rather than the other way round.
 """
 function cFlowMatrix end
 
@@ -424,35 +413,18 @@ end
 
 Every flow-vector position whose giver is in `giver_zix` and whose taker is in
 `taker_zix`, by pool-index membership rather than by matching a literal
-`<giver>_to_<taker>` name.
+`<giver>_to_<taker>` name. This lets a caller work against more than one pool
+structure without naming either config's specific pools: e.g. leaf shedding
+lands in one pool under `GSI` (`cLitFast`) and two under `CASA`
+(`cLitLeafFast`, `cLitLeafSlow`).
 
-This is what lets a caller work against more than one pool structure without
-naming either config's specific pools: e.g. leaf shedding lands in one pool under
-`GSI` (`cLitFast`) and two under `CASA` (`cLitLeafFast`,
-`cLitLeafSlow`), and this finds every one of them for the same `giver_zix`/
-`taker_zix` pair.
-
-An empty `giver_zix` or `taker_zix` -- a pool this structure does not have at all,
-e.g. `CASA`'s absent `cVegReserve` -- naturally returns no edges rather
-than erroring, so a caller written against a pool a structure lacks simply
-contributes nothing there.
-
-A name-based match (`<giver>_to_<taker>`, e.g. matching a literal alias like
-`CASA`'s `cLitSlow`) is not equivalent to this: an alias can union pools
-that individually need different treatment (`cLitSlow` = `cLitLeafSlow` +
-`cLitRootFineSlow` + `cLitRootCoarse` + `cLitWood`, but `cLitRootFineSlow`'s own
-transfer is calibrated separately from the other three's in
-`meCASAFlowsLitter`/`cCycleBase_CASA.jl`), so `giver_zix`/`taker_zix` should name
-the exact pools a caller means, not reach for a broader alias merely because one
-exists with a convenient name.
+An empty `giver_zix` or `taker_zix`, e.g. `CASA`'s absent `cVegReserve`,
+returns no edges rather than erroring.
 """
 function edgesBetween(c_giver, c_taker, giver_zix, taker_zix)
-    # A lazy filtered generator, not `Tuple(...)`: every call site only iterates the
-    # result once (`for flow in edgesBetween(...)`), and materializing it into a Tuple
-    # requires collecting into a heap-allocated Vector first (a filtered generator's
-    # length isn't known ahead of iteration) -- on every call, in the hot per-timestep
-    # carbon-flow path. The lazy form yields the identical flow indices, in the same
-    # order, with zero allocation.
+    # Lazy generator, not Tuple(...): every call site iterates the result once,
+    # in the hot per-timestep carbon-flow path, and materializing it would
+    # require a heap-allocated Vector first.
     return (flow for flow ∈ eachindex(c_giver, c_taker)
                  if c_giver[flow] ∈ giver_zix && c_taker[flow] ∈ taker_zix)
 end
@@ -494,23 +466,13 @@ Spread each group's total value evenly across the pool indices in that group, wr
 - `v` with every group's share written into its pool indices
 
 # Notes
-`group_zix`'s groups do not all have the same number of pool indices (e.g. one veg
-class split across several pools, another mapping to just one), so `group_zix` is a
-*heterogeneous* tuple of differently-sized tuples. Iterating it with a `for` loop over
-`eachindex(group_zix)` makes each iteration's element a `Union` of those tuple types --
-not concretely inferred, allocating on every call. Recursing on the tuples themselves
-(`first`/`Base.tail`) instead gives each group's own call its own, fully concrete
-specialization, with no such `Union`.
-
-`group_vals` is read by position (`group_vals[group_index]`), not consumed via
-`first`/`Base.tail` like `group_zix`/`group_n` -- callers typically pass something like
-`c_allocation_to_veg` as-is, without slicing or converting it to a tuple first. Slicing
-it into a tuple at the call site (e.g. via `ntuple(i -> group_vals[i], length(group_zix))`)
-works out to the same values, but do not do that: it closes over a variable that was just
-reassigned by `@rep_elem`/`repElem` a few lines above, and Julia's closure analysis boxes
-any local that is both reassigned and captured by an inner closure -- even though every
-reassignment keeps the exact same type, the boxed capture makes the whole calling
-function's return type uninferrable, boxing everything downstream of it.
+- `group_zix` is a heterogeneous tuple of differently-sized tuples (groups need
+  not all have the same number of pool indices), so it is recursed on via
+  `first`/`Base.tail` rather than iterated with `eachindex`, which would make
+  each element a non-concrete `Union` and allocate on every call.
+- `group_vals` is read by position (`group_vals[group_index]`) rather than
+  recursed on the same way, since callers pass it as-is (e.g.
+  `c_allocation_to_veg`) without converting it to a tuple first.
 """
 function allocateToPools(v, group_zix::Tuple, group_n::Tuple, group_vals)
     return allocateToPools(v, group_zix, group_n, group_vals, 1)

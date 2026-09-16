@@ -10,36 +10,19 @@ export getParamForVegType
 """
     VegClassification
 
-Abstract supertype of the vegetation-type classification catalogs: one per real data
-source or per derived grouping, each a literal, undiverged transcription of that
-source's own documented class table (or, for a grouping catalog, a table of which
-canonical classes it lumps together), plus its mapping onto the canonical vocabulary.
+Abstract supertype of the vegetation-type classification catalogs: one per real
+data source or per derived grouping, each a literal transcription of that source's
+own documented class table, plus its mapping onto the canonical vocabulary,
+`Classification_SINDBAD`.
 
 # Notes:
-- One file per catalog, in this directory, listed at the bottom of this file, the
-  same convention `poolConfigurations/poolConfigurations.jl` uses for carbon pool
-  structures.
-- `Classification_SINDBAD` is the canonical catalog: the one name set every
-  downstream science approach (the `_PER_VEGTYPE` tables in `ParamsForVegClasses.jl`,
-  ...) is written against. It is copied from `Classification_MODIS_IGBP` (same names,
-  same codes) since that is what SINDBAD's actual forcing sources use today, but kept
-  separate so it can gain classes IGBP does not have without ever compromising
-  `MODIS_IGBP.jl`'s job of staying an exact transcription of the MODIS document. Every
-  other catalog's `vegClasses` entry carries the `Classification_SINDBAD` class (or
-  classes) each of its own classes maps onto; `Classification_SINDBAD`'s own entries
-  map onto themselves.
+- One file per catalog, in this directory, listed at the bottom of this file.
 - A catalog's crosswalk target is either a single canonical name (one-to-one, e.g.
   `Classification_MODIS_IGBP`) or a tuple of canonical names (one-to-many, e.g.
   `Classification_PlantForm` grouping many canonical classes into `:tree`/`:shrub`/
-  `:herb`/`:unknown`). `resolveVegClassification` and `getParamsPerVegType` handle both cases
-  uniformly, normalizing a bare `Symbol` target to a one-element tuple.
-- Catalogs subtype `SindbadTypes`, deliberately not `vegClass`, mirroring why
-  `CarbonPoolConfiguration` subtypes `SindbadTypes` rather than `cCycleBase`: a
-  catalog has no `define` and no parameters, so registering it as an approach would
-  surface it as a broken one.
-- `vegClass.jl` includes this file before `includeApproaches(vegClass, @__DIR__)` runs,
-  so every catalog is defined before any `vegClass_*` approach that references one
-  loads.
+  `:herb`/`:unknown`).
+- Catalogs subtype `SindbadTypes`, not `vegClass`: a catalog has no `define` and no
+  parameters, so registering it as an approach would surface it as a broken one.
 """
 abstract type VegClassification <: SindbadTypes end
 purpose(::Type{VegClassification}) = "Abstract type for vegetation-type classification catalogs, one per real data source or derived grouping, each mapping onto the canonical SINDBAD vocabulary"
@@ -49,22 +32,14 @@ purpose(::Type{VegClassification}) = "Abstract type for vegetation-type classifi
 
 Return a catalog's class table as a `Tuple` of `(name::Symbol => code::Int,
 canonical_target)` entries, one per class, exactly as documented by the source for
-`name`/`code` and, in `canonical_target`, the class(es) this one maps onto in the
-canonical `Classification_SINDBAD` vocabulary. Keeping a class's code and its
-canonical target in the same entry, rather than in two separate tables, means they
-cannot drift out of sync with each other as classes are added or reordered.
+`name`/`code`, plus the class(es) it maps onto in the canonical
+`Classification_SINDBAD` vocabulary.
 
-`canonical_target` is a single `Symbol` for a one-to-one catalog (every source
-catalog, and `Classification_SINDBAD` itself, whose entries target themselves), or an
-`NTuple` of `Symbol`s for a one-to-many grouping catalog (e.g.
-`Classification_PlantForm`).
+`canonical_target` is a single `Symbol` for a one-to-one catalog, or an `NTuple` of
+`Symbol`s for a one-to-many grouping catalog (e.g. `Classification_PlantForm`).
 
-Every name in `canonical_target` is checked against `Classification_SINDBAD`'s own
-names at load time (`validateVegTypeCrosswalks`, below), and every canonical name is
-checked to be covered by every catalog (`validateVegTypeCoverage`, below) -- a
-crosswalk naming a class the canonical list does not have, or a canonical class no
-catalog covers, is a bug caught immediately, not a silent `KeyError` the first time
-that class shows up in real data.
+Checked at load time by `validateVegTypeCrosswalks` and `validateVegTypeCoverage`
+below.
 """
 function vegClasses end
 
@@ -102,17 +77,10 @@ end
 """
     vegTypeCanonicalName(catalog, code)
 
-Resolve a numeric class code to its catalog's raw crosswalk target, i.e. the single
+Resolve a numeric class code to its catalog's raw crosswalk target: the single
 canonical name for a one-to-one catalog, or the tuple of canonical names for a
-one-to-many catalog. Most callers want `resolveVegClassification` instead, which resolves all
-the way to one class name regardless of which kind of catalog is involved.
-
-Only ever called with a one-to-one `SourceCatalog` in practice (`resolveVegType`
-never resolves a raw code against a grouping catalog like `Classification_PlantForm`
--- see its own docstring), so unlike `resolveVegClassification`, this one has no one-to-many
-call site to be allocation-free for: its return type genuinely varies (a bare
-`Symbol` for one catalog's entries, an `NTuple` for another's), so no amount of
-restructuring the walk makes it uniformly-typed. Left as a plain loop.
+one-to-many catalog. Most callers want `resolveVegClassification` instead, which
+resolves all the way to one class name regardless of catalog kind.
 """
 function vegTypeCanonicalName(::Type{T}, code) where {T <: VegClassification}
     for (name_code, canonical_target) in vegClasses(T)
@@ -129,27 +97,19 @@ end
 
 Resolve a canonical `Classification_SINDBAD` name to `Classification`'s own class
 name. Works uniformly whether `Classification`'s crosswalk targets are one-to-one
-(including `Classification_SINDBAD` itself, whose own entries target themselves --
-true identity) or one-to-many (`Classification_PlantForm`), since both cases reduce to
-"does this entry's target, normalized to a tuple, contain `canonical_name`". This is
-what lets `resolveVegType` compose a source catalog's resolution with a second,
-independently selected classification without a special case for the identity
-target.
+(including `Classification_SINDBAD` itself, true identity) or one-to-many
+(`Classification_PlantForm`), since both reduce to "does this entry's target,
+normalized to a tuple, contain `canonical_name`".
 
 Errors, naming the classification and the unmatched name, if no class of
-`Classification` covers `canonical_name` -- see `validateVegTypeCoverage` for why this
+`Classification` covers `canonical_name`; see `validateVegTypeCoverage` for why this
 should never fire once every catalog is included.
 
-Walks `vegClasses(T)` by compile-time tail-recursion (`_resolveVegClassification`) rather
-than a `for` loop. For a one-to-many catalog like `Classification_PlantForm`, each
-entry's target tuple has a different length (`:tree`'s 7 names vs `:shrub`'s 2), so a
-`for` loop's iteration variable has no single concrete type across entries and Julia
-falls back to type-unstable, allocating code -- confirmed via `@code_warntype`
-(`Body::ANY`) and a real `precompute` allocation on every `_PlantForm` approach.
-Every entry's actual *return* value (`first(name_code)`) is a plain `Symbol`
-regardless of the entry, though, so recursing on `Base.tail` of the classes tuple
-(one fully specialized compiled method per recursion depth) keeps that return type
-concrete while still letting each depth's own `canonical_target` type vary freely.
+Walks `vegClasses(T)` by compile-time tail-recursion (`_resolveVegClassification`)
+rather than a `for` loop: a one-to-many catalog's entries have differently-sized
+target tuples, so a `for` loop's iteration variable has no single concrete type and
+Julia falls back to allocating code. Recursing on `Base.tail` keeps the (always
+`Symbol`) return type concrete.
 """
 function resolveVegClassification(::Type{T}, canonical_name::Symbol) where {T <: VegClassification}
     return _resolveVegClassification(T, canonical_name, vegClasses(T))
@@ -221,10 +181,8 @@ canonical target (or, for a one-to-many entry, every name in it) is actually one
 `Classification_SINDBAD`'s own names, erroring immediately (naming the offending
 catalog and class) if not.
 
-Run once, here, after every catalog file above is included, so a typo'd or stale
-crosswalk target -- e.g. after a class is renamed or removed from
-`Classification_SINDBAD` but a source catalog's crosswalk still names the old one --
-fails at package load time instead of the first time that specific raw code shows up
+Run once, here, after every catalog file above is included, so a stale crosswalk
+target fails at package load time instead of the first time that raw code shows up
 in real data.
 """
 function validateVegTypeCrosswalks()
@@ -248,27 +206,18 @@ end
 """
     validateVegTypeCoverage()
 
-For every `VegClassification` subtype meant to serve as a *target* classification (the
-canonical `Classification_SINDBAD` vocabulary itself, and any one-to-many grouping
-catalog such as `Classification_PlantForm` -- identified by having at least one tuple
-crosswalk target, since that is what distinguishes a grouping/classification catalog
-from a one-to-one source legend), check that every canonical class is covered by at
-least one of that catalog's own classes, via `resolveVegClassification`, erroring immediately
-(naming the catalog and the uncovered class) if not.
+For every `VegClassification` subtype meant to serve as a *target* classification
+(`Classification_SINDBAD` itself, and any one-to-many grouping catalog such as
+`Classification_PlantForm`, identified by having at least one tuple crosswalk
+target), check that every canonical class is covered by at least one of that
+catalog's own classes, via `resolveVegClassification`, erroring immediately if not.
 
-Deliberately **not** checked for the one-to-one source legends (`Classification_MODIS_*`):
-those are legitimately coarser or narrower than the canonical vocabulary -- that is the
-whole point of a crosswalk -- and are only ever used as the raw-code *source* half of
-`resolveVegType`, never as its target `Classification`, so an uncovered canonical class
-there is not a bug.
+Not checked for the one-to-one source legends (`Classification_MODIS_*`): those are
+legitimately coarser or narrower than the canonical vocabulary and are only ever
+used as the raw-code *source* half of `resolveVegType`, never as its target.
 
-This is the reverse of `validateVegTypeCrosswalks`: that check catches a crosswalk
-target that does not exist; this one catches a canonical class no target
-classification's crosswalk ever reaches. It is what forces a grouping catalog like
-`Classification_PlantForm` to declare an explicit catch-all group (e.g. `:unknown`) for
-every canonical class its science groups do not otherwise cover, rather than leaving
-that gap to surface as a runtime error (or a silent fallback) the first time a pixel
-resolves to it.
+The reverse of `validateVegTypeCrosswalks`: that catches a crosswalk target that
+does not exist; this catches a canonical class no target classification reaches.
 """
 function validateVegTypeCoverage()
     canonical_names = first.(first.(vegClasses(Classification_SINDBAD)))

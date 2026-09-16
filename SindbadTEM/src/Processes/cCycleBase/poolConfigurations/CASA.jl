@@ -8,22 +8,18 @@ purpose(::Type{CASA}) = "CASA carbon pools: 14 pools, vegetation split into fine
 """
     poolStructure(::Type{CASA})
 
-Fourteen pools on a nested layout: roots split into fine and coarse, litter nested by
-compartment and then by quality, and an explicit microbial component.
+Fourteen pools on a nested layout: roots split into fine and coarse, litter
+nested by compartment and then by quality, and an explicit microbial
+component. `cEco` is `cVegRootFine`, `cVegRootCoarse`, `cVegWood`, `cVegLeaf`,
+`cLitLeafFast`, `cLitLeafSlow`, `cLitRootFineFast`, `cLitRootFineSlow`,
+`cLitRootCoarse`, `cLitWood`, `cMicSurf`, `cMicSoil`, `cSoilSlow`, `cSoilOld`.
 
-# Notes:
-- The nesting generates `cVegRoot`, `cLitLeaf`, `cLitRoot` and `cLitRootFine` without
-  declaring them, giving a `cEco` of `cVegRootFine`, `cVegRootCoarse`, `cVegWood`,
-  `cVegLeaf`, `cLitLeafFast`, `cLitLeafSlow`, `cLitRootFineFast`,
-  `cLitRootFineSlow`, `cLitRootCoarse`, `cLitWood`, `cMicSurf`, `cMicSoil`,
-  `cSoilSlow`, `cSoilOld`.
-- Fine-root litter carries the quality split and coarse-root litter does not, so
-  `cLitRoot` nests one level deeper than the other C-compartments.
-- Litter nests by compartment, so the fast/slow quality split cuts across the hierarchy and
-  cannot be a nesting level. It is declared as `poolAliases` instead, the only
-  configuration that needs any.
-- See `poolStructure(::Type{GSI})` for the shape and ordering rules that
-  apply to every structure.
+Fine-root litter carries the quality split and coarse-root litter does not,
+so `cLitRoot` nests one level deeper than the other compartments. The
+fast/slow quality split on the other compartments cuts across this hierarchy
+and is declared as `poolAliases` instead, the only configuration that needs
+any. See `poolStructure(::Type{GSI})` for the shape and ordering rules that
+apply to every structure.
 """
 poolStructure(::Type{CASA}) = (;
     combine = :cEco,
@@ -43,14 +39,10 @@ poolStructure(::Type{CASA}) = (;
 """
     poolAliases(::Type{CASA})
 
-The fast/slow litter grouping, which this structure's nesting cannot produce.
-
-# Notes:
-- CASA litter is nested by compartment, while the fast/slow axis is quality, so that split
-  cannot be a nesting level. These two entries are the only groupings in any
-  configuration that cut across the hierarchy.
-- An alias has no backing array in `land.pools`, so models must iterate
-  `helpers.pools.zix.X` for these names rather than reach into `land.pools.X`.
+The fast/slow litter grouping, which this structure's nesting cannot produce
+since litter nests by compartment while the fast/slow axis is quality. An
+alias has no backing array in `land.pools`, so models must iterate
+`helpers.pools.zix.X` for these names rather than reach into `land.pools.X`.
 """
 poolAliases(::Type{CASA}) = (;
     cLitFast = (:cLitLeafFast, :cLitRootFineFast),                            # -> (5, 7)
@@ -60,13 +52,7 @@ poolAliases(::Type{CASA}) = (;
 """
     CASA_FLOW_EDGES
 
-The 22 edges of `cCycleBase_CASA`, transcribed from its 14x14 `c_flow_A_array`.
-The pool names differ from the ones that matrix was written in, and so does the index
-order, which a name-keyed edge list does not care about: the edges are the same 22
-links.
-
-Lives here rather than with the approaches because every name in it is a pool of this
-structure and the list resolves against no other. See `cFlowEdges` for the ordering
+The 22 edges of `cCycleBase_CASA`. See `cFlowEdges` for the ordering
 convention and why edges must name leaf pools.
 """
 const CASA_FLOW_EDGES = (                    # giver => taker, in flow-vector order
@@ -92,36 +78,17 @@ cFlowEdges(::Type{CASA}) = CASA_FLOW_EDGES
 """
     CASA_TAU_NON_VEG_POOLS
 
-Turnover *time* (years) of every CASA carbon pool except the four vegetation-compartment
-pools (`cVegRootFine`, `cVegRootCoarse`, `cVegWood`, `cVegLeaf`), per pool name.
-`k = 1.0/value` is computed at the point of use; fixed data, not a parameter --
-calibration happens through `k_c_scalar` in `cCycleBase_CASA` instead, since
-array-valued struct fields cannot be optimized.
+Turnover time (years) of every CASA carbon pool except the four
+vegetation-compartment pools (`cVegRootFine`, `cVegRootCoarse`, `cVegWood`,
+`cVegLeaf`), per pool name. `k = 1.0/value` is computed at the point of use;
+fixed data, not a parameter, since calibration happens through `k_c_scalar` in
+`cCycleBase_CASA` instead.
 
-The four vegetation-compartment pools are not here: their turnover now varies by
-`land.states.veg_type_name` at runtime, looked up from
+The four vegetation-compartment pools are looked up instead at runtime from
 `CVEG_ROOTFINE_AGE_PER_VEGTYPE`/`CVEG_LEAF_AGE_PER_VEGTYPE`/
 `CVEG_ROOTCOARSE_AGE_PER_VEGTYPE`/`CVEG_WOOD_AGE_PER_VEGTYPE`
-(`ParamsForVegClasses.jl`) in `cCycleBase_CASA`'s `precompute`, rather than from one
-fixed value shared by every vegetation type. See that file's docstrings and
-`cCycleBase_CASA.jl`'s own extended help for the mechanics.
-
-Formerly `CASA_ANNK`, which stored the rate `k` directly (values `[1, 0.03, 0.03, 1,
-14.8, 3.9, 18.5, 4.8, 0.2424, 0.2424, 6, 7.3, 0.2, 0.0045]`, in the pool order
-`poolStructure(CASA)` declares). Renamed and re-expressed as time
-(`1.0/k`) since turnover time in years is the more legible representation, and
-matches what the `c_τ_`-prefixed GSI fields already secretly stored (a time,
-immediately inverted) before this session's centralization.
-
-**Formatting convention** (matches `GSI_TAU_DEFAULT`, `poolConfigurations/GSI.jl`):
-a plain decimal, rounded to one decimal place, when the turnover time is `>= 1`;
-`1.0/N` (`N` the exact original rate, unrounded) when it is `< 1`.
-`cLitRootCoarse`/`cLitWood` (`1.0/0.2424 = 4.125412541254125`, rounded to `4.1`)
-and `cSoilOld` (`1.0/0.0045 = 222.22222222222223`, rounded to `222.2`) are each a
-deliberate, if small, change to the resulting rate for readability (respectively
-about `0.6%` and `0.01%` off the original), not merely a representation change.
-`cSoilSlow`'s reciprocal (`1.0/0.2 = 5.0`) already rounds to the same value, so it
-is unaffected.
+(`ParamsForVegClasses.jl`) by `land.states.veg_type_name`, in
+`cCycleBase_CASA`'s `precompute`.
 """
 const CASA_TAU_NON_VEG_POOLS = (;
     cLitLeafFast = 1.0/14.8,
@@ -139,11 +106,10 @@ const CASA_TAU_NON_VEG_POOLS = (;
 """
     CASA_CN_ratio
 
-Carbon-to-nitrogen ratio of each CASA carbon pool, per pool name. Fixed data, not a
-parameter -- calibration happens through `CN_ratio_scalar` in `cCycleBase_CASA`
-instead. Only the four vegetation pools have a physically meaningful ratio; every
-other pool is `0.0`, exactly as `p_CN_ratio_cVeg` (the vector field this replaces) was
-never read for any pool other than `cVeg`'s.
+Carbon-to-nitrogen ratio of each CASA carbon pool, per pool name. Fixed data,
+not a parameter; calibration happens through `CN_ratio_scalar` in
+`cCycleBase_CASA` instead. Only the four vegetation pools have a physically
+meaningful ratio; every other pool is `0.0`.
 """
 const CASA_CN_ratio = (;
     cVegRootFine = 25.0,
@@ -164,21 +130,11 @@ const CASA_CN_ratio = (;
 """
     FIRE_CC_NO_BURN, FIRE_CC_HIGH_BURN
 
-Shared `(ccMin, ccMax, weight)` fire combustion-completeness triples reused
-by several pools across the per-configuration tables below: pools that
-essentially never burn (`FIRE_CC_NO_BURN`, `ccMin = ccMax = 0`) and pools
-that burn almost completely once fire reaches them (`FIRE_CC_HIGH_BURN`).
-`weight` is a reserved autoregressive filter weight, not yet consumed by any
-approach (see `getFireCCFromParams`,
-`poolConfigurations/poolConfigurations.jl`).
-
-Defined here rather than in `poolConfigurations.jl` since `CASA_FIRE_CC_VANDERWERF`
-below is the only *top-level* `const` that needs them (a `const` initializer
-is evaluated immediately, so it needs both defined first, in the same file).
-`GSI.jl`'s `fireCCTable(::Type{GSI})` also references `FIRE_CC_NO_BURN`, but
-only inside its own method body, which resolves lazily at call time -- after
-every configuration file has already loaded -- so it does not matter that
-`GSI.jl` loads before this file.
+Shared `(ccMin, ccMax, weight)` fire combustion-completeness triples: pools
+that essentially never burn (`FIRE_CC_NO_BURN`, `ccMin = ccMax = 0`) and
+pools that burn almost completely once fire reaches them
+(`FIRE_CC_HIGH_BURN`). `weight` is a reserved autoregressive filter weight,
+not yet consumed by any approach.
 """
 const FIRE_CC_NO_BURN = (0.0f0, 0.0f0, 1.0f0)
 const FIRE_CC_HIGH_BURN = (0.9f0, 1.0f0, 0.9f0)
@@ -186,17 +142,13 @@ const FIRE_CC_HIGH_BURN = (0.9f0, 1.0f0, 0.9f0)
 """
     CASA_FIRE_CC_VANDERWERF
 
-Van der Werf et al. (2006) fire combustion completeness -- `(ccMin, ccMax,
-weight)` triples, see `FIRE_CC_NO_BURN`/`FIRE_CC_HIGH_BURN` above -- per CASA
-pool name. Fixed data, not a parameter -- calibration happens through
+Van der Werf et al. (2006) fire combustion completeness, `(ccMin, ccMax,
+weight)` triples (see `FIRE_CC_NO_BURN`/`FIRE_CC_HIGH_BURN`) per CASA pool
+name. Fixed data, not a parameter; calibration happens through
 `fire_cc_scalar` in `cFireCombustionCompleteness_vanDerWerf2006` instead.
 
 Root pools and every fine litter/soil pool downstream of them do not burn;
 leaf and its litter, wood and its litter, and the surface microbial pool do.
-Consumed via `getFireCCFromParams`
-(`poolConfigurations/poolConfigurations.jl`), the same table-plus-scalar
-convention `CASA_TAU_NON_VEG_POOLS`/`CASA_CN_ratio` use, dispatched to by
-`fireCCTable`.
 """
 const CASA_FIRE_CC_VANDERWERF = (;
     cVegRootFine = FIRE_CC_NO_BURN,

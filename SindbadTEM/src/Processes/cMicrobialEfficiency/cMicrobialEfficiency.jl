@@ -9,24 +9,17 @@ purpose(::Type{cMicrobialEfficiency}) = "Assemble the flow-specific microbial ca
     setMEFlow(me_vec, c_giver, c_taker, giver_zix, taker_zix, value)
 
 Write `value` into every flow-vector position whose giver is in `giver_zix` and
-whose taker is in `taker_zix`, and return the vector unchanged when no flow
-matches -- e.g. a pool structure that lacks either group entirely.
+whose taker is in `taker_zix` (via `setFlowValue`/`edgesBetween` in
+`landUtils.jl`), and return the vector unchanged when no flow matches.
 
-The efficiency tables are declared once but the values they seed depend only on
-which pools are involved, matched by index membership (`edgesBetween` in
-`landUtils.jl`, which this calls through) rather than by a literal
-`<giver>_to_<taker>` name -- so a table entry naming pools a given structure
-lacks simply contributes nothing there, instead of erroring.
+There is no group counterpart here: an efficiency is a per-flow retention
+fraction rather than a partition, so a giver's outgoing efficiencies are under
+no obligation to sum to one.
 
-The body is `setFlowValue` in `landUtils.jl`. There is no group counterpart
-here: an efficiency is a per-flow retention fraction rather than a partition, so a
-giver's outgoing efficiencies are under no obligation to sum to one.
-
-Used only by `cCycleBase_CASA`/`cCycleBase_CASA_Legacy`'s own `precompute`, to seed
-`c_flow_ME_vec` with CASA's static defaults (`meCASAFlowsLitter`/`meCASAFlowsSoil`,
-`cCycleBase_CASA.jl`) -- the per-group `cMicrobialEfficiencyc{Lit,Mic,Soil}`
-approaches (`_constant`/`_none`/`_texture`) find their flows through `zix` directly,
-without going through this function at all.
+Used only by `cCycleBase_CASA`'s own `precompute`, to seed `c_flow_ME_vec`
+with CASA's static defaults (`meCASAFlowsLitter`/`meCASAFlowsSoil`); the
+per-group `cMicrobialEfficiencyc{Lit,Mic,Soil}` approaches find their flows
+through `zix` directly, without going through this function.
 """
 function setMEFlow(me_vec, c_giver, c_taker, giver_zix, taker_zix, value)
     return setFlowValue(me_vec, c_giver, c_taker, giver_zix, taker_zix, value)
@@ -64,8 +57,7 @@ Vegetation-to-vegetation and vegetation-to-litter transfers are not microbial
 decomposition and therefore keep that neutral efficiency of one. In the legacy SINDBAD
 CASA implementation, the corresponding quantity was `p_E_vec`.
 
-The efficiency splits by the pool group the carbon leaves, each of which owns a
-disjoint set of transfers and is a process of its own:
+The efficiency splits by the pool group the carbon leaves, each a process of its own:
 
 - [`cMicrobialEfficiencycLit`](@ref): the transfers leaving the litter pools.
 - [`cMicrobialEfficiencycMic`](@ref): the transfers leaving the microbial pools.
@@ -75,33 +67,24 @@ disjoint set of transfers and is a process of its own:
 [`cQualityPartition_mult`](@ref) combines the quality-partition factors and
 [`cTau_mult`](@ref) the decomposition-rate stressors.
 
-Two approaches bypass the factors instead of combining them, and read none of their
-diagnostics, so either can be selected whether or not the groups are:
+Two approaches bypass the factors instead of combining them:
 
 - [`cMicrobialEfficiency_none`](@ref): every transfer keeps the neutral efficiency of
   one.
 - [`cMicrobialEfficiency_constant`](@ref): one constant on every decomposition transfer,
-  whichever group it leaves. Set it to zero for the endpoint where all decomposed carbon
-  respires.
+  whichever group it leaves.
 
 CASA does not need a third: `cCycleBase_CASA` itself carries the 14 statically-known
 CASA transfers as ordinary bounded parameters and writes them into `c_flow_ME_vec` in
-`define`, so that table is the default with no `cMicrobialEfficiency` approach
-selected at all. Only the soil-microbial pool's texture response, driven by
-`st_clay`/`st_silt`, still needs one: select [`cMicrobialEfficiencycMic_texture`](@ref)
-(composed with `_texture` for the other two groups through
-[`cMicrobialEfficiency_mult`](@ref)), which applies the response to every transfer
-leaving a microbial pool rather than singling out the soil one the way CASA's original
-table did.
+`define`. Only the soil-microbial pool's texture response, driven by
+`st_clay`/`st_silt`, still needs one: select
+[`cMicrobialEfficiencycMic_texture`](@ref).
 
 # Notes:
-- Split by giver pool group rather than by control. A group is a pool-name prefix, so it
-  is well defined on every pool structure and no transfer is ambiguous:
-  `cSoilSlow_to_cSoilOld` belongs to `cMicrobialEfficiencycSoil` under GSI and CASA
-  alike. A split by control instead strands the texture response on CASA, because GSI
-  has no microbial pool for it to act on.
+- Split by giver pool group rather than by control, since a group is a pool-name
+  prefix and so well defined on every pool structure.
 - Within each group, `_none`, `_constant` and `_texture` find their transfers through
-  `zix` and so hold on any structure. CASA's exact, per-edge treatment does not have a
+  `zix` and so hold on any structure. CASA's exact, per-edge treatment has no
   group-factor form; it lives entirely in `cCycleBase_CASA`'s own parameters instead.
 """
 cMicrobialEfficiency

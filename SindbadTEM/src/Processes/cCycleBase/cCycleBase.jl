@@ -56,32 +56,14 @@ end
     LIT_FRAC_LIGNIN_PER_VEGTYPE
 
 Lignin fraction of litter, per canonical vegetation type
-(`Classification_SINDBAD`) name. Fixed data, not a parameter -- calibration
-happens through `lit_frac_lignin_scalar` in `vegQualityTraits_vegType` instead.
+(`Classification_SINDBAD`) name. Fixed data, not a parameter; calibration
+happens through `lit_frac_lignin_scalar` in `vegQualityTraits_vegType`
+instead.
 
-Transcribed from the legacy 12-element `lit_frac_lignin_per_PFT` array (values
-`[0.2, 0.2, 0.22, 0.25, 0.2, 0.15, 0.1, 0.0, 0.2, 0.15, 0.15, 0.1]`), which was
-keyed to `Classification_MODIS_PFT` position order (array position `i` = code
-`i - 1`). Each entry below cites the source position it came from; entries
-citing another canonical name's value are IGBP classes with no counterpart in
-the 12-class source and are filled via the same judgment calls documented in
-`vegClasses(::Type{Classification_MODIS_PFT})` -- placeholders to confirm,
-not calibrated values in their own right:
-
-- `Evergreen_Needleleaf_Forests`..`Deciduous_Broadleaf_Forests`,
-  `Open_Shrublands`, `Grasslands`, `Urban_and_Built_up_Lands`,
-  `Permanent_Snow_and_Ice`, `Barren`, `Water_Bodies`: direct, from source
-  positions 2, 3, 4, 5, 6, 7, 10, 11, 12, 1 respectively.
-- `Croplands`: from position 9 (`Broadleaf_Croplands`, 0.2). Position 8
-  (`Cereal_Croplands`, 0.0 -- the "no lignin" class the original docstring
-  referenced) has no separate representation once both collapse onto IGBP's
-  one `Croplands` class, and is dropped here.
-- `Mixed_Forests`: `Deciduous_Broadleaf_Forests`'s value.
-- `Closed_Shrublands`: `Open_Shrublands`'s value.
-- `Woody_Savannas`, `Savannas`, `Permanent_Wetlands`: `Grasslands`'s value.
-- `Cropland_Natural_Vegetation_Mosaics`: `Croplands`'s value.
-- `Unclassified`: `Barren`'s value, a defensive default for missing/QA-flagged
-  pixels rather than a scientific claim.
+Transcribed from the legacy 12-element `lit_frac_lignin_per_PFT` array, keyed
+to `Classification_MODIS_PFT` position order. IGBP classes with no
+counterpart in the 12-class source are gap-filled by the same judgment calls
+documented in `vegClasses(::Type{Classification_MODIS_PFT})`.
 """
 const LIT_FRAC_LIGNIN_PER_VEGTYPE = (;
     Evergreen_Needleleaf_Forests = 0.2,
@@ -108,15 +90,11 @@ const LIT_FRAC_LIGNIN_PER_VEGTYPE = (;
     LIT_CN_RATIO_PER_VEGTYPE
 
 Carbon-to-nitrogen ratio of litter, per canonical vegetation type
-(`Classification_SINDBAD`) name. Fixed data, not a parameter -- calibration
+(`Classification_SINDBAD`) name. Fixed data, not a parameter; calibration
 happens through `lit_CN_ratio_scalar` in `vegQualityTraits_vegType` instead.
 
-Transcribed the same way as `LIT_FRAC_LIGNIN_PER_VEGTYPE` from the legacy
-`lit_CN_ratio_per_PFT` array (values
-`[40.0, 50.0, 65.0, 80.0, 50.0, 50.0, 50.0, 0.0, 65.0, 50.0, 50.0, 40.0]`);
-see that constant's docstring for the source-position and gap-fill notes,
-which apply identically here (position 8, `Cereal_Croplands` = 0.0, is
-likewise dropped once collapsed onto `Croplands`).
+Transcribed the same way as `LIT_FRAC_LIGNIN_PER_VEGTYPE`, from the legacy
+`lit_CN_ratio_per_PFT` array.
 """
 const LIT_CN_RATIO_PER_VEGTYPE = (;
     Evergreen_Needleleaf_Forests = 50.0,
@@ -143,25 +121,20 @@ const LIT_CN_RATIO_PER_VEGTYPE = (;
     CVEG_ROOTFINE_AGE_PER_VEGTYPE
 
 Mean age (turnover time, years) of fine roots, per canonical vegetation type
-(`Classification_SINDBAD`) name. Fixed data, not a parameter -- calibration
+(`Classification_SINDBAD`) name. Fixed data, not a parameter; calibration
 happens through `k_c_rootfine_scalar` in `cCycleBase_CASA` (and the
 equivalent `k_c_root_scalar` in the GSI-family `cCycleBase` approaches)
 instead.
 
-Drives vegetation-compartment turnover at runtime: `cCycleBase_CASA`'s `define`
-re-keys this table (via `getParamsPerVegType`) onto whichever classification
-the experiment's `vegClass` approach resolved into, and `precompute` looks up
-the current pixel's `land.states.veg_type_name` in it for `cVegRootFine`'s
-turnover time. `cCycleBase_GSI`/`_GSI_PlantForm`/`_MGMT ` do the
-same for their single, undifferentiated `cVegRoot` pool.
+`cCycleBase_CASA`'s `define` re-keys this table (via `getParamsPerVegType`)
+onto the experiment's resolved `vegClass` classification, and `precompute`
+looks up the pixel's `land.states.veg_type_name` in it for `cVegRootFine`'s
+turnover time. `cCycleBase_GSI`/`_GSI_PlantForm`/`_MGMT` do the same for
+their single, undifferentiated `cVegRoot` pool.
 
-Transcribed from the legacy 12-element array (values `[1.8, 1.2, 1.2, 5.0,
-1.8, 1.0, 1.0, 0.0, 1.0, 2.8, 1.0, 1.0]`), keyed to `Classification_MODIS_PFT`
-position order (array position `i` = code `i - 1`). See
-`LIT_FRAC_LIGNIN_PER_VEGTYPE` for the full source-position and gap-fill
-convention this follows; `Croplands` here is 1.0 from position 9
-(`Broadleaf_Croplands`), with position 8 (`Cereal_Croplands`, 0.0) dropped
-once both collapse onto IGBP's single `Croplands` class.
+Transcribed from the legacy 12-element array, keyed to
+`Classification_MODIS_PFT` position order; see `LIT_FRAC_LIGNIN_PER_VEGTYPE`
+for the gap-fill convention.
 """
 const CVEG_ROOTFINE_AGE_PER_VEGTYPE = (;
     Evergreen_Needleleaf_Forests = 1.2,
@@ -188,16 +161,14 @@ const CVEG_ROOTFINE_AGE_PER_VEGTYPE = (;
     CVEG_LEAF_AGE_PER_VEGTYPE
 
 Mean age (turnover time, years) of leaves, per canonical vegetation type
-(`Classification_SINDBAD`) name. Fixed data, not a parameter -- calibration
+(`Classification_SINDBAD`) name. Fixed data, not a parameter; calibration
 happens through `k_c_leaf_scalar` in `cCycleBase_CASA` (and the equivalent
 `k_c_leaf_scalar` in the GSI-family `cCycleBase` approaches) instead.
 
-Presently a plain alias of `CVEG_ROOTFINE_AGE_PER_VEGTYPE` (the legacy
+A plain alias of `CVEG_ROOTFINE_AGE_PER_VEGTYPE` (the legacy
 `cVegRootFine_age_per_PFT` and `cVegLeaf_age_per_PFT` arrays were identical),
-kept as its own name rather than folded into one table so leaf and fine-root
-turnover can diverge later without another refactor. See
-`CVEG_ROOTFINE_AGE_PER_VEGTYPE`'s docstring for how it is consumed at
-runtime -- the same `define`/`precompute` pattern applies here.
+kept as its own name so leaf and fine-root turnover can diverge later. See
+`CVEG_ROOTFINE_AGE_PER_VEGTYPE` for how it is consumed at runtime.
 """
 const CVEG_LEAF_AGE_PER_VEGTYPE = CVEG_ROOTFINE_AGE_PER_VEGTYPE
 
@@ -205,19 +176,14 @@ const CVEG_LEAF_AGE_PER_VEGTYPE = CVEG_ROOTFINE_AGE_PER_VEGTYPE
     CVEG_ROOTCOARSE_AGE_PER_VEGTYPE
 
 Mean age (turnover time, years) of coarse roots, per canonical vegetation
-type (`Classification_SINDBAD`) name. Fixed data, not a parameter --
+type (`Classification_SINDBAD`) name. Fixed data, not a parameter;
 calibration happens through `k_c_rootcoarse_scalar` in `cCycleBase_CASA`
 instead.
 
 Drives vegetation-compartment turnover at runtime the same way
 `CVEG_ROOTFINE_AGE_PER_VEGTYPE` does, for `cCycleBase_CASA`'s
-`cVegRootCoarse` pool.
-
-Transcribed the same way as `CVEG_ROOTFINE_AGE_PER_VEGTYPE` from the legacy
-12-element array (values `[41.0, 58.0, 58.0, 42.0, 27.0, 25.0, 25.0, 0.0,
-5.5, 40.0, 1.0, 40.0]`); see that constant's docstring for the
-source-position and gap-fill notes, which apply identically here
-(`Croplands` = 5.5 from position 9, position 8 dropped).
+`cVegRootCoarse` pool. Transcribed the same way, from the legacy 12-element
+array.
 """
 const CVEG_ROOTCOARSE_AGE_PER_VEGTYPE = (;
     Evergreen_Needleleaf_Forests = 58.0,
@@ -244,16 +210,15 @@ const CVEG_ROOTCOARSE_AGE_PER_VEGTYPE = (;
     CVEG_WOOD_AGE_PER_VEGTYPE
 
 Mean age (turnover time, years) of wood, per canonical vegetation type
-(`Classification_SINDBAD`) name. Fixed data, not a parameter -- calibration
+(`Classification_SINDBAD`) name. Fixed data, not a parameter; calibration
 happens through `k_c_wood_scalar` in `cCycleBase_CASA` (and the equivalent
 `k_c_wood_scalar` in the GSI-family `cCycleBase` approaches) instead.
 
-Presently a plain alias of `CVEG_ROOTCOARSE_AGE_PER_VEGTYPE` (the legacy
+A plain alias of `CVEG_ROOTCOARSE_AGE_PER_VEGTYPE` (the legacy
 `cVegRootCoarse_age_per_PFT` and `cVegWood_age_per_PFT` arrays were
-identical), kept as its own name rather than folded into one table so wood
-and coarse-root turnover can diverge later without another refactor. See
-`CVEG_ROOTFINE_AGE_PER_VEGTYPE`'s docstring for how it is consumed at
-runtime -- the same `define`/`precompute` pattern applies here.
+identical), kept as its own name so wood and coarse-root turnover can
+diverge later. See `CVEG_ROOTFINE_AGE_PER_VEGTYPE` for how it is consumed at
+runtime.
 """
 const CVEG_WOOD_AGE_PER_VEGTYPE = CVEG_ROOTCOARSE_AGE_PER_VEGTYPE
 

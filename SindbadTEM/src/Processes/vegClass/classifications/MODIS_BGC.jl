@@ -8,25 +8,20 @@ purpose(::Type{Classification_MODIS_BGC}) = "MODIS MCD12Q1 BIOME-Biogeochemical 
 
 The BIOME-BGC legend, Table 6 of the MCD12Q1 user guide (Running et al.,
 2004), transcribed exactly as documented for the `name => code` half of each
-entry. Every vegetated class here is defined by leaf-habit/phenology alone
-with no canopy-height or cover threshold ("woody vegetation cover >10%," not
-IGBP's ">2m tree cover, >60%"), so each conflates trees and shrubs of the
-same phenology into one class -- coarser than the canonical
-`Classification_SINDBAD` split (itself copied from IGBP). All mappings below
-are placeholders needing the same literature/user confirmation as the other
-catalogs' non-direct mappings:
+entry. Every vegetated class is defined by leaf-habit/phenology alone with no
+canopy-height or cover threshold, so each conflates trees and shrubs of the
+same phenology into one class, coarser than the canonical
+`Classification_SINDBAD` split.
 
 - `Evergreen_Needleleaf_Vegetation`, `Evergreen_Broadleaf_Vegetation`,
   `Deciduous_Needleleaf_Vegetation`, `Deciduous_Broadleaf_Vegetation`: mapped
-  to the correspondingly named IGBP forest class, ignoring any shrub-form
-  component this legend does not separate out.
+  to the correspondingly named IGBP forest class.
 - `Annual_Broadleaf_Vegetation` ("at least 60% cultivated broadleaf crops"):
   mapped to `Croplands`.
-- `Annual_Grass_Vegetation` (explicitly "including cereal croplands," per
-  this legend's own definition): mapped to `Grasslands`, same caveat as
-  `Classification_MODIS_LAI`'s `Grasslands`.
-- `Non_Vegetated_Lands`: conflates barren ground with permanent snow/ice, as
-  in the UMD and LAI catalogs. Mapped to `Barren`.
+- `Annual_Grass_Vegetation` (explicitly "including cereal croplands"): mapped
+  to `Grasslands`.
+- `Non_Vegetated_Lands`: conflates barren ground with permanent snow/ice.
+  Mapped to `Barren`.
 """
 vegClasses(::Type{Classification_MODIS_BGC}) = (
     (:Water_Bodies => 0, :Water_Bodies),

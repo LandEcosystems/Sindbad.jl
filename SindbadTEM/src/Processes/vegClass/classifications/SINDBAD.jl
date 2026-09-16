@@ -6,17 +6,12 @@ purpose(::Type{Classification_SINDBAD}) = "SINDBAD's own canonical vegetation-ty
 """
     vegClasses(::Type{Classification_SINDBAD})
 
-SINDBAD's canonical vegetation-type classes: the one name set every
-downstream science approach (`ParamsForVegClasses.jl`'s `_PER_VEGTYPE`
-tables, `Classification_PlantForm`, ...) is written against. Copied from
-`Classification_MODIS_IGBP` (same names, same codes) since that is what
-SINDBAD's actual forcing sources use today, but kept as its own catalog
-rather than reusing `Classification_MODIS_IGBP` directly: `MODIS_IGBP.jl`
-must stay an exact, undiverged transcription of the MODIS document, while
-this list is free to gain classes IGBP does not have (a finer crop split, a
-wetland-aware class, ...) whenever SINDBAD's science needs one, with no
-external document to stay faithful to. Every other catalog's `vegClasses`
-crosswalks onto these names; this catalog's own entries map onto themselves.
+SINDBAD's canonical vegetation-type classes: the one name set every downstream
+science approach is written against. Copied from `Classification_MODIS_IGBP`
+(same names, same codes), but kept as its own catalog so it is free to gain
+classes IGBP does not have, while `MODIS_IGBP.jl` stays an exact transcription
+of the MODIS document. Every other catalog's `vegClasses` crosswalks onto
+these names; this catalog's own entries map onto themselves.
 """
 vegClasses(::Type{Classification_SINDBAD}) = (
     (:Evergreen_Needleleaf_Forests => 1, :Evergreen_Needleleaf_Forests),

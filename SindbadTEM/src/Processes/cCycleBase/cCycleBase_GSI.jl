@@ -177,86 +177,32 @@ $(getModelDocString(cCycleBase_GSI))
 
 Turnover for the four vegetation C-compartments (root, wood, leaf, reserve) and the four
 litter/soil pools is `k = (1.0 / turnover_time) * scalar`, where `scalar` is one of
-the six `k_c_*_scalar` fields, shared across pools that don't get their own
-individual scalar (`k_c_lit_scalar` for both litter pools, `k_c_soil_scalar` for
-both soil pools). `turnover_time` for `cVegRoot`/`cVegWood`/`cVegLeaf` now varies by
+the six `k_c_*_scalar` fields, shared across pools without their own individual
+scalar (`k_c_lit_scalar` for both litter pools, `k_c_soil_scalar` for both soil
+pools). `turnover_time` for `cVegRoot`/`cVegWood`/`cVegLeaf` varies by
 `land.states.veg_type_name`: `define` re-keys `CVEG_ROOTFINE_AGE_PER_VEGTYPE`/
-`CVEG_WOOD_AGE_PER_VEGTYPE`/`CVEG_LEAF_AGE_PER_VEGTYPE` (`ParamsForVegClasses.jl`)
-onto whichever classification the experiment's `vegClass` approach resolved into
-(`getParamsPerVegType`), and `precompute` looks the current pixel's `veg_type_name` up in
-each -- the same pattern `vegQualityTraits_vegType.jl` uses for litter chemistry.
-`cVegReserve` stays `TAU_DORMANT` (not vegetation-type dependent), and
+`CVEG_WOOD_AGE_PER_VEGTYPE`/`CVEG_LEAF_AGE_PER_VEGTYPE` onto the experiment's
+resolved `vegClass` classification, and `precompute` looks the pixel's
+`veg_type_name` up in each. `cVegReserve` stays `TAU_DORMANT`, and
 `cLitFast`/`cLitSlow`/`cSoilSlow`/`cSoilOld` stay fixed at `GSI_TAU_DEFAULT`'s
-values (`poolConfigurations/GSI.jl`, also not vegetation-type dependent). The
-vegetation carbon-to-nitrogen ratio works the same way it always has, against
-`GSI_CN_ratio` and `CN_ratio_scalar`. Both loops are generic over whatever pools
-the respective table covers, rather than one hand-written loop per pool.
-`k_c_scalars`, the per-pool-name scalar lookup the turnover loop reads, is also
-packed into `land.cCycleBase`, alongside the flow topology already stored there.
+values, neither being vegetation-type dependent. The vegetation
+carbon-to-nitrogen ratio works as before, against `GSI_CN_ratio` and
+`CN_ratio_scalar`.
 
-The six `k_c_*_scalar` fields declare `"year"` as their timescale, not the
-per-vegtype tables themselves (plain `const`s, outside the parameter-metadata
-system that timescale conversion keys off). `getTypedModel`/`getParameters` (`SindbadTEM/src/Utils.jl`,
-`src/Setup/setupParameters.jl`) rescale any `"year"`-timescale field's default and
-bounds to the model's actual configured timestep before a run starts -- e.g. a
-`k_c_root_scalar` default of `1.0` becomes `1/365` for a daily model -- so
-`turnover_time` can stay expressed in years while `(1.0/turnover_time) * scalar`
-still comes out already correctly scaled to the model's own timestep, exactly
-reproducing what putting `"year"` directly on the old, now-removed absolute-rate
-fields (`c_τ_Root` etc., see `cCycleBase_GSI_Legacy`) used to do.
+The six `k_c_*_scalar` fields declare `"year"` as their timescale, so
+`getTypedModel`/`getParameters` rescale their default and bounds to the model's
+configured timestep before a run starts.
 
 *References*
  - Potter; C. S.; J. T. Randerson; C. B. Field; P. A. Matson; P. M.  Vitousek; H. A. Mooney; & S. A. Klooster. 1993. Terrestrial ecosystem  production: A process model based on global satellite & surface data.  Global Biogeochemical Cycles. 7: 811-841.
 
 *Versions*
  - 1.0 on 28.02.2020 [skoirala | @dr-ko]
- - 1.1 on 04.09.2026 [skoirala]: c_flow_ME_vec allocated here alongside c_flow_A_vec and c_flow_QP_vec
- - 1.2 on 11.09.2026 [skoirala]: the 8 independently-bounded turnover fields and
-   the 4-element `p_CN_ratio_cVeg` vector replaced by 6 shared `k_c_*_scalar` fields
-   and `CN_ratio_scalar`, applied against the centralized `GSI_TAU_DEFAULT`/
-   `GSI_CN_ratio` tables (`poolConfigurations/GSI.jl`) via a generic per-pool-name
-   loop; matches the field shape `cCycleBase_GSI_PlantForm` already had. Default
-   turnover is unchanged for root/leaf/reserve/litter/soil, and changes slightly
-   for wood (`k=0.02`, was `0.03`) since the new shared base is tree's turnover
-   time (50 years) rather than this approach's own prior default (33.3 years). The
-   frozen pre-change behavior is preserved, unchanged, as `cCycleBase_GSI_Legacy`.
-   Also: `define`'s `c_model` now packs `params` itself rather than a freshly
-   constructed `cCycleBase_GSI()`, since `land.models` is only ever read for its
-   type (pure dispatch), so the fresh instance only threw away whatever values
-   `params` actually held for no benefit. `k_c_scalars` is now also packed into
-   `land.cCycleBase`, not just used locally to build `c_eco_τ`.
- - 1.3 on 11.09.2026 [skoirala]: fixed a real bug from 1.2's centralization: the
-   6 `k_c_*_scalar` fields had `""` (no) declared timescale, so unlike the old
-   `c_τ_Root` etc. fields they replaced (declared `"year"`), nothing rescaled
-   `GSI_TAU_DEFAULT`'s year-based turnover time to the model's actual configured
-   timestep -- at a daily model, every turnover rate came out roughly 365x too
-   fast. Declaring the scalars `"year"` instead fixes it, since
-   `getTypedModel`/`getParameters` rescale a `"year"`-timescale field's default
-   (and bounds) to the model's timestep before a run starts, the same mechanism
-   the old fields relied on. Verified against `cCycleBase_GSI_Legacy` at a daily
-   timestep: turnover now matches to floating-point precision (root/leaf/
-   reserve/litter/soil pools) or by exactly the deliberate `0.02`-vs-`0.03`
-   ratio from 1.2 (wood).
- - 1.4 on 11.09.2026 [skoirala]: `cVegRoot`/`cVegWood`/`cVegLeaf` turnover no
-   longer reads the fixed `GSI_TAU_DEFAULT` values -- `define` re-keys
-   `CVEG_ROOTFINE_AGE_PER_VEGTYPE`/`CVEG_WOOD_AGE_PER_VEGTYPE`/
-   `CVEG_LEAF_AGE_PER_VEGTYPE` (`vegTypeParamCatalog.jl`) onto the experiment's
-   active `vegClass` classification and `precompute` looks the pixel's
-   `land.states.veg_type_name` up in each, so this approach -- previously documented
-   as having "no plant-form distinction" -- now varies vegetation-compartment
-   turnover by vegetation type like `cCycleBase_GSI_PlantForm` did, just at
-   finer granularity. `cVegReserve`/litter/soil turnover is unchanged, still
-   fixed from `GSI_TAU_DEFAULT`.
- - 1.5 on 15.09.2026 [skoirala]: `c_remain` (a flat `50.0 | (0.1, 100.0)`
-   bounded parameter) replaced by `c_remain_scalar` (`1.0 | (0.1, 10.0)`,
-   dimensionless), following the same per-vegetation-type pattern as the
-   turnover ages above: `define` re-keys `C_REMAIN_PER_VEGTYPE`
-   (`cCycleBase.jl`) via `getParamsPerVegType`, and `precompute` looks the
-   pixel's `veg_type_name` up in it and scales by `c_remain_scalar` via the
-   new `getParamForVegType` (`classifications.jl`), which also replaces the
-   equivalent inline expression in `vegQualityTraits_vegType.jl`.
-   `land.states.c_remain` itself is unchanged, so every downstream consumer
-   needs no changes.
+ - 1.1 on 04.09.2026 [skoirala]: allocate `c_flow_ME_vec` here alongside `c_flow_A_vec` and `c_flow_QP_vec`
+ - 1.2 on 11.09.2026 [skoirala]: replace the 8 independently-bounded turnover fields and the 4-element `p_CN_ratio_cVeg` vector with 6 shared `k_c_*_scalar` fields and `CN_ratio_scalar`, applied against the centralized `GSI_TAU_DEFAULT`/`GSI_CN_ratio` tables via a generic per-pool-name loop; default turnover changes slightly for wood (`k=0.02`, was `0.03`), since the new shared base is tree's turnover time rather than this approach's own prior default; freeze prior behavior as `cCycleBase_GSI_Legacy`; `define`'s `c_model` now packs `params` itself rather than a fresh instance; pack `k_c_scalars` into `land.cCycleBase`
+ - 1.3 on 11.09.2026 [skoirala]: fix a bug from 1.2: the 6 `k_c_*_scalar` fields had no declared timescale, so turnover was never rescaled to the model's timestep; declaring `"year"` fixes it
+ - 1.4 on 11.09.2026 [skoirala]: `cVegRoot`/`cVegWood`/`cVegLeaf` turnover no longer reads the fixed `GSI_TAU_DEFAULT` values; `define` re-keys `CVEG_ROOTFINE_AGE_PER_VEGTYPE`/`CVEG_WOOD_AGE_PER_VEGTYPE`/`CVEG_LEAF_AGE_PER_VEGTYPE` onto the active `vegClass` classification and `precompute` looks `veg_type_name` up in each; `cVegReserve`/litter/soil turnover is unchanged
+ - 1.5 on 15.09.2026 [skoirala]: replace the flat `c_remain` parameter with `c_remain_scalar`, following the per-vegetation-type pattern of the turnover ages above
  - ncarvalhais
 """
 cCycleBase_GSI

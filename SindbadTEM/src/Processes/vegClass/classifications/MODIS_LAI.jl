@@ -9,19 +9,15 @@ purpose(::Type{Classification_MODIS_LAI}) = "MODIS MCD12Q1 Leaf Area Index biome
 The LAI/fPAR biome legend, Table 5 of the MCD12Q1 user guide (Myneni et al.,
 2002), transcribed exactly as documented for the `name => code` half of each
 entry. The forest, savanna, urban and water classes map directly onto the
-canonical `Classification_SINDBAD` name of the same meaning (itself copied
-from IGBP). Three do not, and are placeholders needing the same
-literature/user confirmation as the other catalogs' non-direct mappings:
+canonical `Classification_SINDBAD` name of the same meaning. Three do not:
 
 - `Grasslands`: this legend's own definition explicitly includes "cereal
-  croplands," so mapping it to IGBP's `Grasslands` alone silently drops
-  whatever cereal-crop signal this class carries with no way to separate it
-  back out.
+  croplands," so mapping it to IGBP's `Grasslands` alone drops that signal.
 - `Shrublands`: IGBP splits shrubland by canopy closure
   (`Closed_Shrublands`/`Open_Shrublands`), which this legend does not.
   Mapped to `Open_Shrublands` as a default.
 - `Non_Vegetated_Lands`: conflates barren ground with permanent snow/ice.
-  Mapped to `Barren`, understating any snow/ice extent.
+  Mapped to `Barren`.
 """
 vegClasses(::Type{Classification_MODIS_LAI}) = (
     (:Water_Bodies => 0, :Water_Bodies),

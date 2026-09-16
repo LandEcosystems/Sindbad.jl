@@ -38,11 +38,10 @@ end
     generatedPoolNames(structure)
 
 Return `(sub_pool_names, main_pool_names)` for a pool structure: the names
-`getPoolInformation` flattens it into, and the intermediate nesting levels that
-become main pools. Every nesting level is a real pool with its own `zix` entry, so a
-two-level layout yields `cVegRoot` (a main pool) alongside `cVegRootFine` (a sub
-pool). Named to match `getPoolInformation`'s own vocabulary, not "leaf"/"group" --
-`cVegLeaf` is itself a sub pool, which "leaf" reads backwards for.
+`getPoolInformation` flattens it into, and the intermediate nesting levels
+that become main pools. Every nesting level is a real pool with its own
+`zix` entry, so a two-level layout yields `cVegRoot` (a main pool) alongside
+`cVegRootFine` (a sub pool).
 """
 function generatedPoolNames(structure)
     components = getfield(structure, :components)
@@ -54,17 +53,9 @@ end
 """
     poolNames(configuration)
 
-Return the sub pool names of one carbon pool configuration, as a single tuple in
-the same order as `helpers.pools.components.cEco` -- named by type, symbol, string,
-or instance, exactly like `poolStructure`/`poolAliases`/`cFlowEdges` already are,
-since `poolStructure` alone resolves all four forms.
-
-# Notes:
-- Same order because it's the same computation: `setPoolsInfo` builds
-  `components.cEco` by deduping `sub_pool_name` on first occurrence, and
-  `generatedPoolNames` returns `unique(sub_pool_name)` from that same
-  `getPoolInformation` traversal of this configuration's own `components`.
-- Sub pools only, no main pools -- `cEco`'s components are sub pools as well.
+Return the sub pool names of one carbon pool configuration, as a single
+tuple in the same order as `helpers.pools.components.cEco`. Named by type,
+symbol, string, or instance, like `poolStructure`/`poolAliases`/`cFlowEdges`.
 """
 function poolNames(configuration)
     sub_pool_names, _ = generatedPoolNames(poolStructure(configuration))
@@ -74,25 +65,14 @@ end
 """
     carbonPoolNames()
 
-Every carbon pool name any configuration can produce: the sub pools and main pools
-of each `CarbonPoolConfiguration`'s structure, plus the alias names its nesting
-cannot generate.
+Every carbon pool name any configuration can produce: the sub pools and main
+pools of each `CarbonPoolConfiguration`'s structure, plus the alias names its
+nesting cannot generate. Enumeration is `subtypes(CarbonPoolConfiguration)`,
+so a configuration file that is written but never included contributes
+nothing.
 
-`setPoolsInfo` emits a `zix` entry for each, so a name a configuration lacks resolves
-to `()` rather than a missing field. A loop over an empty entry runs zero times,
-statically, which is why models iterate `helpers.pools.zix.X` without an `isempty`
-branch.
-
-# Notes:
-- Derived rather than listed. This replaced a hand-written tuple of all 27 names, which
-  a new configuration had to be added to by hand: miss that edit and the name was
-  simply absent from `zix`, and the first model to reach for it failed on a missing
-  field far from the cause. Declaring the structure is now the only step.
-- Lives here rather than beside the configurations because it needs
-  `getPoolInformation`, and `Sindbad.Setup` depends on `SindbadTEM` and not the other
-  way round. It also sits next to its only caller.
-- Enumeration is `subtypes`, so a configuration file that is written but never included
-  contributes nothing.
+`setPoolsInfo` emits a `zix` entry for each name here, so a name a
+configuration lacks resolves to `()` rather than a missing field.
 """
 function carbonPoolNames()
     names = Symbol[]
@@ -152,28 +132,21 @@ end
 """
     resolvePoolStructure(info::NamedTuple)
 
-Normalize every element of `model_structure.pools` into one shape, so that nothing
-downstream knows or cares whether a structure was written out in the JSON or named as
-a configuration.
-
-Each element resolves to its own block plus an `aliases` field; anything else the
-block carried, `state_variables` included, is passed through untouched.
+Normalize every element of `model_structure.pools` into one shape: its own
+block plus an `aliases` field, with anything else the block carried
+(`state_variables` included) passed through untouched.
 
 An element's value may be:
 
-- **absent**: structure and aliases both come from the configuration the selected
-  approach for that element's process declares (`poolConfigurationForApproach`), if
-  it declares one; an element that resolves to nothing this way is simply not in
-  the result, exactly as if it had been absent before this default existed.
-- a **String**: structure and aliases both come from the configuration it names.
-- a **NamedTuple**: the block supplies the structure verbatim. Aliases come from its
-  own `aliases` key if it has one, otherwise from the configuration of the approach
-  selected for that element's process. In that second case the block's pool names
-  must match the configuration's, because aliases resolved elsewhere would otherwise
-  point at pools the block does not have.
-
-`poolConfiguration` is consulted here and nowhere else. After this, `helpers.pools`
-is the sole interface between setup and the models.
+- **absent**: structure and aliases both come from the configuration the
+  selected approach for that element's process declares
+  (`poolConfigurationForApproach`); an element with none this way is simply
+  not in the result.
+- a **String**: structure and aliases both come from the configuration it
+  names.
+- a **NamedTuple**: the block supplies the structure verbatim. Aliases come
+  from its own `aliases` key, or otherwise from the process's approach
+  configuration, in which case the block's pool names must match it.
 """
 function resolvePoolStructure(info::NamedTuple)
     pools = info.settings.model_structure.pools

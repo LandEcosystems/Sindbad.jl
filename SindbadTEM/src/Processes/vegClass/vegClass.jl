@@ -24,28 +24,21 @@ resolvedVegClassification(::Type{X}) where {X <: LandEcosystem} =
 """
     resolveVegType(::Type{X}, ::Type{Classification}, raw_code) where {X <: vegClass}
 
-Shared resolution step for every `vegClass` approach, composed of two steps:
+Shared resolution step for every `vegClass` approach, in two steps:
 
 1. `raw_code` resolved against `X`'s own source catalog (`vegTypeCatalog(X)`) and its
-   crosswalk to the canonical `Classification_SINDBAD` name (`veg_type_name_source` is the
-   source catalog's own name for that code, kept for provenance/output metadata only)
-   -- the source catalog is read off the approach type itself rather than repeated as
-   a second literal beside the `vegTypeCatalog(::Type{X})` trait declaration.
+   crosswalk to the canonical `Classification_SINDBAD` name; `veg_type_name_source`
+   is the source catalog's own name for that code, kept for provenance only.
 2. The canonical name resolved against `Classification`'s own crosswalk
-   (`resolveVegClassification`), giving `veg_type_name`, the name every downstream science approach
-   reads. This step is a no-op when `Classification` is `Classification_SINDBAD`
-   itself, with no special case needed: `resolveVegClassification` treats identity as a
-   one-element grouping.
+   (`resolveVegClassification`), giving `veg_type_name`, the name every downstream
+   science approach reads. A no-op when `Classification` is `Classification_SINDBAD`
+   itself.
 
-`raw_code` is `land.states.veg_type`, set upstream by a `vegDynamics`
-approach -- no `vegClass` approach reads `forcing` or a parameter directly. Doesn't
-return `raw_code`: it passes straight through unchanged, and `land.states.veg_type`
-already holds it, so callers don't need to unpack it back out of here just to re-pack
-the same value.
+`raw_code` is `land.states.veg_type`, set upstream by a `vegDynamics` approach; no
+`vegClass` approach reads `forcing` or a parameter directly.
 
-Errors (via `vegTypeName`/`resolveVegClassification`) rather than clamps when a code or name is
-not known, so a bad code or an uncovered class fails at the point it was produced
-instead of silently aliasing to the wrong class further downstream.
+Errors, rather than clamps, when a code or name is not known, so a bad code fails at
+the point it was produced instead of silently aliasing to the wrong class.
 """
 function resolveVegType(::Type{X}, ::Type{Classification}, raw_code) where
         {X <: vegClass, Classification <: VegClassification}
@@ -66,13 +59,10 @@ end
 Shared `define` for every `vegClass` approach: packs an instance of the approach's
 resolved target classification into `land.vegClass`, so downstream consumers (e.g.
 `vegQualityTraits_vegType`) can read back which classification is active and derive
-their own per-classification default tables from it via `getParamsPerVegType`, without
-each approach needing to repeat this. Mirrors `cCycleBase_GSI_PlantForm` packing
-`c_model = cCycleBase_GSI_PlantForm()` into `land.models` for the same kind of
-downstream dispatch.
+their own per-classification default tables from it via `getParamsPerVegType`.
 
-Declared once here, generically over `vegClass`, rather than in each approach file,
-since every approach does exactly this and nothing else at `define` time.
+Declared once here, generically over `vegClass`, since every approach does exactly
+this and nothing else at `define` time.
 """
 function define(params::vegClass, forcing, land, helpers)
     veg_type_class_map = resolvedVegClassification(typeof(params))()
@@ -84,14 +74,11 @@ end
     precompute(params::vegClass, forcing, land, helpers)
 
 Shared `precompute` for every `vegClass` approach: resolves `land.states.veg_type`
-via `resolveVegType`, against the approach's own `vegTypeCatalog` (read off
-`typeof(params)` inside `resolveVegType`) and its resolved target classification
-(`resolvedVegClassification(typeof(params))`, the same trait lookup `define` uses),
-and packs the result back into `land.states`.
+via `resolveVegType`, against the approach's own `vegTypeCatalog` and resolved target
+classification, and packs the result back into `land.states`.
 
-Declared once here, generically over `vegClass`, rather than in each approach file,
-since every approach does exactly this and nothing else at `precompute` time -- the two
-traits (`vegTypeCatalog`, `vegTypeClassification`) are the only thing that ever varies
+Declared once here, generically over `vegClass`, since the two traits
+(`vegTypeCatalog`, `vegTypeClassification`) are the only thing that ever varies
 between approaches.
 """
 function precompute(params::vegClass, forcing, land, helpers)
@@ -119,27 +106,19 @@ Resolves the raw vegetation-classification code that `vegDynamics` published to
 `land.states.veg_type` and, optionally, groups the result into a coarser
 classification, writing `land.states.veg_type_name` (plus `veg_type_name_source` for
 provenance) that every downstream science approach reads. `vegClass` never reads
-`forcing` or a parameter itself -- obtaining the raw code, whether from forcing or a
-constant, is `vegDynamics`'s job, run earlier in the model's process order.
+`forcing` or a parameter itself; obtaining the raw code is `vegDynamics`'s job.
 
 Each concrete approach declares two traits: `vegTypeCatalog`, the source catalog its
-raw code (`land.states.veg_type`) is interpreted against (a forcing legend, or
-the canonical vocabulary itself when paired with `vegDynamics_constant`), and
-`vegTypeClassification`, the target classification to crosswalk into (defaulting to
-`Classification_SINDBAD`, i.e. no grouping, when unset). A `_PlantForm`-suffixed
-approach (e.g. `vegClass_MODIS_IGBP_PlantForm`) is the same resolution with
-`vegTypeClassification` set to `Classification_PlantForm` instead -- composition via a
-second small approach file, rather than a second `model_structure.json` field or a
-struct type parameter, since neither fits how approaches are otherwise selected in
-this codebase.
+raw code is interpreted against, and `vegTypeClassification`, the target
+classification to crosswalk into (defaulting to `Classification_SINDBAD`, i.e. no
+grouping, when unset). A `_PlantForm`-suffixed approach (e.g.
+`vegClass_MODIS_IGBP_PlantForm`) is the same resolution with `vegTypeClassification`
+set to `Classification_PlantForm` instead.
 
-**Known limitation**: because `land.states.veg_type_name` is a single field, one experiment
-cannot combine a consumer that expects the fine canonical vocabulary (e.g.
-`vegQualityTraits_vegType`, `runoffSaturationExcess_Bergstroem1992VegFractionPFT`) with
-one that expects a grouped
-classification (e.g. `cCycleBase_GSI_PlantForm`/`_MGMT`) in the same run. Pick a
-`vegClass` approach whose target classification matches every downstream consumer
-selected alongside it.
+**Known limitation**: because `land.states.veg_type_name` is a single field, one
+experiment cannot combine a consumer that expects the fine canonical vocabulary
+(e.g. `vegQualityTraits_vegType`) with one that expects a grouped classification
+(e.g. `cCycleBase_GSI_PlantForm`/`_MGMT`) in the same run.
 
 *Versions*
  - 1.0 on 10.09.2026 [skoirala]: merged from the former `PFT` and `plantForm`

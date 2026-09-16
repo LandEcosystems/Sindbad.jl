@@ -112,26 +112,10 @@ giver-by-taker plot, with one labelled arrow per carbon flow.
 # Description
 - The pools sit on the diagonal, in `cEco` index order, named on all four sides.
 - x is the giver, y is the taker, matching the `[taker, giver]` orientation of
-  `cFlowMatrix` read as (column, row).
+  `cFlowMatrix`.
 - Each flow is an elbow leaving the giver's box, turning at the matrix cell that
-  carries it, and arriving at the taker's box. The cell it turns in is filled and
-  carries the flow index.
-- The flow index is the position in `c_flow_order`, so it is the index into
-  `c_flow_A_vec`, `c_flow_QP_vec`, `c_flow_ME_vec` and the `d_cFlow` output dimension.
-
-# Examples
-```jldoctest
-julia> using Sindbad, Plots
-
-julia> # Draw the CASA carbon flow topology into tmp_cCycleBase_CASA.png
-julia> # plotCarbonFlows(cCycleBase_CASA)
-
-julia> # Choose the file name
-julia> # plotCarbonFlows(cCycleBase_CASA, "casa_flows.png")
-
-julia> # Get the plot object back without writing anything
-julia> # plotCarbonFlows(cCycleBase_CASA, nothing)
-```
+  carries it, and arriving at the taker's box; that cell is filled and numbered
+  with the flow's position in `c_flow_order`.
 
 # Notes
 - Needs no experiment, no forcing and no run: the topology is declared by the approach

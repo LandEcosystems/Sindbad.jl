@@ -8,26 +8,16 @@ purpose(::Type{Classification_MODIS_PFT}) = "MODIS MCD12Q1 Plant Functional Type
 
 The Plant Functional Type legend, Table 7 of the MCD12Q1 user guide (Bonan,
 2002), transcribed exactly as documented for the `name => code` half of each
-entry. This is the legend the CASA-family per-vegetation-type constants
-(turnover ages, lignin fractions, C:N ratios) are actually calibrated
-against, evidenced by `ParamsForVegClasses.jl`'s `LIT_FRAC_LIGNIN_PER_VEGTYPE`
-docstring noting "PFT class 8 has no lignin," true only of this legend's
-`Cereal_Croplands` (code 7, 1-based array position 8).
+entry.
 
-Two classes have no clean 1:1 match onto the canonical
-`Classification_SINDBAD` vocabulary (itself copied from IGBP), placeholders
-needing the same literature/user confirmation as the other catalogs'
-non-direct mappings:
+Two classes have no clean 1:1 match onto the canonical `Classification_SINDBAD`
+vocabulary (itself copied from IGBP):
 
 - `Shrub`: IGBP splits shrubland by canopy closure
   (`Closed_Shrublands`/`Open_Shrublands`), which this legend does not. Mapped
-  to `Open_Shrublands`, matching the same choice made for
-  `Classification_MODIS_LAI`'s `Shrublands`.
+  to `Open_Shrublands`.
 - `Cereal_Croplands` and `Broadleaf_Croplands`: IGBP has one undifferentiated
-  `Croplands` class. Both map to it, which means any CASA-family constant
-  that gave these two classes different values (several do) collapses onto
-  one when re-keyed by IGBP name -- see the per-file notes where that
-  collapse happens.
+  `Croplands` class; both map to it.
 """
 vegClasses(::Type{Classification_MODIS_PFT}) = (
     (:Water_Bodies => 0, :Water_Bodies),
