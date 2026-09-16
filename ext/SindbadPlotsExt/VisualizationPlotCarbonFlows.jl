@@ -78,15 +78,14 @@ end
 """
     _syntheticCarbonLand(approach, pool_names, veg_type_name, extra_approaches)
 
-Build a minimal `land`/`helpers`, run `define`+`precompute` for a fresh,
-default-parameterized instance of `approach`'s own type (even if `approach` was given
-as an instance, e.g. a real, already fitted-and-unit-converted one from
-`info.models.forward`) and then `extra_approaches` on it, and return `(land,
-helpers)` -- or `(nothing, nothing)` if that raises for this approach (caller falls
-back to an index-only label).
+Build a minimal `land`/`helpers`, run `define`+`precompute` for a fresh default
+instance of `approach`'s type (ignoring any parameter values `approach` itself
+carries) and then `extra_approaches` on it. Returns `(land, helpers)`, or
+`(nothing, nothing)` if that raises for this approach (caller falls back to an
+index-only label).
 
-No forcing, spatial data or real experiment involved: `zix` comes from `pool_names`
-(`_poolNamePrefixes`), and `land` carries only the placeholder fields `define`/
+No forcing, spatial data or real experiment: `zix` comes from `pool_names`
+(`_poolNamePrefixes`); `land` carries only the placeholder fields `define`/
 `precompute` read (`states.veg_type_name`, `vegClass.veg_type_class_map`, zeroed
 `pools.cEco`).
 """
@@ -104,10 +103,8 @@ function _syntheticCarbonLand(approach, pool_names, veg_type_name, extra_approac
             states=(; veg_type_name=veg_type_name),
             vegClass=(; veg_type_class_map=Classification_SINDBAD()))
 
-        # always a fresh, canonical instance, in the approach's own declared ("year")
-        # units -- an instance passed in (e.g. from info.models.forward) may have its
-        # rate scalars already unit-converted for a specific experiment's model_timestep,
-        # which would silently throw off T's implicit year units below
+        # fresh instance, not a given instance's own fields: those may already be
+        # unit-converted to a specific experiment's model_timestep, not years
         approach_instance = (approach isa Type ? approach : typeof(approach))()
         land = define(approach_instance, nothing, land, helpers)
         land = precompute(approach_instance, nothing, land, helpers)
@@ -177,36 +174,27 @@ labelled arrow per flow.
 
 # Arguments
 - `approach`: a `cCycleBase` approach, type or instance (e.g. `cCycleBase_CASA`), or
-  `nothing` to derive it from `land.models.c_model` (every cCycleBase approach packs
-  its own instance there in `define`) -- only valid together with `land`. Without
-  `land`, only its type matters: the synthetic path always builds a fresh, default-
-  parameterized instance, ignoring a given instance's own field values (which, e.g.
-  from `info.models.forward`, may carry a specific experiment's fitted and
-  unit-converted parameters).
+  `nothing` to derive it from `land.models.c_model` -- only valid together with
+  `land`. Without `land`, only its type is used; any instance's own parameter values
+  are discarded (see `_syntheticCarbonLand`).
 - `file_path`: output path, or `nothing` to skip saving.
 
 # Keyword arguments
 - `land`: a `define`+`precompute`d land from a real experiment run. When given,
-  topology and T/A/M/Q come from it instead of a synthetic run, reflecting that
-  experiment's actual pool structure and selected approaches -- `land` alone is
-  enough; `helpers` is never read for this.
-- `helpers`: optional even with `land` given; the only use is reading
-  `helpers.dates.temporal_resolution` to convert T to years (see `model_timestep`
-  below), so pass it only for that, or skip it and pass `model_timestep` directly.
-- `veg_type_name`: vegetation type for the synthetic path's turnover-time tables,
-  default `land.states.veg_type_name` when `land` is given (else
-  `:Evergreen_Needleleaf_Forests`). Unused when `land` is given (its own real
-  `states.veg_type_name` is what actually produced its diagnostics).
+  topology and T/A/M/Q come from it, not a synthetic run. Sufficient on its own;
+  `helpers` is never read for this.
+- `helpers`: optional even with `land` given; only used to read
+  `helpers.dates.temporal_resolution` for `model_timestep` below.
+- `veg_type_name`: vegetation type for the synthetic path's turnover-time tables;
+  defaults to `land.states.veg_type_name` when `land` is given, else
+  `:Evergreen_Needleleaf_Forests`. Unused when `land` is given.
 - `extra_approaches`: instances (e.g. `cQualityPartition_equal()`,
   `cMicrobialEfficiency_constant()`) whose `define`+`precompute` run after
   `approach`'s own, to populate M/Q beyond its built-in defaults. Ignored when
   `land` is given.
-- `model_timestep`: overrides the experiment's temporal resolution, read by default
-  from `helpers.dates.temporal_resolution` if `helpers` is given (falling back to
-  `"day"` otherwise). `land`'s `c_eco_k_base` is in this unit, not years -- its rate
-  parameters go through automatic timescale conversion before a real run, unlike the
-  synthetic path's unconverted defaults -- so T is rescaled by it to read in years.
-  Ignored when `land` is not given.
+- `model_timestep`: the experiment's temporal resolution, for converting `land`'s
+  `c_eco_k_base` (in this unit, not years) to years for T. Defaults to
+  `helpers.dates.temporal_resolution`, else `"day"`. Ignored when `land` is not given.
 
 # Returns
 - `nothing` when saved to `file_path`; the plot object, unsaved and undisplayed, when
@@ -253,9 +241,7 @@ function plotCarbonFlows(approach, file_path, ::VisualizationPlots;
     end
 
     # a caller-supplied land wins on topology too (may differ from approach's own
-    # poolConfiguration); synthetic path keeps the topology derived above and only adds
-    # land.diagnostics values on top. helpers is never read for topology/diagnostics --
-    # only, optionally, for helpers.dates.temporal_resolution below.
+    # poolConfiguration); the synthetic path keeps the topology derived above
     using_real_land = !isnothing(land)
     if using_real_land
         # cFlowStructure's pool_names is `i => name` pairs, not bare names
@@ -272,12 +258,8 @@ function plotCarbonFlows(approach, file_path, ::VisualizationPlots;
     me_vec = isnothing(land) ? nothing : get(land.diagnostics, :c_flow_ME_vec, nothing)
     qp_vec = isnothing(land) ? nothing : get(land.diagnostics, :c_flow_QP_vec, nothing)
     has_details = !isnothing(k_base) || !isnothing(a_vec) || !isnothing(me_vec) || !isnothing(qp_vec)
-    # A real run's k_base is in per-model-timestep units: its rate parameters go through
-    # setupParameters.jl's automatic unit conversion (declared timescale -> model_timestep)
-    # before the model is instantiated, unlike the synthetic path's bare, unconverted
-    # `approach()` defaults. Rescale so 1/k_base reads in years either way. The resolution
-    # itself comes from helpers.dates.temporal_resolution (set in
-    # src/Simulation/prepTEM.jl's getRunTEMInfo) unless overridden.
+    # a real run's k_base is per-model-timestep, not per-year; rescale so 1/k_base reads
+    # in years (see model_timestep docs above)
     if using_real_land && !isnothing(k_base)
         from_helpers = isnothing(helpers) ? nothing : get(get(helpers, :dates, (;)), :temporal_resolution, nothing)
         resolved_timestep = something(model_timestep, from_helpers, "day")
@@ -289,20 +271,14 @@ function plotCarbonFlows(approach, file_path, ::VisualizationPlots;
 
     tick_labels = ["$(i). $(pool_names[i])" for i ∈ 1:n_pools]
     tick_locs = collect(1:n_pools)
-    # pool-name label size: as large as fits one per row/column without adjacent labels
-    # overlapping, scaled down as more pools compete for the same figure height/width
+    # pool-name label size, scaled down as more pools shrink the available space
     label_fontsize = clamp(round(Int, 160 / n_pools), 8, 16)
-    # asymmetric padding for the right/top name labels, growing gently with their font
-    # size so a larger label still lands inside the figure limits; kept gentle because a
-    # bigger margin here also shrinks the pool grid itself under aspect_ratio=:equal
+    # right/top padding for those labels, growing gently with their font size
     limits = (1 - 0.8, n_pools + 3.2 + (label_fontsize - 8) * 0.2)
 
-    # fonts passed per-call rather than via plots_default, to avoid leaking into other
-    # plots. fontfamily is pinned explicitly (rather than left to Plots' own default) so
-    # the title/tick/guide text renders the same regardless of call order: GR carries font
-    # state across figures within a session, so without this a plot drawn right after one
-    # whose flow labels used _INDEX_FONT ("Helvetica Bold") could inherit that bold face.
-    # A larger canvas than the default buys back some of the pixels the padding above spends.
+    # fontfamily pinned explicitly: GR carries font state across figures in a session,
+    # so without this a title could inherit _INDEX_FONT ("Helvetica Bold") from a
+    # previous plot's flow labels. Canvas enlarged to offset the padding above.
     ax = plots_plot(; size=(1600, 1600), aspect_ratio=:equal, widen=false, legend=false,
         grid=false, xrotation=90, xticks=(tick_locs, tick_labels),
         yticks=(tick_locs, tick_labels), xlims=limits, ylims=limits,
@@ -326,10 +302,8 @@ function plotCarbonFlows(approach, file_path, ::VisualizationPlots;
     end
 
     # arrows drawn first so flow cells layer on top. Each flow's index is drawn near its
-    # arrow's start point (giver + dx[flow], on the diagonal), inside the giver's own
-    # box, rather than in the flow cell -- freeing the cell for T/A/M/Q alone. Offset off
-    # the diagonal (the line's first, vertical leg sits exactly on it) so the label reads
-    # clearly instead of sitting on top of the line.
+    # arrow's start point, inside the giver's box, offset off the diagonal so it doesn't
+    # sit on top of the line.
     diag_index_fontsize = clamp(round(Int, 220 / n_pools), 12, 24)
     label_offset = half_cell * 0.35
     for flow ∈ 1:n_flows
@@ -338,9 +312,8 @@ function plotCarbonFlows(approach, file_path, ::VisualizationPlots;
         x_leg = giver + dx[flow]
         y_leg = taker + dy[flow]
         color = _CARBON_FLOW_COLORS[mod1(giver, length(_CARBON_FLOW_COLORS))]
-        # elbow: giver box -> flow cell -> taker box, ending in a plain dot rather than
-        # an arrowhead -- every style/size of arrowhead read as too heavy on these short
-        # segments.
+        # elbow: giver box -> flow cell -> taker box, ending in a plain dot (arrowheads
+        # read as too heavy on these short segments)
         plots_plot!(ax, [x_leg, x_leg, y_leg], [x_leg, y_leg, y_leg];
             color=color, linewidth=1.6, label="")
         plots_scatter!(ax, [y_leg], [y_leg]; color=color, markersize=3,
@@ -350,9 +323,7 @@ function plotCarbonFlows(approach, file_path, ::VisualizationPlots;
     end
 
     # flow cell: filled and labelled with T/A/M/Q, sized down from half_cell so crossing
-    # arrows still show in the gutters. Font size is the largest that keeps the 4
-    # stacked lines inside the cell, scaled down as more pools shrink the cell; the cell
-    # is left unlabelled (just the color marker) when none of T/A/M/Q are available.
+    # arrows still show in the gutters; left as a plain color marker when none available.
     half_flow_cell = has_details ? half_cell * 0.95 : half_cell * 0.75
     detail_fontsize = clamp(round(Int, 120 / n_pools), 5, 10)
     for flow ∈ 1:n_flows

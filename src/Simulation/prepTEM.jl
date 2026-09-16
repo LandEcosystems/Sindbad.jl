@@ -290,9 +290,8 @@ Prepares the necessary information and objects needed to run the SINDBAD Terrest
 - The function dynamically prepares the required data structures based on the specified `PreAllocputType`.
 - It handles spatial and temporal data preparation, including filtering NaN pixels, initializing land variables, and setting up forcing and output arrays.
 - This function is a key step in preparing the SINDBAD TEM for execution.
-- If `selected_models` includes a `cCycleBase` approach, its carbon flow matrix is plotted with
-  this one-location/one-timestep `loc_land`'s real, computed values and saved into
-  `info.output.dirs.figure` (see `plotActualCarbonFlows`).
+- If a `cCycleBase` approach is selected, its carbon flow matrix is plotted from this
+  `loc_land` and saved into `info.output.dirs.figure` (see `plotActualCarbonFlows`).
 
 # Examples
 ```jldoctest
@@ -313,10 +312,9 @@ function helpPrepTEM end
 """
     plotActualCarbonFlows(info, land)
 
-If a `cCycleBase` approach is selected -- signalled by `land.models.c_model`, which
-only a `cCycleBase` approach's `define` ever packs -- plot its carbon flow matrix with
-`land`'s real, computed τ/M/Q values (`Visualization.plotCarbonFlows`), saved into
-`info.output.dirs.figure`. A no-op otherwise.
+If `land.models.c_model` exists (only a `cCycleBase` approach's `define` packs it),
+plot its carbon flow matrix with `land`'s real values into `info.output.dirs.figure`.
+A no-op otherwise.
 """
 function plotActualCarbonFlows(info, land)
     hasproperty(land.models, :c_model) || return nothing

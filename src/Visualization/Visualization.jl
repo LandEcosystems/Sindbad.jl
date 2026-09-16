@@ -34,16 +34,15 @@ plotCarbonFlows(cCycleBase_CASA)  # writes tmp_carbon_flow_matrix_cCycleBase_CAS
 ```
 
 `plotCarbonFlows` draws a `cCycleBase` approach's carbon flow topology as a
-giver-by-taker matrix, labelled with each flow's turnover time, microbial efficiency
-and quality-partition fraction. Called with just the approach, it needs no experiment
-or run (a synthetic `land`/`helpers` is built internally) and writes
-`tmp_carbon_flow_matrix_<approach>_default.pdf` (`_actual.pdf` if real `land`/`helpers`
-are given, `tmp_`-prefixed so it's gitignored); a second positional argument names the
-file, `nothing` skips the write.
-Called as `plotCarbonFlows(info, approach)`, it resolves the backend from
-`info.helpers.run.visualization_backend` and saves into `info.output.dirs.figure`
-instead -- the form `getExperimentInfo` calls automatically when a `cCycleBase`
-approach is selected.
+giver-by-taker matrix, labelled with each flow's turnover time, allocation fraction,
+microbial efficiency and quality-partition fraction. Called with just the approach,
+it needs no experiment or run and writes
+`tmp_carbon_flow_matrix_<approach>_default.pdf` (`_actual.pdf` with a real `land`
+given, `tmp_`-prefixed so it's gitignored); a second positional argument names the
+file, `nothing` skips the write. Called as `plotCarbonFlows(info, approach)`, it
+resolves the backend from `info.helpers.run.visualization_backend` and saves into
+`info.output.dirs.figure` instead -- the form `getExperimentInfo` calls
+automatically when a `cCycleBase` approach is selected.
 """
 module Visualization
     using SindbadTEM.OmniTools
@@ -109,9 +108,8 @@ module Visualization
         return plotTimeSeries(out.info, obs_array, cost_options, out.output, _resolvedBackend(plotTimeSeries, backend, out.info, obs_array, cost_options, out.output))
     end
 
-    # `approach` derives from a given `land`'s own `land.models.c_model` (every
-    # cCycleBase approach packs its own instance there in `define`) when omitted, so
-    # a real `land` is enough on its own; errors clearly if neither is given.
+    # falls back to land.models.c_model when approach is omitted, so a real `land` is
+    # enough on its own; errors if neither is given.
     function _approachName(approach, kwargs)
         !isnothing(approach) && return nameof(approach isa Type ? approach : typeof(approach))
         land = get(kwargs, :land, nothing)
@@ -120,12 +118,9 @@ module Visualization
         return nameof(typeof(land.models.c_model))
     end
 
-    # No `info` to read a backend from, so VisualizationPlots() is asked for directly;
-    # _resolvedBackend downgrades to VisualizationTypes() if SindbadPlotsExt isn't loaded.
-    # Default file name encodes whether land (real values) was given -- helpers is
-    # optional even then, only used for temporal_resolution -- and is `tmp_`-prefixed
-    # (unlike the info-taking form below) since it lands in the working directory
-    # rather than an experiment's output dir, and `tmp_*` is gitignored.
+    # No `info` to read a backend from, so VisualizationPlots() is asked for directly.
+    # `tmp_`-prefixed (unlike the info-taking form below): it lands in the working
+    # directory, not an experiment's output dir, and `tmp_*` is gitignored.
     function plotCarbonFlows(approach=nothing; kwargs...)
         suffix = isnothing(get(kwargs, :land, nothing)) ? "default" : "actual"
         file_path = "tmp_carbon_flow_matrix_$(_approachName(approach, kwargs))_$(suffix).pdf"
