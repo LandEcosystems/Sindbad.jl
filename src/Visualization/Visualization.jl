@@ -109,15 +109,26 @@ module Visualization
         return plotTimeSeries(out.info, obs_array, cost_options, out.output, _resolvedBackend(plotTimeSeries, backend, out.info, obs_array, cost_options, out.output))
     end
 
+    # `approach` derives from a given `land`'s own `land.models.c_model` (every
+    # cCycleBase approach packs its own instance there in `define`) when omitted, so
+    # a real `land` is enough on its own; errors clearly if neither is given.
+    function _approachName(approach, kwargs)
+        !isnothing(approach) && return nameof(approach isa Type ? approach : typeof(approach))
+        land = get(kwargs, :land, nothing)
+        isnothing(land) && error("plotCarbonFlows needs `approach`, or `land` to derive " *
+            "it from `land.models.c_model`.")
+        return nameof(typeof(land.models.c_model))
+    end
+
     # No `info` to read a backend from, so VisualizationPlots() is asked for directly;
     # _resolvedBackend downgrades to VisualizationTypes() if SindbadPlotsExt isn't loaded.
-    # Default file name encodes whether land/helpers (real values) were given, and is
-    # `tmp_`-prefixed (unlike the info-taking form below) since it lands in the working
-    # directory rather than an experiment's output dir, and `tmp_*` is gitignored.
-    function plotCarbonFlows(approach; kwargs...)
-        using_real_land = !isnothing(get(kwargs, :land, nothing)) && !isnothing(get(kwargs, :helpers, nothing))
-        suffix = using_real_land ? "actual" : "default"
-        file_path = "tmp_carbon_flow_matrix_$(nameof(approach isa Type ? approach : typeof(approach)))_$(suffix).pdf"
+    # Default file name encodes whether land (real values) was given -- helpers is
+    # optional even then, only used for temporal_resolution -- and is `tmp_`-prefixed
+    # (unlike the info-taking form below) since it lands in the working directory
+    # rather than an experiment's output dir, and `tmp_*` is gitignored.
+    function plotCarbonFlows(approach=nothing; kwargs...)
+        suffix = isnothing(get(kwargs, :land, nothing)) ? "default" : "actual"
+        file_path = "tmp_carbon_flow_matrix_$(_approachName(approach, kwargs))_$(suffix).pdf"
         return plotCarbonFlows(approach, file_path; kwargs...)
     end
 
@@ -129,11 +140,10 @@ module Visualization
     # Called automatically by getExperimentInfo when a cCycleBase approach is selected;
     # unlike the methods above, reads the configured backend from info and saves into
     # info.output.dirs.figure, named like plotIOModelStructure's own files.
-    function plotCarbonFlows(info::NamedTuple, approach; kwargs...)
+    function plotCarbonFlows(info::NamedTuple, approach=nothing; kwargs...)
         backend = info.helpers.run.visualization_backend
-        using_real_land = !isnothing(get(kwargs, :land, nothing)) && !isnothing(get(kwargs, :helpers, nothing))
-        suffix = using_real_land ? "actual" : "default"
-        approach_name = nameof(approach isa Type ? approach : typeof(approach))
+        suffix = isnothing(get(kwargs, :land, nothing)) ? "default" : "actual"
+        approach_name = _approachName(approach, kwargs)
         file_path = joinpath(info.output.dirs.figure,
             "carbon_flow_matrix_$(info.experiment.basics.id)_$(approach_name)_$(suffix).pdf")
         return plotCarbonFlows(approach, file_path, _resolvedBackend(plotCarbonFlows, backend, approach, file_path); kwargs...)

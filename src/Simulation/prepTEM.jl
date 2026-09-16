@@ -171,8 +171,10 @@ function getRunTEMInfo(info, forcing)
     @debug "     preparing vals for generated functions"
     vals = (; forcing_types=Val(forcing.f_types), output_vars=Val(output_vars))
     upd_tem_helpers = (;)
-    tem_dates = tem_helpers.dates
-    tem_dates = (;)
+    # Stripped down to temporal_resolution alone -- the rest of tem_helpers.dates
+    # (the full timestep range, etc.) is not needed by any model and not worth
+    # carrying into every per-location, per-timestep model call.
+    tem_dates = (; temporal_resolution=tem_helpers.dates.temporal_resolution)
     # upd_tem_helpers = set_namedtuple_field(upd_tem_helpers, (:dates, tem_dates))
     time_size = getproperty(forcing.helpers.sizes, Symbol(forcing.helpers.dimensions.time))
     upd_tem_helpers = set_namedtuple_field(upd_tem_helpers, (:n_timesteps, time_size))
@@ -288,6 +290,9 @@ Prepares the necessary information and objects needed to run the SINDBAD Terrest
 - The function dynamically prepares the required data structures based on the specified `PreAllocputType`.
 - It handles spatial and temporal data preparation, including filtering NaN pixels, initializing land variables, and setting up forcing and output arrays.
 - This function is a key step in preparing the SINDBAD TEM for execution.
+- If `selected_models` includes a `cCycleBase` approach, its carbon flow matrix is plotted with
+  this one-location/one-timestep `loc_land`'s real, computed values and saved into
+  `info.output.dirs.figure` (see `plotActualCarbonFlows`).
 
 # Examples
 ```jldoctest
@@ -304,6 +309,22 @@ run_helpers = helpPrepTEM(selected_models, info, forcing, observations, output, 
 ```
 """
 function helpPrepTEM end
+
+"""
+    plotActualCarbonFlows(info, land)
+
+If a `cCycleBase` approach is selected -- signalled by `land.models.c_model`, which
+only a `cCycleBase` approach's `define` ever packs -- plot its carbon flow matrix with
+`land`'s real, computed τ/M/Q values (`Visualization.plotCarbonFlows`), saved into
+`info.output.dirs.figure`. A no-op otherwise.
+"""
+function plotActualCarbonFlows(info, land)
+    hasproperty(land.models, :c_model) || return nothing
+    print_info(plotActualCarbonFlows, @__FILE__, @__LINE__,
+        "plotting the actual carbon flow matrix of the selected carbon cycle model...", n_f=6)
+    Base.moduleroot(@__MODULE__).Visualization.plotCarbonFlows(info; land=land)
+    return nothing
+end
 
 function helpPrepTEM(selected_models, info, forcing::NamedTuple, output::NamedTuple, ::PreAllocArray)
 
@@ -322,6 +343,7 @@ function helpPrepTEM(selected_models, info, forcing::NamedTuple, output::NamedTu
     loc_forcing_t, loc_land = runTEMOne(selected_models, loc_forcing, land_init, tem_info)
 
     addErrorCatcher(loc_land, info.helpers.run.debug_model)
+    plotActualCarbonFlows(info, loc_land)
 
     output_array = output.data
     output_vars = output.variables
@@ -366,6 +388,7 @@ function helpPrepTEM(selected_models, info, forcing::NamedTuple, output::NamedTu
     loc_forcing_t, loc_land = runTEMOne(selected_models, loc_forcing, land_init, tem_info)
 
     addErrorCatcher(loc_land, info.helpers.run.debug_model)
+    plotActualCarbonFlows(info, loc_land)
 
     info = setModelOutputLandAll(info, loc_land)
     tem_info = @set tem_info.vals.output_vars = Val(info.output.variables)
@@ -414,6 +437,7 @@ function helpPrepTEM(selected_models, info, forcing::NamedTuple, output::NamedTu
     loc_forcing_t, loc_land = runTEMOne(selected_models, loc_forcing, land_init, tem_info)
 
     addErrorCatcher(loc_land, info.helpers.run.debug_model)
+    plotActualCarbonFlows(info, loc_land)
 
     # collect local data and create copies
     print_info(helpPrepTEM, @__FILE__, @__LINE__, "preallocating local, threaded, and spatial data", n_f=6)
@@ -487,6 +511,7 @@ function helpPrepTEM(selected_models, info, forcing::NamedTuple, output::NamedTu
     loc_spinup_forcing = getAllSpinupForcing(loc_forcing, info.spinup.sequence, tem_info);
     loc_forcing_t, loc_land = runTEMOne(selected_models, loc_forcing, land_init, tem_info)
     addErrorCatcher(loc_land, info.helpers.run.debug_model)
+    plotActualCarbonFlows(info, loc_land)
 
     output_vars = output.variables
     output_dims = output.dims
