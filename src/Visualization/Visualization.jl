@@ -30,15 +30,20 @@ using Sindbad, Plots
 
 plotPerformanceHistograms(opt_results)
 plotIOModelStructure(info)
-plotCarbonFlows(cCycleBase_CASA)  # writes tmp_cCycleBase_CASA.png
+plotCarbonFlows(cCycleBase_CASA)  # writes tmp_carbon_flow_matrix_cCycleBase_CASA_default.pdf
 ```
 
-`plotCarbonFlows` draws the carbon pool flow topology of a `cCycleBase` approach as a
-square giver-by-taker plot. It needs no experiment and no run, so it takes no `info`
-and always asks for the `Plots` backend, degrading to the same info message when
-`Plots` is not loaded. Called with the approach alone it writes
-`tmp_<approach>.png`; a second argument names the file, or `nothing` suppresses the
-write.
+`plotCarbonFlows` draws a `cCycleBase` approach's carbon flow topology as a
+giver-by-taker matrix, labelled with each flow's turnover time, microbial efficiency
+and quality-partition fraction. Called with just the approach, it needs no experiment
+or run (a synthetic `land`/`helpers` is built internally) and writes
+`tmp_carbon_flow_matrix_<approach>_default.pdf` (`_actual.pdf` if real `land`/`helpers`
+are given, `tmp_`-prefixed so it's gitignored); a second positional argument names the
+file, `nothing` skips the write.
+Called as `plotCarbonFlows(info, approach)`, it resolves the backend from
+`info.helpers.run.visualization_backend` and saves into `info.output.dirs.figure`
+instead -- the form `getExperimentInfo` calls automatically when a `cCycleBase`
+approach is selected.
 """
 module Visualization
     using SindbadTEM.OmniTools
@@ -104,20 +109,34 @@ module Visualization
         return plotTimeSeries(out.info, obs_array, cost_options, out.output, _resolvedBackend(plotTimeSeries, backend, out.info, obs_array, cost_options, out.output))
     end
 
-    # plotCarbonFlows takes a cCycleBase approach rather than an `info`, so there is no
-    # configured backend to read. Naming VisualizationPlots() as the wanted one lets
-    # _resolvedBackend downgrade to VisualizationTypes() when SindbadPlotsExt is not
-    # loaded, which is also what makes the fallback message say "`Plots` is not loaded"
-    # rather than "nothing was configured".
-    # The one-argument form saves to `tmp_<approach>.png` in the working directory, so
-    # a call at the REPL leaves a file to open rather than a plot object to figure out
-    # what to do with. Pass `nothing` as the second argument to get the object back
-    # without writing anything.
-    plotCarbonFlows(approach) = plotCarbonFlows(approach, "tmp_$(nameof(approach isa Type ? approach : typeof(approach))).png")
+    # No `info` to read a backend from, so VisualizationPlots() is asked for directly;
+    # _resolvedBackend downgrades to VisualizationTypes() if SindbadPlotsExt isn't loaded.
+    # Default file name encodes whether land/helpers (real values) were given, and is
+    # `tmp_`-prefixed (unlike the info-taking form below) since it lands in the working
+    # directory rather than an experiment's output dir, and `tmp_*` is gitignored.
+    function plotCarbonFlows(approach; kwargs...)
+        using_real_land = !isnothing(get(kwargs, :land, nothing)) && !isnothing(get(kwargs, :helpers, nothing))
+        suffix = using_real_land ? "actual" : "default"
+        file_path = "tmp_carbon_flow_matrix_$(nameof(approach isa Type ? approach : typeof(approach)))_$(suffix).pdf"
+        return plotCarbonFlows(approach, file_path; kwargs...)
+    end
 
-    function plotCarbonFlows(approach, file_path)
+    function plotCarbonFlows(approach, file_path; kwargs...)
         backend = VisualizationPlots()
-        return plotCarbonFlows(approach, file_path, _resolvedBackend(plotCarbonFlows, backend, approach, file_path))
+        return plotCarbonFlows(approach, file_path, _resolvedBackend(plotCarbonFlows, backend, approach, file_path); kwargs...)
+    end
+
+    # Called automatically by getExperimentInfo when a cCycleBase approach is selected;
+    # unlike the methods above, reads the configured backend from info and saves into
+    # info.output.dirs.figure, named like plotIOModelStructure's own files.
+    function plotCarbonFlows(info::NamedTuple, approach; kwargs...)
+        backend = info.helpers.run.visualization_backend
+        using_real_land = !isnothing(get(kwargs, :land, nothing)) && !isnothing(get(kwargs, :helpers, nothing))
+        suffix = using_real_land ? "actual" : "default"
+        approach_name = nameof(approach isa Type ? approach : typeof(approach))
+        file_path = joinpath(info.output.dirs.figure,
+            "carbon_flow_matrix_$(info.experiment.basics.id)_$(approach_name)_$(suffix).pdf")
+        return plotCarbonFlows(approach, file_path, _resolvedBackend(plotCarbonFlows, backend, approach, file_path); kwargs...)
     end
 
     plotIOModelStructure(info) = plotIOModelStructure(info, :compute)

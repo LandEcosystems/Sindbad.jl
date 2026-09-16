@@ -105,6 +105,7 @@ Loads and sets up the experiment configuration, saving the information and enabl
   3. Saves the experiment `info` if `save_info` is enabled.
   4. Sets up a debug error catcher if `catch_model_errors` is enabled.
   5. Plots the IO structure of the selected model structure via `plotIOModelStructure`.
+  6. If a `cCycleBase` approach is selected, plots its carbon flow matrix via `plotCarbonFlows`.
 
 # Examples
 ```jldoctest
@@ -135,6 +136,12 @@ function getExperimentInfo(sindbad_experiment::String; replace_info=Dict())
     print_info(getExperimentInfo, @__FILE__, @__LINE__, "plotting IO signatures in the selected model structure...", n_m=1)
     for model_func in (:define, :precompute, :compute,)
         Base.moduleroot(@__MODULE__).Visualization.plotIOModelStructure(info, model_func)
+    end
+
+    carbon_cycle_index = findfirst(m -> nameof(supertype(typeof(m))) === :cCycleBase, info.models.forward)
+    if !isnothing(carbon_cycle_index)
+        print_info(getExperimentInfo, @__FILE__, @__LINE__, "plotting the carbon flow matrix of the selected carbon cycle model...", n_m=1)
+        Base.moduleroot(@__MODULE__).Visualization.plotCarbonFlows(info, info.models.forward[carbon_cycle_index])
     end
 
     saveInfo(info, info.helpers.run.save_info)
