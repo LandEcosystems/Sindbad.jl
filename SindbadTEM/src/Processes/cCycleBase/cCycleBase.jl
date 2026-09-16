@@ -45,7 +45,7 @@ function cCycleBaseZixGroups(helpers)
     zix_cNonVeg = (zix_cLit..., zix_cMic..., zix_cSoil...)
     zix_cNatural = (zix_cVeg..., zix_cLit..., zix_cMic..., zix_cSoil...)
     zix_cHeterotrophic = (zix_cLit..., zix_cMic..., zix_cSoil...)
-    zix_cProducts = zix_cVeg
+    zix_cProducts = ()
 
     return zix_cNonVeg, zix_cNatural, zix_cHeterotrophic, zix_cProducts
 end
