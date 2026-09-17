@@ -4,8 +4,7 @@ import Sindbad.Visualization: plotCarbonFlows
 """
     _CARBON_FLOW_COLORS
 
-Colors cycled over the giver pools, so the arrows leaving one pool share a color and
-the ones crossing the same cell can be told apart.
+Colors cycled per giver pool, so flows sharing a source share a color.
 """
 const _CARBON_FLOW_COLORS = ["#1f77b4", "#d62728", "#2ca02c", "#9467bd", "#ff7f0e",
     "#17becf", "#8c564b", "#e377c2", "#7f7f7f", "#bcbd22"]
@@ -13,22 +12,15 @@ const _CARBON_FLOW_COLORS = ["#1f77b4", "#d62728", "#2ca02c", "#9467bd", "#ff7f0
 """
     _INDEX_FONT
 
-The font the flow index is drawn in, bold so the number carries against its colored cell.
-
-A family name rather than Plots' `:bold`, which sets the family to `"bold"` and leaves GR
-looking for a `bold.ttf` it does not have, silently falling back to the regular weight.
-`"Helvetica Bold"` is one of GR's built-in faces, so it resolves without a system font.
+Bold font for flow labels. A family name, not Plots' `:bold` (GR has no `bold.ttf` and
+would silently fall back); `"Helvetica Bold"` is a built-in GR face.
 """
 const _INDEX_FONT = "Helvetica Bold"
 
 """
     _indexTextColor(hex_color)
 
-Return `:white` or `:black`, whichever reads on a cell filled with `hex_color`.
-
-The palette runs from a dark blue to a light yellow-green, so a single text color is
-legible on some of it and not the rest. The threshold sits above the orange, which
-carries white better than black despite its luminance.
+Return `:white` or `:black`, whichever is legible on a cell filled with `hex_color`.
 """
 function _indexTextColor(hex_color)
     red = parse(Int, hex_color[2:3]; base=16)
@@ -40,13 +32,8 @@ end
 """
     _carbonPoolNames(approach)
 
-Return `(pool_names, configuration_name)` for a `cCycleBase` approach: the leaf pool
-names of its pool structure, in `cEco` index order, and the name of the configuration
-they came from.
-
-Flattening is `getPoolInformation`, the same call `generatedPoolNames` makes, so the
-order here is the order `setPoolsInfo` produces at run time and a name's position is
-its `cEco` index.
+Return `(pool_names, configuration_name)`: `approach`'s leaf pool names in `cEco`
+index order, and the configuration they came from.
 """
 function _carbonPoolNames(approach)
     approach_name = nameof(approach isa Type ? approach : typeof(approach))
@@ -67,19 +54,104 @@ function _carbonPoolNames(approach)
 end
 
 """
+    _poolNamePrefixes(pool_names)
+
+Return every camelCase-hump prefix of every name (e.g. `cLitRootFineFast` yields
+`cLit`, `cLitRoot`, `cLitRootFine`, `cLitRootFineFast`), deduplicated. These are the
+group names approaches key `zix` lookups by (`zix.cVeg`, `zix.cLitRootFine`, ...), so
+this builds a generic `zix` without hand-listing groups per approach.
+"""
+function _poolNamePrefixes(pool_names)
+    prefixes = String[]
+    for name in String.(pool_names)
+        tokens = [m.match for m in eachmatch(r"[A-Z][a-z0-9]*|^[a-z]+", name)]
+        cum = tokens[1]
+        for token in tokens[2:end]
+            cum *= token
+            push!(prefixes, cum)
+        end
+        push!(prefixes, name)
+    end
+    return unique(prefixes)
+end
+
+"""
+    _syntheticCarbonLand(approach, pool_names, veg_type_name, extra_approaches)
+
+Build a minimal `land`/`helpers`, run `define`+`precompute` for a fresh default
+instance of `approach`'s type (ignoring any parameter values `approach` itself
+carries) and then `extra_approaches` on it. Returns `(land, helpers)`, or
+`(nothing, nothing)` if that raises for this approach (caller falls back to an
+index-only label).
+
+No forcing, spatial data or real experiment: `zix` comes from `pool_names`
+(`_poolNamePrefixes`); `land` carries only the placeholder fields `define`/
+`precompute` read (`states.veg_type_name`, `vegClass.veg_type_class_map`, zeroed
+`pools.cEco`).
+"""
+function _syntheticCarbonLand(approach, pool_names, veg_type_name, extra_approaches)
+    try
+        n_pools = length(pool_names)
+        # cVeg/cLit/cMic/cSoil must exist even where empty (e.g. GSI has no microbial pool)
+        zix_names = Symbol.(union(_poolNamePrefixes(pool_names), ("cVeg", "cLit", "cMic", "cSoil")))
+        zix = NamedTuple{Tuple(zix_names)}(Tuple(
+            Tuple(findall(nm -> startswith(String(nm), String(prefix)), pool_names))
+            for prefix ∈ zix_names))
+        helpers = (; pools=(; zix=zix, components=(; cEco=pool_names),
+            zeros=(; cEco=zeros(n_pools)), ones=(; cEco=ones(n_pools))))
+        land = (; pools=(; cEco=zeros(n_pools)), diagnostics=(;), cCycleBase=(;), models=(;),
+            states=(; veg_type_name=veg_type_name),
+            vegClass=(; veg_type_class_map=Classification_SINDBAD()))
+
+        # fresh instance, not a given instance's own fields: those may already be
+        # unit-converted to a specific experiment's model_timestep, not years
+        approach_instance = (approach isa Type ? approach : typeof(approach))()
+        land = define(approach_instance, nothing, land, helpers)
+        land = precompute(approach_instance, nothing, land, helpers)
+        for extra_approach ∈ extra_approaches
+            land = define(extra_approach, nothing, land, helpers)
+            land = precompute(extra_approach, nothing, land, helpers)
+        end
+        return land, helpers
+    catch e
+        print_info(plotCarbonFlows, @__FILE__, @__LINE__,
+            "could not derive real T/A/M/Q values for $(nameof(approach isa Type ? approach : typeof(approach))): " *
+            "$(sprint(showerror, e)). Falling back to index-only flow labels.", n_f=4)
+        return nothing, nothing
+    end
+end
+
+"""
+    _flowDetailLabel(flow, giver, k_base, a_vec, me_vec, qp_vec)
+
+Flow-cell label text: one line each for whichever of `k_base` (`T:`, giver's turnover
+time, `1/k_base[giver]` years), `a_vec` (`A:`, the flow's allocation fraction),
+`me_vec` (`M:`, microbial efficiency) and `qp_vec` (`Q:`, quality-partition fraction)
+is not `nothing`; `""` if none are available. The flow's index is drawn separately,
+at the start of its arrow (see `plotCarbonFlows`), so the cell is free to give these
+lines more room.
+`k_base[giver] == 0` shows `T:-` rather than dividing by zero.
+"""
+function _flowDetailLabel(flow, giver, k_base, a_vec, me_vec, qp_vec)
+    lines = String[]
+    if !isnothing(k_base)
+        k = k_base[giver]
+        push!(lines, k > 0 ? "T:$(round(1 / k, digits=1))y" : "T:-")
+    end
+    isnothing(a_vec) || push!(lines, "A:$(round(a_vec[flow], digits=2))")
+    isnothing(me_vec) || push!(lines, "M:$(round(me_vec[flow], digits=2))")
+    isnothing(qp_vec) || push!(lines, "Q:$(round(qp_vec[flow], digits=2))")
+    return join(lines, "\n")
+end
+
+"""
     _flowFanOffsets(keys_of_flows)
 
-Return one small offset per flow, spreading the flows that share a key evenly about
-zero.
-
-Every arrow leaving the same giver runs down the same column, and every arrow arriving
-at the same taker runs along the same row, so without this the segments lie on top of
-each other. Under CASA that is 22 arrows over 14 columns.
+Return one small offset per flow, spreading flows that share a key evenly about zero
+(so arrows sharing a giver/taker don't overlap).
 """
 function _flowFanOffsets(keys_of_flows)
-    # A group spans this band whatever its size, so the six arrows arriving at cSoilSlow
-    # separate as well as the two arriving at cMicSurf. Dividing by the member count
-    # instead would tighten the fan exactly where it is needed most.
+    # fixed band width regardless of group size, so a large group still separates clearly
     spread = 0.62
     offsets = zeros(length(keys_of_flows))
     for key ∈ unique(keys_of_flows)
@@ -94,44 +166,70 @@ function _flowFanOffsets(keys_of_flows)
 end
 
 """
-    plotCarbonFlows(approach)
-    plotCarbonFlows(approach, file_path)
+    plotCarbonFlows(approach; kwargs...)
+    plotCarbonFlows(approach, file_path; kwargs...)
 
-Draw the carbon pool flow topology of a `cCycleBase` approach as a square
-giver-by-taker plot, with one labelled arrow per carbon flow.
+Draw a `cCycleBase` approach's carbon flow topology as a giver-by-taker matrix, one
+labelled arrow per flow.
 
 # Arguments
-- `approach`: a `cCycleBase` approach, as a type or an instance, e.g. `cCycleBase_CASA`
-- `file_path`: where to save the figure, or `nothing` to return it without saving.
-  Defaults to `tmp_<approach>.png` in the working directory when the approach is the
-  only argument
+- `approach`: a `cCycleBase` approach, type or instance (e.g. `cCycleBase_CASA`), or
+  `nothing` to derive it from `land.models.c_model` -- only valid together with
+  `land`. Without `land`, only its type is used; any instance's own parameter values
+  are discarded (see `_syntheticCarbonLand`).
+- `file_path`: output path, or `nothing` to skip saving.
+
+# Keyword arguments
+- `land`: a `define`+`precompute`d land from a real experiment run. When given,
+  topology and T/A/M/Q come from it, not a synthetic run. Sufficient on its own;
+  `helpers` is never read for this.
+- `helpers`: optional even with `land` given; only used to read
+  `helpers.dates.temporal_resolution` for `model_timestep` below.
+- `veg_type_name`: vegetation type for the synthetic path's turnover-time tables;
+  defaults to `land.states.veg_type_name` when `land` is given, else
+  `:Evergreen_Needleleaf_Forests`. Unused when `land` is given.
+- `extra_approaches`: instances (e.g. `cQualityPartition_equal()`,
+  `cMicrobialEfficiency_constant()`) whose `define`+`precompute` run after
+  `approach`'s own, to populate M/Q beyond its built-in defaults. Ignored when
+  `land` is given.
+- `model_timestep`: the experiment's temporal resolution, for converting `land`'s
+  `c_eco_k_base` (in this unit, not years) to years for T. Defaults to
+  `helpers.dates.temporal_resolution`, else `"day"`. Ignored when `land` is not given.
 
 # Returns
-- The plot object.
+- `nothing` when saved to `file_path`; the plot object, unsaved and undisplayed, when
+  `file_path` is `nothing`.
 
 # Description
-- The pools sit on the diagonal, in `cEco` index order, named on all four sides.
-- x is the giver, y is the taker, matching the `[taker, giver]` orientation of
-  `cFlowMatrix`.
-- Each flow is an elbow leaving the giver's box, turning at the matrix cell that
-  carries it, and arriving at the taker's box; that cell is filled and numbered
-  with the flow's position in `c_flow_order`.
+- Pools sit on the diagonal in `cEco` index order, named on all four sides. x is the
+  giver, y is the taker.
+- Each flow is an elbow from the giver's box to the taker's box. Its index is drawn
+  where the arrow leaves the giver's box; the cell it turns in is labelled, where
+  available, with T (giver turnover time, years), A (the flow's allocation fraction),
+  M (microbial efficiency), and Q (quality-partition fraction).
 
 # Notes
-- Needs no experiment, no forcing and no run: the topology is declared by the approach
-  through `cFlowEdges` and `poolConfiguration`.
-- The pool structure is the one the approach is written against. An experiment whose
-  model structure JSON writes its pools out in full may configure a different one.
+- With no `land`, this needs no experiment, forcing or spatial data: a synthetic
+  `define`+`precompute` run supplies T/A/M/Q (see `_syntheticCarbonLand`); if that
+  fails for `approach`, labels fall back to the bare index.
 """
-function plotCarbonFlows(approach, file_path, ::VisualizationPlots)
+function plotCarbonFlows(approach, file_path, ::VisualizationPlots;
+        land=nothing, helpers=nothing,
+        veg_type_name::Symbol=isnothing(land) ? :Evergreen_Needleleaf_Forests : land.states.veg_type_name,
+        extra_approaches=(), model_timestep::Union{String,Nothing}=nothing)
+    if isnothing(approach)
+        isnothing(land) && error("plotCarbonFlows needs `approach`, or `land` to derive " *
+            "it from `land.models.c_model`.")
+        approach = land.models.c_model
+    end
     approach_name = nameof(approach isa Type ? approach : typeof(approach))
     pool_names, configuration_name = _carbonPoolNames(approach)
     flow_matrix = cFlowMatrix(approach, pool_names)
     n_pools = length(pool_names)
 
-    print_info(plotCarbonFlows, @__FILE__, @__LINE__, "plotting carbon flows of $(approach_name) over $(n_pools) pools", n_f=4)
+    print_info(plotCarbonFlows, @__FILE__, @__LINE__, "plotting carbon flows of $(approach_name) over $(n_pools) pools", n_f=6)
 
-    # walk the matrix in flow order, so flow k is drawn with the label k
+    # flow k's giver/taker, in flow order
     n_flows = maximum(flow_matrix)
     givers = zeros(Int, n_flows)
     takers = zeros(Int, n_flows)
@@ -142,33 +240,59 @@ function plotCarbonFlows(approach, file_path, ::VisualizationPlots)
         takers[flow] = taker
     end
 
+    # a caller-supplied land wins on topology too (may differ from approach's own
+    # poolConfiguration); the synthetic path keeps the topology derived above
+    using_real_land = !isnothing(land)
+    if using_real_land
+        # cFlowStructure's pool_names is `i => name` pairs, not bare names
+        pool_names = last.(land.cCycleBase.pool_names)
+        givers = collect(land.cCycleBase.c_giver)
+        takers = collect(land.cCycleBase.c_taker)
+        n_pools = length(pool_names)
+        n_flows = length(land.cCycleBase.c_flow_order)
+    else
+        land, helpers = _syntheticCarbonLand(approach, pool_names, veg_type_name, extra_approaches)
+    end
+    k_base = isnothing(land) ? nothing : get(land.diagnostics, :c_eco_k_base, nothing)
+    a_vec = isnothing(land) ? nothing : get(land.diagnostics, :c_flow_A_vec, nothing)
+    me_vec = isnothing(land) ? nothing : get(land.diagnostics, :c_flow_ME_vec, nothing)
+    qp_vec = isnothing(land) ? nothing : get(land.diagnostics, :c_flow_QP_vec, nothing)
+    has_details = !isnothing(k_base) || !isnothing(a_vec) || !isnothing(me_vec) || !isnothing(qp_vec)
+    # a real run's k_base is per-model-timestep, not per-year; rescale so 1/k_base reads
+    # in years (see model_timestep docs above)
+    if using_real_land && !isnothing(k_base)
+        from_helpers = isnothing(helpers) ? nothing : get(get(helpers, :dates, (;)), :temporal_resolution, nothing)
+        resolved_timestep = something(model_timestep, from_helpers, "day")
+        k_base = k_base ./ getUnitConversionForParameter("year", resolved_timestep)
+    end
+
     dx = _flowFanOffsets(givers)
     dy = _flowFanOffsets(takers)
 
     tick_labels = ["$(i). $(pool_names[i])" for i ∈ 1:n_pools]
     tick_locs = collect(1:n_pools)
-    # The room the right and top names need is all above and to the right of the pools,
-    # so the padding is asymmetric. Both axes still span the same number of units, which
-    # is what keeps the plot square under aspect_ratio=:equal.
-    limits = (1 - 0.8, n_pools + 3.2)
+    # pool-name label size, scaled down as more pools shrink the available space
+    label_fontsize = clamp(round(Int, 160 / n_pools), 8, 16)
+    # right/top padding for those labels, growing gently with their font size
+    limits = (1 - 0.8, n_pools + 3.2 + (label_fontsize - 8) * 0.2)
 
-    # Fonts are passed here rather than through plots_default, which would leak them
-    # into every other figure drawn in the same session.
-    ax = plots_plot(; size=(1400, 1400), aspect_ratio=:equal, widen=false, legend=false,
+    # fontfamily pinned explicitly: GR carries font state across figures in a session,
+    # so without this a title could inherit _INDEX_FONT ("Helvetica Bold") from a
+    # previous plot's flow labels. Canvas enlarged to offset the padding above.
+    ax = plots_plot(; size=(1600, 1600), aspect_ratio=:equal, widen=false, legend=false,
         grid=false, xrotation=90, xticks=(tick_locs, tick_labels),
         yticks=(tick_locs, tick_labels), xlims=limits, ylims=limits,
         tickdirection=:out, left_margin=15plots_mm, bottom_margin=15plots_mm,
-        top_margin=8plots_mm, right_margin=8plots_mm,
-        titlefontsize=14, tickfontsize=8, guidefontsize=11,
-        title="Carbon flows: $(approach_name) ($(configuration_name), $(n_pools) pools, $(n_flows) flows)",
+        top_margin=10plots_mm, right_margin=8plots_mm, fontfamily="Helvetica",
+        titlefontsize=16, tickfontsize=label_fontsize, guidefontsize=13,
+        title="Carbon flows: $(approach_name) ($(configuration_name), $(veg_type_name), $(n_pools) pools, $(n_flows) flows)",
         xlabel="giver (source)", ylabel="taker (target)")
 
     # faint cell boundaries, so the elbow corner can be read off as a matrix entry
     plots_vline!(ax, tick_locs .+ 0.5; color=:gainsboro, linewidth=0.6, label="")
     plots_hline!(ax, tick_locs .+ 0.5; color=:gainsboro, linewidth=0.6, label="")
 
-    # The pools, on the diagonal, drawn the same size as the flow cells below so the
-    # whole thing reads as one matrix rather than as markers with blocks around them.
+    # pools on the diagonal, same size as the flow cells below
     half_cell = 0.43
     for pool ∈ 1:n_pools
         plots_plot!(ax, pool .+ [-half_cell, half_cell, half_cell, -half_cell, -half_cell],
@@ -177,28 +301,31 @@ function plotCarbonFlows(approach, file_path, ::VisualizationPlots)
             label="")
     end
 
-    # Arrows first, then the cells on top of them, so an arrow crossing a cell it does
-    # not belong to cannot run through that cell's number.
+    # arrows drawn first so flow cells layer on top. Each flow's index is drawn near its
+    # arrow's start point, inside the giver's box, offset off the diagonal so it doesn't
+    # sit on top of the line.
+    diag_index_fontsize = clamp(round(Int, 220 / n_pools), 12, 24)
+    label_offset = half_cell * 0.35
     for flow ∈ 1:n_flows
         giver = givers[flow]
         taker = takers[flow]
         x_leg = giver + dx[flow]
         y_leg = taker + dy[flow]
         color = _CARBON_FLOW_COLORS[mod1(giver, length(_CARBON_FLOW_COLORS))]
-        # leave the giver's box, turn at the cell that carries this flow, arrive at the
-        # taker's box. Both ends are pools, so the arrow reads as source to target.
+        # elbow: giver box -> flow cell -> taker box, ending in a plain dot (arrowheads
+        # read as too heavy on these short segments)
         plots_plot!(ax, [x_leg, x_leg, y_leg], [x_leg, y_leg, y_leg];
-            color=color, linewidth=1.6, arrow=:closed, label="")
+            color=color, linewidth=1.6, label="")
+        plots_scatter!(ax, [y_leg], [y_leg]; color=color, markersize=3,
+            markerstrokewidth=0, label="")
+        plots_annotate!(ax, (x_leg - label_offset, x_leg,
+            plots_text("$(flow)", color, :center, diag_index_fontsize, _INDEX_FONT)))
     end
 
-    # The cell each flow turns in, filled and numbered. A giver-to-taker pair carries
-    # exactly one flow, so the cell needs no key beyond its own number. Drawn as a shape
-    # rather than a marker so it stays one cell wide whatever the pool count, and sized
-    # just under the cell so crossing arrows still show in the gutters.
-    # Half the pool box, so the colored cell reads as a marker on the flow rather than as
-    # a block filling the grid, and more of the arrows underneath stay visible.
-    half_flow_cell = half_cell / 2
-    index_fontsize = clamp(round(Int, 150 / n_pools), 9, 18)
+    # flow cell: filled and labelled with T/A/M/Q, sized down from half_cell so crossing
+    # arrows still show in the gutters; left as a plain color marker when none available.
+    half_flow_cell = has_details ? half_cell * 0.95 : half_cell * 0.75
+    detail_fontsize = clamp(round(Int, 120 / n_pools), 5, 10)
     for flow ∈ 1:n_flows
         giver = givers[flow]
         taker = takers[flow]
@@ -208,20 +335,20 @@ function plotCarbonFlows(approach, file_path, ::VisualizationPlots)
             taker .+ [-half_flow_cell, -half_flow_cell, half_flow_cell, half_flow_cell, -half_flow_cell];
             seriestype=:shape, fillcolor=color, fillalpha=0.9, linecolor=color,
             linewidth=0.5, label="")
-        plots_annotate!(ax, (giver, taker,
-            plots_text("$(flow)", _indexTextColor(color), :center, index_fontsize,
-                _INDEX_FONT)))
+        detail_text = _flowDetailLabel(flow, giver, k_base, a_vec, me_vec, qp_vec)
+        isempty(detail_text) || plots_annotate!(ax, (giver, taker,
+            plots_text(detail_text, _indexTextColor(color), :center, detail_fontsize, _INDEX_FONT)))
     end
 
-    # the same names again on the right and the top, as annotations: a twin axis would
-    # be a linked subplot whose limits and margins have to be kept in step with these
+    # pool names repeated on the right/top (a twin axis would need synced limits/margins)
     for i ∈ 1:n_pools
-        plots_annotate!(ax, (n_pools + 0.7, i, plots_text(tick_labels[i], :gray25, :left, 8)))
-        plots_annotate!(ax, (i, n_pools + 0.7, plots_text(tick_labels[i], :gray25, :left, 8, rotation=90)))
+        plots_annotate!(ax, (n_pools + 0.7, i, plots_text(tick_labels[i], :gray25, :left, label_fontsize)))
+        plots_annotate!(ax, (i, n_pools + 0.7, plots_text(tick_labels[i], :gray25, :left, label_fontsize, rotation=90)))
     end
 
     if !isnothing(file_path)
         plots_savefig(ax, file_path)
+        return nothing
     end
     return ax
 end
