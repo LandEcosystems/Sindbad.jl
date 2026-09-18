@@ -1,4 +1,5 @@
 export CASA
+export CASA_ABOVEGROUND_FRACTION
 export FIRE_CC_NO_BURN
 export FIRE_CC_HIGH_BURN
 
@@ -127,6 +128,25 @@ const CASA_CN_ratio = (;
     cSoilSlow = 0.0,
     cSoilOld = 0.0,
 )
+const CASA_ABOVEGROUND_FRACTION = (;
+    cVegRootFine = 0.0,
+    cVegRootCoarse = 0.0,
+    cVegWood = 1.0,
+    cVegLeaf = 1.0,
+    cLitLeafFast = 1.0,
+    cLitLeafSlow = 1.0,
+    cLitRootFineFast = 0.0,
+    cLitRootFineSlow = 0.0,
+    cLitRootCoarse = 0.0,
+    cLitWood = 1.0,
+    cMicSurf = 1.0,
+    cMicSoil = 0.0,
+    cSoilSlow = 0.25,
+    cSoilOld = 0.0,
+)
+
+abovegroundFractionTable(::Type{CASA}) = CASA_ABOVEGROUND_FRACTION
+
 """
     FIRE_CC_NO_BURN, FIRE_CC_HIGH_BURN
 

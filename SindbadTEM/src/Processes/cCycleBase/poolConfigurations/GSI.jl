@@ -1,4 +1,5 @@
 export GSI
+export GSI_ABOVEGROUND_FRACTION
 
 struct GSI <: CarbonPoolConfiguration end
 purpose(::Type{GSI}) = "GSI carbon pools: 8 pools with a vegetation reserve and litter split into fast and slow"
@@ -75,6 +76,19 @@ const GSI_CN_ratio = (;
     cVegRoot = 25.0, cVegWood = 260.0, cVegLeaf = 25.0, cVegReserve = 50.0,
     cLitFast = 0.0, cLitSlow = 0.0, cSoilSlow = 0.0, cSoilOld = 0.0,
 )
+
+const GSI_ABOVEGROUND_FRACTION = (;
+    cVegRoot = 0.0,
+    cVegWood = 1.0,
+    cVegLeaf = 1.0,
+    cVegReserve = 0.5,
+    cLitFast = 0.5,
+    cLitSlow = 1.0,
+    cSoilSlow = 0.0,
+    cSoilOld = 0.0,
+)
+
+abovegroundFractionTable(::Type{GSI}) = GSI_ABOVEGROUND_FRACTION
 
 const GSI_POOL_NAMES = propertynames(GSI_TAU_DEFAULT)
 
