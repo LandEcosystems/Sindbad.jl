@@ -24,6 +24,8 @@ poolStructure(::Type{MGMT}) = (;
 # MGMT's topology is exactly GSI's.
 cFlowEdges(::Type{MGMT}) = GSI_FLOW_EDGES
 
+abovegroundFractionTable(::Type{MGMT}) = abovegroundFractionTable(GSI)
+
 """
     MGMT_PRODUCTS_TAU
 

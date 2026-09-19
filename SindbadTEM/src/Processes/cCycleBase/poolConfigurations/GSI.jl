@@ -81,9 +81,9 @@ const GSI_ABOVEGROUND_FRACTION = (;
     cVegRoot = 0.0,
     cVegWood = 1.0,
     cVegLeaf = 1.0,
-    cVegReserve = 0.5,
+    cVegReserve = 0.75,
     cLitFast = 0.5,
-    cLitSlow = 1.0,
+    cLitSlow = 0.75,
     cSoilSlow = 0.0,
     cSoilOld = 0.0,
 )
@@ -106,7 +106,7 @@ function fireCCTable(::Type{GSI})
     return merge(
         deriveFireCCTable(CASA_FIRE_CC_VANDERWERF, GSI_POOL_NAMES, CASA),
         (;
-            cVegRoot = FIRE_CC_NO_BURN,           # CASA generates cVegRoot from Root.{Fine,Coarse} nesting, not a poolAlias
+            cVegRoot = FIRE_CC_LO_BURN,           # CASA generates cVegRoot from Root.{Fine,Coarse} nesting, not a poolAlias
             cVegReserve = (0.2f0, 0.3f0, 1.0f0),  # no CASA counterpart at all; matches cVegWood's value, same as the old cc_lut's cVegReserve => fcc_stem mapping
         ),
     )
