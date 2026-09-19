@@ -6,7 +6,7 @@ struct cCycleDisturbance_cFlow <: cCycleDisturbance end
 
 function define(params::cCycleDisturbance_cFlow, forcing, land, helpers)
     @unpack_nt begin
-        (c_giver, c_taker) ⇐ land.constants
+        (c_giver, c_taker) ⇐ land.cCycleBase
         (z_zero, o_one) ⇐ land.constants
         cVeg ⇐ land.pools
     end
@@ -35,7 +35,8 @@ function compute(params::cCycleDisturbance_cFlow, forcing, land, helpers)
     @unpack_nt begin
         (zix_veg_all, c_lose_to_zix_vec) ⇐ land.cCycleDisturbance
         cEco ⇐ land.pools
-        (c_giver, c_taker, z_zero) ⇐ land.constants
+        (c_giver, c_taker) ⇐ land.cCycleBase
+        z_zero ⇐ land.constants
         c_model ⇐ land.models
         c_remain ⇐ land.states
     end

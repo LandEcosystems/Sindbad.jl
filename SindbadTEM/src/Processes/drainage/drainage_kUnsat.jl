@@ -32,7 +32,7 @@ function compute(params::drainage_kUnsat, forcing, land, helpers)
         k = unsatK(land, helpers, sl, unsat_k_model)
         drain = min(k, holdCap, lossCap)
         tmp = drain > tolerance ? drain : zero(drain)
-        @rep_elem tmp ⇒ (drainage, sl, :soilW)
+        @rep_elem tmp ⇒ (drainage, sl)
         @add_to_elem -tmp ⇒ (ΔsoilW, sl, :soilW)
         @add_to_elem tmp ⇒ (ΔsoilW, sl + 1, :soilW)
     end

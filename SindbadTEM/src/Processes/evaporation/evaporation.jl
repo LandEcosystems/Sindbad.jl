@@ -23,7 +23,7 @@ function update(params::evaporation, forcing, land, helpers)
 
     @add_to_elem ΔsoilW[1] ⇒ (soilW, 1, :soilW)
 
-    @rep_elem zero(ΔsoilW) ⇒ (ΔsoilW, 1, :soilW)
+    @rep_elem zero(ΔsoilW) ⇒ (ΔsoilW, 1)
 
     ## pack land variables
     @pack_nt begin

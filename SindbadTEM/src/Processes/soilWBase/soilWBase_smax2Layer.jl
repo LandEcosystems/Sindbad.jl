@@ -42,10 +42,10 @@ function compute(params::soilWBase_smax2Layer, forcing, land, helpers)
     ## calculate variables
     # set the properties for each soil layer
     # 1st layer
-    @rep_elem smax1 * soil_layer_thickness[1] ⇒ (w_sat, 1, :soilW)
-    @rep_elem smax2 * soil_layer_thickness[2] ⇒ (w_sat, 2, :soilW)
-    @rep_elem smax1 * soil_layer_thickness[1] ⇒ (w_fc, 1, :soilW)
-    @rep_elem smax2 * soil_layer_thickness[2] ⇒ (w_fc, 2, :soilW)
+    @rep_elem smax1 * soil_layer_thickness[1] ⇒ (w_sat, 1)
+    @rep_elem smax2 * soil_layer_thickness[2] ⇒ (w_sat, 2)
+    @rep_elem smax1 * soil_layer_thickness[1] ⇒ (w_fc, 1)
+    @rep_elem smax2 * soil_layer_thickness[2] ⇒ (w_fc, 2)
 
     # get the plant available water available (all the water is plant available)
     w_awc = w_sat

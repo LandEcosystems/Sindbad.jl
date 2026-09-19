@@ -249,7 +249,11 @@ Sets up model run flags and output array types for the experiment.
 function setModelRunInfo(info::NamedTuple)
     print_info(setModelRunInfo, @__FILE__, @__LINE__, "setting Model Run Flags...")
     if info.settings.experiment.flags.run_optimization
+        # consistency checks (cCycleConsistency_simple, waterBalance_simple) must never run during optimization
         info = @set info.settings.experiment.flags.catch_model_errors = false
+    else
+        # ...and must always run, unconditionally, during forward/cost runs, regardless of the user's setting
+        info = @set info.settings.experiment.flags.catch_model_errors = true
     end
     run_vals = convertRunFlagsToTypes(info)
     # check if lazy run is set, and if so, set output array type to YAXArray regardless of the setting in json, as well as land output type to YAXArray

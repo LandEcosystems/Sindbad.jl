@@ -30,7 +30,15 @@ using Sindbad, Plots
 
 plotPerformanceHistograms(opt_results)
 plotIOModelStructure(info)
+plotCarbonFlows(cCycleBase_CASA)  # writes tmp_cCycleBase_CASA.png
 ```
+
+`plotCarbonFlows` draws the carbon pool flow topology of a `cCycleBase` approach as a
+square giver-by-taker plot. It needs no experiment and no run, so it takes no `info`
+and always asks for the `Plots` backend, degrading to the same info message when
+`Plots` is not loaded. Called with the approach alone it writes
+`tmp_<approach>.png`; a second argument names the file, or `nothing` suppresses the
+write.
 """
 module Visualization
     using SindbadTEM.OmniTools
@@ -41,6 +49,7 @@ module Visualization
     export plotTimeSeriesWithObs
     export plotTimeSeriesDebug
     export plotIOModelStructure
+    export plotCarbonFlows
 
     # Thin convenience wrappers: resolve the configured visualization backend from `info`
     # (or `out`/`out_opti`, which carry `.info`) and forward to the 4-arg method that
@@ -95,6 +104,22 @@ module Visualization
         return plotTimeSeries(out.info, obs_array, cost_options, out.output, _resolvedBackend(plotTimeSeries, backend, out.info, obs_array, cost_options, out.output))
     end
 
+    # plotCarbonFlows takes a cCycleBase approach rather than an `info`, so there is no
+    # configured backend to read. Naming VisualizationPlots() as the wanted one lets
+    # _resolvedBackend downgrade to VisualizationTypes() when SindbadPlotsExt is not
+    # loaded, which is also what makes the fallback message say "`Plots` is not loaded"
+    # rather than "nothing was configured".
+    # The one-argument form saves to `tmp_<approach>.png` in the working directory, so
+    # a call at the REPL leaves a file to open rather than a plot object to figure out
+    # what to do with. Pass `nothing` as the second argument to get the object back
+    # without writing anything.
+    plotCarbonFlows(approach) = plotCarbonFlows(approach, "tmp_$(nameof(approach isa Type ? approach : typeof(approach))).png")
+
+    function plotCarbonFlows(approach, file_path)
+        backend = VisualizationPlots()
+        return plotCarbonFlows(approach, file_path, _resolvedBackend(plotCarbonFlows, backend, approach, file_path))
+    end
+
     plotIOModelStructure(info) = plotIOModelStructure(info, :compute)
     plotIOModelStructure(info, which_function) = plotIOModelStructure(info, which_function, [:input, :output])
     function plotIOModelStructure(info, which_function, which_field)
@@ -144,6 +169,11 @@ module Visualization
     # still degrades gracefully when no Plots backend is loaded.
     function plotTimeSeries(info, obs_array, cost_options, def_dat, ::VisualizationTypes)
         print_info(plotTimeSeries, @__FILE__, @__LINE__, _visualizationFallbackMessage(plotTimeSeries, info.helpers.run.visualization_backend), n_f=4)
+        return nothing
+    end
+
+    function plotCarbonFlows(approach, file_path, ::VisualizationTypes)
+        print_info(plotCarbonFlows, @__FILE__, @__LINE__, _visualizationFallbackMessage(plotCarbonFlows, VisualizationPlots()), n_f=4)
         return nothing
     end
 

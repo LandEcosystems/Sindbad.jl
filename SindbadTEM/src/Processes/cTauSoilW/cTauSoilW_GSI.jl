@@ -40,7 +40,7 @@ function compute(params::cTauSoilW_GSI, forcing, land, helpers)
     soilW_top_sc = fSoilW_cTau(w_one, opt_soilW_A, opt_soilW_B, w_exp, opt_soilW, soilW_top)
     cLitZix = getZix(cLit, helpers.pools.zix.cLit)
     for l_zix ∈ cLitZix
-        @rep_elem soilW_top_sc ⇒ (c_eco_k_f_soilW, l_zix, :cEco)
+        @rep_elem soilW_top_sc ⇒ (c_eco_k_f_soilW, l_zix)
     end
 
     ## repeat for the soil pools; using all soil moisture layers
@@ -49,7 +49,7 @@ function compute(params::cTauSoilW_GSI, forcing, land, helpers)
 
     cSoilZix = getZix(cSoil, helpers.pools.zix.cSoil)
     for s_zix ∈ cSoilZix
-        @rep_elem soilW_all_sc ⇒ (c_eco_k_f_soilW, s_zix, :cEco)
+        @rep_elem soilW_all_sc ⇒ (c_eco_k_f_soilW, s_zix)
     end
 
     ## pack land variables

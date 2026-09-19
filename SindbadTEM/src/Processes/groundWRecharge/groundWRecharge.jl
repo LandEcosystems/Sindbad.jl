@@ -27,10 +27,10 @@ function update(params::groundWRecharge, forcing, land, helpers)
 
     groundW = addVec(groundW, ΔgroundW)
 
-	@rep_elem zero(eltype(ΔsoilW)) ⇒ (ΔsoilW, last_soilW, :snowW)
+	@rep_elem zero(eltype(ΔsoilW)) ⇒ (ΔsoilW, last_soilW)
 
     for l in eachindex(ΔgroundW)
-        @rep_elem zero(eltype(ΔgroundW)) ⇒ (ΔgroundW, l, :groundW)
+        @rep_elem zero(eltype(ΔgroundW)) ⇒ (ΔgroundW, l)
     end
 
     ## pack land variables

@@ -32,10 +32,10 @@ function compute(params::gppDemand_mult, forcing, land, helpers)
     end
 
     # set 3d scalar matrix with current scalars
-    gpp_climate_stressors = repElem(gpp_climate_stressors, gpp_f_airT, gpp_climate_stressors, gpp_climate_stressors, 1)
-    gpp_climate_stressors = repElem(gpp_climate_stressors, gpp_f_vpd, gpp_climate_stressors, gpp_climate_stressors, 2)
-    gpp_climate_stressors = repElem(gpp_climate_stressors, gpp_f_light, gpp_climate_stressors, gpp_climate_stressors, 3)
-    gpp_climate_stressors = repElem(gpp_climate_stressors, gpp_f_cloud, gpp_climate_stressors, gpp_climate_stressors, 4)
+    gpp_climate_stressors = repElem(gpp_climate_stressors, gpp_f_airT, 1)
+    gpp_climate_stressors = repElem(gpp_climate_stressors, gpp_f_vpd, 2)
+    gpp_climate_stressors = repElem(gpp_climate_stressors, gpp_f_light, 3)
+    gpp_climate_stressors = repElem(gpp_climate_stressors, gpp_f_cloud, 4)
 
     # compute the product of all the scalars
     gpp_f_climate = gpp_f_light * gpp_f_cloud * gpp_f_airT * gpp_f_vpd
