@@ -25,7 +25,7 @@ function (cEco_spin::Spinup_cEco)(pout, p)
 
     cEco = land.pools.cEco
     for (lc, l) in enumerate(zix.cEco)
-        @rep_elem pout[l] ⇒ (cEco, lc, :cEco)
+        @rep_elem pout[l] ⇒ (cEco, lc)
     end
     @pack_nt cEco ⇒ land.pools
     land = SindbadTEM.adjustPackPoolComponents(land, helpers, land.models.c_model)
@@ -57,7 +57,7 @@ function (cEco_TWS_spin::Spinup_cEco_TWS)(pout, p)
 
     cEco = land.pools.cEco
     for (lc, l) in enumerate(zix.cEco)
-        @rep_elem pout[l] ⇒ (cEco, lc, :cEco)
+        @rep_elem pout[l] ⇒ (cEco, lc)
     end
     @pack_nt cEco ⇒ land.pools
     land = SindbadTEM.adjustPackPoolComponents(land, helpers, land.models.c_model)
@@ -201,15 +201,15 @@ function spinup(_, _, _, land, helpers, _, ::EtaScaleAH)
     end
     for cSoilZix ∈ helpers.pools.zix.cSoil
         cSoilNew = cEco[cSoilZix] * ηH
-        @rep_elem cSoilNew ⇒ (cEco, cSoilZix, :cEco)
+        @rep_elem cSoilNew ⇒ (cEco, cSoilZix)
     end
     for cLitZix ∈ helpers.pools.zix.cLit
         cLitNew = cEco[cLitZix] * ηH
-        @rep_elem cLitNew ⇒ (cEco, cLitZix, :cEco)
+        @rep_elem cLitNew ⇒ (cEco, cLitZix)
     end
     for cVegZix ∈ helpers.pools.zix.cVeg
         cVegNew = cEco[cVegZix] * ηA
-        @rep_elem cVegNew ⇒ (cEco, cVegZix, :cEco)
+        @rep_elem cVegNew ⇒ (cEco, cVegZix)
     end
     @pack_nt cEco ⇒ land.pools
     land = SindbadTEM.adjustPackPoolComponents(land, helpers, land.models.c_model)
@@ -232,11 +232,11 @@ function spinup(_, _, _, land, helpers, _, ::EtaScaleAHCWD)
     end
     for cLitZix ∈ helpers.pools.zix.cLitSlow
         cLitNew = cEco[cLitZix] * ηH
-        @rep_elem cLitNew ⇒ (cEco, cLitZix, :cEco)
+        @rep_elem cLitNew ⇒ (cEco, cLitZix)
     end
     for cVegZix ∈ helpers.pools.zix.cVeg
         cVegNew = cEco[cVegZix] * ηA
-        @rep_elem cVegNew ⇒ (cEco, cVegZix, :cEco)
+        @rep_elem cVegNew ⇒ (cEco, cVegZix)
     end
     @pack_nt cEco ⇒ land.pools
     land = SindbadTEM.adjustPackPoolComponents(land, helpers, land.models.c_model)
@@ -257,18 +257,18 @@ function spinup(_, _, _, land, helpers, _, ::EtaScaleA0H)
     end
     for cSoilZix ∈ helpers.pools.zix.cSoil
         cSoilNew = cEco[cSoilZix] * ηH
-        @rep_elem cSoilNew ⇒ (cEco, cSoilZix, :cEco)
+        @rep_elem cSoilNew ⇒ (cEco, cSoilZix)
     end
 
     for cLitZix ∈ helpers.pools.zix.cLit
         cLitNew = cEco[cLitZix] * ηH
-        @rep_elem cLitNew ⇒ (cEco, cLitZix, :cEco)
+        @rep_elem cLitNew ⇒ (cEco, cLitZix)
     end
 
     for cVegZix ∈ helpers.pools.zix.cVeg
         cLoss = at_least_zero(cEco[cVegZix] - c_remain)
         cVegNew = cEco[cVegZix] - cLoss
-        @rep_elem cVegNew ⇒ (cEco, cVegZix, :cEco)
+        @rep_elem cVegNew ⇒ (cEco, cVegZix)
     end
 
     @pack_nt cEco ⇒ land.pools
@@ -291,13 +291,13 @@ function spinup(_, _, _, land, helpers, _, ::EtaScaleA0HCWD)
 
     for cLitZix ∈ helpers.pools.zix.cLitSlow
         cLitNew = cEco[cLitZix] * ηH
-        @rep_elem cLitNew ⇒ (cEco, cLitZix, :cEco)
+        @rep_elem cLitNew ⇒ (cEco, cLitZix)
     end
 
     for cVegZix ∈ helpers.pools.zix.cVeg
         cLoss = at_least_zero(cEco[cVegZix] - c_remain)
         cVegNew = cEco[cVegZix] - cLoss
-        @rep_elem cVegNew ⇒ (cEco, cVegZix, :cEco)
+        @rep_elem cVegNew ⇒ (cEco, cVegZix)
     end
 
     @pack_nt cEco ⇒ land.pools
