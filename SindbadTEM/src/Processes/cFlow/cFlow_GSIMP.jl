@@ -1,7 +1,7 @@
-export cFlow_GSI
+export cFlow_GSIMP
 
 #! format: off
-@bounds @describe @units @timescale @with_kw struct cFlow_GSI{T1,T2,T3,T4} <: cFlow
+@bounds @describe @units @timescale @with_kw struct cFlow_GSIMP{T1,T2,T3,T4} <: cFlow
     slope_leaf_root_to_reserve::T1 = 0.14 | (0.033, 0.33) | "Leaf-Root to Reserve" | "fraction" | "day"
     slope_reserve_to_leaf_root::T2 = 0.14 | (0.033, 0.33) | "Reserve to Leaf-Root" | "fraction" | "day"
     k_shedding::T3 = 0.14 | (0.033, 0.33) | "rate of shedding" | "fraction" | "day"
@@ -9,8 +9,8 @@ export cFlow_GSI
 end
 #! format: on
 
-function define(params::cFlow_GSI, forcing, land, helpers)
-    @unpack_cFlow_GSI params
+function define(params::cFlow_GSIMP, forcing, land, helpers)
+    @unpack_cFlow_GSIMP params
     @unpack_nt begin
         soilW ⇐ land.pools
         ∑w_sat ⇐ land.properties
@@ -32,7 +32,7 @@ function define(params::cFlow_GSI, forcing, land, helpers)
     return land
 end
 
-function adjust_pk(c_eco_k, kValue, flowValue, maxValue, zix, helpers)
+function adjust_pk_GSIMP(c_eco_k, kValue, flowValue, maxValue, zix, helpers)
     c_eco_k_f_sum = zero(eltype(c_eco_k))
     c_eco_k_sum = zero(eltype(c_eco_k))
     for ix ∈ zix
@@ -47,9 +47,9 @@ function adjust_pk(c_eco_k, kValue, flowValue, maxValue, zix, helpers)
     return c_eco_k, c_eco_k_f_sum, c_eco_k_sum
 end
 
-function compute(params::cFlow_GSI, forcing, land, helpers)
+function compute(params::cFlow_GSIMP, forcing, land, helpers)
     ## unpack parameters
-    @unpack_cFlow_GSI params
+    @unpack_cFlow_GSIMP params
     ## unpack land variables
     @unpack_nt begin
         (c_giver, c_taker) ⇐ land.cCycleBase
@@ -106,15 +106,15 @@ function compute(params::cFlow_GSI, forcing, land, helpers)
     Re2R_i = has_reserve_to_root ? reserve_to_leaf_root * (one(Re2L_i) - w) : zero(reserve_to_leaf_root)
 
     # adjust the outflow rate from the flow pools
-    c_eco_k, leaf_k_f_sum, leaf_k_sum = adjust_pk(c_eco_k, k_shedding_leaf, leaf_to_reserve, one(leaf_to_reserve), helpers.pools.zix.cVegLeaf, helpers)
+    c_eco_k, leaf_k_f_sum, leaf_k_sum = adjust_pk_GSIMP(c_eco_k, k_shedding_leaf, leaf_to_reserve, one(leaf_to_reserve), helpers.pools.zix.cVegLeaf, helpers)
     leaf_to_reserve_frac = safe_divide(leaf_to_reserve * length(zix_cVegLeaf), leaf_k_f_sum)
     k_shedding_leaf_frac = safe_divide(leaf_k_sum, leaf_k_f_sum)
 
-    c_eco_k, root_k_f_sum, root_k_sum = adjust_pk(c_eco_k, k_shedding_root, root_to_reserve, one(root_to_reserve), helpers.pools.zix.cVegRoot, helpers)
+    c_eco_k, root_k_f_sum, root_k_sum = adjust_pk_GSIMP(c_eco_k, k_shedding_root, root_to_reserve, one(root_to_reserve), helpers.pools.zix.cVegRoot, helpers)
     root_to_reserve_frac = safe_divide(root_to_reserve * length(zix_cVegRoot), root_k_f_sum)
     k_shedding_root_frac = safe_divide(root_k_sum, root_k_f_sum)
 
-    c_eco_k, reserve_k_f_sum, reserve_k_sum = adjust_pk(c_eco_k, zero(Re2L_i), Re2R_i + Re2L_i, one(Re2R_i), helpers.pools.zix.cVegReserve, helpers)
+    c_eco_k, reserve_k_f_sum, reserve_k_sum = adjust_pk_GSIMP(c_eco_k, zero(Re2L_i), Re2R_i + Re2L_i, one(Re2R_i), helpers.pools.zix.cVegReserve, helpers)
     reserve_to_leaf_frac = safe_divide(Re2L_i * length(zix_cVegReserve), reserve_k_f_sum)
     reserve_to_root_frac = safe_divide(Re2R_i * length(zix_cVegReserve), reserve_k_f_sum)
     k_shedding_reserve = reserve_k_sum
@@ -176,11 +176,11 @@ function compute(params::cFlow_GSI, forcing, land, helpers)
     return land
 end
 
-purpose(::Type{cFlow_GSI}) = "Carbon transfer rates between pools based on the GSI approach, using stressors such as soil moisture, temperature, and light."
+purpose(::Type{cFlow_GSIMP}) = "Carbon transfer rates between pools based on the GSI approach, using stressors such as soil moisture, temperature, and light."
 
 @doc """
 
-$(getModelDocString(cFlow_GSI))
+$(getModelDocString(cFlow_GSIMP))
 
 
 ---
@@ -218,4 +218,4 @@ GSI flow adjustments:
  - Route non-reserve vegetation turnover to litter and reserve turnover to leaf/root/litter.
  - Preserve full turnover partitioning so outgoing flow fractions account for the giver's turnover.
 """
-cFlow_GSI
+cFlow_GSIMP
