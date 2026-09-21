@@ -1,10 +1,10 @@
-export cCycleFire
+export cFire
 
 #! format: off
-struct cCycleFire_simple <: cCycleFire end
+struct cFire_simple <: cFire end
 #! format: on
 
-function define(params::cCycleFire_simple, forcing, land, helpers)
+function define(params::cFire_simple, forcing, land, helpers)
     @unpack_nt cEco ⇐ land.pools
 
     # initialize disturbance outputs
@@ -18,7 +18,7 @@ function define(params::cCycleFire_simple, forcing, land, helpers)
     return land
 end
 
-function compute(params::cCycleFire_simple, forcing, land, helpers)
+function compute(params::cFire_simple, forcing, land, helpers)
     ## unpack disturbance variables
     @unpack_nt begin
         # for vegetation die-off
@@ -56,9 +56,9 @@ function compute(params::cCycleFire_simple, forcing, land, helpers)
 
             #=
             # deplete pool
-            @add_to_elem -cLoss ⇒ (cEco, c_giver[fO], :cEco)
+            @add_to_elem -cLoss ⇒ (cEco, c_giver[fO])
             # transfer non combusted part
-            @add_to_elem cLossNonFire ⇒ (cEco, c_taker[fO], :cEco)
+            @add_to_elem cLossNonFire ⇒ (cEco, c_taker[fO])
             # feed c_fire_efflux and c_fire_mortality (@rep_elem)
             @add_to_elem cLossFire ⇒ (c_fire_efflux, c_giver[fO])
             @add_to_elem cLoss ⇒ (c_fire_mortality, c_giver[fO])
@@ -72,7 +72,7 @@ function compute(params::cCycleFire_simple, forcing, land, helpers)
             cLoss = at_least_zero(cEco[zix] * f_loss)
             #=
             # deplete pool
-            @add_to_elem -cLoss ⇒ (cEco, zix, :cEco) 
+            @add_to_elem -cLoss ⇒ (cEco, zix) 
             =#
             @rep_elem cLoss ⇒ (c_fire_efflux, zix)
         end
@@ -90,11 +90,11 @@ function compute(params::cCycleFire_simple, forcing, land, helpers)
     return land
 end
 
-purpose(::Type{cCycleFire_simple}) = "This is used for vegetation die-off and fire disturbance events. Moves carbon in reserve pool to slow litter pool, and all other carbon pools except reserve pool to their respective carbon flow target pools during disturbance events."
+purpose(::Type{cFire_simple}) = "This is used for vegetation die-off and fire disturbance events. Moves carbon in reserve pool to slow litter pool, and all other carbon pools except reserve pool to their respective carbon flow target pools during disturbance events."
 
 @doc """
 
-$(getModelDocString(cCycleFire_simple))
+$(getModelDocString(cFire_simple))
 
 ---
 
@@ -103,4 +103,4 @@ $(getModelDocString(cCycleFire_simple))
 *Created by*
     - Nuno | nunocarvalhais
 """
-cCycleFire_simple
+cFire_simple

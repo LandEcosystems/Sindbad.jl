@@ -22,7 +22,7 @@ function update(params::groundWRecharge, forcing, land, helpers)
 
     ## update storage pools
 	last_soilW = lastindex(soilW)
-	@add_to_elem ΔsoilW[last_soilW] ⇒ (soilW, last_soilW, :soilW)
+	@add_to_elem ΔsoilW[last_soilW] ⇒ (soilW, last_soilW)
 
 
     groundW = addVec(groundW, ΔgroundW)

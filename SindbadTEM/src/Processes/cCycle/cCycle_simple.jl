@@ -77,7 +77,7 @@ function compute(params::cCycle_simple, forcing, land, helpers)
     for cl ∈ eachindex(cEco)
         tmp_delta = c_eco_flow[cl] + c_eco_influx[cl] - c_eco_out[cl]
         ΔcEco_cl = tmp_delta
-        @add_to_elem ΔcEco_cl ⇒ (ΔcEco, cl, :cEco)
+        @add_to_elem ΔcEco_cl ⇒ (ΔcEco, cl)
         cEco_cl = cEco[cl] + tmp_delta
         @rep_elem cEco_cl ⇒ (cEco, cl)
     end

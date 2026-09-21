@@ -112,25 +112,25 @@ function compute(params::cCycleManagement_Harvest, forcing, land, helpers)
         cLoss = at_least_zero(cMortality - cExport) # should not be needed...
 
         # deplet the cVeg carbon that goes to the litter / soil pools
-        @add_to_elem -cLoss ⇒ (cEco, zixVeg, :cEco)
+        @add_to_elem -cLoss ⇒ (cEco, zixVeg)
 
         # transfer non exported part
         c_lose_to_zix = c_lose_to_zix_vec[zixVeg]
         for tZ ∈ eachindex(c_lose_to_zix)
             tarZix = c_lose_to_zix[tZ]
             toGain = cLoss / oftype(cLoss, length(c_lose_to_zix))
-            @add_to_elem toGain ⇒ (cEco, tarZix, :cEco)
+            @add_to_elem toGain ⇒ (cEco, tarZix)
         end
 
         # deplet the cVeg carbon that goes to the export pools
-        @add_to_elem -cExport ⇒ (cEco, zixVeg, :cEco)
+        @add_to_elem -cExport ⇒ (cEco, zixVeg)
         
         # export to crop products
         c_lose_to_zix = helpers.pools.zix.cProductsCrop
         for tZ ∈ eachindex(c_lose_to_zix)
             tarZix = c_lose_to_zix[tZ]
             toGain = c_Crop_Harvest_Product[zixVeg] / oftype(c_Crop_Harvest_Product[zixVeg], length(c_lose_to_zix))
-            @add_to_elem toGain ⇒ (cEco, tarZix, :cEco)
+            @add_to_elem toGain ⇒ (cEco, tarZix)
         end
         
         # export to wood products
@@ -138,7 +138,7 @@ function compute(params::cCycleManagement_Harvest, forcing, land, helpers)
         for tZ ∈ eachindex(c_lose_to_zix)
             tarZix = c_lose_to_zix[tZ]
             toGain = c_Wood_Harvest_Product[zixVeg] / oftype(c_Wood_Harvest_Product[zixVeg], length(c_lose_to_zix))
-            @add_to_elem toGain ⇒ (cEco, tarZix, :cEco)
+            @add_to_elem toGain ⇒ (cEco, tarZix)
         end
     end
 

@@ -46,8 +46,8 @@ function compute(params::drainage_dos, forcing, land, helpers)
         drain = min(drainage_tmp, holdCap, lossCap)
         tmp = drain > tolerance ? drain : zero(drain)
         @rep_elem tmp ⇒ (drainage, sl)
-        @add_to_elem -tmp ⇒ (ΔsoilW, sl, :soilW)
-        @add_to_elem tmp ⇒ (ΔsoilW, sl + 1, :soilW)
+        @add_to_elem -tmp ⇒ (ΔsoilW, sl)
+        @add_to_elem tmp ⇒ (ΔsoilW, sl + 1)
     end
     @rep_elem z_zero ⇒ (drainage, lastindex(drainage))
     ## pack land variables

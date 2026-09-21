@@ -39,9 +39,9 @@ function compute(params::cDieBack_ImplicitResprout, forcing, land, helpers)
             cLoss = at_least_zero(cEco[c_giver[fO]] - c_remain * frac_lives) * f_dist_intensity * c_flow_QP_vec[fO]
             #=
             # deplete pool
-            @add_to_elem -cLoss ⇒ (cEco, c_giver[fO], :cEco)
+            @add_to_elem -cLoss ⇒ (cEco, c_giver[fO])
             # transfer to litter
-            @add_to_elem cLoss ⇒ (cEco, c_taker[fO], :cEco)
+            @add_to_elem cLoss ⇒ (cEco, c_taker[fO])
             =#
             # track mortality
             @add_to_elem cLoss ⇒ (c_disturbance_mortality, c_giver[fO])

@@ -9,7 +9,7 @@ end
 
 function compute(params::cFlowLitterfall_GSI, forcing, land, helpers)
     ## unpack parameters
-    @unpack_cFlow_GSI params
+    @unpack_cFlowLitterfall_GSI params
     ## unpack land variables
     @unpack_nt begin
         slope_eco_stressor  ⇐ land.diagnostics

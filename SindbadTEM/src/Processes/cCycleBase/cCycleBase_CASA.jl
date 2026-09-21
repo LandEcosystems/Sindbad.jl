@@ -68,9 +68,9 @@ end
     k_c_soilslow_scalar::T9 = 1.0 | (0.25, 4) | "scalar for turnover rate of soil slow carbon pool" | "year-1" | "year"
     k_c_soilold_scalar::T10 = 1.0 | (0.25, 4) | "scalar for turnover rate of soil old carbon pool" | "year-1" | "year"
 
-    α_k_cVeg::T11 = 1.0 | (0.25, 4.0) | "scalar for turnover rate of all vegetation carbon pools; it has no timescale, since it scales the original pool level k." | "-" | ""
-    α_k_cLit::T12 = 1.0 | (0.25, 4) | "scalar for turnover rate of all litter carbon pools; it has no timescale, since it scales the original pool level k." | "-" | ""
-    α_k_cSoil::T13 = 1.0 | (0.25, 4) | "scalar for turnover rate of all soil carbon pools; it has no timescale, since it scales the original pool level k." | "-" | ""
+    α_k_c_veg::T11 = 1.0 | (0.25, 4.0) | "scalar for turnover rate of all vegetation carbon pools; it has no timescale, since it scales the original pool level k." | "-" | ""
+    α_k_c_lit::T12 = 1.0 | (0.25, 4) | "scalar for turnover rate of all litter carbon pools; it has no timescale, since it scales the original pool level k." | "-" | ""
+    α_k_c_soil::T13 = 1.0 | (0.25, 4) | "scalar for turnover rate of all soil carbon pools; it has no timescale, since it scales the original pool level k." | "-" | ""
     α_k_cMic::T14 = 1.0 | (0.25, 4) | "scalar for turnover rate of all microbial carbon pools; it has no timescale, since it scales the original pool level k." | "-" | ""
 
     CN_ratio_scalar::T15 = 1.0 | (0.25, 4.0) | "scalar for the vegetation carbon-to-nitrogen ratio" | "-" | ""
@@ -198,23 +198,23 @@ function precompute(params::cCycleBase_CASA, forcing, land, helpers)
         cVegWood = getproperty(wood_age_per_vegtype, veg_type_name),
     )
     casa_k_veg_scalars = (;
-        cVegRootFine = k_c_rootfine_scalar * α_k_cVeg, 
-        cVegLeaf = k_c_leaf_scalar * α_k_cVeg,
-        cVegRootCoarse = k_c_rootcoarse_scalar * α_k_cVeg, 
-        cVegWood = k_c_wood_scalar * α_k_cVeg,
+        cVegRootFine = k_c_rootfine_scalar * α_k_c_veg, 
+        cVegLeaf = k_c_leaf_scalar * α_k_c_veg,
+        cVegRootCoarse = k_c_rootcoarse_scalar * α_k_c_veg, 
+        cVegWood = k_c_wood_scalar * α_k_c_veg,
     )
 
     casa_k_non_veg_scalars = (;
-        cLitLeafFast = k_c_litfast_scalar * α_k_cLit,
-        cLitLeafSlow = k_c_litslow_scalar * α_k_cLit,
-        cLitRootFineFast = k_c_litfast_scalar * α_k_cLit,
-        cLitRootFineSlow = k_c_litslow_scalar * α_k_cLit,
-        cLitRootCoarse = k_c_litslow_scalar * α_k_cLit,
-        cLitWood = k_c_litslow_scalar * α_k_cLit,
+        cLitLeafFast = k_c_litfast_scalar * α_k_c_lit,
+        cLitLeafSlow = k_c_litslow_scalar * α_k_c_lit,
+        cLitRootFineFast = k_c_litfast_scalar * α_k_c_lit,
+        cLitRootFineSlow = k_c_litslow_scalar * α_k_c_lit,
+        cLitRootCoarse = k_c_litslow_scalar * α_k_c_lit,
+        cLitWood = k_c_litslow_scalar * α_k_c_lit,
         cMicSurf = k_c_micsurf_scalar * α_k_cMic,
         cMicSoil = k_c_micsoil_scalar * α_k_cMic,
-        cSoilSlow = k_c_soilslow_scalar * α_k_cSoil,
-        cSoilOld = k_c_soilold_scalar * α_k_cSoil,
+        cSoilSlow = k_c_soilslow_scalar * α_k_c_soil,
+        cSoilOld = k_c_soilold_scalar * α_k_c_soil,
     )
 
     c_eco_k_base = getKfromTau(c_eco_k_base, casa_tau_default_veg_pools, casa_k_veg_scalars, helpers)

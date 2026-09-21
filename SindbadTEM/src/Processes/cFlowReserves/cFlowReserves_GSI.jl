@@ -10,7 +10,7 @@ end
 
 function compute(params::cFlowReserves_GSI, forcing, land, helpers)
     ## unpack parameters
-    @unpack_cFlow_GSI params
+    @unpack_cFlowReserves_GSI params
     ## unpack land variables
     @unpack_nt begin
         (c_allocation_f_soilW, c_allocation_f_soilT, c_allocation_f_cloud, 

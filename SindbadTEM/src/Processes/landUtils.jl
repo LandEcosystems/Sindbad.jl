@@ -22,14 +22,13 @@ import StaticArraysCore: SVector, StaticArray
 Macro to add a value to an element of a vector or static vector.
 
 # Arguments
-- `outparams::Expr`: Expression in the form `value ⇒ (vector, index, pool_name)`
+- `outparams::Expr`: Expression in the form `value ⇒ (vector, index)`
 
 # Examples
 ```jldoctest
 julia> using StaticArraysCore: SVector
-julia> helpers = (; pools = (; zeros = (; cOther = SVector(0.0f0, 0.0f0),),))
 julia> cOther = SVector(100.0f0, 1.0f0)
-julia> @add_to_elem 1.0f0 ⇒ (cOther, 1, :cOther)
+julia> @add_to_elem 1.0f0 ⇒ (cOther, 1)
 julia> cOther
 2-element SVector{2, Float32} with indices SOneTo(2):
  101.0f0
@@ -45,7 +44,6 @@ macro add_to_elem(outparams::Expr)
     rhsa = rhs.args
     tar = esc(rhsa[1])
     indx = rhsa[2]
-    hp_pool = rhsa[3]
     outCode = [
         Expr(:(=),
             tar,
@@ -53,7 +51,6 @@ macro add_to_elem(outparams::Expr)
                 addToElem,
                 tar,
                 lhs,
-                esc(Expr(:., :(helpers.pools.zeros), hp_pool)),
                 esc(indx)))
     ]
     return Expr(:block, outCode...)
@@ -61,15 +58,14 @@ end
 
 
 """
-    addToElem(v::SVector, Δv, v_zero, ind::Int)
-    addToElem(v::AbstractVector, Δv, _, ind::Int)
+    addToElem(v::SVector, Δv, ind::Int)
+    addToElem(v::AbstractVector, Δv, ind::Int)
 
 Add a value to a specific element of a vector.
 
 # Arguments
 - `v`: A `StaticVector` or `AbstractVector`
 - `Δv`: The value to be added
-- `v_zero`: A `StaticVector` of zeros (used for `SVector` only)
 - `ind::Int`: The index of the element to modify
 
 # Returns
@@ -79,8 +75,7 @@ Add a value to a specific element of a vector.
 ```jldoctest
 julia> using StaticArraysCore: SVector
 julia> v = SVector(1.0, 2.0, 3.0)
-julia> v_zero = SVector(0.0, 0.0, 0.0)
-julia> addToElem(v, 5.0, v_zero, 2)
+julia> addToElem(v, 5.0, 2)
 3-element SVector{3, Float64} with indices SOneTo(3):
  1.0
  7.0
@@ -89,16 +84,15 @@ julia> addToElem(v, 5.0, v_zero, 2)
 """
 function addToElem end
 
-function addToElem(v::SVector, Δv, v_zero, ind::Int)
-    n_0 = zero(first(v_zero))
-    n_1 = one(first(v_zero))
-    v_zero = v_zero .* n_0
-    v_zero = Base.setindex(v_zero, n_1, ind)
-    v = v .+ v_zero .* Δv
-    return v
+function addToElem(v::SVector{N}, Δv, ind::Int) where {N}
+    # Same NaN/Inf-safe per-element selection as repElem: pick each position
+    # instead of masking v with a zero/one vector, since `0 * Inf` and `0 * NaN`
+    # are themselves NaN. N is static, so this unrolls to plain scalar selects
+    # with no heap allocation.
+    return SVector(ntuple(i -> i == ind ? v[i] + Δv : v[i], Val(N)))
 end
 
-function addToElem(v::AbstractVector, Δv, _, ind::Int)
+function addToElem(v::AbstractVector, Δv, ind::Int)
     v[ind] = v[ind] + Δv
     return v
 end
@@ -139,23 +133,6 @@ function addToEachElem(v::AbstractVector, Δv::Real)
     return v
 end
 
-"""
-    adjust_pk(c_eco_k, kValue, flowValue, maxValue, zix, helpers)
-"""
-function adjust_pk(c_eco_k, kValue, flowValue, maxValue, zix, helpers)
-    c_eco_k_f_sum = zero(eltype(c_eco_k))
-    c_eco_k_sum = zero(eltype(c_eco_k))
-    for ix ∈ zix
-        # get max possible loss and total loss per pool
-        tmp = min(c_eco_k[ix] + kValue + flowValue, maxValue)
-        @rep_elem tmp ⇒ (c_eco_k, ix)
-        c_eco_k_f_sum = c_eco_k_f_sum + tmp
-        # get max possible loss to litter and total loss to litter per pool
-        tmp_k = at_least_zero(tmp - flowValue)
-        c_eco_k_sum = c_eco_k_sum + tmp_k
-    end
-    return c_eco_k, c_eco_k_f_sum, c_eco_k_sum
-end
 
 
 """
@@ -980,4 +957,23 @@ macro unpack_nt(inparams)
         outCode = processUnpackNT(inparams)
     end
     return outCode
+end
+
+
+"""
+    adjust_pk(c_eco_k, kValue, flowValue, maxValue, zix, helpers)
+"""
+function adjust_pk(c_eco_k, kValue, flowValue, maxValue, zix, helpers)
+    c_eco_k_f_sum = zero(eltype(c_eco_k))
+    c_eco_k_sum = zero(eltype(c_eco_k))
+    for ix ∈ zix
+        # get max possible loss and total loss per pool
+        tmp = min(c_eco_k[ix] + kValue + flowValue, maxValue)
+        @rep_elem tmp ⇒ (c_eco_k, ix)
+        c_eco_k_f_sum = c_eco_k_f_sum + tmp
+        # get max possible loss to litter and total loss to litter per pool
+        tmp_k = at_least_zero(tmp - flowValue)
+        c_eco_k_sum = c_eco_k_sum + tmp_k
+    end
+    return c_eco_k, c_eco_k_f_sum, c_eco_k_sum
 end

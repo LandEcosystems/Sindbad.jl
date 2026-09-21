@@ -7,8 +7,6 @@ function define(params::cFlow_GSIMP, forcing, land, helpers)
 end
 
 function compute(params::cFlow_GSIMP, forcing, land, helpers)
-    ## unpack parameters
-    @unpack_cFlow_GSIMP params
     ## unpack land variables
     @unpack_nt begin
         (c_giver, c_taker) ⇐ land.cCycleBase

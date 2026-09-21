@@ -22,7 +22,7 @@ function compute(params::runoff_simple, forcing, land, helpers)
 		ΔsoilW ⇐ land.pools
 	end
 	runoff = k_runoff * (soilW[1] + ΔsoilW[1])
-    @add_to_elem -runoff ⇒ (ΔsoilW, 1, :soilW)
+    @add_to_elem -runoff ⇒ (ΔsoilW, 1)
 	@pack_nt begin
 		runoff ⇒ land.fluxes
 		ΔsoilW ⇒ land.pools

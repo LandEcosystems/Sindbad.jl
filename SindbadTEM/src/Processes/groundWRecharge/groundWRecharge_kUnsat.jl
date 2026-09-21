@@ -17,7 +17,7 @@ function compute(params::groundWRecharge_kUnsat, forcing, land, helpers)
     gw_recharge = min(k_unsat, soilW[end] + ΔsoilW[end])
 
     ΔgroundW = addToEachElem(ΔgroundW, gw_recharge / n_groundW)
-    @add_to_elem -gw_recharge ⇒ (ΔsoilW, lastindex(ΔsoilW), :soilW)
+    @add_to_elem -gw_recharge ⇒ (ΔsoilW, lastindex(ΔsoilW))
 
     ## pack land variables
     @pack_nt begin
