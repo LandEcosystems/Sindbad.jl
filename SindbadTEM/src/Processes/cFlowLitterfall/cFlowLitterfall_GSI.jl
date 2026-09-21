@@ -18,7 +18,7 @@ function compute(params::cFlowLitterfall_GSI, forcing, land, helpers)
     shedding_frac = at_most_one(at_least_zero(-slope_eco_stressor) * k_shedding) # number when negative, 0 when positive
     ## pack land variables
     @pack_nt begin
-        shedding_rate ⇒ land.diagnostics
+        shedding_frac ⇒ land.diagnostics
     end
     return land
 end

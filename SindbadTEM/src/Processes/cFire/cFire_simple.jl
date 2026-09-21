@@ -13,7 +13,6 @@ function define(params::cFire_simple, forcing, land, helpers)
     c_fire_flow = zero(cEco)
     @pack_nt begin 
         (c_fire_mortality, c_fire_efflux, c_fire_flow) ⇒ land.diagnostics
-        cFireTotal ⇒ land.fluxes
     end
     return land
 end
@@ -24,13 +23,12 @@ function compute(params::cFire_simple, forcing, land, helpers)
         # for vegetation die-off
         c_f_cVeg_dieOff ⇐ land.diagnostics
         # for fires
-        (c_fire_mortality, c_fire_efflux, c_fire_flow, c_fire_fba) ⇐ land.diagnostics
+        (c_fire_mortality, c_fire_efflux, c_fire_flow, c_fire_fba, c_flow_QP_vec) ⇐ land.diagnostics
         # for fires
         (c_Fire_cci, c_Fire_k) ⇐ land.diagnostics
         cEco ⇐ land.pools
-        cFireTotal ⇐ land.fluxes
         c_remain ⇐ land.states
-        (c_giver, c_taker, c_flow_QP_vec, zix_cHeterotrophic, zix_cVeg) ⇐ land.cCycleBase
+        (c_giver, c_taker, zix_cHeterotrophic) ⇐ land.cCycleBase
         c_model ⇐ land.models
     end
     # set c_fire_efflux and c_fire_mortality and cFireTotal to 0
@@ -38,6 +36,7 @@ function compute(params::cFire_simple, forcing, land, helpers)
     @rep_vec c_fire_efflux ⇒ helpers.pools.zeros.cEco
     @rep_vec c_fire_mortality ⇒ helpers.pools.zeros.cEco
     @rep_vec c_fire_flow ⇒ helpers.pools.zeros.cEco
+    zix_cVeg = helpers.pools.zix.cVeg
 
     # if there is not fire and no dieoff, pack and return
     if c_fire_fba != zero(c_fire_fba) || c_f_cVeg_dieOff != zero(c_f_cVeg_dieOff)

@@ -4,8 +4,8 @@ struct cFlowLitterfall_none <: cFlowLitterfall end
 
 function define(params::cFlowLitterfall_none, forcing, land, helpers)
     @unpack_nt cEco ⇐ land.pools
-    shedding_rate = zero(cEco[1])
-    @pack_nt shedding_rate ⇒ land.diagnostics
+    shedding_frac = zero(cEco[1])
+    @pack_nt shedding_frac ⇒ land.diagnostics
     return land
 end
 

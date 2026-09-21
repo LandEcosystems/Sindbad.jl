@@ -11,7 +11,7 @@ function compute(params::cFlow_GSIMP, forcing, land, helpers)
     @unpack_nt begin
         (c_giver, c_taker) ⇐ land.cCycleBase
         (
-            shedding_rate,
+            shedding_frac,
             leaf_to_reserve, #leaf_to_reserve_frac, 
             root_to_reserve, #root_to_reserve_frac, 
             reserve_to_leaf, #reserve_to_leaf_frac, 
@@ -36,8 +36,8 @@ function compute(params::cFlow_GSIMP, forcing, land, helpers)
     
     # make sure that the flow out of leaf or root does not exceed one. 
     # prioritize storage
-    k_shedding_leaf = min(shedding_rate, one(leaf_to_reserve) - leaf_to_reserve)
-    k_shedding_root = min(shedding_rate, one(root_to_reserve) - root_to_reserve)
+    k_shedding_leaf = min(shedding_frac, one(leaf_to_reserve) - leaf_to_reserve)
+    k_shedding_root = min(shedding_frac, one(root_to_reserve) - root_to_reserve)
 
     # adjust the outflow rate from the flow pools
     c_eco_k, leaf_k_f_sum, leaf_k_sum = adjust_pk(c_eco_k, k_shedding_leaf, leaf_to_reserve, one(leaf_to_reserve), helpers.pools.zix.cVegLeaf, helpers)
