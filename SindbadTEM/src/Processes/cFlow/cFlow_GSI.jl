@@ -1,50 +1,9 @@
 export cFlow_GSI
 
-#! format: off
-@bounds @describe @units @timescale @with_kw struct cFlow_GSI{T1,T2,T3,T4} <: cFlow
-    slope_leaf_root_to_reserve::T1 = 0.14 | (0.033, 0.33) | "Leaf-Root to Reserve" | "fraction" | "day"
-    slope_reserve_to_leaf_root::T2 = 0.14 | (0.033, 0.33) | "Reserve to Leaf-Root" | "fraction" | "day"
-    k_shedding::T3 = 0.14 | (0.033, 0.33) | "rate of shedding" | "fraction" | "day"
-    f_τ::T4 = 0.03 | (0.01, 0.10) | "contribution factor for current stressor" | "fraction" | "day"
-end
-#! format: on
+struct cFlow_GSI <: cFlow end
 
 function define(params::cFlow_GSI, forcing, land, helpers)
-    @unpack_cFlow_GSI params
-    @unpack_nt begin
-        soilW ⇐ land.pools
-        ∑w_sat ⇐ land.properties
-    end
-    ## Instantiate variables
-
-    # The transfer topology and the flow vector itself both belong to cCycleBase,
-    # which resolves them once. This approach only needs its own stressor state; it
-    # finds the flows it writes in compute through edgesBetween, a giver/taker
-    # pool-membership match.
-    eco_stressor_prev = totalS(soilW) / ∑w_sat
-    slope_eco_stressor_prev = zero(eco_stressor_prev)
-
-    @pack_nt begin
-        eco_stressor_prev ⇒ land.diagnostics
-        slope_eco_stressor_prev ⇒ land.diagnostics
-    end
-
     return land
-end
-
-function adjust_pk(c_eco_k, kValue, flowValue, maxValue, zix, helpers)
-    c_eco_k_f_sum = zero(eltype(c_eco_k))
-    c_eco_k_sum = zero(eltype(c_eco_k))
-    for ix ∈ zix
-        # get max possible loss and total loss per pool
-        tmp = min(c_eco_k[ix] + kValue + flowValue, maxValue)
-        @rep_elem tmp ⇒ (c_eco_k, ix)
-        c_eco_k_f_sum = c_eco_k_f_sum + tmp
-        # get max possible loss to litter and total loss to litter per pool
-        tmp_k = at_least_zero(tmp - flowValue)
-        c_eco_k_sum = c_eco_k_sum + tmp_k
-    end
-    return c_eco_k, c_eco_k_f_sum, c_eco_k_sum
 end
 
 function compute(params::cFlow_GSI, forcing, land, helpers)
@@ -53,7 +12,13 @@ function compute(params::cFlow_GSI, forcing, land, helpers)
     ## unpack land variables
     @unpack_nt begin
         (c_giver, c_taker) ⇐ land.cCycleBase
-        (c_allocation_f_soilW, c_allocation_f_soilT, c_allocation_f_cloud, eco_stressor_prev, slope_eco_stressor_prev)  ⇐ land.diagnostics
+        (
+            shedding_rate,
+            leaf_to_reserve, #leaf_to_reserve_frac, 
+            root_to_reserve, #root_to_reserve_frac, 
+            reserve_to_leaf, #reserve_to_leaf_frac, 
+            reserve_to_root, #reserve_to_root_frac, 
+        )  ⇐ land.diagnostics
         c_eco_k ⇐ land.diagnostics
         c_flow_A_vec ⇐ land.diagnostics
     end
@@ -62,59 +27,30 @@ function compute(params::cFlow_GSI, forcing, land, helpers)
     zix_cVegReserve = helpers.pools.zix.cVegReserve
     zix_cLit = helpers.pools.zix.cLit
 
-    # Compute sigmoid functions
-    # LPJ-GSI formulation: In GSI; the stressors are smoothened per control variable. That means; gppfsoilW; fTair; and fRdiff should all have a GSI approach for 1:1 conversion. For now; the function below smoothens the combined stressors; & then calculates the slope for allocation
-    # current time step before smoothing
-    # attention, the stressors are to be interepreted like this: 
-    
-    #   high stressor (close to 1) means actually low stress
-    #   low stressor (close to 0) means actually high stress
-    # this is counterintuitive, but it is how the GSI formulation works
-
-    eco_stressor = c_allocation_f_soilW * c_allocation_f_soilT * c_allocation_f_cloud
-
-    # get the smoothened stressor based on contribution of previous steps using ARMA-like formulation
-    slope_eco_stressor_now = eco_stressor - eco_stressor_prev
-    
-    slope_eco_stressor = (one(f_τ) - f_τ) * slope_eco_stressor_prev + f_τ * slope_eco_stressor_now
-
-    # calculate the flow rate for exchange with reserve pools based on the slopes
-    # get the flow & shedding rates
-    leaf_root_to_reserve = at_most_one(at_least_zero(-slope_eco_stressor) * slope_leaf_root_to_reserve) # number when negative (increasing stress; decreasing stressor), 0 when positive
-    reserve_to_leaf_root = at_most_one(at_least_zero(slope_eco_stressor) * slope_reserve_to_leaf_root) # number when positive, 0 when negative
-    shedding_rate = at_most_one(at_least_zero(-slope_eco_stressor) * k_shedding) # number when negative, 0 when positive
-
-
-    # set the Leaf & Root to Reserve flow rate as the same
-    leaf_to_reserve = leaf_root_to_reserve # should it be divided by 2?
-    root_to_reserve = leaf_root_to_reserve 
-    #todo this is needed to make sure that the flow out of Leaf or root does not exceed one. was not needed in matlab version, but reaches this point often in julia, when the eco_stressor suddenly drops from 1 to near zero.
+    # make sure that the flow out of leaf or root does not exceed one. 
+    # prioritize storage
     k_shedding_leaf = min(shedding_rate, one(leaf_to_reserve) - leaf_to_reserve)
     k_shedding_root = min(shedding_rate, one(root_to_reserve) - root_to_reserve)
 
-    # Estimate flows from reserve to leaf & root (sujan modified on
-    w = zero(slope_leaf_root_to_reserve)
-    if c_allocation_f_soilW + c_allocation_f_cloud !== zero(c_allocation_f_cloud)
-        w = (c_allocation_f_soilW / (c_allocation_f_cloud + c_allocation_f_soilW)) # if water stressor is high, , larger fraction of reserve goes to the leaves for light acquisition
-    end
-    Re2L_i = reserve_to_leaf_root * w
-    Re2R_i = reserve_to_leaf_root * (one(Re2L_i) - w) # if light stressor is high (=sufficient light), larger fraction of reserve goes to the root for water uptake
-
     # adjust the outflow rate from the flow pools
-    c_eco_k, leaf_k_f_sum, leaf_k_sum = adjust_pk(c_eco_k, k_shedding_leaf, leaf_to_reserve, one(leaf_to_reserve), helpers.pools.zix.cVegLeaf, helpers)
+    c_eco_k, leaf_k_f_sum, leaf_k_sum = adjust_pk(c_eco_k, k_shedding_leaf, 
+        leaf_to_reserve, one(leaf_to_reserve), helpers.pools.zix.cVegLeaf, helpers)
     leaf_to_reserve_frac = safe_divide(leaf_to_reserve, leaf_k_f_sum)
     k_shedding_leaf_frac = safe_divide(leaf_k_sum, leaf_k_f_sum)
 
-    c_eco_k, root_k_f_sum, root_k_sum = adjust_pk(c_eco_k, k_shedding_root, root_to_reserve, one(root_to_reserve), helpers.pools.zix.cVegRoot, helpers)
+    c_eco_k, root_k_f_sum, root_k_sum = adjust_pk(c_eco_k, k_shedding_root, 
+        root_to_reserve, one(root_to_reserve), helpers.pools.zix.cVegRoot, helpers)
     root_to_reserve_frac = safe_divide(root_to_reserve, root_k_f_sum)
     k_shedding_root_frac = safe_divide(root_k_sum, root_k_f_sum)
 
-    c_eco_k, reserve_k_f_sum, reserve_k_sum = adjust_pk(c_eco_k, zero(Re2L_i), Re2R_i + Re2L_i, one(Re2R_i), helpers.pools.zix.cVegReserve, helpers)
-    reserve_to_leaf_frac = safe_divide(Re2L_i, reserve_k_f_sum)
-    reserve_to_root_frac = safe_divide(Re2R_i, reserve_k_f_sum)
+    c_eco_k, reserve_k_f_sum, reserve_k_sum = adjust_pk(c_eco_k, zero(reserve_to_leaf), 
+        reserve_to_root + reserve_to_leaf, one(reserve_to_root), helpers.pools.zix.cVegReserve, helpers)
+    reserve_to_leaf_frac = safe_divide(reserve_to_leaf, reserve_k_f_sum)
+    reserve_to_root_frac = safe_divide(reserve_to_root, reserve_k_f_sum)
     k_shedding_reserve = reserve_k_sum
     k_shedding_reserve_frac = safe_divide(reserve_k_sum, reserve_k_f_sum)
-    
+
+    # adjust A accordingly
     for flow ∈ edgesBetween(c_giver, c_taker, zix_cVegReserve, zix_cVegLeaf)
         c_flow_A_vec = repElem(c_flow_A_vec, reserve_to_leaf_frac, flow)
     end
@@ -137,26 +73,16 @@ function compute(params::cFlow_GSI, forcing, land, helpers)
         c_flow_A_vec = repElem(c_flow_A_vec, k_shedding_reserve_frac, flow)
     end
 
-    # store the varibles in diagnostic structure
-    reserve_to_leaf = Re2L_i
-    reserve_to_root = Re2R_i
-    
-    eco_stressor_prev = eco_stressor
-    slope_eco_stressor_prev = slope_eco_stressor
-
     ## pack land variables
     @pack_nt begin
         (
-            leaf_to_reserve, leaf_to_reserve_frac, 
-            root_to_reserve, root_to_reserve_frac, 
-            reserve_to_leaf, reserve_to_leaf_frac, 
-            reserve_to_root, reserve_to_root_frac,
-            k_shedding, 
+            leaf_to_reserve_frac, 
+            root_to_reserve_frac, 
+            reserve_to_leaf_frac, 
+            reserve_to_root_frac,
             k_shedding_leaf, k_shedding_leaf_frac, leaf_k_sum, 
             k_shedding_root, k_shedding_root_frac, root_k_sum, 
             k_shedding_reserve, k_shedding_reserve_frac, 
-            eco_stressor, slope_eco_stressor, 
-            eco_stressor_prev, slope_eco_stressor_prev, 
             c_eco_k
         ) ⇒ land.diagnostics
         c_flow_A_vec ⇒ land.diagnostics
@@ -164,7 +90,7 @@ function compute(params::cFlow_GSI, forcing, land, helpers)
     return land
 end
 
-purpose(::Type{cFlow_GSI}) = "Carbon transfer rates between pools based on the GSI approach, using stressors such as soil moisture, temperature, and light."
+purpose(::Type{cFlow_GSI}) = "Carbon transfer rates related to vegetation pools."
 
 @doc """
 

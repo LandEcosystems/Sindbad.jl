@@ -113,6 +113,13 @@ function compute(params::cCycle_simple, forcing, land, helpers)
     #     )
     
     nee = eco_respiration - gpp
+
+
+    #
+
+
+
+
     nbp = - (eco_respiration + product_respiration - gpp)
 
     @rep_vec cEco_prev ⇒ cEco

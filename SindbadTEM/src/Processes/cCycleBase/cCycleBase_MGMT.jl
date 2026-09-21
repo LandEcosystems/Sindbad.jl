@@ -12,9 +12,9 @@ export cCycleBase_MGMT
     T8,  # k_c_soilold_scalar
     T9,  # k_c_products_wood_scalar
     T10, # k_c_products_crop_scalar
-    T11, # k_c_veg_scalar
-    T12, # k_c_lit_scalar
-    T13, # k_c_soil_scalar
+    T11, # α_k_cVeg
+    T12, # α_k_cLit
+    T13, # α_k_cSoil
     T14, # k_c_allProducts_scalar
     T15, # CN_ratio_scalar
     T16, # ηH
@@ -35,9 +35,9 @@ export cCycleBase_MGMT
     k_c_products_wood_scalar::T9 = 1.0 | (0.25, 4) | "scalar for turnover rate of harvested wood product carbon pool" | "-" | "year"
     k_c_products_crop_scalar::T10 = 1.0 | (0.25, 4) | "scalar for turnover rate of harvested crop product carbon pool" | "-" | "year"
 
-    k_c_veg_scalar::T11 = 1.0 | (0.25, 4.0) | "scalar for turnover rate of all vegetation carbon pools; it has no timescale, since it scales the original pool level k." | "-" | ""
-    k_c_lit_scalar::T12 = 1.0 | (0.25, 4) | "scalar for turnover rate of all litter carbon pools; it has no timescale, since it scales the original pool level k." | "-" | ""
-    k_c_soil_scalar::T13 = 1.0 | (0.25, 4) | "scalar for turnover rate of all soil carbon pools; it has no timescale, since it scales the original pool level k." | "-" | ""
+    α_k_cVeg::T11 = 1.0 | (0.25, 4.0) | "scalar for turnover rate of all vegetation carbon pools; it has no timescale, since it scales the original pool level k." | "-" | ""
+    α_k_cLit::T12 = 1.0 | (0.25, 4) | "scalar for turnover rate of all litter carbon pools; it has no timescale, since it scales the original pool level k." | "-" | ""
+    α_k_cSoil::T13 = 1.0 | (0.25, 4) | "scalar for turnover rate of all soil carbon pools; it has no timescale, since it scales the original pool level k." | "-" | ""
     k_c_allProducts_scalar::T14 = 1.0 | (0.25, 4) | "scalar for turnover rate of all wood product carbon pools; it has no timescale, since it scales the original pool level k." | "-" | ""
     
     CN_ratio_scalar::T15 = 1.0 | (0.25, 4) | "scalar for the vegetation carbon-to-nitrogen ratio" | "-" | ""
@@ -81,7 +81,7 @@ function define(params::cCycleBase_MGMT , forcing, land, helpers)
 
     zix_cNonVeg, zix_cNatural, zix_cHeterotrophic, zix_cProducts = cCycleBaseZixGroups(helpers)
 
-    # k_hilo_lit_split = (one(TAU_HILO_LIT_SPLIT) / eltype(c_eco_k_base)(TAU_HILO_LIT_SPLIT)) * k_c_veg_scalar # this is a place holder to convert TAU_HILO_LIT_SPLIT to k time units...
+    # k_hilo_lit_split = (one(TAU_HILO_LIT_SPLIT) / eltype(c_eco_k_base)(TAU_HILO_LIT_SPLIT)) * α_k_cVeg # this is a place holder to convert TAU_HILO_LIT_SPLIT to k time units...
 
     ## pack land variables
     @pack_nt begin
@@ -122,14 +122,14 @@ function precompute(params::cCycleBase_MGMT , forcing, land, helpers)
     )
 
     k_c_scalars = (;
-        cVegRoot = k_c_root_scalar * k_c_veg_scalar, 
-        cVegWood = k_c_wood_scalar * k_c_veg_scalar,
-        cVegLeaf = k_c_leaf_scalar * k_c_veg_scalar, 
-        cVegReserve = k_c_reserve_scalar * k_c_veg_scalar,
-        cLitFast = k_c_litfast_scalar * k_c_lit_scalar, 
-        cLitSlow = k_c_litslow_scalar * k_c_lit_scalar,
-        cSoilSlow = k_c_soilslow_scalar * k_c_soil_scalar, 
-        cSoilOld = k_c_soilold_scalar * k_c_soil_scalar,
+        cVegRoot = k_c_root_scalar * α_k_cVeg, 
+        cVegWood = k_c_wood_scalar * α_k_cVeg,
+        cVegLeaf = k_c_leaf_scalar * α_k_cVeg, 
+        cVegReserve = k_c_reserve_scalar * α_k_cVeg,
+        cLitFast = k_c_litfast_scalar * α_k_cLit, 
+        cLitSlow = k_c_litslow_scalar * α_k_cLit,
+        cSoilSlow = k_c_soilslow_scalar * α_k_cSoil, 
+        cSoilOld = k_c_soilold_scalar * α_k_cSoil,
         cProductsWood = k_c_products_wood_scalar * k_c_allProducts_scalar, 
         cProductsCrop = k_c_products_crop_scalar * k_c_allProducts_scalar,
     )
@@ -139,12 +139,8 @@ function precompute(params::cCycleBase_MGMT , forcing, land, helpers)
     # slots. Both getKfromTau/getCNfromParams calls are their own functions, not
     # inline loops here, so Julia can infer this function's return type concretely
     # (see getKfromTau's docstring, poolConfigurations/poolConfigurations.jl).
-    c_eco_τ = getKfromTau(c_eco_τ, c_τ_default, k_c_scalars, helpers)
     CN_ratio_cVeg = getCNfromParams(CN_ratio_cVeg, GSI_CN_ratio, CN_ratio_scalar, helpers)
-    for i ∈ eachindex(c_eco_k_base)
-        tmp = c_eco_τ[i]
-        @rep_elem tmp ⇒ (c_eco_k_base, i)
-    end
+    c_eco_k_base = getKfromTau(c_eco_τ, c_τ_default, k_c_scalars, helpers)
 
     # minimum remaining carbon after disturbance, by land.states.veg_type_name,
     # looked up in the table define re-keyed from C_REMAIN_PER_VEGTYPE, scaled
@@ -194,7 +190,7 @@ in tables `define` re-keys (via `getParamsPerVegType`) from
 resolved `vegClass` classification. Turnover is
 `k = (1.0 / turnover_time) * scalar`, `scalar` being one of the eight
 `k_c_*_scalar` fields (shared across pools without an individual one:
-`k_c_lit_scalar` for both litter pools, `k_c_soil_scalar` for both soil pools).
+`α_k_cLit` for both litter pools, `α_k_cSoil` for both soil pools).
 `cVegReserve` stays `TAU_DORMANT` and `cLitFast`/`cLitSlow`/`cSoilSlow`/
 `cSoilOld` stay fixed at `GSI_TAU_DEFAULT`'s values, neither being
 vegetation-type dependent. `k_c_products_wood_scalar`/`k_c_products_crop_scalar`

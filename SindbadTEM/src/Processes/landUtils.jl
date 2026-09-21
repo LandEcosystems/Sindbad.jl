@@ -1,5 +1,6 @@
 export @add_to_elem, @pack_nt, @rep_elem, @rep_vec, @unpack_nt
 export addToElem, addToEachElem, addVec
+export adjust_pk
 export cFlowMatrix
 export edgesBetween
 export getQP
@@ -137,6 +138,25 @@ function addToEachElem(v::AbstractVector, Δv::Real)
     v .= v .+ Δv
     return v
 end
+
+"""
+    adjust_pk(c_eco_k, kValue, flowValue, maxValue, zix, helpers)
+"""
+function adjust_pk(c_eco_k, kValue, flowValue, maxValue, zix, helpers)
+    c_eco_k_f_sum = zero(eltype(c_eco_k))
+    c_eco_k_sum = zero(eltype(c_eco_k))
+    for ix ∈ zix
+        # get max possible loss and total loss per pool
+        tmp = min(c_eco_k[ix] + kValue + flowValue, maxValue)
+        @rep_elem tmp ⇒ (c_eco_k, ix)
+        c_eco_k_f_sum = c_eco_k_f_sum + tmp
+        # get max possible loss to litter and total loss to litter per pool
+        tmp_k = at_least_zero(tmp - flowValue)
+        c_eco_k_sum = c_eco_k_sum + tmp_k
+    end
+    return c_eco_k, c_eco_k_f_sum, c_eco_k_sum
+end
+
 
 """
     addVec(v::SVector, Δv::SVector)
