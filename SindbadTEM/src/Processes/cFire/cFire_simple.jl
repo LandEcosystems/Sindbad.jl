@@ -55,16 +55,6 @@ function compute(params::cFire_simple, forcing, land, helpers)
             @add_to_elem cLossFire ⇒ (c_fire_efflux, giver)
             @add_to_elem cLossNonFire ⇒ (c_fire_flow, taker)
             @add_to_elem cLoss ⇒ (c_fire_mortality, giver)
-
-            #=
-            # deplete pool
-            @add_to_elem -cLoss ⇒ (cEco, giver)
-            # transfer non combusted part
-            @add_to_elem cLossNonFire ⇒ (cEco, taker)
-            # feed c_fire_efflux and c_fire_mortality (@rep_elem)
-            @add_to_elem cLossFire ⇒ (c_fire_efflux, giver)
-            @add_to_elem cLoss ⇒ (c_fire_mortality, giver)
-            =#
         end
 
         # compute fire flux from litter and soils
@@ -72,23 +62,20 @@ function compute(params::cFire_simple, forcing, land, helpers)
             # total combustion from pool
             f_loss = c_fire_fba * c_Fire_cci[zix]
             cLoss = at_least_zero(cEco[zix] * f_loss)
-            #=
-            # deplete pool
-            @add_to_elem -cLoss ⇒ (cEco, zix) 
-            =#
             @rep_elem cLoss ⇒ (c_fire_efflux, zix)
         end
         # total fire flux
         cFireTotal = totalS(c_fire_efflux)
     end
 
+    land = adjustPackPoolComponents(land, helpers, c_model)
+    
     ## pack land variables
     @pack_nt begin 
         # cEco ⇒ land.pools
         cFireTotal ⇒ land.fluxes
         (c_fire_mortality, c_fire_efflux, c_fire_flow) ⇒ land.diagnostics
     end
-    # land = adjustPackPoolComponents(land, helpers, c_model)
     return land
 end
 

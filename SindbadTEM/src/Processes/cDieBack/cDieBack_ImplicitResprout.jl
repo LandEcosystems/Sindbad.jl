@@ -47,7 +47,7 @@ function compute(params::cDieBack_ImplicitResprout, forcing, land, helpers)
             @add_to_elem cLoss ⇒ (c_disturbance_mortality, c_giver[fO])
             @add_to_elem cLoss ⇒ (c_disturbance_flow, c_taker[fO])
         end
-        # land = adjustPackPoolComponents(land, helpers, c_model)
+        land = adjustPackPoolComponents(land, helpers, c_model)
     end
     ## pack land variables
     @pack_nt begin 
