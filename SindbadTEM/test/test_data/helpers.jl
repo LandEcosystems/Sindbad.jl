@@ -2,13 +2,12 @@
 # Regenerate with: julia --project=. tools/benchmark/TestSindbadTEM/derive_sindbadTEM_test_data.jl
 
 using SindbadTEM
-using StaticArrays: SVector
 using Dates
 
 tmp_helpers = (;
     dates = NamedTuple(),
     run = (;
-    catch_model_errors = DoNotCatchModelErrors()
+    catch_model_errors = DoCatchModelErrors()
 ),
     numbers = (;
     tolerance = 0.01f0
@@ -47,17 +46,17 @@ tmp_helpers = (;
     surfaceW = (7,),
     TWS = (1, 2, 3, 4, 5, 6, 7),
     cLitLeaf = (),
-    cLitRoot = (),
     cLitRootFine = (),
+    cLitRoot = (),
     cMic = (),
     cVegRootFine = (),
     cVegRootCoarse = (),
     cLitLeafFast = (),
     cLitLeafSlow = (),
-    cLitWood = (),
     cLitRootFineFast = (),
     cLitRootFineSlow = (),
     cLitRootCoarse = (),
+    cLitWood = (),
     cMicSurf = (),
     cMicSoil = (),
     cProducts = (),
