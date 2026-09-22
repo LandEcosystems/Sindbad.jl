@@ -10,9 +10,9 @@ export cCycleBase_GSI
     T6,     # k_c_litslow_scalar
     T7,     # k_c_soilslow_scalar
     T8,     # k_c_soilold_scalar
-    T9,     # α_k_c_veg
-    T10,    # α_k_c_lit
-    T11,    # α_k_c_soil
+    T9,     # α_k_cVeg
+    T10,    # α_k_cLit
+    T11,    # α_k_cSoil
     T12,    # CN_ratio_scalar
     T13,    # ηH
     T14,    # ηA
@@ -29,9 +29,9 @@ export cCycleBase_GSI
     k_c_soilslow_scalar::T7 = 1.0 | (0.25, 4.0) | "scalar for turnover rate of soil slow carbon pool" | "-" | "year"
     k_c_soilold_scalar::T8 = 1.0 | (0.25, 4.0) | "scalar for turnover rate of soil old carbon pool" | "-" | "year"
 
-    α_k_c_veg::T9 = 1.0 | (0.25, 4.0) | "scalar for turnover rate of all vegetation carbon pools; it has no timescale, since it scales the original pool level k." | "-" | ""
-    α_k_c_lit::T10 = 1.0 | (0.25, 4.0) | "scalar for turnover rate of all litter carbon pools; it has no timescale, since it scales the original pool level k." | "-" | ""
-    α_k_c_soil::T11 = 1.0 | (0.25, 4.0) | "scalar for turnover rate of all soil carbon pools; it has no timescale, since it scales the original pool level k." | "-" | ""
+    α_k_cVeg::T9 = 1.0 | (0.25, 4.0) | "scalar for turnover rate of all vegetation carbon pools; it has no timescale, since it scales the original pool level k." | "-" | ""
+    α_k_cLit::T10 = 1.0 | (0.25, 4.0) | "scalar for turnover rate of all litter carbon pools; it has no timescale, since it scales the original pool level k." | "-" | ""
+    α_k_cSoil::T11 = 1.0 | (0.25, 4.0) | "scalar for turnover rate of all soil carbon pools; it has no timescale, since it scales the original pool level k." | "-" | ""
 
     CN_ratio_scalar::T12 = 1.0 | (0.25, 4.0) | "scalar for the vegetation carbon-to-nitrogen ratio" | "-" | ""
     ηH::T13 = 1.0 | (0.01, 100.0) | "scaling factor for heterotrophic pools after spinup" | "" | ""
@@ -118,14 +118,14 @@ function precompute(params::cCycleBase_GSI, forcing, land, helpers)
         cSoilSlow = GSI_TAU_DEFAULT.cSoilSlow, cSoilOld = GSI_TAU_DEFAULT.cSoilOld,
     )
     k_c_scalars = (;
-        cVegRoot = k_c_root_scalar * α_k_c_veg, 
-        cVegWood = k_c_wood_scalar * α_k_c_veg,
-        cVegLeaf = k_c_leaf_scalar * α_k_c_veg, 
-        cVegReserve = k_c_reserve_scalar * α_k_c_veg,
-        cLitFast = k_c_litfast_scalar * α_k_c_lit, 
-        cLitSlow = k_c_litslow_scalar * α_k_c_lit,
-        cSoilSlow = k_c_soilslow_scalar * α_k_c_soil, 
-        cSoilOld = k_c_soilold_scalar * α_k_c_soil,
+        cVegRoot = k_c_root_scalar * α_k_cVeg, 
+        cVegWood = k_c_wood_scalar * α_k_cVeg,
+        cVegLeaf = k_c_leaf_scalar * α_k_cVeg, 
+        cVegReserve = k_c_reserve_scalar * α_k_cVeg,
+        cLitFast = k_c_litfast_scalar * α_k_cLit, 
+        cLitSlow = k_c_litslow_scalar * α_k_cLit,
+        cSoilSlow = k_c_soilslow_scalar * α_k_cSoil, 
+        cSoilOld = k_c_soilold_scalar * α_k_cSoil,
     )
 
     CN_ratio_cVeg = getCNfromParams(CN_ratio_cVeg, GSI_CN_ratio, CN_ratio_scalar, helpers)
@@ -175,7 +175,7 @@ $(getModelDocString(cCycleBase_GSI))
 Turnover for the four vegetation C-compartments (root, wood, leaf, reserve) and the four
 litter/soil pools is `k = (1.0 / turnover_time) * scalar`, where `scalar` is one of
 the six `k_c_*_scalar` fields, shared across pools without their own individual
-scalar (`α_k_c_lit` for both litter pools, `α_k_c_soil` for both soil
+scalar (`α_k_cLit` for both litter pools, `α_k_cSoil` for both soil
 pools). `turnover_time` for `cVegRoot`/`cVegWood`/`cVegLeaf` varies by
 `land.states.veg_type_name`: `define` re-keys `CVEG_ROOTFINE_AGE_PER_VEGTYPE`/
 `CVEG_WOOD_AGE_PER_VEGTYPE`/`CVEG_LEAF_AGE_PER_VEGTYPE` onto the experiment's

@@ -12,9 +12,9 @@ export cCycleBase_MGMT
     T8,  # k_c_soilold_scalar
     T9,  # k_c_products_wood_scalar
     T10, # k_c_products_crop_scalar
-    T11, # α_k_c_veg
-    T12, # α_k_c_lit
-    T13, # α_k_c_soil
+    T11, # α_k_cVeg
+    T12, # α_k_cLit
+    T13, # α_k_cSoil
     T14, # k_c_allProducts_scalar
     T15, # CN_ratio_scalar
     T16, # ηH
@@ -35,9 +35,9 @@ export cCycleBase_MGMT
     k_c_products_wood_scalar::T9 = 1.0 | (0.25, 4) | "scalar for turnover rate of harvested wood product carbon pool" | "-" | "year"
     k_c_products_crop_scalar::T10 = 1.0 | (0.25, 4) | "scalar for turnover rate of harvested crop product carbon pool" | "-" | "year"
 
-    α_k_c_veg::T11 = 1.0 | (0.25, 4.0) | "scalar for turnover rate of all vegetation carbon pools; it has no timescale, since it scales the original pool level k." | "-" | ""
-    α_k_c_lit::T12 = 1.0 | (0.25, 4) | "scalar for turnover rate of all litter carbon pools; it has no timescale, since it scales the original pool level k." | "-" | ""
-    α_k_c_soil::T13 = 1.0 | (0.25, 4) | "scalar for turnover rate of all soil carbon pools; it has no timescale, since it scales the original pool level k." | "-" | ""
+    α_k_cVeg::T11 = 1.0 | (0.25, 4.0) | "scalar for turnover rate of all vegetation carbon pools; it has no timescale, since it scales the original pool level k." | "-" | ""
+    α_k_cLit::T12 = 1.0 | (0.25, 4) | "scalar for turnover rate of all litter carbon pools; it has no timescale, since it scales the original pool level k." | "-" | ""
+    α_k_cSoil::T13 = 1.0 | (0.25, 4) | "scalar for turnover rate of all soil carbon pools; it has no timescale, since it scales the original pool level k." | "-" | ""
     k_c_allProducts_scalar::T14 = 1.0 | (0.25, 4) | "scalar for turnover rate of all wood product carbon pools; it has no timescale, since it scales the original pool level k." | "-" | ""
     
     CN_ratio_scalar::T15 = 1.0 | (0.25, 4) | "scalar for the vegetation carbon-to-nitrogen ratio" | "-" | ""
@@ -81,7 +81,7 @@ function define(params::cCycleBase_MGMT, forcing, land, helpers)
 
     zix_cNonVeg, zix_cNatural, zix_cHeterotrophic, zix_cProducts = cCycleBaseZixGroups(helpers)
 
-    # k_hilo_lit_split = (one(TAU_HILO_LIT_SPLIT) / eltype(c_eco_k_base)(TAU_HILO_LIT_SPLIT)) * α_k_c_veg # this is a place holder to convert TAU_HILO_LIT_SPLIT to k time units...
+    # k_hilo_lit_split = (one(TAU_HILO_LIT_SPLIT) / eltype(c_eco_k_base)(TAU_HILO_LIT_SPLIT)) * α_k_cVeg # this is a place holder to convert TAU_HILO_LIT_SPLIT to k time units...
 
     ## pack land variables
     @pack_nt begin
@@ -122,14 +122,14 @@ function precompute(params::cCycleBase_MGMT , forcing, land, helpers)
     )
 
     k_c_scalars = (;
-        cVegRoot = k_c_root_scalar * α_k_c_veg, 
-        cVegWood = k_c_wood_scalar * α_k_c_veg,
-        cVegLeaf = k_c_leaf_scalar * α_k_c_veg, 
-        cVegReserve = k_c_reserve_scalar * α_k_c_veg,
-        cLitFast = k_c_litfast_scalar * α_k_c_lit, 
-        cLitSlow = k_c_litslow_scalar * α_k_c_lit,
-        cSoilSlow = k_c_soilslow_scalar * α_k_c_soil, 
-        cSoilOld = k_c_soilold_scalar * α_k_c_soil,
+        cVegRoot = k_c_root_scalar * α_k_cVeg, 
+        cVegWood = k_c_wood_scalar * α_k_cVeg,
+        cVegLeaf = k_c_leaf_scalar * α_k_cVeg, 
+        cVegReserve = k_c_reserve_scalar * α_k_cVeg,
+        cLitFast = k_c_litfast_scalar * α_k_cLit, 
+        cLitSlow = k_c_litslow_scalar * α_k_cLit,
+        cSoilSlow = k_c_soilslow_scalar * α_k_cSoil, 
+        cSoilOld = k_c_soilold_scalar * α_k_cSoil,
         cProductsWood = k_c_products_wood_scalar * k_c_allProducts_scalar, 
         cProductsCrop = k_c_products_crop_scalar * k_c_allProducts_scalar,
     )
@@ -190,7 +190,7 @@ in tables `define` re-keys (via `getParamsPerVegType`) from
 resolved `vegClass` classification. Turnover is
 `k = (1.0 / turnover_time) * scalar`, `scalar` being one of the eight
 `k_c_*_scalar` fields (shared across pools without an individual one:
-`α_k_c_lit` for both litter pools, `α_k_c_soil` for both soil pools).
+`α_k_cLit` for both litter pools, `α_k_cSoil` for both soil pools).
 `cVegReserve` stays `TAU_DORMANT` and `cLitFast`/`cLitSlow`/`cSoilSlow`/
 `cSoilOld` stay fixed at `GSI_TAU_DEFAULT`'s values, neither being
 vegetation-type dependent. `k_c_products_wood_scalar`/`k_c_products_crop_scalar`
