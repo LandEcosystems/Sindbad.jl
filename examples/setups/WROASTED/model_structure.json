@@ -23,7 +23,7 @@
       "approach": "none"
     },
     "cAllocationRadiation": {
-      "approach": "RgPot"
+      "approach": "gpp"
     },
     "cAllocationSoilT": {
       "approach": "gpp"
@@ -41,37 +41,74 @@
       "approach": "treeGrass_cVegReserveScaling"
     },
     "cCycle": {
-      "approach": "GSI"
+      "approach": "simple"
     },
     "cCycleBase": {
-      "approach": "GSI_PlantForm",
-      "note": "was GSI_PlantForm_LargeKReserve, which existed only to default the reserve turnover higher. A large reserve k is now set through the reserve element of c_tau_tree / c_tau_shrub / c_tau_herb rather than through a distinct approach."
+      "approach": "GSI"
     },
     "cCycleConsistency": {
       "approach": "simple"
     },
-    "cVegetationDieOff": {
+    "cFire": {
+      "approach": "simple",
+      "use_in_spinup": false
+    },
+    "cFireBurnedArea": {
       "approach": "forcing",
       "use_in_spinup": false
     },
-    "cCycleDisturbance": {
-      "approach": "WROASTED",
+    "cFireCombustionCompleteness": {
+      "approach": "vanDerWerf2006",
       "use_in_spinup": false
+    },
+    "cFireMortality": {
+      "approach": "vanDerWerf2004",
+      "use_in_spinup": false
+    },
+    "cFlowStress": {
+      "approach": "GSI"
+    },
+    "cFlowLitterfall": {
+      "approach": "GSI"
+    },
+    "cFlowReserves": {
+      "approach": "GSI"
     },
     "cFlow": {
       "approach": "GSI"
     },
-    "cFlowSoilProperties": {
-      "approach": "none"
+    "cMicrobialEfficiency": {
+      "approach": "sum"
     },
-    "cFlowVegProperties": {
-      "approach": "none"
+    "cMicrobialEfficiencycLit": {
+      "approach": "texture"
+    },
+    "cMicrobialEfficiencycMic": {
+      "approach": "texture"
+    },
+    "cMicrobialEfficiencycSoil": {
+      "approach": "texture"
+    },
+    "constants": {
+      "approach": "numbers"
+    },
+    "cQualityPartition": {
+      "approach": "mult"
+    },
+    "cQualityPartitioncLit": {
+      "approach": "vegQualityTraits"
+    },
+    "cQualityPartitioncMic": {
+      "approach": "texture"
+    },
+    "cQualityPartitioncSoil": {
+      "approach": "texture"
+    },
+    "cQualityPartitioncVeg": {
+      "approach": "vegQualityTraits"
     },
     "cTau": {
       "approach": "mult"
-    },
-    "cTauLAI": {
-      "approach": "none"
     },
     "cTauSoilProperties": {
       "approach": "none"
@@ -85,6 +122,10 @@
     "cTauVegProperties": {
       "approach": "none"
     },
+    "cVegetationDieOff": {
+      "approach": "forcing",
+      "use_in_spinup": false
+    },
     "drainage": {
       "approach": "dos"
     },
@@ -93,9 +134,6 @@
     },
     "evapotranspiration": {
       "approach": "sum"
-    },
-    "vegFraction": {
-      "approach": "forcing"
     },
     "fAPAR": {
       "approach": "cVegLeafBareFrac"
@@ -141,12 +179,6 @@
     },
     "PET": {
       "approach": "Lu2005"
-    },
-    "vegDynamics": {
-      "approach": "forcing"
-    },
-    "vegClass": {
-      "approach": "MODIS_IGBP_PlantForm"
     },
     "rainSnow": {
       "approach": "Tair"
@@ -202,6 +234,18 @@
     "vegAvailableWater": {
       "approach": "rootWaterEfficiency"
     },
+    "vegClass": {
+      "approach": "MODIS_IGBP_PlantForm"
+    },
+    "vegDynamics": {
+      "approach": "forcing"
+    },
+    "vegFraction": {
+      "approach": "forcing"
+    },
+    "vegQualityTraits": {
+      "approach": "vegType"
+    },
     "waterBalance": {
       "approach": "simple",
       "use_in_spinup": false
@@ -212,34 +256,12 @@
     "wCycleBase": {
       "approach": "simple"
     },
-    "constants": {
-      "approach": "numbers"
-    },
     "WUE": {
       "approach": "expVPDDayCo2"
     }
   },
   "pools": {
-    "carbon": {
-      "combine": "cEco",
-      "components": {
-        "cVeg": {
-          "Root": [1, 25.0],
-          "Wood": [1, 25.0],
-          "Leaf": [1, 25.0],
-          "Reserve": [1, 10.0]
-        },
-        "cLit": {
-          "Fast": [1, 100.0],
-          "Slow": [1, 250.0]
-        },
-        "cSoil": {
-          "Slow": [1, 500.0],
-          "Old": [1, 1000.0]
-        }
-      },
-      "state_variables": {}
-    },
+    "carbon": "GSI",
     "water": {
       "combine": "TWS",
       "components": {
