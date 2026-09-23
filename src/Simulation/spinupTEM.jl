@@ -278,6 +278,30 @@ function spinup(_, _, _, land, helpers, _, ::EtaScaleA0H)
 end
 
 
+function spinup(_, _, _, land, helpers, _, ::EtaScaleH)
+    @unpack_nt cEco ⇐ land.pools
+    helpers = helpers.model_helpers
+    cEco_prev = copy(cEco)
+    ηH = one(eltype(cEco))
+    if :ηH ∈ propertynames(land.diagnostics)
+        ηH = land.diagnostics.ηH
+    end
+    for cSoilZix ∈ helpers.pools.zix.cSoil
+        cSoilNew = cEco[cSoilZix] * ηH
+        @rep_elem cSoilNew ⇒ (cEco, cSoilZix)
+    end
+
+    for cLitZix ∈ helpers.pools.zix.cLit
+        cLitNew = cEco[cLitZix] * ηH
+        @rep_elem cLitNew ⇒ (cEco, cLitZix)
+    end
+
+    @pack_nt cEco ⇒ land.pools
+    land = SindbadTEM.adjustPackPoolComponents(land, helpers, land.models.c_model)
+    @pack_nt cEco_prev ⇒ land.states
+    return land
+end
+
 function spinup(_, _, _, land, helpers, _, ::EtaScaleA0HCWD)
     @unpack_nt cEco ⇐ land.pools
     helpers = helpers.model_helpers

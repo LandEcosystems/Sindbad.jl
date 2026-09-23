@@ -54,25 +54,19 @@ end
 # Outputs
 - new spinup sequence object
 """
-function prepSequenceWithDisturbance(year_disturbance; nrepeat_base=200, year_start = 1979)
+function prepSequenceWithDisturbance(year_disturbance; nrepeat_base=200, year_start = 1979, forcing_msc = "day_MSC")
     nrepeat_age = nrepeatYearsAge(year_disturbance; year_start)
     sequence = [
         Dict("spinup_mode" => "sel_spinup_models", "forcing" => "all_years", "n_repeat" => 1),
-        Dict("spinup_mode" => "sel_spinup_models", "forcing" => "day_MSC", "n_repeat" => nrepeat_base),
-        Dict("spinup_mode" => "eta_scale_AH", "forcing" => "day_MSC", "n_repeat" => 1),
+        Dict("spinup_mode" => "sel_spinup_models", "forcing" => forcing_msc, "n_repeat" => nrepeat_base),
+        Dict("spinup_mode" => "eta_scale_H", "forcing" => forcing_msc, "n_repeat" => 1),
     ]
-    if nrepeat_age == 0
+    if nrepeat_age >= 0
         sequence = [
             Dict("spinup_mode" => "sel_spinup_models", "forcing" => "all_years", "n_repeat" => 1),
-            Dict("spinup_mode" => "sel_spinup_models", "forcing" => "day_MSC", "n_repeat" => nrepeat_base),
-            Dict("spinup_mode" => "eta_scale_A0H", "forcing" => "day_MSC", "n_repeat" => 1),
-        ]
-    elseif nrepeat_age > 0
-        sequence = [
-            Dict("spinup_mode" => "sel_spinup_models", "forcing" => "all_years", "n_repeat" => 1),
-            Dict("spinup_mode" => "sel_spinup_models", "forcing" => "day_MSC", "n_repeat" => nrepeat_base),
-            Dict("spinup_mode" => "eta_scale_A0H", "forcing" => "day_MSC", "n_repeat" => 1),
-            Dict("spinup_mode" => "sel_spinup_models", "forcing" => "day_MSC", "n_repeat" => nrepeat_age),
+            Dict("spinup_mode" => "sel_spinup_models", "forcing" => forcing_msc, "n_repeat" => nrepeat_base),
+            Dict("spinup_mode" => "eta_scale_A0H", "forcing" => forcing_msc, "n_repeat" => 1),
+            Dict("spinup_mode" => "sel_spinup_models", "forcing" => forcing_msc, "n_repeat" => nrepeat_age),
         ]
     end
     return sequence

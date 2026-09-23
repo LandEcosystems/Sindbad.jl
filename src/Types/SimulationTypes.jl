@@ -156,6 +156,10 @@ purpose(::Type{EtaScaleAHCWD}) = "scale carbon pools of CWD (cLitSlow) using ηH
 struct EtaScaleAH <: SpinupMode end
 purpose(::Type{EtaScaleAH}) = "scale carbon pools using diagnostic scalars for ηH and ηA"
 
+
+struct EtaScaleH <: SpinupMode end
+purpose(::Type{EtaScaleH}) = "scale only the heterotrophic carbon pools using diagnostic scalars for ηH"
+
 struct NlsolveFixedpointTrustregionCEco <: SpinupMode end
 purpose(::Type{NlsolveFixedpointTrustregionCEco}) = "use a fixed-point nonlinear solver with trust region for carbon pools (cEco)"
 
