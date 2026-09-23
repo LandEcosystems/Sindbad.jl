@@ -41,7 +41,7 @@ function compute(params::cCycle_simple, forcing, land, helpers)
     ## reset ecoflow and influx to be zero at every time step
     @rep_vec c_eco_flow ⇒ helpers.pools.zeros.cEco
     @rep_vec c_eco_influx ⇒ helpers.pools.zeros.cEco
-    # @rep_vec ΔcEco ⇒ ΔcEco .* z_zero
+    @rep_vec ΔcEco ⇒ helpers.pools.zeros.cEco
 
     # reset the c_eco_efflux to zero, except for cVeg
     for zix ∈ zix_cNonVeg
@@ -53,6 +53,7 @@ function compute(params::cCycle_simple, forcing, land, helpers)
     for cl ∈ eachindex(cEco)
         c_eco_out_cl = min(cEco[cl], cEco[cl] * c_eco_k[cl])
         @rep_elem c_eco_out_cl ⇒ (c_eco_out, cl)
+        cl ∈ zix_cNonVeg && (@rep_elem c_eco_out_cl ⇒ (c_eco_efflux, cl))
     end
 
     ## gains to vegetation
@@ -63,19 +64,21 @@ function compute(params::cCycle_simple, forcing, land, helpers)
     end
 
     # flows & losses
+    zix_cVeg = helpers.pools.zix.cVeg
     for (take_r, give_r, A_value, QP_value, ME_value) ∈ zip(c_taker, c_giver, c_flow_A_vec, c_flow_QP_vec, c_flow_ME_vec)
         tmp_out = c_eco_out[give_r] * A_value * QP_value
-        tmp_flow = c_eco_flow[take_r] + tmp_out * ME_value
-        tmp_efflux = c_eco_efflux[give_r] + tmp_out * (one(ME_value) - ME_value)
+        tmp_keep = give_r ∈ zix_cVeg ? tmp_out : tmp_out * ME_value
+        tmp_flow = c_eco_flow[take_r] + tmp_keep
         @rep_elem tmp_flow ⇒ (c_eco_flow, take_r)
-        @rep_elem tmp_efflux ⇒ (c_eco_efflux, give_r)
+        give_r ∈ zix_cNonVeg && (@rep_elem c_eco_efflux[give_r] - tmp_keep ⇒ (c_eco_efflux, give_r))
     end
 
     # balance
     for cl ∈ eachindex(cEco)
-        ΔcEco_cl = c_eco_flow[cl] + c_eco_influx[cl] - c_eco_out[cl]
-        @add_to_elem ΔcEco_cl ⇒ (ΔcEco, cl, :cEco)
-        cEco_cl = cEco[cl] + c_eco_flow[cl] + c_eco_influx[cl] - c_eco_out[cl]
+        tmp_delta = c_eco_flow[cl] + c_eco_influx[cl] - c_eco_out[cl]
+        ΔcEco_cl = tmp_delta
+        @add_to_elem ΔcEco_cl ⇒ (ΔcEco, cl)
+        cEco_cl = cEco[cl] + tmp_delta
         @rep_elem cEco_cl ⇒ (cEco, cl)
     end
 
@@ -110,6 +113,13 @@ function compute(params::cCycle_simple, forcing, land, helpers)
     #     )
     
     nee = eco_respiration - gpp
+
+
+    #
+
+
+
+
     nbp = - (eco_respiration + product_respiration - gpp)
 
     @rep_vec cEco_prev ⇒ cEco
@@ -125,6 +135,8 @@ function compute(params::cCycle_simple, forcing, land, helpers)
         cEco_prev ⇒ land.states
         ΔcEco ⇒ land.pools
     end
+
+    checkCcycleBalance(land, helpers, helpers.run.catch_model_errors)
     return land
 end
 

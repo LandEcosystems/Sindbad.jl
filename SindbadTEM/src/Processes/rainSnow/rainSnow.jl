@@ -21,7 +21,7 @@ function update(params::rainSnow, forcing, land, helpers)
         ΔsnowW ⇐ land.pools
     end
 
-    @add_to_elem ΔsnowW[1] ⇒ (snowW, 1, :snowW)
+    @add_to_elem ΔsnowW[1] ⇒ (snowW, 1)
 
     # reset delta storage	
     @rep_elem zero(eltype(ΔsnowW)) ⇒ (ΔsnowW, 1)

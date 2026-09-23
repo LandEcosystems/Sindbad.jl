@@ -1,8 +1,12 @@
 export cFireCombustionCompleteness_vanDerWerf2006
 
 #! format: off
-@bounds @describe @units @timescale @with_kw struct cFireCombustionCompleteness_vanDerWerf2006{T1} <: cFireCombustionCompleteness
+@bounds @describe @units @timescale @with_kw struct cFireCombustionCompleteness_vanDerWerf2006{T1, T2, T3, T4, T5} <: cFireCombustionCompleteness
     fire_cc_scalar::T1 = 1.0 | (0.5, 2.0) | "scalar for the per-pool fire combustion completeness (ccMin/ccMax)" | "-" | ""
+    soil_burn_depth_max::T2 = 0.1 | (0.0, 1.0) | "maximum burn depth of non-peat organic soil" | "m" | ""
+    peat_burn_depth_max::T3 = 0.3 | (0.0, 5.0) | "maximum burn depth of peat" | "m" | ""
+    peat_porosity_threshold::T4 = 0.8 | (0.0, 1.0) | "porosity threshold used to diagnose peat-like soil" | "-" | ""
+    peat_min_burn_fraction::T5 = 0.5 | (0.0, 1.0) | "minimum fraction of the peat burnable depth consumed" | "-" | ""
 end
 #! format: on
 
@@ -10,32 +14,16 @@ function define(params::cFireCombustionCompleteness_vanDerWerf2006, forcing, lan
     ## instantiate variables
     @unpack_nt begin
         cEco ⇐ land.pools
-        zix ⇐ helpers.pools
         c_model ⇐ land.models
     end
 
-    c_fire_ccMax = zero.(cEco)
-    c_fire_ccMin = zero.(cEco)
     c_Fire_cci = zero.(cEco)
-    c_Fire_cc_fW = zero.(cEco)
-
-    # The fixed per-pool-name (ccMin, ccMax, weight) table for whichever
-    # cCycleBase family is actually active, resolved once here since it is
-    # structural, not a value precompute could ever change -- see fireCCTable
-    # (poolConfigurations/poolConfigurations.jl) and its per-configuration
-    # methods (CASA.jl/GSI.jl/MGMT.jl).
     fire_cc_table = fireCCTable(c_model)
-
-    # zix_lit_soil_mic: every non-vegetation pool whose combustion completeness
-    # is scaled by soil water in compute below (litter, soil, and microbial --
-    # the microbial pools are new here; the old cc_lut-based code never gave
-    # them any ccMin/ccMax at all, so they never combusted).
-    zix_lit_soil_mic = (zix.cLit..., zix.cSoil..., zix.cMic...)
+    fire_aboveground_fraction_table = abovegroundFractionTable(c_model)
 
     ## pack land variables
     @pack_nt begin
-        (c_fire_ccMin, c_fire_ccMax, c_Fire_cci, c_Fire_cc_fW, fire_cc_table) ⇒ land.diagnostics
-        zix_lit_soil_mic ⇒ land.cFireCombustionCompleteness
+        (c_Fire_cci, fire_cc_table, fire_aboveground_fraction_table) ⇒ land.diagnostics
     end
     return land
 end
@@ -46,15 +34,70 @@ function precompute(params::cFireCombustionCompleteness_vanDerWerf2006, forcing,
 
     ## unpack land variables
     @unpack_nt begin
-        fire_cc_table ⇐ land.diagnostics
-        (c_fire_ccMin, c_fire_ccMax) ⇐ land.diagnostics
+        cEco ⇐ land.pools
+        soilW ⇐ land.pools
+        gpp_f_soilW ⇐ land.diagnostics
+        (fire_cc_table, fire_aboveground_fraction_table) ⇐ land.diagnostics
+        zix ⇐ helpers.pools
+        zix_cHeterotrophic ⇐ land.cCycleBase
+        (w_sat, ∑w_sat, soil_layer_thickness) ⇐ land.properties
+        (z_zero, o_one) ⇐ land.constants
     end
 
+    c_fire_ccMax = zero.(cEco)
+    c_fire_ccMin = zero.(cEco)
+    c_fire_cc_weight = zero.(cEco)
+    c_fire_aboveground_fraction = zero.(cEco)
+    c_Fire_cc_fW = zero.(cEco)
+    frac_exposed = one.(cEco)
+
     ## calculate variables
-    (c_fire_ccMin, c_fire_ccMax) = getFireCCFromParams(c_fire_ccMin, c_fire_ccMax, fire_cc_table, fire_cc_scalar, helpers)
+    (c_fire_ccMin, c_fire_ccMax, c_fire_cc_weight) = getFireCCFromParams(c_fire_ccMin, c_fire_ccMax, c_fire_cc_weight, fire_cc_table, fire_cc_scalar, helpers)
+    c_fire_aboveground_fraction = getAbovegroundFractionFromParams(c_fire_aboveground_fraction, fire_aboveground_fraction_table, helpers)
+
+    totalSoilW = at_least_zero(totalS(soilW))
+    soilW_nor = at_most_one(totalSoilW / ∑w_sat)
+    for izix in zix_cHeterotrophic
+        @rep_elem soilW_nor ⇒ (c_Fire_cc_fW, izix)
+    end
+    for zixVeg in zix.cVeg
+        @rep_elem gpp_f_soilW ⇒ (c_Fire_cc_fW, zixVeg)
+    end
+
+    peat_porosity = zero(w_sat[1])
+    depth = zero(peat_burn_depth_max)
+    for sl in eachindex(soil_layer_thickness)
+        Δzi = soil_layer_thickness[sl]
+        Δzi_peat = min(Δzi, at_least_zero(peat_burn_depth_max - depth))
+        θ_sat = Δzi > z_zero ? w_sat[sl] / Δzi : z_zero
+        peat_porosity += θ_sat * Δzi_peat
+        depth += Δzi_peat
+    end
+    peat_porosity = depth > z_zero ? peat_porosity / depth : z_zero
+    peat = peat_porosity >= peat_porosity_threshold ? o_one : z_zero
+
+    soil_depth = sum(soil_layer_thickness)
+    f_soil = soil_depth > z_zero ? at_most_one(soil_burn_depth_max / soil_depth) : z_zero
+    f_peat = soil_depth > z_zero ? at_most_one(peat_burn_depth_max / soil_depth) : z_zero
+
+    for izix in zix.cEco
+        f_ag = c_fire_aboveground_fraction[izix]
+        @rep_elem f_ag + (o_one - f_ag) * f_soil ⇒ (frac_exposed, izix)
+    end
+    for izix in zix.cMic
+        f_ag = c_fire_aboveground_fraction[izix]
+        f_bg = at_least_zero(f_soil + peat * (f_peat - f_soil))
+        @rep_elem f_ag + (o_one - f_ag) * f_bg ⇒ (frac_exposed, izix)
+    end
+    for izix in zix.cSoil
+        f_ag = c_fire_aboveground_fraction[izix]
+        @rep_elem f_ag + (o_one - f_ag) * peat * f_peat ⇒ (frac_exposed, izix)
+    end
 
     ## pack land variables
-    @pack_nt (c_fire_ccMin, c_fire_ccMax) ⇒ land.diagnostics
+    @pack_nt begin
+        (c_fire_ccMin, c_fire_ccMax, c_fire_cc_weight, c_fire_aboveground_fraction, c_Fire_cc_fW, frac_exposed, peat) ⇒ land.diagnostics
+    end
     return land
 end
 
@@ -62,21 +105,23 @@ function compute(params::cFireCombustionCompleteness_vanDerWerf2006, forcing, la
     @unpack_cFireCombustionCompleteness_vanDerWerf2006 params
     ## unpack land variables
     @unpack_nt begin
-        (c_fire_ccMin, c_fire_ccMax, c_Fire_cci, c_Fire_cc_fW ) ⇐ land.diagnostics
+        (c_fire_ccMin, c_fire_ccMax, c_Fire_cci, c_Fire_cc_fW, c_fire_cc_weight, c_fire_aboveground_fraction, frac_exposed, peat) ⇐ land.diagnostics
         gpp_f_soilW ⇐ land.diagnostics
         zix ⇐ helpers.pools
         soilW ⇐ land.pools
         ∑w_sat ⇐ land.properties
-        (z_zero, o_one) ⇐ land.constants
-        zix_lit_soil_mic ⇐ land.cFireCombustionCompleteness
+        o_one ⇐ land.constants
+        zix_cHeterotrophic ⇐ land.cCycleBase
     end
 
     totalSoilW = at_least_zero(totalS(soilW))
     soilW_nor = at_most_one(totalSoilW / ∑w_sat)
 
     # for all litter/soil/microbial pools c_Fire_cc_fW = soilW_nor
-    for izix in zix_lit_soil_mic
-        @rep_elem soilW_nor ⇒ (c_Fire_cc_fW, izix)
+    for izix in zix_cHeterotrophic
+        weight = c_fire_cc_weight[izix]
+        fW = weight * soilW_nor + (o_one - weight) * c_Fire_cc_fW[izix]
+        @rep_elem fW ⇒ (c_Fire_cc_fW, izix)
     end
     # for all veg pools c_Fire_cc_fW = gpp_f_soilW
     for zixVeg in zix.cVeg
@@ -85,8 +130,15 @@ function compute(params::cFireCombustionCompleteness_vanDerWerf2006, forcing, la
 
     # for all cEco pools
     for zix_idx in zix.cEco
-        cci = (c_fire_ccMax[zix_idx] - c_fire_ccMin[zix_idx]) * (o_one - c_Fire_cc_fW[zix_idx]) + c_fire_ccMin[zix_idx]
-        @rep_elem cci ⇒ (c_Fire_cci, zix_idx)
+        fW = c_Fire_cc_fW[zix_idx]
+        cci = (c_fire_ccMax[zix_idx] - c_fire_ccMin[zix_idx]) * (o_one - fW) + c_fire_ccMin[zix_idx]
+        f_ag = c_fire_aboveground_fraction[zix_idx]
+        f_burn = o_one - fW
+        if zix_idx ∈ zix.cMic || zix_idx ∈ zix.cSoil
+            f_burn += peat * peat_min_burn_fraction * fW
+        end
+        f_exp = f_ag + (frac_exposed[zix_idx] - f_ag) * f_burn
+        @rep_elem cci * f_exp ⇒ (c_Fire_cci, zix_idx)
     end
 
     # ## pack land variables
@@ -106,46 +158,23 @@ $(getModelDocString(cFireCombustionCompleteness_vanDerWerf2006))
 
 # Extended help
 
-Combustion completeness used to be 7 hardcoded struct fields, one per
-compartment (`fcc_stem`, `fcc_leaf`, `fcc_leaf_lit_m`, `fcc_leaf_lit_s`,
-`fcc_sol`, `fcc_root`, `fcc_cwd`), each a `[min, max, prev, current]`
-4-vector, mapped onto pool indices by a hardcoded `cc_lut` written against
-GSI's pool shape (`cVegRoot`/`cVegWood`/`cVegReserve`/`cVegLeaf`). This is
-now generalized onto the same fixed-table-plus-bounded-scalar pattern
-`cCycleBase` uses for turnover and carbon-to-nitrogen ratio:
-`CASA_FIRE_CC_VANDERWERF`/`GSI_FIRE_CC_VANDERWERF`
-(`poolConfigurations/CASA.jl`/`GSI.jl`) hold the fixed `(ccMin, ccMax,
-weight)` data, keyed by each configuration's own pool names; `fireCCTable`
-(`poolConfigurations/poolConfigurations.jl`) resolves the right table for
-whichever `cCycleBase` family is active at runtime, and `getFireCCFromParams`
-scales both `ccMin`/`ccMax` by the single bounded `fire_cc_scalar` and
-scatters them by pool name, the same convention `getKfromTau`/
-`getCNfromParams` use. `weight` (an autoregressive filter weight) is carried
-in the table but not yet read anywhere -- reserved for a future filtering
-feature.
+Combustion completeness is resolved from the fixed per-pool-name table of the
+active `cCycleBase` pool configuration. `getFireCCFromParams` scatters
+`ccMin`, `ccMax`, and the autoregressive moisture weight to the configured
+pool indices, while `getAbovegroundFractionFromParams` scatters the fraction
+of each pool that is aboveground.
 
-`GSI_FIRE_CC_VANDERWERF` is derived from `CASA_FIRE_CC_VANDERWERF`
-(`deriveFireCCTable`), not hand-duplicated, which shifts `cLitFast`/
-`cLitSlow`'s values slightly from what the old `cc_lut` gave GSI (`cLitFast`
-`(0.9,1.0,0.9)` -> `(0.45,0.5,0.95)`, `cLitSlow` `(0.5,0.6,0.6)` ->
-`(0.35,0.4,0.875)`, both before `fire_cc_scalar`), since CASA's finer
-resolution distinguishes leaf litter (burns) from root-fine litter (does
-not) where GSI's single `cLitFast`/`cLitSlow` pools cannot. Every other GSI
-pool's value is unchanged.
+Live vegetation uses `gpp_f_soilW`; litter, microbial, and soil pools use the
+common soil-water scalar. The previous heterotrophic-pool moisture state is
+initialized from the current soil-water scalar in `precompute` and updated
+with each pool's table weight in `compute`.
 
-The old `cc_lut` never gave microbial pools any `ccMin`/`ccMax` at all, so
-they never combusted; `CASA_FIRE_CC_VANDERWERF` now does
-(`cMicSurf`/`cMicSoil`), and `compute`'s soil-water-scaling loop was
-extended to cover `zix.cMic` alongside litter/soil so those values actually
-take effect instead of leaving `c_Fire_cc_fW` at its zero-init (which would
-otherwise combust `cMicSurf` at `ccMax` unconditionally, every timestep).
-
-The old `cc_lut`'s keys matched GSI's pool shape, not CASA's (CASA has no
-undifferentiated `cVegRoot`/`cVegReserve` -- it has
-`cVegRootFine`/`cVegRootCoarse`, no reserve pool at all), which is why this
-approach was only ever tested under GSI (`reference_approaches`) and CASA was
-a tracked `allowed_to_fail_approaches` mismatch. `fireCCTable`'s
-per-configuration dispatch fixes that for CASA as well.
+Belowground exposure is limited by `soil_burn_depth_max`. Peat-like soils are
+diagnosed from depth-weighted hydraulic porosity, calculated from `w_sat /
+soil_layer_thickness` over at most `peat_burn_depth_max`. Microbial pools can
+use the deeper peat exposure when peat is diagnosed; slow/old soil carbon is
+exposed only in peat. Peat burning retains `peat_min_burn_fraction` of the
+maximum exposed depth under wet conditions.
 
 *Versions*
  - 1.0 [nunocarvalhais]: original hardcoded per-compartment struct and `cc_lut`

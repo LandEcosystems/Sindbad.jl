@@ -45,6 +45,36 @@ function throwError(land, msg)
     error(msg)
 end
 
+function checkCcycleBalance(land, helpers, ::DoCatchModelErrors)
+    @unpack_nt begin
+        ΔcEco ⇐ land.pools
+        (npp, auto_respiration, eco_respiration, hetero_respiration, product_respiration, nee, nbp) ⇐ land.fluxes
+        tolerance ⇐ helpers.numbers
+    end
+
+    if !isapprox(eco_respiration, auto_respiration + hetero_respiration; atol=tolerance)
+        throwError(land, "carbon balance error: eco_respiration != auto_respiration + hetero_respiration. Cannot continue")
+    end
+
+    if !isapprox(nee, hetero_respiration - npp; atol=tolerance)
+        throwError(land, "carbon balance error: nee != hetero_respiration - npp. Cannot continue")
+    end
+
+    if !isapprox(nbp, -nee - product_respiration; atol=tolerance)
+        throwError(land, "carbon balance error: nbp != -nee - product_respiration [$(nbp), -$(nee) - $(product_respiration)]. Cannot continue")
+    end
+
+    if !isapprox(totalS(ΔcEco), nbp; atol=tolerance)
+        throwError(land, "carbon balance error: total ΔcEco != nbp [$(totalS(ΔcEco)) != $(nbp)]. Cannot continue")
+    end
+
+    return nothing
+end
+
+function checkCcycleBalance(land, helpers, ::DoNotCatchModelErrors)
+    return nothing
+end
+
 function checkCcycleErrors(params::cCycleConsistency_simple, forcing, land, helpers, ::DoCatchModelErrors) #when check is on
     ## unpack land variables
     @unpack_nt begin

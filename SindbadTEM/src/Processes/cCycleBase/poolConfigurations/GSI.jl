@@ -1,4 +1,5 @@
 export GSI
+export GSI_ABOVEGROUND_FRACTION
 
 struct GSI <: CarbonPoolConfiguration end
 purpose(::Type{GSI}) = "GSI carbon pools: 8 pools with a vegetation reserve and litter split into fast and slow"
@@ -76,6 +77,19 @@ const GSI_CN_ratio = (;
     cLitFast = 0.0, cLitSlow = 0.0, cSoilSlow = 0.0, cSoilOld = 0.0,
 )
 
+const GSI_ABOVEGROUND_FRACTION = (;
+    cVegRoot = 0.0,
+    cVegWood = 1.0,
+    cVegLeaf = 1.0,
+    cVegReserve = 0.75,
+    cLitFast = 0.5,
+    cLitSlow = 0.75,
+    cSoilSlow = 0.0,
+    cSoilOld = 0.0,
+)
+
+abovegroundFractionTable(::Type{GSI}) = GSI_ABOVEGROUND_FRACTION
+
 const GSI_POOL_NAMES = propertynames(GSI_TAU_DEFAULT)
 
 """
@@ -92,7 +106,7 @@ function fireCCTable(::Type{GSI})
     return merge(
         deriveFireCCTable(CASA_FIRE_CC_VANDERWERF, GSI_POOL_NAMES, CASA),
         (;
-            cVegRoot = FIRE_CC_NO_BURN,           # CASA generates cVegRoot from Root.{Fine,Coarse} nesting, not a poolAlias
+            cVegRoot = FIRE_CC_LO_BURN,           # CASA generates cVegRoot from Root.{Fine,Coarse} nesting, not a poolAlias
             cVegReserve = (0.2f0, 0.3f0, 1.0f0),  # no CASA counterpart at all; matches cVegWood's value, same as the old cc_lut's cVegReserve => fcc_stem mapping
         ),
     )

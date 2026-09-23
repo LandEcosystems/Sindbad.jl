@@ -26,7 +26,7 @@ function compute(params::evaporation_demandSupply, forcing, land, helpers)
     evaporation = min(PET_evaporation, evaporationSupply)
 
     # update soil moisture changes
-    @add_to_elem -evaporation ⇒ (ΔsoilW, 1, :soilW)
+    @add_to_elem -evaporation ⇒ (ΔsoilW, 1)
     ## pack land variables
     @pack_nt begin
         (PET_evaporation, evaporationSupply) ⇒ land.fluxes

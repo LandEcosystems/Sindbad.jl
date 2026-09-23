@@ -91,7 +91,7 @@ function writeTestData(path, vars::Vector{<:Pair})
         println(io, "# Regenerate with: julia --project=. tools/benchmark/TestSindbadTEM/derive_sindbadTEM_test_data.jl")
         println(io)
         println(io, "using SindbadTEM")
-        println(io, "using StaticArrays: SVector")
+        # println(io, "using StaticArraysCore: SVector")
         println(io, "using Dates")
         for (varname, value) in vars
             println(io)

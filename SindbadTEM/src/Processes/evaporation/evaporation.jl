@@ -21,7 +21,7 @@ function update(params::evaporation, forcing, land, helpers)
         ΔsoilW ⇐ land.pools
     end
 
-    @add_to_elem ΔsoilW[1] ⇒ (soilW, 1, :soilW)
+    @add_to_elem ΔsoilW[1] ⇒ (soilW, 1)
 
     @rep_elem zero(ΔsoilW) ⇒ (ΔsoilW, 1)
 

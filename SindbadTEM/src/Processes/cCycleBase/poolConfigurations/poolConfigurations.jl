@@ -1,6 +1,8 @@
 export CarbonPoolConfiguration
 export cFlowEdges
 export fireCCTable
+export abovegroundFractionTable
+export getAbovegroundFractionFromParams
 export TAU_DORMANT
 export TAU_HILO_LIT_SPLIT
 
@@ -92,6 +94,22 @@ end
 fireCCTable(T::cCycleBase) = fireCCTable(typeof(T))
 
 """
+    abovegroundFractionTable(configuration)
+
+The fixed, per-pool-name fraction of each carbon pool that is aboveground.
+Resolved for a `CarbonPoolConfiguration` or active `cCycleBase` in the same
+way as `fireCCTable`.
+"""
+function abovegroundFractionTable end
+
+abovegroundFractionTable(::Type{<:CarbonPoolConfiguration}) = error("No aboveground fraction table is defined for this carbon pool configuration.")
+function abovegroundFractionTable(A::Type{<:cCycleBase})
+    configuration = poolConfiguration(A)
+    return isnothing(configuration) ? error("No aboveground fraction table is defined for this carbon pool configuration.") : abovegroundFractionTable(configuration)
+end
+abovegroundFractionTable(T::cCycleBase) = abovegroundFractionTable(typeof(T))
+
+"""
     carbonPoolConfiguration(name::Symbol)
 
 Resolve a `CarbonPoolConfiguration` by name. Errors with what was tried rather than
@@ -130,6 +148,10 @@ cFlowEdges(configuration::CarbonPoolConfiguration) = cFlowEdges(typeof(configura
 fireCCTable(name::AbstractString) = fireCCTable(Symbol(name))
 fireCCTable(name::Symbol) = fireCCTable(carbonPoolConfiguration(name))
 fireCCTable(configuration::CarbonPoolConfiguration) = fireCCTable(typeof(configuration))
+
+abovegroundFractionTable(name::AbstractString) = abovegroundFractionTable(Symbol(name))
+abovegroundFractionTable(name::Symbol) = abovegroundFractionTable(carbonPoolConfiguration(name))
+abovegroundFractionTable(configuration::CarbonPoolConfiguration) = abovegroundFractionTable(typeof(configuration))
 
 """
     cFlowStructure(params::cCycleBase, cEco, helpers)
@@ -496,6 +518,36 @@ function getFireCCFromParams(c_fire_ccMin, c_fire_ccMax, table, scalar, helpers)
         end
     end
     return c_fire_ccMin, c_fire_ccMax
+end
+
+function getFireCCFromParams(c_fire_ccMin, c_fire_ccMax, c_fire_cc_weight, table, scalar, helpers)
+    Tmin = eltype(c_fire_ccMin)
+    Tmax = eltype(c_fire_ccMax)
+    Tw = eltype(c_fire_cc_weight)
+    for (pool_name, cc) in pairs(table)
+        cc_min, cc_max, weight = cc
+        for ix in getproperty(helpers.pools.zix, pool_name)
+            c_fire_ccMin = repElem(c_fire_ccMin, Tmin(cc_min) * scalar, ix)
+            c_fire_ccMax = repElem(c_fire_ccMax, Tmax(cc_max) * scalar, ix)
+            c_fire_cc_weight = repElem(c_fire_cc_weight, Tw(weight), ix)
+        end
+    end
+    return c_fire_ccMin, c_fire_ccMax, c_fire_cc_weight
+end
+
+"""
+    getAbovegroundFractionFromParams(c_fire_aboveground_fraction, table, helpers)
+
+Scatter a per-pool-name aboveground-fraction table to the active `cEco` indices.
+"""
+function getAbovegroundFractionFromParams(c_fire_aboveground_fraction, table, helpers)
+    T = eltype(c_fire_aboveground_fraction)
+    for (pool_name, fraction) in pairs(table)
+        for ix in getproperty(helpers.pools.zix, pool_name)
+            c_fire_aboveground_fraction = repElem(c_fire_aboveground_fraction, T(fraction), ix)
+        end
+    end
+    return c_fire_aboveground_fraction
 end
 
 """

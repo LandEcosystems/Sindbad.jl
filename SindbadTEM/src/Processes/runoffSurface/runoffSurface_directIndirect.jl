@@ -31,7 +31,7 @@ function compute(params::runoffSurface_directIndirect, forcing, land, helpers)
     surface_runoff = surface_runoff_direct + surface_runoff_indirect
 
     # update the delta storage
-    @add_to_elem suw_recharge ⇒ (ΔsurfaceW, 1, :surfaceW) # assumes all the recharge supplies the first surface water layer
+    @add_to_elem suw_recharge ⇒ (ΔsurfaceW, 1) # assumes all the recharge supplies the first surface water layer
     ΔsurfaceW = addToEachElem(ΔsurfaceW, - surface_runoff_indirect / n_surfaceW)
 
     ## pack land variables

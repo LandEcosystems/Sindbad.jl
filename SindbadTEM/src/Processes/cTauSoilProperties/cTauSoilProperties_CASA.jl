@@ -36,7 +36,7 @@ function compute(params::cTauSoilProperties_CASA, forcing, land, helpers)
     # cMicSoil to an empty index set, so this loop runs zero times rather than
     # needing a guard.
     for zix ∈ helpers.pools.zix.cMicSoil
-        c_eco_k_f_soil_props[zix] = (1.0 - (TEXTEFFA * (silt + clay)))
+        c_eco_k_f_soil_props[zix] = (one(TEXTEFFA) - (TEXTEFFA * (silt + clay)))
     end
 
     ## pack land variables

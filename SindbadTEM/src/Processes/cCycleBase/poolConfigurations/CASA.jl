@@ -1,6 +1,8 @@
 export CASA
+export CASA_ABOVEGROUND_FRACTION
 export FIRE_CC_NO_BURN
-export FIRE_CC_HIGH_BURN
+export FIRE_CC_LO_BURN
+export FIRE_CC_HI_BURN
 
 struct CASA <: CarbonPoolConfiguration end
 purpose(::Type{CASA}) = "CASA carbon pools: 14 pools, vegetation split into fine and coarse roots and litter nested by compartment"
@@ -127,23 +129,43 @@ const CASA_CN_ratio = (;
     cSoilSlow = 0.0,
     cSoilOld = 0.0,
 )
+const CASA_ABOVEGROUND_FRACTION = (;
+    cVegRootFine = 0.0,
+    cVegRootCoarse = 0.0,
+    cVegWood = 1.0,
+    cVegLeaf = 1.0,
+    cLitLeafFast = 1.0,
+    cLitLeafSlow = 1.0,
+    cLitRootFineFast = 0.0,
+    cLitRootFineSlow = 0.0,
+    cLitRootCoarse = 0.0,
+    cLitWood = 1.0,
+    cMicSurf = 1.0,
+    cMicSoil = 0.0,
+    cSoilSlow = 0.0,
+    cSoilOld = 0.0,
+)
+
+abovegroundFractionTable(::Type{CASA}) = CASA_ABOVEGROUND_FRACTION
+
 """
-    FIRE_CC_NO_BURN, FIRE_CC_HIGH_BURN
+    FIRE_CC_NO_BURN, FIRE_CC_HI_BURN
 
 Shared `(ccMin, ccMax, weight)` fire combustion-completeness triples: pools
 that essentially never burn (`FIRE_CC_NO_BURN`, `ccMin = ccMax = 0`) and
 pools that burn almost completely once fire reaches them
-(`FIRE_CC_HIGH_BURN`). `weight` is a reserved autoregressive filter weight,
+(`FIRE_CC_HI_BURN`). `weight` is a reserved autoregressive filter weight,
 not yet consumed by any approach.
 """
 const FIRE_CC_NO_BURN = (0.0f0, 0.0f0, 1.0f0)
-const FIRE_CC_HIGH_BURN = (0.9f0, 1.0f0, 0.9f0)
+const FIRE_CC_LO_BURN = (0.0f0, 0.1f0, 1.0f0)
+const FIRE_CC_HI_BURN = (0.9f0, 1.0f0, 0.9f0)
 
 """
     CASA_FIRE_CC_VANDERWERF
 
 Van der Werf et al. (2006) fire combustion completeness, `(ccMin, ccMax,
-weight)` triples (see `FIRE_CC_NO_BURN`/`FIRE_CC_HIGH_BURN`) per CASA pool
+weight)` triples (see `FIRE_CC_NO_BURN`/`FIRE_CC_HI_BURN`) per CASA pool
 name. Fixed data, not a parameter; calibration happens through
 `fire_cc_scalar` in `cFireCombustionCompleteness_vanDerWerf2006` instead.
 
@@ -151,20 +173,20 @@ Root pools and every fine litter/soil pool downstream of them do not burn;
 leaf and its litter, wood and its litter, and the surface microbial pool do.
 """
 const CASA_FIRE_CC_VANDERWERF = (;
-    cVegRootFine = FIRE_CC_NO_BURN,
-    cVegRootCoarse = FIRE_CC_NO_BURN,
+    cVegRootFine = FIRE_CC_LO_BURN,
+    cVegRootCoarse = FIRE_CC_LO_BURN,
     cVegWood = (0.2f0, 0.3f0, 1.0f0),
     cVegLeaf = (0.8f0, 1.0f0, 1.0f0),
-    cLitLeafFast = FIRE_CC_HIGH_BURN,
-    cLitLeafSlow = FIRE_CC_HIGH_BURN,
-    cLitRootFineFast = FIRE_CC_NO_BURN,
-    cLitRootFineSlow = FIRE_CC_NO_BURN,
-    cLitRootCoarse = FIRE_CC_NO_BURN,
+    cLitLeafFast = FIRE_CC_HI_BURN,
+    cLitLeafSlow = FIRE_CC_HI_BURN,
+    cLitRootFineFast = FIRE_CC_HI_BURN,
+    cLitRootFineSlow = FIRE_CC_HI_BURN,
+    cLitRootCoarse = (0.5f0, 0.6f0, 0.6f0),
     cLitWood = (0.5f0, 0.6f0, 0.6f0),
-    cMicSurf = FIRE_CC_HIGH_BURN,
-    cMicSoil = FIRE_CC_NO_BURN,
-    cSoilSlow = FIRE_CC_NO_BURN,
-    cSoilOld = FIRE_CC_NO_BURN,   # old soil does not burn
+    cMicSurf = FIRE_CC_HI_BURN,
+    cMicSoil = FIRE_CC_HI_BURN,
+    cSoilSlow = FIRE_CC_HI_BURN,
+    cSoilOld = FIRE_CC_LO_BURN,   # old soil does not burn
 )
 
 fireCCTable(::Type{CASA}) = CASA_FIRE_CC_VANDERWERF

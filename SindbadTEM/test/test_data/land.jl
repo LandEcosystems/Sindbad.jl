@@ -2,7 +2,6 @@
 # Regenerate with: julia --project=. tools/benchmark/TestSindbadTEM/derive_sindbadTEM_test_data.jl
 
 using SindbadTEM
-using StaticArrays: SVector
 using Dates
 
 land = (;
@@ -61,6 +60,7 @@ land = (;
     cCycleConsistency = NamedTuple(),
     cCycleDisturbance = NamedTuple(),
     cCycleManagement = NamedTuple(),
+    cFire = NamedTuple(),
     cFireBurnedArea = NamedTuple(),
     cFireCombustionCompleteness = NamedTuple(),
     cFireMortality = NamedTuple(),
@@ -70,7 +70,6 @@ land = (;
     cMicrobialEfficiency = NamedTuple(),
     cQualityPartition = NamedTuple(),
     cTau = NamedTuple(),
-    cTauLAI = NamedTuple(),
     cTauSoilProperties = NamedTuple(),
     cTauSoilT = NamedTuple(),
     cTauSoilW = NamedTuple(),
@@ -117,15 +116,25 @@ land = (;
     transpirationSupply = NamedTuple(),
     treeFraction = NamedTuple(),
     vegAvailableWater = NamedTuple(),
+    vegClass = NamedTuple(),
+    vegDynamics = NamedTuple(),
     vegFraction = NamedTuple(),
     vegQualityTraits = NamedTuple(),
-    vegDynamics = NamedTuple(),
-    vegClass = NamedTuple(),
     wCycle = NamedTuple(),
     wCycleBase = NamedTuple(),
     waterBalance = NamedTuple(),
     sublimation = NamedTuple(),
     interception = NamedTuple(),
     groundWSurfaceWInteraction = NamedTuple(),
+    cMicrobialEfficiencycLit = NamedTuple(),
+    cMicrobialEfficiencycMic = NamedTuple(),
+    cMicrobialEfficiencycSoil = NamedTuple(),
+    cQualityPartitioncVeg = NamedTuple(),
+    cQualityPartitioncLit = NamedTuple(),
+    cQualityPartitioncMic = NamedTuple(),
+    cQualityPartitioncSoil = NamedTuple(),
+    cFlowStress = NamedTuple(),
+    cFlowLitterfall = NamedTuple(),
+    cFlowReserves = NamedTuple(),
     deriveVariables = NamedTuple()
 )
