@@ -85,7 +85,7 @@ A helper function to optimize parameters for each pixel by mapping over the YAXc
 - `obs_vars::AbstractArray`: Array of observation variables used in optimization
 """
 function optimizeYax(map_cubes...; forcing_vars::AbstractArray, obs_vars::AbstractArray)
-    output, forcing, observation = unpackYaxOpti(map_cubes; forcing_vars)
+    output, forcing, observation = unpackYaxOptimize(map_cubes; forcing_vars)
     forcing = (; Pair.(forcing_vars, forcing)...)
     observation = (; Pair.(obs_vars, observation)...)
     params = optimizeTEM(forcing, observation, info)
@@ -105,7 +105,7 @@ Unpacks the variables for the mapCube function
 # Returns
 Unpacked data arrays
 """
-function unpackYaxOpti(all_cubes; forcing_vars::AbstractArray)
+function unpackYaxOptimize(all_cubes; forcing_vars::AbstractArray)
     nforc = length(forcing_vars)
     outputs = first(all_cubes)
     forcings = all_cubes[2:(nforc+1)]
