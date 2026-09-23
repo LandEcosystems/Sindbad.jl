@@ -149,12 +149,22 @@ the model's implementation choice) inside the leaf itself would be pure redundan
 Keys that come out as `AbstractString`s have `.` replaced with `__`, same as
 [`convertParametersToNamedTuple(parameter_table, name_field)`](@ref).
 
+Within a group, `name_field` is not always unique on its own - two different approaches
+in the same `group_field` (e.g. two process types that both, correctly or by a
+supertype bug, land in the same `:model` group) can each declare a same-named
+parameter such as `f_τ`. When that happens and `parameter_table` has a
+`model_approach` column, the colliding keys are disambiguated the same way
+[`getUniqueVarNames`](@ref) disambiguates output variable names: only the rows that
+collide are rewritten as `<name>__<model_approach>`, so unambiguous names in the same
+group keep their plain form. If a `model_approach` column isn't available, or names
+still collide after that rewrite, an `ArgumentError` is thrown naming the duplicated
+key(s) and the row indices that produced them.
+
 # Returns
 A `NamedTuple` of `NamedTuple`s of `NamedTuple`s: `nt.<group>.<name>` is that row, minus
 `group_field`/`name_field`/`name_full`/`model_approach`/`approach_func`. Assumes the
 `(group_field, name_field)` combination is unique per row (true for `(:model, :name)` in
-a SINDBAD parameter table); if it isn't, `NamedTuple` construction itself errors on the
-resulting duplicate field name.
+a SINDBAD parameter table); see above for what happens when it isn't.
 
 # Examples
 ```jldoctest
@@ -175,6 +185,7 @@ function convertParametersToNamedTuple(parameter_table, group_field::Symbol, nam
     n_rows = length(parameter_table)
     group_values = getproperty(parameter_table, group_field)
     name_values = getproperty(parameter_table, name_field)
+    disambiguator_values = hasproperty(parameter_table, :model_approach) ? getproperty(parameter_table, :model_approach) : nothing
 
     exclude_fields = (group_field, name_field)
     for redundant_field in (:name_full, :model_approach, :approach_func)
@@ -191,10 +202,52 @@ function convertParametersToNamedTuple(parameter_table, group_field::Symbol, nam
 
     group_nts = map(group_keys) do group_key
         row_inds = rows_by_group[group_key]
-        name_keys = Tuple(_sanitizeNamedTupleKey.(name_values[row_inds]))
+        name_keys = _uniqueNameKeysWithinGroup(group_key, row_inds, name_values, disambiguator_values)
         NamedTuple{name_keys}(Tuple(_concreteNamedTuple(drop_namedtuple_fields(parameter_table[row_ind], exclude_fields)) for row_ind in row_inds))
     end
     return NamedTuple{group_keys}(group_nts)
+end
+
+"""
+    _uniqueNameKeysWithinGroup(group_key, row_inds, name_values, disambiguator_values)
+
+Return a `Tuple` of `Symbol` keys, one per entry of `row_inds`, suitable as
+`NamedTuple` field names within one `group_field` group of
+[`convertParametersToNamedTuple`](@ref).
+
+Mirrors `getUniqueVarNames`: names are kept as-is unless they collide with another
+name in the same group, in which case only the colliding entries are rewritten as
+`<name>__<disambiguator>` using the matching entry of `disambiguator_values` (e.g. the
+`model_approach` that declared that parameter). If `disambiguator_values` is `nothing`,
+or keys still collide after the rewrite, throws an `ArgumentError` naming the
+duplicated key(s) and the row indices that produced them.
+"""
+function _uniqueNameKeysWithinGroup(group_key, row_inds, name_values, disambiguator_values)
+    pure_keys = _sanitizeNamedTupleKey.(name_values[row_inds])
+    if allunique(pure_keys)
+        return Tuple(pure_keys)
+    end
+
+    uniq_keys = if disambiguator_values === nothing
+        pure_keys
+    else
+        disambiguators = disambiguator_values[row_inds]
+        [
+            count(==(pure_keys[i]), pure_keys) > 1 ? _sanitizeNamedTupleKey(string(pure_keys[i]) * "__" * string(disambiguators[i])) : pure_keys[i]
+            for i in eachindex(pure_keys)
+        ]
+    end
+
+    rows_by_key = Dict{Symbol,Vector{Int}}()
+    for (i, key) in enumerate(uniq_keys)
+        push!(get!(rows_by_key, key, Int[]), row_inds[i])
+    end
+    duplicated_keys = filter(kv -> length(kv.second) > 1, rows_by_key)
+    if !isempty(duplicated_keys)
+        dup_msg = join(("  :$k <- rows $(dup_row_inds)" for (k, dup_row_inds) in duplicated_keys), "\n")
+        throw(ArgumentError("convertParametersToNamedTuple: names are not unique within group :$group_key, so they cannot become NamedTuple fields (each key must map to exactly one row). Duplicated keys:\n$dup_msg\nEnsure the underlying models/approaches use distinct parameter names, or provide a `model_approach` column to disambiguate."))
+    end
+    return Tuple(uniq_keys)
 end
 
 
