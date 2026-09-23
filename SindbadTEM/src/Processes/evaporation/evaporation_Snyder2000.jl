@@ -56,7 +56,7 @@ function compute(params::evaporation_Snyder2000, forcing, land, helpers)
     evaporation = min(ETsoil, soilWAvail)
 
     # update soil moisture changes
-    @add_to_elem -evaporation ⇒ (ΔsoilW, 1, :soilW)
+    @add_to_elem -evaporation ⇒ (ΔsoilW, 1)
 
     # storing the ET & PET of the current time step
     sPET_prev = sPET

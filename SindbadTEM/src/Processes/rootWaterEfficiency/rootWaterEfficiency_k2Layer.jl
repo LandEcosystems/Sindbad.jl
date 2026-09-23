@@ -37,9 +37,9 @@ function compute(params::rootWaterEfficiency_k2Layer, forcing, land, helpers)
     k2_root_water_efficiency = k2 # the fraction of water that a root can uptake from the 1st soil layer
     # set the properties
     # 1st Layer
-    @rep_elem k1_root_water_efficiency ⇒ (root_water_efficiency, 1, :soilW)
+    @rep_elem k1_root_water_efficiency ⇒ (root_water_efficiency, 1)
     # 2nd Layer
-    @rep_elem k2_root_water_efficiency ⇒ (root_water_efficiency, 2, :soilW)
+    @rep_elem k2_root_water_efficiency ⇒ (root_water_efficiency, 2)
 
 
     ## pack land variables

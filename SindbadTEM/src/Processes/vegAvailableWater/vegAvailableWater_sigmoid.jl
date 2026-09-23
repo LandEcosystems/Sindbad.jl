@@ -43,10 +43,10 @@ function compute(params::vegAvailableWater_sigmoid, forcing, land, helpers)
         θ_dos = (soilW[sl] + ΔsoilW[sl]) / w_sat[sl]
         θ_fc_dos = w_fc[sl] / w_sat[sl]
         tmp_soilW_stress = clamp_zero_one(o_one / (o_one + exp(-exp_factor * soil_β[sl] * (θ_dos - θ_fc_dos))))
-        @rep_elem tmp_soilW_stress ⇒ (soilW_stress, sl, :soilW)
+        @rep_elem tmp_soilW_stress ⇒ (soilW_stress, sl)
         max_water = clamp_zero_one(soilW[sl] + ΔsoilW[sl] - w_wp[sl])
         PAW_sl = root_water_efficiency[sl] * max_water * tmp_soilW_stress
-        @rep_elem PAW_sl ⇒ (PAW, sl, :soilW)
+        @rep_elem PAW_sl ⇒ (PAW, sl)
     end
 
     ## pack land variables

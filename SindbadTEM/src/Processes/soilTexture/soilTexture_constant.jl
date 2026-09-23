@@ -30,10 +30,10 @@ function precompute(params::soilTexture_constant, forcing, land, helpers)
     @unpack_nt (st_clay, st_sand, st_silt, st_orgm) ⇐ land.properties
 
     for sl ∈ eachindex(st_clay)
-        @rep_elem clay ⇒ (st_clay, sl, :soilW)
-        @rep_elem sand ⇒ (st_sand, sl, :soilW)
-        @rep_elem silt ⇒ (st_silt, sl, :soilW)
-        @rep_elem orgm ⇒ (st_orgm, sl, :soilW)
+        @rep_elem clay ⇒ (st_clay, sl)
+        @rep_elem sand ⇒ (st_sand, sl)
+        @rep_elem silt ⇒ (st_silt, sl)
+        @rep_elem orgm ⇒ (st_orgm, sl)
     end
 
     ## pack land variables

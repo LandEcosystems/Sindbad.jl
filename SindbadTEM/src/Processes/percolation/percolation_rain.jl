@@ -17,7 +17,7 @@ function compute(params::percolation_rain, forcing, land, helpers)
 		rain ⇐ land.fluxes
 		ΔsoilW ⇐ land.pools
 	end
-	@add_to_elem rain ⇒ (ΔsoilW, 1, :soilW)
+	@add_to_elem rain ⇒ (ΔsoilW, 1)
 
 	@pack_nt begin
 		ΔsoilW ⇒ land.pools

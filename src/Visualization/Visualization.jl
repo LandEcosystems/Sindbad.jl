@@ -30,7 +30,19 @@ using Sindbad, Plots
 
 plotPerformanceHistograms(opt_results)
 plotIOModelStructure(info)
+plotCarbonFlows(cCycleBase_CASA)  # writes tmp_carbon_flow_matrix_cCycleBase_CASA_default.pdf
 ```
+
+`plotCarbonFlows` draws a `cCycleBase` approach's carbon flow topology as a
+giver-by-taker matrix, labelled with each flow's turnover time, allocation fraction,
+microbial efficiency and quality-partition fraction. Called with just the approach,
+it needs no experiment or run and writes
+`tmp_carbon_flow_matrix_<approach>_default.pdf` (`_actual.pdf` with a real `land`
+given, `tmp_`-prefixed so it's gitignored); a second positional argument names the
+file, `nothing` skips the write. Called as `plotCarbonFlows(info, approach)`, it
+resolves the backend from `info.helpers.run.visualization_backend` and saves into
+`info.output.dirs.figure` instead -- the form `getExperimentInfo` calls
+automatically when a `cCycleBase` approach is selected.
 """
 module Visualization
     using SindbadTEM.OmniTools
@@ -41,6 +53,7 @@ module Visualization
     export plotTimeSeriesWithObs
     export plotTimeSeriesDebug
     export plotIOModelStructure
+    export plotCarbonFlows
 
     # Thin convenience wrappers: resolve the configured visualization backend from `info`
     # (or `out`/`out_opti`, which carry `.info`) and forward to the 4-arg method that
@@ -95,6 +108,42 @@ module Visualization
         return plotTimeSeries(out.info, obs_array, cost_options, out.output, _resolvedBackend(plotTimeSeries, backend, out.info, obs_array, cost_options, out.output))
     end
 
+    # falls back to land.models.c_model when approach is omitted, so a real `land` is
+    # enough on its own; errors if neither is given.
+    function _approachName(approach, kwargs)
+        !isnothing(approach) && return nameof(approach isa Type ? approach : typeof(approach))
+        land = get(kwargs, :land, nothing)
+        isnothing(land) && error("plotCarbonFlows needs `approach`, or `land` to derive " *
+            "it from `land.models.c_model`.")
+        return nameof(typeof(land.models.c_model))
+    end
+
+    # No `info` to read a backend from, so VisualizationPlots() is asked for directly.
+    # `tmp_`-prefixed (unlike the info-taking form below): it lands in the working
+    # directory, not an experiment's output dir, and `tmp_*` is gitignored.
+    function plotCarbonFlows(approach=nothing; kwargs...)
+        suffix = isnothing(get(kwargs, :land, nothing)) ? "default" : "actual"
+        file_path = "tmp_carbon_flow_matrix_$(_approachName(approach, kwargs))_$(suffix).pdf"
+        return plotCarbonFlows(approach, file_path; kwargs...)
+    end
+
+    function plotCarbonFlows(approach, file_path; kwargs...)
+        backend = VisualizationPlots()
+        return plotCarbonFlows(approach, file_path, _resolvedBackend(plotCarbonFlows, backend, approach, file_path); kwargs...)
+    end
+
+    # Called automatically by getExperimentInfo when a cCycleBase approach is selected;
+    # unlike the methods above, reads the configured backend from info and saves into
+    # info.output.dirs.figure, named like plotIOModelStructure's own files.
+    function plotCarbonFlows(info::NamedTuple, approach=nothing; kwargs...)
+        backend = info.helpers.run.visualization_backend
+        suffix = isnothing(get(kwargs, :land, nothing)) ? "default" : "actual"
+        approach_name = _approachName(approach, kwargs)
+        file_path = joinpath(info.output.dirs.figure,
+            "carbon_flow_matrix_$(info.experiment.basics.id)_$(approach_name)_$(suffix).pdf")
+        return plotCarbonFlows(approach, file_path, _resolvedBackend(plotCarbonFlows, backend, approach, file_path); kwargs...)
+    end
+
     plotIOModelStructure(info) = plotIOModelStructure(info, :compute)
     plotIOModelStructure(info, which_function) = plotIOModelStructure(info, which_function, [:input, :output])
     function plotIOModelStructure(info, which_function, which_field)
@@ -144,6 +193,11 @@ module Visualization
     # still degrades gracefully when no Plots backend is loaded.
     function plotTimeSeries(info, obs_array, cost_options, def_dat, ::VisualizationTypes)
         print_info(plotTimeSeries, @__FILE__, @__LINE__, _visualizationFallbackMessage(plotTimeSeries, info.helpers.run.visualization_backend), n_f=4)
+        return nothing
+    end
+
+    function plotCarbonFlows(approach, file_path, ::VisualizationTypes)
+        print_info(plotCarbonFlows, @__FILE__, @__LINE__, _visualizationFallbackMessage(plotCarbonFlows, VisualizationPlots()), n_f=4)
         return nothing
     end
 

@@ -1,6 +1,6 @@
 # Bring the target functions into scope for adding methods. This should be done using `import` and not `using`.
 import Sindbad.Visualization: plotPerformanceHistograms, plotTimeSeries
-
+using Sindbad
 # ------------------------------------------------------------------
 # performance histograms
 # ------------------------------------------------------------------
