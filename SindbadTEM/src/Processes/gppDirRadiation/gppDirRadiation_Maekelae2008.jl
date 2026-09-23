@@ -18,7 +18,7 @@ function compute(params::gppDirRadiation_Maekelae2008, forcing, land, helpers)
 
     o_one = one(γ)
     ## calculate variables
-    gpp_f_light =  o_one / (o_one * f_PAR * fAPAR + o_one)
+    gpp_f_light =  o_one / (γ * f_PAR * fAPAR + o_one)
 
     ## pack land variables
     @pack_nt gpp_f_light ⇒ land.diagnostics

@@ -8,7 +8,7 @@ This file is included from the extension module and can use `CMAEvolutionStrateg
 import Sindbad.ParameterOptimization: optimizer
 
 # get all the types needed to dispatch the function. These types should defined in a corresponding file in Sindbad so that they can be used for dispatching and setup, if that were needed.
-using Sindbad: CMAEvolutionStrategyCMAES
+using Sindbad: CMAEvolutionStrategyCMAES, print_info
 
 # Example methods (for reference):
 # - src/ParameterOptimization/optimizer.jl:55  optimizer(::Any, ::Any, ::Any, ::Any, ::Any, ::ParameterOptimizationMethod) @ Sindbad.ParameterOptimization
@@ -18,6 +18,6 @@ using Sindbad: CMAEvolutionStrategyCMAES
 function optimizer(cost_function, default_values, lower_bounds, upper_bounds, algo_options, ::CMAEvolutionStrategyCMAES)
     results = CMAEvolutionStrategy.minimize(cost_function, default_values, 1; lower=lower_bounds, upper=upper_bounds, algo_options...)
     optim_para = CMAEvolutionStrategy.xbest(results)
-    showInfo(optimizer, @__FILE__, @__LINE__, "[termination reason] $(results.stop.reason) = $(getproperty(results.stop, results.stop.reason)) ($(now()))")
+    print_info(optimizer, @__FILE__, @__LINE__, "[termination reason] $(results.stop.reason) = $(getproperty(results.stop, results.stop.reason)) ($(now()))")
     return optim_para
 end

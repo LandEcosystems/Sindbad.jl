@@ -175,7 +175,7 @@ function metricVector(model_output::LandWrapper, observations, cost_options)
     return loss_vector
 end
 
-## TODO: add timescale for it
+## TODO: set penality for whole zero series
 function metricVector(model_output, observations, cost_options)
     loss_vector = map(cost_options) do cost_option
         @debug "***cost for $(cost_option.variable)***"
@@ -184,7 +184,7 @@ function metricVector(model_output, observations, cost_options)
         (y, yσ, ŷ) = getDataWithoutNaN(y, yσ, ŷ, cost_option.valids)
         @debug "size y, yσ, ŷ", size(y), size(yσ), size(ŷ)
         # (y, yσ, ŷ) = getDataWithoutNaN(y, yσ, ŷ, cost_option.valids)
-        if cost_option.time_scale != nothing
+        if hasproperty(cost_option, :time_scale) && cost_option.time_scale !== nothing
             metr = metric(lossMetric, ŷ, y, yσ, cost_option.time_scale) * cost_option.cost_weight
         else
             metr = metric(lossMetric, ŷ, y, yσ) * cost_option.cost_weight
@@ -192,10 +192,14 @@ function metricVector(model_output, observations, cost_options)
         if isnan(metr)
             metr = oftype(metr, 1e19)
         end
+        ### if the absolute ŷ (carbon and water fluxes) is very small, then set the metric to be 1e5 as a penalty, because the model is not working properly
+        tol = oftype(metr, 1e-5)
+        if all(x -> abs(x) < tol, ŷ)
+            metr = oftype(metr, 1e5)
+        end
         @debug "$(cost_option.variable) => $(nameof(typeof(lossMetric))): $(metr)"
         metr
     end
     @debug "\n-------------------\n"
     return loss_vector
 end
-

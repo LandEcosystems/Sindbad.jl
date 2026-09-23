@@ -54,7 +54,6 @@ standard_sindbad_model = (:constants,
     :groundWRecharge,
     :groundWSoilWInteraction,
     :groundWSurfaceWInteraction,
-    :transpirationDemand,
     :vegAvailableWater,
     :transpirationSupply,
     :rootSurfaceArea,
@@ -66,10 +65,13 @@ standard_sindbad_model = (:constants,
     :gppVPD,
     :gppSoilW,
     :gppDemand,
-    :WUE,
+    :stomatalConductance,
+    :transpirationDemand,
+    :plantHydraulics,
+    :rootWaterUptake,
     :gpp,
     :transpiration,
-    :rootWaterUptake,
+    :WUE,
     :cVegetationDieOff,
     :cCycleBase,
     :cCycleDisturbance,
@@ -151,4 +153,3 @@ function getSindbadModels(; all_models=standard_sindbad_model)
     end
     return DataStructures.OrderedDict(approaches)
 end
-

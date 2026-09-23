@@ -101,9 +101,6 @@ function runExperiment(info::NamedTuple, forcing::NamedTuple, ::DoCalcCost)
         ### flux
         mask_flux = Date(info.helpers.dates.flux_fold_start) .<= Date.(time_axis) .<= Date(info.helpers.dates.flux_fold_end);
 
-        ### structure
-        mask_structure = Date(info.helpers.dates.structure_fold_start) .<= Date.(time_axis) .<= Date(info.helpers.dates.structure_fold_end);
-
         ### Mask
         if info.helpers.dates.select_var == true
             indices = findall(x -> any(var -> occursin(var, String(x)), info.helpers.dates.flux_var), observations.variables);
@@ -112,10 +109,13 @@ function runExperiment(info::NamedTuple, forcing::NamedTuple, ::DoCalcCost)
                 obs_array[indices[i]][mask_flux, :, :] .= NaN;
             end
 
-            indices = findall(x -> any(var -> occursin(var, String(x)), info.helpers.dates.structure_var), observations.variables);
-            for i in eachindex(indices)
-                obs_array[indices[i]] = Float64.(obs_array[indices[i]]);
-                obs_array[indices[i]][mask_structure, :, :] .= NaN;
+            if !isempty(info.helpers.dates.structure_var)
+                mask_structure = Date(info.helpers.dates.structure_fold_start) .<= Date.(time_axis) .<= Date(info.helpers.dates.structure_fold_end);
+                indices = findall(x -> any(var -> occursin(var, String(x)), info.helpers.dates.structure_var), observations.variables);
+                for i in eachindex(indices)
+                    obs_array[indices[i]] = Float64.(obs_array[indices[i]]);
+                    obs_array[indices[i]][mask_structure, :, :] .= NaN;
+                end
             end
 
         else
@@ -182,9 +182,6 @@ function runExperiment(info::NamedTuple, forcing::NamedTuple, ::DoRunOptimizatio
             ### flux
             mask_flux = Date(info.helpers.dates.flux_fold_start) .<= Date.(time_axis) .<= Date(info.helpers.dates.flux_fold_end);
 
-            ### structure
-            mask_structure = Date(info.helpers.dates.structure_fold_start) .<= Date.(time_axis) .<= Date(info.helpers.dates.structure_fold_end);
-
             ### Mask
             if info.helpers.dates.select_var == true
                 indices = findall(x -> any(var -> occursin(var, String(x)), info.helpers.dates.flux_var), observations.variables);
@@ -193,10 +190,13 @@ function runExperiment(info::NamedTuple, forcing::NamedTuple, ::DoRunOptimizatio
                     obs_array[indices[i]][mask_flux, :, :] .= NaN;
                 end
 
-                indices = findall(x -> any(var -> occursin(var, String(x)), info.helpers.dates.structure_var), observations.variables);
-                for i in eachindex(indices)
-                    obs_array[indices[i]] = Float64.(obs_array[indices[i]]);
-                    obs_array[indices[i]][mask_structure, :, :] .= NaN;
+                if !isempty(info.helpers.dates.structure_var)
+                    mask_structure = Date(info.helpers.dates.structure_fold_start) .<= Date.(time_axis) .<= Date(info.helpers.dates.structure_fold_end);
+                    indices = findall(x -> any(var -> occursin(var, String(x)), info.helpers.dates.structure_var), observations.variables);
+                    for i in eachindex(indices)
+                        obs_array[indices[i]] = Float64.(obs_array[indices[i]]);
+                        obs_array[indices[i]][mask_structure, :, :] .= NaN;
+                    end
                 end
 
             else
@@ -387,8 +387,8 @@ function runExperimentOpti(sindbad_experiment::String; replace_info=Dict(), log_
     display(loss_table)
 
     loss_table_output_file = joinpath(info.output.dirs.data, "$(info.experiment.basics.name)_$(info.experiment.basics.domain)_Loss_Table.csv")
-    showInfo(runExperimentOpti, @__FILE__, @__LINE__, "saving training process to file: `$(loss_table_output_file)`", n_m=1)
-    CSV.write(loss_table_output_file, DataFrame(loss_table))
+    print_info(runExperimentOpti, @__FILE__, @__LINE__, "saving training process to file: `$(loss_table_output_file)`", n_m=1)
+    CSV.write(loss_table_output_file, loss_table)
     return (; forcing, cost_options, run_helpers, info=fp_output.info, loss=loss_table, observation=opti_output.observation, output=fp_output.output, parameters=opti_output.parameters)
 end
 

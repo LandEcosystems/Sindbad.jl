@@ -33,7 +33,7 @@ function compute(params::rwuPotential_NoahMP, forcing, land, helpers)
     for sl ∈ eachindex(land.pools.soilW) # RWU occurs in each root layer, not all soil layers
         if sl < root_layer # only calculate RWU for the soil layers with roots
 
-            RWU_layer = maxZero(min(PT_dis[sl], PAW[sl]))
+            RWU_layer = at_least_zero(min(PT_dis[sl], PAW[sl]))
 
         else
             RWU_layer = z_zero
@@ -70,7 +70,7 @@ function PT_distribution(params::rwuPotential_NoahMP, land, helpers)
         # Volumetric water content, m3/m3, because the remaining soil water metrics are in m3/m3
         θ = (soilW[sl] + ΔsoilW[sl]) / soil_layer_thickness[sl]
 
-        saturated_degree = maxZero(minOne((θ - sp_θ_wp[sl]) / (sp_θ_fc[sl] - sp_θ_wp[sl])))
+        saturated_degree = at_least_zero(at_most_one((θ - sp_θ_wp[sl]) / (sp_θ_fc[sl] - sp_θ_wp[sl])))
         PT_distribution[sl] = PT * saturated_degree * root_surface_area[sl] / Rsf # total PT
     end
 

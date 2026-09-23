@@ -161,19 +161,12 @@ function  prepOpti(forcing, observations, info, ::CostModelObsLandTS)
 end
 
 function init_history_file(info)
-
-    history_file = joinpath(
-        info.output.dirs.data,
-        "$(info.experiment.basics.name)_$(info.experiment.basics.domain)_History.jld2"
-    )
-
+    history_file = joinpath(info.output.dirs.data, "$(info.experiment.basics.name)_$(info.experiment.basics.domain)_History.jld2")
     if isfile(history_file)
         rm(history_file)
     end
-
     return history_file
 end
-
 
 function  prepOpti(forcing, observations, info, cost_method::CostModelObs)
     run_helpers = prepTEM(forcing, info)

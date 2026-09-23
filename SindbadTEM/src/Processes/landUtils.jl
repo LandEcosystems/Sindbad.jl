@@ -210,6 +210,127 @@ function getZix(dat::SVector, zixhelpersPool)
     return zixhelpersPool
 end
 
+export MutableLandNamedTuple
+export mutable_land
+
+"""
+    MutableLandNamedTuple
+
+A type-stable, mutable runtime representation of a `NamedTuple`. Field names
+remain type parameters and every value is held in a typed `Ref`, so literal
+property access remains inferable while time-step updates avoid rebuilding the
+complete immutable land state.
+
+This container is intentionally used only after model definition and
+precomputation. Setup and consistency scanning continue to use ordinary
+`NamedTuple`s.
+"""
+struct MutableLandNamedTuple{names,Refs<:Tuple}
+    refs::Refs
+end
+
+@inline function MutableLandNamedTuple(nt::NamedTuple)
+    refs = map(Ref, values(nt))
+    return MutableLandNamedTuple{keys(nt),typeof(refs)}(refs)
+end
+
+@generated function _land_property_ref(
+        land::MutableLandNamedTuple{names},
+        ::Val{name},
+    ) where {names,name}
+    index = findfirst(==(name), names)
+    index === nothing && return :(throw(ArgumentError("unknown land field: $name")))
+    return :(getfield(getfield(land, :refs), $index))
+end
+
+@inline function Base.getproperty(land::MutableLandNamedTuple, name::Symbol)
+    return _land_property_ref(land, Val(name))[]
+end
+
+@inline function Base.setproperty!(
+        land::MutableLandNamedTuple,
+        name::Symbol,
+        value,
+    )
+    _land_property_ref(land, Val(name))[] = value
+    return value
+end
+
+@inline Base.propertynames(::MutableLandNamedTuple{names}) where {names} = names
+@inline Base.keys(::MutableLandNamedTuple{names}) where {names} = names
+@inline Base.values(land::MutableLandNamedTuple{names}) where {names} =
+    ntuple(i -> getfield(getfield(land, :refs), i)[], length(names))
+
+"""
+    mutable_land(land::NamedTuple)
+
+Convert the top-level land tuple and each of its first-level NamedTuple
+containers to a mutable, type-stable runtime representation. Values below the
+first level (including static arrays and metadata NamedTuples) are preserved.
+"""
+@inline _mutable_land_subfield(value::NamedTuple) = MutableLandNamedTuple(value)
+@inline _mutable_land_subfield(value) = value
+
+function mutable_land(land::NamedTuple)
+    runtime_values = map(_mutable_land_subfield, values(land))
+    runtime_refs = map(Ref, runtime_values)
+    return MutableLandNamedTuple{keys(land),typeof(runtime_refs)}(runtime_refs)
+end
+
+@inline function _pack_land_fields(
+        target::NamedTuple,
+        ::Val{names},
+        packed_values::Tuple,
+    ) where {names}
+    return merge(target, NamedTuple{names}(packed_values))
+end
+
+@generated function _pack_land_fields(
+        target::MutableLandNamedTuple{target_names},
+        ::Val{names},
+        packed_values::Tuple,
+    ) where {target_names,names}
+    assignments = Expr[]
+    for (value_index, name) in enumerate(names)
+        target_index = findfirst(==(name), target_names)
+        target_index === nothing &&
+            error("cannot pack unknown mutable land field: $name")
+        push!(
+            assignments,
+            :(
+                getfield(getfield(target, :refs), $target_index)[] =
+                    getfield(packed_values, $value_index)
+            ),
+        )
+    end
+    return Expr(:block, assignments..., :(target))
+end
+
+@inline function _pack_nested_land_fields(
+        land::NamedTuple,
+        ::Val{field},
+        names::Val,
+        packed_values::Tuple,
+    ) where {field}
+    updated = _pack_land_fields(getproperty(land, field), names, packed_values)
+    return merge(land, NamedTuple{(field,)}((updated,)))
+end
+
+@generated function _pack_nested_land_fields(
+        land::MutableLandNamedTuple{land_names},
+        ::Val{field},
+        names::Val,
+        packed_values::Tuple,
+    ) where {land_names,field}
+    field_index = findfirst(==(field), land_names)
+    field_index === nothing && error("cannot pack unknown land container: $field")
+    return quote
+        target = getfield(getfield(land, :refs), $field_index)[]
+        _pack_land_fields(target, names, packed_values)
+        land
+    end
+end
+
 """
     @pack_nt
 
@@ -272,34 +393,45 @@ function processPackNT(ex)
     end
     if rename === nothing
         rename = lhs
+    elseif rename isa Symbol
+        rename = [rename]
     elseif rename isa Expr && rename.head == :tuple
         rename = rename.args
     end
-    lines = broadcast(lhs, rename) do s, rn
-        depth_field = length(findall(".", string(esc(rhs)))) + 1
-        if depth_field == 1
-            expr_l = Expr(:(=),
+    field_names = Tuple(lhs)
+    field_names_val = Expr(:call, Expr(:curly, :Val, QuoteNode(field_names)))
+    packed_values = Expr(:tuple, map(esc, rename)...)
+
+    depth_field = length(findall(".", string(esc(rhs)))) + 1
+    if depth_field == 1
+        return Expr(
+            :(=),
+            esc(rhs),
+            Expr(
+                :call,
+                :_pack_land_fields,
                 esc(rhs),
-                Expr(:tuple,
-                    Expr(:parameters, Expr(:(...), esc(rhs)),
-                        Expr(:kw, esc(s), esc(rn)))))
-            expr_l
-        elseif depth_field == 2
-            top = Symbol(split(string(rhs), '.')[1])
-            field = Symbol(split(string(rhs), '.')[2])
-            tmp = Expr(:(=),
+                field_names_val,
+                packed_values,
+            ),
+        )
+    elseif depth_field == 2
+        top = Symbol(split(string(rhs), '.')[1])
+        field = Symbol(split(string(rhs), '.')[2])
+        return Expr(
+            :(=),
+            esc(top),
+            Expr(
+                :call,
+                :_pack_nested_land_fields,
                 esc(top),
-                Expr(:tuple,
-                    Expr(:(...), esc(top)),
-                    Expr(:(=),
-                        esc(field),
-                        (Expr(:tuple,
-                            Expr(:parameters, Expr(:(...), esc(rhs)),
-                                Expr(:kw, esc(s), esc(rn))))))))
-            tmp
-        end
+                Expr(:call, Expr(:curly, :Val, QuoteNode(field))),
+                field_names_val,
+                packed_values,
+            ),
+        )
     end
-    return Expr(:block, lines...)
+    error("processPackNT supports at most one nested NamedTuple field: $rhs")
 end
 
 """

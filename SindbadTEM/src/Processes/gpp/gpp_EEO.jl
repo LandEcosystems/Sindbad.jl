@@ -11,11 +11,11 @@ function compute(params::gpp_EEO, forcing, land, helpers)
         f_PAR ⇐ forcing ## mm day-1
         fAPAR ⇐ land.states
         (gpp_f_soilW, gpp_demand, WUE) ⇐ land.diagnostics
-        (rwu_potential) ⇐ land.fluxes
+        (root_water_uptake) ⇐ land.fluxes
         (gpp_f_cloud, gpp_f_light, gpp_f_airT, gpp_f_vpd) ⇐ land.diagnostics
     end
     
-    max_water_supply = sum(rwu_potential)
+    max_water_supply = sum(root_water_uptake)
     gpp = min(max_water_supply * WUE, gpp_demand * gpp_f_soilW)
     gpp_s = max_water_supply * WUE
     gpp_d = gpp_demand * gpp_f_soilW

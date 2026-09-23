@@ -64,12 +64,12 @@ function compute(params::rootWaterUptake_vom, forcing, land, helpers)
             gravity_depth = sum(soil_layer_thickness[1:sl] ./ 1000) - soil_layer_thickness[sl] / 1000 / 2 # from mm to m
 
             # Volumetric water content, m3/m3, because the remaining soil water metrics are in m3/m3
-            # saturated_degree = maxZero(minOne(((soilW[sl] + ΔsoilW[sl]) / soil_layer_thickness[sl] - sp_θ_wp[sl]) / (sp_θ_fc[sl] - sp_θ_wp[sl])))
+            # saturated_degree = at_least_zero(at_most_one(((soilW[sl] + ΔsoilW[sl]) / soil_layer_thickness[sl] - sp_θ_wp[sl]) / (sp_θ_fc[sl] - sp_θ_wp[sl])))
             θ = (soilW[sl] + ΔsoilW[sl]) / soil_layer_thickness[sl]
-            saturated_degree = maxZero(minOne(θ / sp_θ_sat[sl]))
+            saturated_degree = at_least_zero(at_most_one(θ / sp_θ_sat[sl]))
             # @show saturated_degree, θ
 
-            RWU_layer = maxZero(min(PT_dis[sl], PAW[sl]))
+            RWU_layer = at_least_zero(min(PT_dis[sl], PAW[sl]))
 
             # # we assume that when soil is fully saturated, there is no RWU.
             # if z_zero < saturated_degree < o_one && θ > sp_θ_wp[sl] # only calculate RWU when the soil is not saturated and not lower than wilting point
@@ -78,13 +78,13 @@ function compute(params::rootWaterUptake_vom, forcing, land, helpers)
 
             #     # when Plant has many storaged water, it will be constrained by the potential transpiration. Vice versa.
             #     # if plant_water_storage > 0.92 * mdstore
-            #     #     RWU_layer = maxZero(min(RWU_layer_pot * MM_PER_DAY, PT_dis[sl], PAW[sl])) # limit RWU by the potential transpiration from each layer. This is baded on the demand and supply concept.
+            #     #     RWU_layer = at_least_zero(min(RWU_layer_pot * MM_PER_DAY, PT_dis[sl], PAW[sl])) # limit RWU by the potential transpiration from each layer. This is baded on the demand and supply concept.
             #     # else
-            #     #     RWU_layer = maxZero(min(RWU_layer_pot * MM_PER_DAY, PAW[sl]))
+            #     #     RWU_layer = at_least_zero(min(RWU_layer_pot * MM_PER_DAY, PAW[sl]))
             #     # end
 
-            #     # RWU_layer = maxZero(min(RWU_layer_pot * MM_PER_DAY, PT_dis[sl], PAW[sl]))
-            #     RWU_layer = maxZero(min(PT_dis[sl], PAW[sl]))
+            #     # RWU_layer = at_least_zero(min(RWU_layer_pot * MM_PER_DAY, PT_dis[sl], PAW[sl]))
+            #     RWU_layer = at_least_zero(min(PT_dis[sl], PAW[sl]))
                 
             #     # if sl == 1
             #     #     @show RWU_layer, RWU_layer_pot * MM_PER_DAY, PT_dis[sl], PT, ψ_soil, ψ_root, saturated_degree, Ω_soil, sp_θ_wp[sl]
@@ -98,7 +98,7 @@ function compute(params::rootWaterUptake_vom, forcing, land, helpers)
             RWU_layer = z_zero
         end
         
-        # RWU_layer = maxZero(RWU_layer)
+        # RWU_layer = at_least_zero(RWU_layer)
 
         @rep_elem RWU_layer ⇒ (root_water_uptake, sl, :soilW)
         @add_to_elem -root_water_uptake[sl] ⇒ (ΔsoilW, sl, :soilW)
@@ -151,7 +151,7 @@ function cal_RWU(params::rootWaterUptake_vom, land, saturated_degree, gravity_de
     if saturated_degree == o_one
         RWU_layer = z_zero
     else
-        RWU_layer = maxZero((ψ_soil - ψ_root) * root_surface_area[sl] / (Ω_root + Ω_soil))
+        RWU_layer = at_least_zero((ψ_soil - ψ_root) * root_surface_area[sl] / (Ω_root + Ω_soil))
     end
 
     return ψ_soil, ψ_root, Ω_soil, RWU_layer
@@ -178,9 +178,9 @@ function PT_distribution(params::rootWaterUptake_vom, land, helpers)
     for sl ∈ 1:root_layer
         # Volumetric water content, m3/m3, because the remaining soil water metrics are in m3/m3
         θ = (soilW[sl] + ΔsoilW[sl]) / soil_layer_thickness[sl]
-        # saturated_degree = maxZero(minOne(θ / sp_θ_sat[sl]))
+        # saturated_degree = at_least_zero(at_most_one(θ / sp_θ_sat[sl]))
 
-        saturated_degree = maxZero(minOne((θ - sp_θ_wp[sl]) / (sp_θ_fc[sl] - sp_θ_wp[sl])))
+        saturated_degree = at_least_zero(at_most_one((θ - sp_θ_wp[sl]) / (sp_θ_fc[sl] - sp_θ_wp[sl])))
         if sl == 1
             PT_distribution[sl] = PT * saturated_degree * root_surface_area[sl] / Rsf # total PT
         else

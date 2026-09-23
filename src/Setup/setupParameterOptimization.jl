@@ -99,13 +99,21 @@ function getCostOptions(optim_info::NamedTuple, vars_info, tem_variables, number
     all_options = []
     push!(all_options, varlist)
     prop_names = keys(all_costs[1])
-    props_to_keep = (:cost_metric, :spatial_weight, :cost_weight, :temporal_data_aggr, :aggr_obs, :aggr_order, :min_data_points, :spatial_data_aggr, :spatial_cost_aggr, :aggr_func,)
+    props_to_keep = (:cost_metric, :spatial_weight, :cost_weight, :temporal_data_aggr, :aggr_obs, :aggr_order, :min_data_points, :spatial_data_aggr, :spatial_cost_aggr, :aggr_func, :time_scale,)
     for (pn, prop) ∈ enumerate(props_to_keep)
         prop_array = []
         for vn ∈ eachindex(varlist)
             sel_opt=all_costs[vn]
-            sel_value = sel_opt[prop]
-            if (sel_value isa Number) && !(sel_value isa Bool)
+            sel_value = if hasproperty(sel_opt, prop)
+                getproperty(sel_opt, prop)
+            elseif prop == :time_scale
+                nothing
+            else
+                error("Missing cost option `$prop` for observational constraint `$(varlist[vn])`")
+            end
+            if prop == :time_scale && sel_value !== nothing
+                sel_value = Int(sel_value)
+            elseif (sel_value isa Number) && !(sel_value isa Bool)
                 sel_value = number_helpers.num_type(sel_value)
             elseif sel_value isa Bool
                 sel_value=getTypeInstanceForFlags(prop, sel_value, "Do")
@@ -313,19 +321,39 @@ function setAlgorithmOptions(info, which_algorithm)
     tmp_algorithm = (;)
     algo_options = (;)
     algo_method = nothing
+    ## make .json or dict work.
     if !isnothing(optim_algorithm)
-        if endswith(optim_algorithm, ".json")
-            options_path = optim_algorithm
-            if !isabspath(options_path)
-                options_path = joinpath(info.temp.experiment.dirs.settings, options_path)
+        if optim_algorithm isa AbstractString
+            if endswith(optim_algorithm, ".json")
+                options_path = optim_algorithm
+                if !isabspath(options_path)
+                    options_path = joinpath(info.temp.experiment.dirs.settings, options_path)
+                end
+                options = parsefile(options_path; dicttype=DataStructures.OrderedDict)
+                options = dict_to_namedtuple(options)
+                algo_method_name = options.package * "_" * options.method
+                algo_method = getTypeInstanceForNamedOptions(algo_method_name)
+                algo_options = options.options
+            else
+                algo_method = getTypeInstanceForNamedOptions(optim_algorithm)
             end
-            options = parsefile(options_path; dicttype=DataStructures.OrderedDict)
-            options = dict_to_namedtuple(options)
-            algo_method = options.package * "_" * options.method
-            algo_method = getTypeInstanceForNamedOptions(algo_method)
-            algo_options = options.options
+        elseif optim_algorithm isa NamedTuple
+            algo_method = optim_algorithm.method isa AbstractString ?
+                getTypeInstanceForNamedOptions(optim_algorithm.method) :
+                optim_algorithm.method
+            algo_options = hasproperty(optim_algorithm, :options) ?
+                optim_algorithm.options :
+                nothing
+        elseif optim_algorithm isa AbstractDict
+            optim_algorithm = dict_to_namedtuple(optim_algorithm)
+            algo_method = optim_algorithm.method isa AbstractString ?
+                getTypeInstanceForNamedOptions(optim_algorithm.method) :
+                optim_algorithm.method
+            algo_options = hasproperty(optim_algorithm, :options) ?
+                optim_algorithm.options :
+                nothing
         else
-            algo_method = getTypeInstanceForNamedOptions(optim_algorithm)
+            error("Unsupported optim_algorithm type: $(typeof(optim_algorithm))")
         end
     else
         if which_algorithm == :algorithm_sensitivity_analysis
@@ -411,5 +439,4 @@ function setOptimization(info::NamedTuple)
     info = (; info..., optimization = optimization_info)
     return info
 end
-
 

@@ -19,6 +19,7 @@ function define(params::rootSurfaceArea_Biomass, forcing, land, helpers)
     end
 
     root_surface_area = zero(soilW)
+    root_surface_area_fraction = zero(soilW)
 
     if plant_form == :tree
         a = 50 * o_one # "specific root surface area" | "m2/kg" | "convert biomass to area, obtain from Niu et al., JAMES, 2020, Table 1"
@@ -37,8 +38,31 @@ function define(params::rootSurfaceArea_Biomass, forcing, land, helpers)
     ## pack land variables
     @pack_nt begin
         root_surface_area ⇒ land.diagnostics
+        root_surface_area_fraction ⇒ land.properties
         (a, alpha) ⇒ land.diagnostics
     end
+    return land
+end
+
+function precompute(params::rootSurfaceArea_Biomass, forcing, land, helpers)
+    @unpack_nt begin
+        soilW ⇐ land.pools
+        soil_layer_thickness ⇐ land.properties
+        root_surface_area_fraction ⇐ land.properties
+        alpha ⇐ land.diagnostics
+        z_zero ⇐ land.constants
+    end
+
+    depth_lower_m = z_zero
+    mm_to_m = oftype(depth_lower_m, 1.0e-3)
+    @inbounds for sl in eachindex(soilW)
+        depth_upper_m = depth_lower_m + soil_layer_thickness[sl] * mm_to_m
+        layer_fraction = (exp(-alpha * depth_lower_m) - exp(-alpha * depth_upper_m)) / alpha
+        @rep_elem layer_fraction ⇒ (root_surface_area_fraction, sl, :soilW)
+        depth_lower_m = depth_upper_m
+    end
+
+    @pack_nt root_surface_area_fraction ⇒ land.properties
     return land
 end
 
@@ -48,19 +72,25 @@ function compute(params::rootSurfaceArea_Biomass, forcing, land, helpers)
     @unpack_rootSurfaceArea_Biomass params
     @unpack_nt begin
         (soilW) ⇐ land.pools
-        (root_surface_area, max_root_depth) ⇐ land.diagnostics
-        soil_layer_thickness ⇐ land.properties
-        (z_zero, o_one) ⇐ land.constants
+        root_surface_area ⇐ land.diagnostics
+        root_surface_area_fraction ⇐ land.properties
+        z_zero ⇐ land.constants
         root_over ⇐ land.rootWaterEfficiency
+        cVegRoot ⇐ land.pools
+        a ⇐ land.diagnostics
     end
 
-    root_layer = sum(root_over .> 0)
+    root_layer = 0
+    @inbounds for sl in eachindex(root_over)
+        root_layer += root_over[sl] > zero(root_over[sl])
+    end
+    root_area_scale = a * totalS(cVegRoot) * oftype(a, 1.0e-3)
 
     # root surface area in each layer
-    for sl ∈ eachindex(land.pools.soilW)
+    @inbounds for sl ∈ eachindex(soilW)
 
         if sl < root_layer
-            area_from_layer = cal_Rsf(params, land, sl) # m2/m2
+            area_from_layer = root_area_scale * root_surface_area_fraction[sl] # m2/m2
             # area_from_layer = max(area_from_layer, min_Rsf)
         else
             area_from_layer = z_zero
@@ -106,13 +136,13 @@ function cal_Rsf(params::rootSurfaceArea_Biomass, land, sl)
 
     # a, alpha = get_a_alpha(plant_form)
 
-    fraction(depth) = exp(-alpha * depth)
     if sl == 1
         thickness_min = z_zero
     else
         thickness_min = sum(soil_layer_thickness[1:(sl-1)]) / 1000 # from mm to m
     end
-    cum_fraction, _ = quadgk(fraction, thickness_min, sum(soil_layer_thickness[1:sl]) / 1000)
+    thickness_max = sum(soil_layer_thickness[1:sl]) / 1000
+    cum_fraction = (exp(-alpha * thickness_min) - exp(-alpha * thickness_max)) / alpha
 
     area_from_layer = a * totalS(cVegRoot) / 1000 * cum_fraction # from gC/m2/Time to kgC/m2/Time
 

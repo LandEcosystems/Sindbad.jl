@@ -62,6 +62,7 @@ module SindbadTEM
    @reexport using InteractiveUtils
    @reexport using Crayons
    @reexport using Base.Docs: doc as base_doc
+   @reexport using QuadGK
 
    # create a tmp_ file for tracking the creation of new approaches. This is needed because precompiler is not consistently loading the newly created approaches. This file is appended every time a new model/approach is created which forces precompile in the next use of SindbadTEM.
    #

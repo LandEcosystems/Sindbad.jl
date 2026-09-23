@@ -62,6 +62,7 @@ function cost(parameter_vector, _, selected_models, space_forcing, space_spinup_
     cost_metric = combineMetric(cost_vector, multi_constraint_method)
     @debug cost_vector, cost_metric
 
+    # TODO: check whether I convert the parameter vector to the original scale correctly.
     param_vec = parameter_vector .* info.optimization.parameter_table.default
     cost_vec = vcat(cost_vector, cost_metric)
 

@@ -1,6 +1,9 @@
 export coreTEM!
 export runTEM!
 
+@inline runtimeLand(land, ::DoInlineUpdate) = mutable_land(land)
+@inline runtimeLand(land, ::DoNotInlineUpdate) = land
+
 """
     coreTEM!(selected_models, loc_forcing, loc_spinup_forcing, loc_forcing_t, loc_output, loc_land, tem_info)
 
@@ -29,6 +32,11 @@ function coreTEM!(selected_models, loc_forcing, loc_spinup_forcing, loc_forcing_
     loc_forcing_t = getForcingForTimeStep(loc_forcing, loc_forcing_t, 1, tem_info.vals.forcing_types)
     # run precompute
     land_prec = precomputeTEM(selected_models, loc_forcing_t, loc_land, tem_info.model_helpers) 
+    # When requested, use a type-stable mutable runtime view so process outputs
+    # are written in place instead of rebuilding the large nested NamedTuple
+    # after every process. The dispatch keeps all other experiment structures on
+    # the original immutable path.
+    land_prec = runtimeLand(land_prec, tem_info.run.inline_update)
     # run spinup
     land_spin = spinupTEM(selected_models, loc_spinup_forcing, loc_forcing_t, land_prec, tem_info, tem_info.run.spinup_TEM)
 
@@ -253,4 +261,3 @@ function timeLoopTEM!(selected_models, loc_forcing, loc_forcing_t, loc_output, l
     print_info(nothing, @__FILE__, @__LINE__, "\n`----------------------------------------each model--------------------------------------------------------------`\n", display_color=(214,39,82))
     return nothing
 end
-

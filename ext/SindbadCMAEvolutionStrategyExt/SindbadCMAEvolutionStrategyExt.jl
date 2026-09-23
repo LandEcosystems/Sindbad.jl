@@ -13,6 +13,7 @@ Modify the code in the "ParameterOptimizationOptimizer.jl" file to extend the pa
 module SindbadCMAEvolutionStrategyExt
 
     using CMAEvolutionStrategy
+    using Dates: now
     
     include("ParameterOptimizationOptimizer.jl")
 

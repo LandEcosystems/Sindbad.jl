@@ -41,6 +41,7 @@ julia> # result = runExperiment(info, forcing, DoRunForward())
 ```
 """
 module Experiment
+    using Dates: Date, month
     using SindbadTEM.OmniTools
     using ErrorMetrics
     using ...SindbadTEM

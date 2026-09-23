@@ -78,6 +78,8 @@ function cal_r_sc(params::stomatalConductance_Jarvis, forcing, land, helpers)
     f4_theta = ifelse.(θ_root .>= θ_fc, 1, ifelse.(θ_root .> θ_wp .&& θ_root .< θ_fc, (θ_root .- θ_wp) ./ (θ_fc .- θ_wp), 0))
 
     # efficient LAI
+    # I could refer to this paper: https://onlinelibrary.wiley.com/doi/full/10.1111/jac.70103
+    # F_s = 0.667 * LAI if LAI <= 2 else 0.833 * (LAI - 0.4)
     F_s = 0.3 .* LAI .+ 1.2
 
     # canopy resistance, s m-1
@@ -152,6 +154,7 @@ function get_pft_value(params::stomatalConductance_Jarvis, forcing, land, helper
     PFT = Int(PFT)
 
     # only includes PFTs from 1-12
+    # TODO - ISSUEs: These params for different PFTs are not easy to tune.
     LAI_max = [5.5, 7, 3.3, 7, 5.7, 4.6, 3, 1.5, 0.9, 1.8, 6, 7] 
     w_max = [0.001, 0.05, 0.001, 0.08, 0.04, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01]
     h_c_min = [17, 30, 17, 25, 20, 1.5, 1, 0.8, 0.1, 0.05, 0.05, 0]

@@ -300,7 +300,8 @@ function setExperimentOutput(info)
     end
 
     path_resolved_normalized = normalize_path_separator(path_resolved)
-    last_dir = "output_"*info.temp.experiment.basics.id
+    # last_dir = "output_"*info.temp.experiment.basics.id
+    last_dir = info.temp.experiment.basics.domain
     path_output_full = joinpath(path_resolved_normalized, last_dir)
 
     # create output and subdirectories
