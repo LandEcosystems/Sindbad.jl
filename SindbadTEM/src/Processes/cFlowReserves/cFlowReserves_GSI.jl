@@ -1,7 +1,7 @@
 export cFlowReserves_GSI
 
 #! format: off
-@bounds @describe @units @timescale @with_kw struct cFlowReserves_GSI{T1,T2,T3} <: cFlow
+@bounds @describe @units @timescale @with_kw struct cFlowReserves_GSI{T1,T2,T3} <: cFlowReserves
     slope_leaf_root_to_reserve::T1 = 0.14 | (0.033, 0.33) | "Leaf-Root to Reserve" | "fraction" | "day"
     slope_reserve_to_leaf_root::T2 = 0.14 | (0.033, 0.33) | "Reserve to Leaf-Root" | "fraction" | "day"
     f_τ::T3 = 0.03 | (0.01, 0.10) | "contribution factor for current stressor" | "fraction" | "day"

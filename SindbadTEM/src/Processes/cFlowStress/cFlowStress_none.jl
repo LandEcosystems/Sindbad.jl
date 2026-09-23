@@ -1,8 +1,8 @@
-export cFlowStree_none
+export cFlowStress_none
 
-struct cFlowStree_none <: cFlowReserves end
+struct cFlowStress_none <: cFlowStress end
 
-function define(params::cFlowStree_none, forcing, land, helpers)
+function define(params::cFlowStress_none, forcing, land, helpers)
     @unpack_nt begin
         cEco ⇐ land.pools
     end
@@ -20,14 +20,14 @@ function define(params::cFlowStree_none, forcing, land, helpers)
     return land
 end
 
-purpose(::Type{cFlowStree_none}) = "."
+purpose(::Type{cFlowStress_none}) = "."
 
 @doc """
 
-$(getModelDocString(cFlowStree_none))
+$(getModelDocString(cFlowStress_none))
 
 ---
 
 # Extended help
 """
-cFlowStree_none
+cFlowStress_none

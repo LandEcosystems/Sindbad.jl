@@ -2,10 +2,6 @@ export cFlow_GSI
 
 struct cFlow_GSI <: cFlow end
 
-function define(params::cFlow_GSI, forcing, land, helpers)
-    return land
-end
-
 function compute(params::cFlow_GSI, forcing, land, helpers)
     ## unpack land variables
     @unpack_nt begin

@@ -1,7 +1,7 @@
 export cCropHarvest_simple
 
 #! format: off
-struct cCropHarvest_simple <: cCropHarvest_simple end
+struct cCropHarvest_simple <: cCropHarvest end
 #! format: on
 
 function define(params::cCropHarvest_simple, forcing, land, helpers)

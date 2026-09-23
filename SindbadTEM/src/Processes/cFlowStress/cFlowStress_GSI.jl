@@ -1,7 +1,7 @@
 export cFlowStress_GSI
 
 #! format: off
-@bounds @describe @units @timescale @with_kw struct cFlowStress_GSI{T1} <: cFlow
+@bounds @describe @units @timescale @with_kw struct cFlowStress_GSI{T1} <: cFlowStress
     f_τ::T1 = 0.03 | (0.01, 0.10) | "contribution factor for current stressor" | "fraction" | "day"
 end
 #! format: on

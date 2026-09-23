@@ -1,7 +1,7 @@
 export cForestryHarvest_simple
 
 #! format: off
-struct cForestryHarvest_simple <: cForestryHarvest_simple end
+struct cForestryHarvest_simple <: cForestryHarvest end
 #! format: on
 
 function define(params::cForestryHarvest_simple, forcing, land, helpers)
