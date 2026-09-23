@@ -126,7 +126,7 @@ export EtaScaleA0H
 export EtaScaleA0HCWD
 export EtaScaleAHCWD
 export EtaScaleAH
-export NlsolveFixedpointTrustregionCEco
+export EtaScaleH
 export NlsolveFixedpointTrustregionCEcoTWS
 export NlsolveFixedpointTrustregionTWS
 export ODEAutoTsit5Rodas5
