@@ -110,6 +110,62 @@ function setHybridOptions(info, which_option)
 end
 
 """
+    setProcessMLModels(info::NamedTuple)
+
+Parses `info.settings.hybrid.process_ml_models`, a NamedTuple keyed by process name
+(e.g. `gpp`), into `info.hybrid.process_ml_models`. Each entry carries a `mode` field
+("pretrained" today; "trainable" is reserved for a future joint-training dispatch that
+reuses this same config shape) plus `package`/`method`/`options`, mirroring the general
+shape used by `setHybridOptions` for `ml_model`/`ml_training`/etc.
+
+Unlike `setHybridOptions`, this does not run `options` through
+`replaceNumbersWithTypedValues` — that helper assumes every option is a numeric scalar
+or a numeric array, which breaks for fields like a `features` list of forcing-variable
+names or a `trained_state_path` file path. Only the activation-function options
+(`activation_hidden`, `activation_out`) are converted from strings to type instances
+via `replaceOptionsWithType`, since `activationFunction` dispatches on a type instance;
+everything else is passed through unchanged. `trained_state_path`, if present, is
+resolved to an absolute path here (relative to the experiment's settings directory,
+the same convention used for `ml_training.fold_path` below) since `define()` only has
+access to the narrow per-timestep `helpers`, not the full `info` needed to resolve a
+relative path itself.
+
+# Arguments:
+- `info`: A NamedTuple containing the experiment configuration.
+
+# Returns:
+- The updated `info` NamedTuple with `info.hybrid.process_ml_models` added (only if
+  `info.settings.hybrid.process_ml_models` is configured).
+"""
+function setProcessMLModels(info)
+    if hasproperty(info.settings.hybrid, :process_ml_models)
+        process_ml_models = (;)
+        for process_name in propertynames(info.settings.hybrid.process_ml_models)
+            ml_field = getproperty(info.settings.hybrid.process_ml_models, process_name)
+            mode = hasproperty(ml_field, :mode) ? ml_field.mode : "pretrained"
+            merged_options = hasproperty(ml_field, :options) ? ml_field.options : (;)
+            merged_options = replaceOptionsWithType(merged_options, :activation_out)
+            merged_options = replaceOptionsWithType(merged_options, :activation_hidden)
+            if hasproperty(merged_options, :trained_state_path)
+                state_path = merged_options.trained_state_path
+                if !isabspath(state_path)
+                    state_path = joinpath(info.temp.experiment.dirs.settings, state_path)
+                end
+                merged_options = set_namedtuple_field(merged_options, (:trained_state_path, state_path))
+            end
+            tmp_field = (;)
+            tmp_field = set_namedtuple_field(tmp_field, (:mode, mode))
+            tmp_field = set_namedtuple_field(tmp_field, (:package, hasproperty(ml_field, :package) ? ml_field.package : nothing))
+            tmp_field = set_namedtuple_field(tmp_field, (:method, hasproperty(ml_field, :method) ? ml_field.method : nothing))
+            tmp_field = set_namedtuple_field(tmp_field, (:options, merged_options))
+            process_ml_models = set_namedtuple_field(process_ml_models, (process_name, tmp_field))
+        end
+        info = set_namedtuple_subfield(info, :hybrid, (:process_ml_models, process_ml_models))
+    end
+    return info
+end
+
+"""
     setHybridInfo(info::NamedTuple)
 Processes and sets up the hybrid experiment information in the experiment configuration.
 # Arguments:
@@ -121,55 +177,58 @@ function setHybridInfo(info::NamedTuple)
     print_info(setHybridInfo, @__FILE__, @__LINE__, "setting info for hybrid machine-learning + TEM experiment...", n_m=1)
     # hybrid_options = info.settings.hybrid
     # set
-    info = setHybridOptions(info, :ml_model)
-    info = setHybridOptions(info, :ml_training)
-    info = setHybridOptions(info, :ml_gradient)
-    info = setHybridOptions(info, :ml_optimizer)
-    checkpoint_path = ""
-    hybrid_root = joinpath(dirname(info.output.dirs.data),"hybrid")
-    mkpath(hybrid_root)
-    if info.settings.hybrid.save_checkpoint
-        checkpoint_path = joinpath(hybrid_root,"training_checkpoints")
-        mkpath(checkpoint_path)
-    end
+    info = setProcessMLModels(info)
+    if hasproperty(info.settings.hybrid, :ml_model)
+        info = setHybridOptions(info, :ml_model)
+        info = setHybridOptions(info, :ml_training)
+        info = setHybridOptions(info, :ml_gradient)
+        info = setHybridOptions(info, :ml_optimizer)
+        checkpoint_path = ""
+        hybrid_root = joinpath(dirname(info.output.dirs.data),"hybrid")
+        mkpath(hybrid_root)
+        if info.settings.hybrid.save_checkpoint
+            checkpoint_path = joinpath(hybrid_root,"training_checkpoints")
+            mkpath(checkpoint_path)
+        end
 
 
 
-    output_dirs = info.temp.output.dirs
-    output_dirs = (; output_dirs..., hybrid=(; root=hybrid_root, checkpoint=checkpoint_path))
-    info = (; info..., temp = (info.temp..., output = (; info.temp.output..., dirs = output_dirs)))
+        output_dirs = info.temp.output.dirs
+        output_dirs = (; output_dirs..., hybrid=(; root=hybrid_root, checkpoint=checkpoint_path))
+        info = (; info..., temp = (info.temp..., output = (; info.temp.output..., dirs = output_dirs)))
 
-    fold_type = CalcFoldFromSplit()
-    fold_path = ""
-    which_fold = 1
-    ml_training = info.settings.hybrid.ml_training
-    if hasproperty(ml_training, :fold_path)
-        fold_path_file = ml_training.fold_path
-        fold_path = isnothing(fold_path_file) ? fold_path : fold_path_file
-        if !isempty(fold_path)
-            fold_type = LoadFoldFromFile()
-            if !isabspath(fold_path)
-                fold_path = joinpath(info.temp.experiment.dirs.settings, fold_path)
+        fold_type = CalcFoldFromSplit()
+        fold_path = ""
+        which_fold = 1
+        ml_training = info.settings.hybrid.ml_training
+        if hasproperty(ml_training, :fold_path)
+            fold_path_file = ml_training.fold_path
+            fold_path = isnothing(fold_path_file) ? fold_path : fold_path_file
+            if !isempty(fold_path)
+                fold_type = LoadFoldFromFile()
+                if !isabspath(fold_path)
+                    fold_path = joinpath(info.temp.experiment.dirs.settings, fold_path)
+                end
             end
         end
+        if hasproperty(ml_training, :which_fold)
+            which_fold = ml_training.which_fold
+        end
+
+        fold_s = (; fold_path, which_fold, fold_type)
+        info = set_namedtuple_subfield(info, :hybrid, (:fold, fold_s))
+
+        replace_value_for_gradient = hasproperty(info.settings.hybrid, :replace_value_for_gradient) ? info.settings.hybrid.replace_value_for_gradient : 0.0
+
+        info = set_namedtuple_subfield(info, :hybrid, (:replace_value_for_gradient, info.temp.helpers.numbers.num_type(replace_value_for_gradient)))
+
+        info = set_namedtuple_subfield(info, :hybrid, (:ml_experiment_type, getTypeInstanceForNamedOptions(info.settings.hybrid.ml_experiment_type)))
+
+        covariates_path = getAbsDataPath(info.temp, info.settings.hybrid.covariates.path)
+        covariates = (; path=covariates_path, options=info.settings.hybrid.covariates.options)
+        info = set_namedtuple_subfield(info, :hybrid, (:covariates, covariates))
+        info = set_namedtuple_subfield(info, :hybrid, (:random_seed, info.settings.hybrid.random_seed))
     end
-    if hasproperty(ml_training, :which_fold)
-        which_fold = ml_training.which_fold
-    end
-
-    fold_s = (; fold_path, which_fold, fold_type)
-    info = set_namedtuple_subfield(info, :hybrid, (:fold, fold_s))
-
-    replace_value_for_gradient = hasproperty(info.settings.hybrid, :replace_value_for_gradient) ? info.settings.hybrid.replace_value_for_gradient : 0.0
-
-    info = set_namedtuple_subfield(info, :hybrid, (:replace_value_for_gradient, info.temp.helpers.numbers.num_type(replace_value_for_gradient)))
-
-    info = set_namedtuple_subfield(info, :hybrid, (:ml_experiment_type, getTypeInstanceForNamedOptions(info.settings.hybrid.ml_experiment_type)))
-
-    covariates_path = getAbsDataPath(info.temp, info.settings.hybrid.covariates.path)
-    covariates = (; path=covariates_path, options=info.settings.hybrid.covariates.options)
-    info = set_namedtuple_subfield(info, :hybrid, (:covariates, covariates))
-    info = set_namedtuple_subfield(info, :hybrid, (:random_seed, info.settings.hybrid.random_seed))
 
     return info
 end
