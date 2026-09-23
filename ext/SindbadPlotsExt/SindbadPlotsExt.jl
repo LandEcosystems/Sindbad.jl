@@ -14,6 +14,7 @@ module SindbadPlotsExt
     using Plots: annotate! as plots_annotate!, default as plots_default, histogram as plots_histogram, histogram! as plots_histogram!, scatter as plots_scatter, scatter! as plots_scatter!, vline as plots_vline, vline! as plots_vline!, hline as plots_hline, hline! as plots_hline!, xlims! as plots_xlims!, ylims! as plots_ylims!, xlabel! as plots_xlabel!, ylabel! as plots_ylabel!, title! as plots_title!, plot as plots_plot, plot! as plots_plot!, savefig as plots_savefig, text as plots_text, mm as plots_mm, cm as plots_cm
 
     using SindbadTEM
+    using SindbadTEM.Processes: define, precompute
     using SindbadTEM.OmniTools
     using Sindbad.Types
     using Sindbad.Setup: getPoolInformation
