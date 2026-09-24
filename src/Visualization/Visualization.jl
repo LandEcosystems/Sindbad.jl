@@ -132,6 +132,19 @@ module Visualization
         return plotCarbonFlows(approach, file_path, _resolvedBackend(plotCarbonFlows, backend, approach, file_path); kwargs...)
     end
 
+    # The experiment's actually resolved carbon pool structure (set by setPoolsInfo from
+    # model_structure.pools.carbon), or nothing if info carries none. This is the same
+    # structure a real run's land.cCycleBase.pool_names is built from, so passing it as
+    # plotCarbonFlows' pool_configuration keeps the synthetic ("default") diagram from
+    # disagreeing with a real run's diagram when settings override the pool structure
+    # independently of the selected cCycleBase approach (e.g. cCycleBase.approach =
+    # "MGMT" with pools.carbon = "GSI").
+    function _experimentPoolConfiguration(info)
+        hasproperty(info, :pool_structure) || return nothing
+        hasproperty(info.pool_structure, :carbon) || return nothing
+        return info.pool_structure.carbon
+    end
+
     # Called automatically by getExperimentInfo when a cCycleBase approach is selected;
     # unlike the methods above, reads the configured backend from info and saves into
     # info.output.dirs.figure, named like plotIOModelStructure's own files.
@@ -141,6 +154,9 @@ module Visualization
         approach_name = _approachName(approach, kwargs)
         file_path = joinpath(info.output.dirs.figure,
             "carbon_flow_matrix_$(info.experiment.basics.id)_$(approach_name)_$(suffix).pdf")
+        # an explicit pool_configuration in kwargs (rare) wins over info's, since it
+        # comes later in this merge
+        kwargs = (; pool_configuration=_experimentPoolConfiguration(info), kwargs...)
         return plotCarbonFlows(approach, file_path, _resolvedBackend(plotCarbonFlows, backend, approach, file_path); kwargs...)
     end
 
