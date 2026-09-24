@@ -122,7 +122,7 @@ getAllSpinupForcing
 :::details Code
 
 ```julia
-function getAllSpinupForcing(forcing, spin_sequences::Vector{SpinupSequenceWithAggregator}, tem_helpers)
+function getAllSpinupForcing(forcing, spin_sequences::Vector{SpinupStepWithAggregator}, tem_helpers)
     spinup_forcing = (;)
     for seq ∈ spin_sequences
         forc = getfield(seq, :forcing)

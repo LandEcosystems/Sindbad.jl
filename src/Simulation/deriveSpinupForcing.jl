@@ -22,7 +22,7 @@ julia> # Prepare spinup forcing for all sequences
 julia> # spinup_forcing = getAllSpinupForcing(forcing, spin_sequences, tem_helpers)
 ```
 """
-function getAllSpinupForcing(forcing, spin_sequences::Tuple{Vararg{SpinupSequenceWithAggregator}}, tem_helpers)
+function getAllSpinupForcing(forcing, spin_sequences::Tuple{Vararg{SpinupStepWithAggregator}}, tem_helpers)
     return accumulateSpinupForcing(spin_sequences, forcing, tem_helpers, (;))
 end
 
@@ -44,7 +44,7 @@ function accumulateSpinupForcing end
 
 accumulateSpinupForcing(::Tuple{}, _, _, spinup_forcing) = spinup_forcing
 
-function accumulateSpinupForcing(spin_sequences::Tuple{SpinupSequenceWithAggregator{F},Vararg}, forcing, tem_helpers, spinup_forcing) where {F}
+function accumulateSpinupForcing(spin_sequences::Tuple{SpinupStepWithAggregator{F},Vararg}, forcing, tem_helpers, spinup_forcing) where {F}
     if F ∉ keys(spinup_forcing)
         seq_forc = getSpinupForcing(forcing, first(spin_sequences), tem_helpers.vals.forcing_types)
         spinup_forcing = set_namedtuple_field(spinup_forcing, (F, seq_forc))
@@ -62,7 +62,7 @@ prepare the spinup forcing set for a given spinup sequence
 - `sequence`: a with all information needed to run a spinup sequence
 - `:Val{forcing_types}`: a type dispatch with the tuple of pairs of forcing name and time/no time types
 """
-function getSpinupForcing(forcing, sequence::SpinupSequenceWithAggregator, ::Val{forcing_types}) where {forcing_types}
+function getSpinupForcing(forcing, sequence::SpinupStepWithAggregator, ::Val{forcing_types}) where {forcing_types}
     seq_forcing = map(forcing_types) do fnt
         f_name = first(fnt)
         f_type = last(fnt)
@@ -84,7 +84,7 @@ get the aggregated spinup forcing variable
 - `sequence`: a with all information needed to run a spinup sequence
 - `::ForcingWithTime`: a type dispatch to indicate that the variable has a time axis
 """
-function getSpinupForcingVariable(v, sequence::SpinupSequenceWithAggregator, ::ForcingWithTime)
+function getSpinupForcingVariable(v, sequence::SpinupStepWithAggregator, ::ForcingWithTime)
     timeAggregateForcingV(v, sequence.aggregator_indices, sequence.aggregator, sequence.aggregator_type)
 end
 

@@ -346,9 +346,9 @@ Spinup_cEco
 
 Spinup_cEco_TWS
 
-SpinupSequence
+SpinupStep
 
-SpinupSequenceWithAggregator
+SpinupStepWithAggregator
 
 TEMTypes
 
@@ -1354,9 +1354,9 @@ Spinup_cEco
 
 Spinup_cEco_TWS
 
-SpinupSequence
+SpinupStep
 
-SpinupSequenceWithAggregator
+SpinupStepWithAggregator
 
 TEMTypes
 
@@ -2362,9 +2362,9 @@ Sindbad.Types.Spinup_cEco
 
 Sindbad.Types.Spinup_cEco_TWS
 
-Sindbad.Types.SpinupSequence
+Sindbad.Types.SpinupStep
 
-Sindbad.Types.SpinupSequenceWithAggregator
+Sindbad.Types.SpinupStepWithAggregator
 
 SindbadTEM.TEMTypes
 
@@ -3370,9 +3370,9 @@ Sindbad.Types.Spinup_cEco
 
 Sindbad.Types.Spinup_cEco_TWS
 
-Sindbad.Types.SpinupSequence
+Sindbad.Types.SpinupStep
 
-Sindbad.Types.SpinupSequenceWithAggregator
+Sindbad.Types.SpinupStepWithAggregator
 
 SindbadTEM.TEMTypes
 

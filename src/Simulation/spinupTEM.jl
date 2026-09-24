@@ -455,17 +455,16 @@ end
 
 
 """
-    spinupTEM(selected_models, forcing, loc_forcing_t, land, tem_info, spinup_mode)
+    spinupTEM(selected_models, loc_spinup, loc_forcing_t, land, tem_info, spinup_mode)
 
 The main spinup function that handles the spinup method based on inputs from spinup.json. Either the spinup is loaded or/and run using spinup functions for different spinup methods.
 
 # Arguments:
 - `selected_models`: a tuple of all models selected in the given model structure
-- `forcing`: a forcing NT that contains the forcing time series set for ALL locations
+- `loc_spinup`: a NT with the spinup `sequence` of the location and the `forcing` derived from it
 - `loc_forcing_t`: a forcing NT for a single location and a single time step
 - `land`: SINDBAD NT input to the spinup of TEM during which subfield(s) of pools are overwritten
 - `tem_info`: helper NT with necessary objects for model run and type consistencies
-- `tem_spinup`: a NT with information/instruction on spinning up the TEM
 - `spinup_mode`: A type dispatch that determines whether spinup is included or excluded:
     - `::DoSpinupTEM`: Runs the spinup process before the main simulation. Set `spinup_TEM` to `true` in the flag section of experiment_json.
     - `::DoNotSpinupTEM`: Skips the spinup process and directly runs the main simulation. Set `spinup_TEM` to `false` in the flag section of experiment_json.
@@ -489,9 +488,9 @@ julia> # land = spinupTEM(selected_models, forcing, loc_forcing_t, land, tem_inf
 """
 function spinupTEM end
 
-function spinupTEM(selected_models, spinup_forcings, loc_forcing_t, land, tem_info, ::DoSpinupTEM)
+function spinupTEM(selected_models, loc_spinup, loc_forcing_t, land, tem_info, ::DoSpinupTEM)
     land = setSpinupLog(land, 1, tem_info.run.store_spinup)
-    land, _ = runSpinupSequences(tem_info.spinup_sequence, selected_models, spinup_forcings, loc_forcing_t, land, tem_info, 2)
+    land, _ = runSpinupSequences(loc_spinup.sequence, selected_models, loc_spinup.forcing, loc_forcing_t, land, tem_info, 2)
     return land
 end
 
@@ -528,7 +527,7 @@ function runSpinupSequences(spin_seqs::Tuple, selected_models, spinup_forcings, 
     return runSpinupSequences(Base.tail(spin_seqs), selected_models, spinup_forcings, loc_forcing_t, land, tem_info, log_index + n_repeat)
 end
 
-function spinupTEM(selected_models, spinup_forcings, loc_forcing_t, land, tem_info, ::DoNotSpinupTEM)
+function spinupTEM(selected_models, loc_spinup, loc_forcing_t, land, tem_info, ::DoNotSpinupTEM)
     return land
 end
 

@@ -347,72 +347,125 @@ function setRestartFilePath(info::NamedTuple)
 end
 
 """
+    getSpinupAggregator(forcing_name, helpers_dates, aggregator_cache)
+
+Build the temporal aggregator of a spinup forcing set, reusing an already built one when the
+same forcing name has been seen before.
+
+# Arguments:
+- `forcing_name`: The name of the spinup forcing set, e.g. `"day_MSC"`.
+- `helpers_dates`: A NamedTuple containing date-related helpers.
+- `aggregator_cache`: A Dict in which aggregators built so far are kept, keyed by forcing name.
+
+# Returns:
+- A tuple of the aggregator, its flattened indices, the number of timesteps, and the sampler type.
+
+# Notes:
+- The aggregator depends only on the forcing name and the experiment date range, both of which
+  are the same for every location. Caching it keeps the per-location cost of building a
+  sequence to choosing the repeats and the spinup modes.
+"""
+function getSpinupAggregator(forcing_name, helpers_dates, aggregator_cache)
+    forcing_key = Symbol(forcing_name)
+    haskey(aggregator_cache, forcing_key) && return aggregator_cache[forcing_key]
+    forcing_str = String(forcing_name)
+    skip_sampling = startswith(forcing_str, helpers_dates.temporal_resolution)
+    aggregator = create_TimeSampler(helpers_dates.range, to_uppercase_first(forcing_str, "Time"), mean, skip_sampling)
+    aggregator_indices = [_ind for _ind in vcat(aggregator[1].indices...)]
+    aggregator_type = TimeNoDiff()
+    n_timesteps = length(aggregator[1].indices)
+    if occursin("_year", forcing_str)
+        aggregator_type = TimeIndexed()
+        n_timesteps = length(aggregator_indices)
+    end
+    built = (Vector{TimeSample}(aggregator), aggregator_indices, n_timesteps, aggregator_type)
+    aggregator_cache[forcing_key] = built
+    return built
+end
+
+"""
     getSpinupSequenceWithTypes(seqq, helpers_dates)
+    getSpinupSequenceWithTypes(seqq, helpers_dates, aggregator_cache)
 
 Processes the spinup sequence and assigns types for temporal aggregators for spinup forcing.
 
 # Arguments:
 - `seqq`: The spinup sequence from the experiment configuration.
 - `helpers_dates`: A NamedTuple containing date-related helpers.
+- `aggregator_cache`: A Dict of already built aggregators, shared across the locations of a run.
 
 # Returns:
 - A processed spinup sequence with forcing types for temporal aggregators.
 """
-function getSpinupSequenceWithTypes(seqq, helpers_dates)
+function getSpinupSequenceWithTypes end
+
+getSpinupSequenceWithTypes(seqq, helpers_dates) = getSpinupSequenceWithTypes(seqq, helpers_dates, Dict{Symbol,Any}())
+
+function getSpinupSequenceWithTypes(seqq, helpers_dates, aggregator_cache)
     seqq_typed = []
     for seq in seqq
-        # collect the keys first: the loop body inserts new keys into seq
-        for kk in collect(keys(seq))
-            if kk == "forcing"
-                skip_sampling = false
-                if startswith(seq[kk], helpers_dates.temporal_resolution)
-                    skip_sampling = true
-                end
-                aggregator = create_TimeSampler(helpers_dates.range, to_uppercase_first(seq[kk], "Time"), mean, skip_sampling)
-                seq["aggregator"] = aggregator
-                seq["aggregator_type"] = TimeNoDiff()
-                seq["aggregator_indices"] = [_ind for _ind in vcat(aggregator[1].indices...)]
-                seq["n_timesteps"] = length(aggregator[1].indices)
-                if occursin("_year", seq[kk])
-                    seq["aggregator_type"] = TimeIndexed()
-                    seq["n_timesteps"] = length(seq["aggregator_indices"])
-                end
-            end
-            if kk == "spinup_mode"
-                seq[kk] = getTypeInstanceForNamedOptions(seq[kk])
-            end
-            if seq[kk] isa String
-                seq[kk] = Symbol(seq[kk])
-            end
-        end
+        aggregator, aggregator_indices, n_timesteps, aggregator_type = getSpinupAggregator(seq["forcing"], helpers_dates, aggregator_cache)
+        spinup_mode = getTypeInstanceForNamedOptions(seq["spinup_mode"])
         optns = haskey(seq, "options") ? seq["options"] : (;)
-        sst = SpinupSequenceWithAggregator(seq["forcing"], seq["n_repeat"], seq["n_timesteps"], seq["spinup_mode"], optns, seq["aggregator_indices"], Vector{TimeSample}(seq["aggregator"]), seq["aggregator_type"]);
+        sst = SpinupStepWithAggregator(Symbol(seq["forcing"]), seq["n_repeat"], n_timesteps, spinup_mode, optns, aggregator_indices, aggregator, aggregator_type);
         push!(seqq_typed, sst)
     end
     return seqq_typed
 end
 
 """
+    getSpinupSequenceConfig(seqq)
+
+Normalizes the `sequence` field of the spinup settings into the method and options that build
+a location's spinup sequence later, in `prepTEM`, where the forcing is available.
+
+# Arguments:
+- `seqq`: The `sequence` field of the spinup settings. Either a list of sequence steps, or a
+  NamedTuple with a `method` and, optionally, its `options`, or nothing.
+
+# Returns:
+- A NamedTuple with the sequence `method` instance, its `options`, and the `sequence_spec`,
+  which holds the list of steps for the list method and is empty otherwise.
+
+# Notes:
+- A missing or null `sequence` falls back to `SequenceDefault`, so that an experiment that
+  runs the spinup without naming a sequence gets a sensible one rather than no steps at all.
+"""
+function getSpinupSequenceConfig(seqq)
+    if isnothing(seqq)
+        method = SequenceDefault()
+        return (; method=method, options=sindbadDefaultOptions(method), sequence_spec=[])
+    end
+    if seqq isa NamedTuple && haskey(seqq, :method)
+        method = getTypeInstanceForNamedOptions("sequence_" * String(seqq.method))
+        options = merge_namedtuple(sindbadDefaultOptions(method), get(seqq, :options, (;)))
+        return (; method=method, options=options, sequence_spec=[])
+    end
+    return (; method=SequenceList(), options=(;), sequence_spec=seqq)
+end
+
+"""
     setSpinupInfo(info::NamedTuple)
 
-Processes the spinup configuration and prepares the spinup sequence.
+Processes the spinup configuration and prepares the spinup sequence method.
 
 # Arguments:
 - `info`: A NamedTuple containing the experiment configuration.
 
 # Returns:
 - The updated `info` NamedTuple with spinup-related fields added.
+
+# Notes:
+- The sequence itself is not built here. A sequence method may need the forcing of a location
+  to decide the steps, so the sequence is built per location in `prepTEM`.
 """
 function setSpinupInfo(info)
     print_info(setSpinupInfo, @__FILE__, @__LINE__, "setting Spinup Info...")
     info = setRestartFilePath(info)
     infospin = info.settings.experiment.model_spinup
-    # change spinup sequence dispatch variables to Val, get the temporal aggregators
-    seqq = get(infospin, :sequence, nothing)
-    if !isnothing(seqq)
-        seqq_typed = getSpinupSequenceWithTypes(seqq, info.temp.helpers.dates)
-        infospin = set_namedtuple_field(infospin, (:sequence, Tuple(seqq_typed)))
-    end
+    seq_config = getSpinupSequenceConfig(get(infospin, :sequence, nothing))
+    infospin = drop_namedtuple_fields(infospin, (:sequence,))
+    infospin = (; infospin..., seq_config...)
     info = set_namedtuple_subfield(info, :temp, (:spinup, infospin))
     return info
 end
