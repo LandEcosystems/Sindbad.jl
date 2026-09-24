@@ -196,7 +196,7 @@ module Visualization
         return nothing
     end
 
-    function plotCarbonFlows(approach, file_path, ::VisualizationTypes)
+    function plotCarbonFlows(approach, file_path, ::VisualizationTypes; kwargs...)
         print_info(plotCarbonFlows, @__FILE__, @__LINE__, _visualizationFallbackMessage(plotCarbonFlows, VisualizationPlots()), n_f=4)
         return nothing
     end

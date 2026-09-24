@@ -341,7 +341,7 @@ function helpPrepTEM(selected_models, info, forcing::NamedTuple, output::NamedTu
     loc_forcing_t, loc_land = runTEMOne(selected_models, loc_forcing, land_init, tem_info)
 
     addErrorCatcher(loc_land, info.helpers.run.debug_model)
-    # plotActualCarbonFlows(info, loc_land)
+    plotActualCarbonFlows(info, loc_land)
 
     output_array = output.data
     output_vars = output.variables
