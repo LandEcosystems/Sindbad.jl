@@ -3,35 +3,23 @@ export cCycle_simple
 struct cCycle_simple <: cCycle end
 
 function define(params::cCycle_simple, forcing, land, helpers)
-    @unpack_nt begin
-        (z_zero, o_one) ⇐ land.constants
-        (cEco, cVeg) ⇐ land.pools
-    end
-    n_cEco = length(cEco)
-    n_cVeg = length(cVeg)
+    @unpack_nt cEco ⇐ land.pools
     ## Instantiate variables
     c_eco_flow = zero(cEco)
     c_eco_out = zero(cEco)
-    c_eco_efflux = zero(cEco)
     c_eco_influx = zero(cEco)
     zero_c_eco_flow = zero(c_eco_flow)
     zero_c_eco_influx = zero(c_eco_influx)
+    ΔcEco = zero(cEco)
     c_eco_npp = zero(cEco)
 
-    cEco_prev = copy(cEco)
-    zixVeg = getZix(cVeg, helpers.pools.zix.cVeg)
-    ## pack land variables
-    nee = z_zero
-    npp = z_zero
-    auto_respiration = z_zero
-    eco_respiration = z_zero
-    hetero_respiration = z_zero
+    cEco_prev = cEco
 
+    ## pack land variables
     @pack_nt begin
-        zixVeg ⇒ land.cCycle
-        (c_eco_efflux, c_eco_flow, c_eco_influx, c_eco_out, c_eco_npp, zero_c_eco_flow, zero_c_eco_influx) ⇒ land.fluxes
+        (c_eco_flow, c_eco_influx, c_eco_out, c_eco_npp, zero_c_eco_flow, zero_c_eco_influx) ⇒ land.fluxes
         cEco_prev ⇒ land.states
-        (nee, npp, auto_respiration, eco_respiration, hetero_respiration) ⇒ land.fluxes
+        ΔcEco ⇒ land.pools
     end
     return land
 end
@@ -40,74 +28,119 @@ function compute(params::cCycle_simple, forcing, land, helpers)
 
     ## unpack land variables
     @unpack_nt begin
-        zixVeg ⇐ land.cCycle
+        (c_allocation, c_eco_k, c_flow_A_vec, c_flow_ME_vec, c_flow_QP_vec) ⇐ land.diagnostics
         (c_eco_efflux, c_eco_flow, c_eco_influx, c_eco_out, c_eco_npp, zero_c_eco_flow, zero_c_eco_influx) ⇐ land.fluxes
+        (cEco, cVeg, ΔcEco) ⇐ land.pools
         cEco_prev ⇐ land.states
-        cEco ⇐ land.pools
-        (c_flow_A_vec, c_eco_k, c_allocation) ⇐ land.diagnostics
-        ΔcEco ⇐ land.pools
         gpp ⇐ land.fluxes
-        (c_giver, c_taker) ⇐ land.constants
-        (c_flow_order) ⇐ land.constants
-        (z_zero, o_one) ⇐ land.constants
+        (c_flow_order, c_giver, c_taker) ⇐ land.cCycleBase
+        c_model ⇐ land.models
+        (zix_cNonVeg, zix_cNatural, zix_cHeterotrophic, zix_cProducts) ⇐ land.cCycleBase
     end
+
     ## reset ecoflow and influx to be zero at every time step
-    c_eco_flow = zero_c_eco_flow .* z_zero
-    c_eco_influx = c_eco_influx
+    @rep_vec c_eco_flow ⇒ helpers.pools.zeros.cEco
+    @rep_vec c_eco_influx ⇒ helpers.pools.zeros.cEco
+    @rep_vec ΔcEco ⇒ helpers.pools.zeros.cEco
+
+    # reset the c_eco_efflux to zero, except for cVeg
+    for zix ∈ zix_cNonVeg
+        tmp = zero(c_eco_efflux[zix])
+        @rep_elem tmp ⇒ (c_eco_efflux, zix)
+    end
+
     ## compute losses
-    c_eco_out = min.(cEco, cEco .* c_eco_k)
+    for cl ∈ eachindex(cEco)
+        c_eco_out_cl = min(cEco[cl], cEco[cl] * c_eco_k[cl])
+        @rep_elem c_eco_out_cl ⇒ (c_eco_out, cl)
+        cl ∈ zix_cNonVeg && (@rep_elem c_eco_out_cl ⇒ (c_eco_efflux, cl))
+    end
 
     ## gains to vegetation
-    for zv ∈ zixVeg
-        @rep_elem gpp * c_allocation[zv] - c_eco_efflux[zv] ⇒ (c_eco_npp, zv, :cEco)
-        @rep_elem c_eco_npp[zv] ⇒ (c_eco_influx, zv, :cEco)
+    for zv ∈ getZix(cVeg, helpers.pools.zix.cVeg)
+        c_eco_npp_zv = gpp * c_allocation[zv] - c_eco_efflux[zv]
+        @rep_elem c_eco_npp_zv ⇒ (c_eco_npp, zv)
+        @rep_elem c_eco_npp_zv ⇒ (c_eco_influx, zv)
     end
 
     # flows & losses
-    # @nc; if flux order does not matter; remove# sujanq: this was deleted by simon in the version of 2020-11. Need to
-    # find out why. Led to having zeros in most of the carbon pools of the
-    # explicit simple
-    # old before cleanup was removed during biomascat when cFlowAct was changed to gsi. But original cFlowAct CASA was writing c_flow_order. So; in biomascat; the fields do not exist & this block of code will not work.
-    for jix ∈ eachindex(c_flow_order)
-        fO = c_flow_order[jix]
-        take_r = c_taker[fO]
-        give_r = c_giver[fO]
-        tmp_flow = c_eco_flow[take_r] + c_eco_out[give_r] * c_flow_A_vec[take_r, give_r]
-        @rep_elem tmp_flow ⇒ (c_eco_flow, take_r, :cEco)
+    zix_cVeg = helpers.pools.zix.cVeg
+    for (take_r, give_r, A_value, QP_value, ME_value) ∈ zip(c_taker, c_giver, c_flow_A_vec, c_flow_QP_vec, c_flow_ME_vec)
+        tmp_out = c_eco_out[give_r] * A_value * QP_value
+        tmp_keep = give_r ∈ zix_cVeg ? tmp_out : tmp_out * ME_value
+        tmp_flow = c_eco_flow[take_r] + tmp_keep
+        @rep_elem tmp_flow ⇒ (c_eco_flow, take_r)
+        give_r ∈ zix_cNonVeg && (@rep_elem c_eco_efflux[give_r] - tmp_keep ⇒ (c_eco_efflux, give_r))
     end
-    # for jix = 1:length(p_taker)
-    # c_taker = p_taker[jix]
-    # c_giver = p_giver[jix]
-    # c_flow = c_flow_A_vec(c_taker, c_giver)
-    # take_flow = c_eco_flow[c_taker]
-    # give_flow = c_eco_out[c_giver]
-    # c_eco_flow[c_taker] = take_flow + give_flow * c_flow
-    # end
-    ## balance
-    ΔcEco = c_eco_flow .+ c_eco_influx .- c_eco_out
-    cEco = cEco .+ c_eco_flow .+ c_eco_influx .- c_eco_out
 
-    ## compute RA & RH
-    npp = sum(c_eco_npp)
-    backNEP = sum(cEco) - sum(cEco_prev)
+    # balance
+    for cl ∈ eachindex(cEco)
+        tmp_delta = c_eco_flow[cl] + c_eco_influx[cl] - c_eco_out[cl]
+        ΔcEco_cl = tmp_delta
+        @add_to_elem ΔcEco_cl ⇒ (ΔcEco, cl)
+        cEco_cl = cEco[cl] + tmp_delta
+        @rep_elem cEco_cl ⇒ (cEco, cl)
+    end
+
+    # compute total fluxes
+    npp = totalS(c_eco_npp)
+
     auto_respiration = gpp - npp
-    eco_respiration = gpp - backNEP
-    hetero_respiration = eco_respiration - auto_respiration
-    nee = eco_respiration - gpp
-    cEco_prev = cEco
 
-    ## pack land variables
+    eco_respiration = totalS_indices(c_eco_efflux, zix_cNatural)
+
+    hetero_respiration = totalS_indices(c_eco_efflux, zix_cHeterotrophic)
+
+    product_respiration = totalS_indices(c_eco_efflux, zix_cProducts)
+
+
+    # eco_respiration = sum(
+    #     c_eco_efflux[i]
+    #         for zix in zix_cVeg_cLit_cSoil
+    #             for i in zix
+    #     )
+    
+    # hetero_respiration = sum(
+    #     c_eco_efflux[i]
+    #         for zix in zix_cLit_cSoil
+    #             for i in zix
+    #     )
+
+    # product_respiration = sum(
+    #     c_eco_efflux[i]
+    #         for zix in zix_cProducts
+    #             for i in zix
+    #     )
+    
+    nee = eco_respiration - gpp
+
+
+    #
+
+
+
+
+    nbp = - (eco_respiration + product_respiration - gpp)
+
+    @rep_vec cEco_prev ⇒ cEco
+    @pack_nt cEco ⇒ land.pools
+
+    land = adjustPackPoolComponents(land, helpers, c_model)
+    # setComponentFromMainPool(land, helpers, helpers.pools.vals.self.cEco, helpers.pools.vals.all_components.cEco, helpers.pools.vals.zix.cEco)
+
+    # pack land variables
     @pack_nt begin
-        cEco ⇒ land.pools
-        (nee, npp, auto_respiration, eco_respiration, hetero_respiration) ⇒ land.fluxes
+        (nee, npp, auto_respiration, eco_respiration, hetero_respiration, product_respiration, nbp) ⇒ land.fluxes
         (c_eco_efflux, c_eco_flow, c_eco_influx, c_eco_out, c_eco_npp) ⇒ land.fluxes
         cEco_prev ⇒ land.states
         ΔcEco ⇒ land.pools
     end
+
+    checkCcycleBalance(land, helpers, helpers.run.catch_model_errors)
     return land
 end
 
-purpose(::Type{cCycle_simple}) = "Carbon cycle with components based on the simplified version of the CASA approach."
+purpose(::Type{cCycle_simple}) = "Carbon cycle with components based on the cCycleBase approach, including carbon allocation, transfers, and turnover rates."
 
 @doc """
 

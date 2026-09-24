@@ -4,7 +4,7 @@
     "use_in_spinup": true
   },
   "models": {
-        "ambientCO2": {
+    "ambientCO2": {
       "approach": "forcing"
     },
     "autoRespiration": {
@@ -23,7 +23,7 @@
       "approach": "none"
     },
     "cAllocationRadiation": {
-        "approach": "gpp"
+      "approach": "gpp"
     },
     "cAllocationSoilT": {
       "approach": "gpp"
@@ -38,10 +38,34 @@
       "approach": "VanDijk2010"
     },
     "cCycle": {
-      "approach": "GSI"
+      "approach": "simple"
     },
     "cCycleBase": {
-        "approach": "GSI_PlantForm"
+      "approach": "GSI"
+    },
+    "vegQualityTraits": {
+      "approach": "none"
+    },
+    "cMicrobialEfficiency": {
+      "approach": "sum"
+    },
+    "cQualityPartition": {
+      "approach": "equal"
+    },
+    "cCropHarvestIntensity": {
+      "approach": "none"
+    },
+    "cCropHarvestEfficiency": {
+      "approach": "none"
+    },
+    "cForestryHarvestIntensity": {
+      "approach": "none"
+    },
+    "cForestryHarvestEfficiency": {
+      "approach": "none"
+    },
+    "cCycleManagement": {
+      "approach": "none"
     },
     "cCycleConsistency": {
       "approach": "simple"
@@ -50,36 +74,31 @@
       "approach": "forcing",
       "use_in_spinup": false
     },
-      "cFireBurnedArea": {
-        "approach": "forcing",
-        "use_in_spinup": false
-      },
-      "cFireCombustionCompleteness": {
-        "approach": "vanDerWerf2006",
-        "use_in_spinup": false
-      },
-      "cFireMortality": {
-        "approach": "vanDerWerf2004",
-        "use_in_spinup": false
-      },
+    "cFire": {
+      "approach": "simple",
+      "use_in_spinup": false
+    },
+    "cFireBurnedArea": {
+      "approach": "forcing",
+      "use_in_spinup": false
+    },
+    "cFireCombustionCompleteness": {
+      "approach": "vanDerWerf2006",
+      "use_in_spinup": false
+    },
+    "cFireMortality": {
+      "approach": "vanDerWerf2004",
+      "use_in_spinup": false
+    },
     "cCycleDisturbance": {
-        "approach": "WROASTEDMortality",
+      "approach": "simple",
       "use_in_spinup": false
     },
     "cFlow": {
       "approach": "GSI"
     },
-    "cFlowSoilProperties": {
-      "approach": "none"
-    },
-    "cFlowVegProperties": {
-      "approach": "none"
-    },
     "cTau": {
       "approach": "mult"
-    },
-    "cTauLAI": {
-      "approach": "none"
     },
     "cTauSoilProperties": {
       "approach": "none"
@@ -93,9 +112,9 @@
     "cTauVegProperties": {
       "approach": "none"
     },
-      "cBiomass": {
-        "approach": "treeGrass"
-      },
+    "cBiomass": {
+      "approach": "treeGrass"
+    },
     "drainage": {
       "approach": "dos"
     },
@@ -168,8 +187,11 @@
     "PET": {
       "approach": "Lu2005"
     },
-    "plantForm": {
-      "approach": "PFT"
+    "vegDynamics": {
+      "approach": "forcing"
+    },
+    "vegClass": {
+      "approach": "MODIS_IGBP_PlantForm"
     },
     "rainSnow": {
       "approach": "Tair"

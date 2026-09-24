@@ -441,7 +441,7 @@
                     { "name": "autoRespiration,RMN", "value": 1 },
                     { "name": "autoRespiration,YG", "value": 1 },
                     { "name": "autoRespirationAirT,Q10", "value": 1 },
-                    { "name": "cCycleBase,c_remain", "value": 1 },
+                    { "name": "cCycleBase,c_remain_scalar", "value": 1 },
                     { "name": "cCycleBase,ηH", "value": 1 },
                     { "name": "cFlow,f_τ", "value": 1 },
                     { "name": "cFlow,k_shedding", "value": 1 },

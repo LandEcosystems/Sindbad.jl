@@ -24,7 +24,7 @@ function compute(params::evapotranspiration_simple, forcing, land, helpers)
 		f_rn ⇐ forcing
 	end
 	evapotranspiration = min(k_evapotranspiration * (soilW[1] + ΔsoilW[1]), d_evapotranspiration * f_rn / mj_to_mm)
-	@add_to_elem -evapotranspiration ⇒ (ΔsoilW, 1, :soilW)
+	@add_to_elem -evapotranspiration ⇒ (ΔsoilW, 1)
 	@pack_nt begin
 		evapotranspiration ⇒ land.fluxes
 		ΔsoilW ⇒ land.pools

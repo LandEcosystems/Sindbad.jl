@@ -96,7 +96,7 @@ module SindbadTEM
    include("Processes.jl")
    @reexport using .Processes
    include("DevTools.jl")
-   export test_model, analyse_tem, test_tem
+   export test_model, analyse_tem, analyse_process, test_tem
 
    # append the docstring of the LandEcosystem type to the docstring of the SindbadTEM module so that all the methods of the LandEcosystem type are included after the models have been described
    @doc """

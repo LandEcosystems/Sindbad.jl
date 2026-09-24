@@ -44,25 +44,17 @@ function precompute(params::cAllocation_fixed, forcing, land, helpers)
 
     @unpack_nt begin
         c_allocation ⇐ land.diagnostics
-        (cVeg_names, cVeg_nzix, cVeg_zix, c_allocation_to_veg) ⇐ land.cAllocation
+        (cVeg_nzix, cVeg_zix, c_allocation_to_veg) ⇐ land.cAllocation
     end
     ## unpack land variables
     # allocation to root; wood & leaf
 
-    @rep_elem a_cVegRoot ⇒ (c_allocation_to_veg, 1, :cEco)
-    @rep_elem a_cVegWood ⇒ (c_allocation_to_veg, 2, :cEco)
-    @rep_elem a_cVegLeaf ⇒ (c_allocation_to_veg, 3, :cEco)
-
+    @rep_elem a_cVegRoot ⇒ (c_allocation_to_veg, 1)
+    @rep_elem a_cVegWood ⇒ (c_allocation_to_veg, 2)
+    @rep_elem a_cVegLeaf ⇒ (c_allocation_to_veg, 3)
 
     # distribute the allocation according to pools
-    for cl in eachindex(cVeg_names)
-        zix = cVeg_zix[cl]
-        nZix = cVeg_nzix[cl]
-        for ix ∈ zix
-            c_allocation_to_veg_ix = c_allocation_to_veg[cl] / nZix
-            @rep_elem c_allocation_to_veg_ix ⇒ (c_allocation, ix, :cEco)
-        end
-    end
+    c_allocation = allocateToPools(c_allocation, cVeg_zix, cVeg_nzix, c_allocation_to_veg)
     ## pack land variables
     @pack_nt c_allocation ⇒ land.diagnostics
     return land

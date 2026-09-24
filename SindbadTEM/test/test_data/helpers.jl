@@ -2,13 +2,12 @@
 # Regenerate with: julia --project=. tools/benchmark/TestSindbadTEM/derive_sindbadTEM_test_data.jl
 
 using SindbadTEM
-using StaticArrays: SVector
 using Dates
 
 tmp_helpers = (;
     dates = NamedTuple(),
     run = (;
-    catch_model_errors = DoNotCatchModelErrors()
+    catch_model_errors = DoCatchModelErrors()
 ),
     numbers = (;
     tolerance = 0.01f0
@@ -45,7 +44,24 @@ tmp_helpers = (;
     groundW = (5,),
     snowW = (6,),
     surfaceW = (7,),
-    TWS = (1, 2, 3, 4, 5, 6, 7)
+    TWS = (1, 2, 3, 4, 5, 6, 7),
+    cLitLeaf = (),
+    cLitRootFine = (),
+    cLitRoot = (),
+    cMic = (),
+    cVegRootFine = (),
+    cVegRootCoarse = (),
+    cLitLeafFast = (),
+    cLitLeafSlow = (),
+    cLitRootFineFast = (),
+    cLitRootFineSlow = (),
+    cLitRootCoarse = (),
+    cLitWood = (),
+    cMicSurf = (),
+    cMicSoil = (),
+    cProducts = (),
+    cProductsWood = (),
+    cProductsCrop = ()
 ),
     components = (;
     cVeg = (:cVegRoot, :cVegWood, :cVegLeaf, :cVegReserve),
@@ -107,6 +123,20 @@ tmp_helpers = (;
     snowW = SVector{1,Float32}((1.0f0,)),
     surfaceW = SVector{1,Float32}((1.0f0,)),
     TWS = SVector{7,Float32}((1.0f0, 1.0f0, 1.0f0, 1.0f0, 1.0f0, 1.0f0, 1.0f0,))
+),
+    vals = (;
+    zix = (;
+    cEco = Val{(cVeg = (1, 2, 3, 4), cLit = (5, 6), cSoil = (7, 8), cVegRoot = (1,), cVegWood = (2,), cVegLeaf = (3,), cVegReserve = (4,), cLitFast = (5,), cLitSlow = (6,), cSoilSlow = (7,), cSoilOld = (8,), cEco = (1, 2, 3, 4, 5, 6, 7, 8))}(),
+    TWS = Val{(soilW = (1, 2, 3, 4), groundW = (5,), snowW = (6,), surfaceW = (7,), TWS = (1, 2, 3, 4, 5, 6, 7))}()
+),
+    self = (;
+    cEco = Val{:cEco}(),
+    TWS = Val{:TWS}()
+),
+    all_components = (;
+    cEco = Val{(:cVeg, :cLit, :cSoil, :cVegRoot, :cVegWood, :cVegLeaf, :cVegReserve, :cLitFast, :cLitSlow, :cSoilSlow, :cSoilOld)}(),
+    TWS = Val{(:soilW, :groundW, :snowW, :surfaceW)}()
+)
 ),
     n_layers = (;
     cVeg = 4.0f0,

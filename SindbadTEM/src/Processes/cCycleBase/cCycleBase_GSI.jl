@@ -1,29 +1,43 @@
-export cCycleBase_GSI, adjustPackPoolComponents
+export cCycleBase_GSI
 
 #! format: off
-@bounds @describe @units @timescale @with_kw struct cCycleBase_GSI{T1,T2,T3,T4,T5,T6,T7,T8,T9,T10,T11,T12,T13} <: cCycleBase
-    c_τ_Root::T1 = 1.0 | (0.05, 3.3) | "turnover rate of root carbon pool" | "year-1" | "year"
-    c_τ_Wood::T2 = 0.03 | (0.0025, 10.0) | "turnover rate of wood carbon pool" | "year-1" | "year"
-    c_τ_Leaf::T3 = 1.0 | (0.05, 10.0) | "turnover rate of leaf carbon pool" | "year-1" | "year"
-    c_τ_Reserve::T4 = 1.0e-11 | (1.0e-12, 1.0) | "Reserve does not respire, but has a small value to avoid  numerical error" | "year-1" | "year"
-    c_τ_LitFast::T5 = 14.8 | (0.5, 148.0) | "turnover rate of fast litter (leaf litter) carbon pool" | "year-1" | "year"
-    c_τ_LitSlow::T6 = 3.9 | (0.39, 39.0) | "turnover rate of slow litter carbon (wood litter) pool" | "year-1" | "year"
-    c_τ_SoilSlow::T7 = 0.2 | (0.02, 2.0) | "turnover rate of slow soil carbon pool" | "year-1" | "year"
-    c_τ_SoilOld::T8 = 0.0045 | (0.00045, 0.045) | "turnover rate of old soil carbon pool" | "year-1" | "year"
-    c_flow_A_array::T9 = Float64.([
-                     -1.0 0.0 0.0 1.0 0.0 0.0 0.0 0.0
-                     0.0 -1.0 0.0 0.0 0.0 0.0 0.0 0.0
-                     0.0 0.0 -1.0 1.0 0.0 0.0 0.0 0.0
-                     1.0 0.0 1.0 -1.0 0.0 0.0 0.0 0.0
-                     1.0 0.0 1.0 0.0 -1.0 0.0 0.0 0.0
-                     0.0 1.0 0.0 0.0 0.0 -1.0 0.0 0.0
-                     0.0 0.0 0.0 0.0 1.0 1.0 -1.0 0.0
-                     0.0 0.0 0.0 0.0 0.0 0.0 1.0 -1.0
-                 ]) | (-Inf, Inf) | "Transfer matrix for carbon at ecosystem level" | "" | ""
-    p_C_to_N_cVeg::T10 = Float64.([25.0, 260.0, 260.0, 10.0]) | (-Inf, Inf) | "carbon to nitrogen ratio in vegetation pools" | "gC/gN" | ""
-    ηH::T11 = 1.0 | (0.01, 100.0) | "scaling factor for heterotrophic pools after spinup" | "" | ""
-    ηA::T12 = 1.0 | (0.01, 100.0) | "scaling factor for vegetation pools after spinup" | "" | ""
-    c_remain::T13 = 10.0 | (0.1, 100.0) | "remaining carbon after disturbance" | "" | ""
+@bounds @describe @units @timescale @with_kw struct cCycleBase_GSI{
+    T1,     # k_c_root_scalar
+    T2,     # k_c_wood_scalar
+    T3,     # k_c_leaf_scalar
+    T4,     # k_c_reserve_scalar
+    T5,     # k_c_litfast_scalar
+    T6,     # k_c_litslow_scalar
+    T7,     # k_c_soilslow_scalar
+    T8,     # k_c_soilold_scalar
+    T9,     # α_k_cVeg
+    T10,    # α_k_cLit
+    T11,    # α_k_cSoil
+    T12,    # CN_ratio_scalar
+    T13,    # ηH
+    T14,    # ηA
+    T15,    # c_remain_scalar
+    T16     # k_hilo_scalar
+} <: cCycleBase
+    k_c_root_scalar::T1 = 1.0 | (0.25, 4.0) | "scalar for turnover rate of root carbon pool" | "-" | "year"
+    k_c_wood_scalar::T2 = 1.0 | (0.25, 4.0) | "scalar for turnover rate of wood carbon pool" | "-" | "year"
+    k_c_leaf_scalar::T3 = 1.0 | (0.25, 4.0) | "scalar for turnover rate of leaf carbon pool" | "-" | "year"
+    k_c_reserve_scalar::T4 = 1.0 | (0.25, 4.0) | "scalar for turnover rate of reserve carbon pool" | "-" | "year"
+
+    k_c_litfast_scalar::T5 = 1.0 | (0.25, 4.0) | "scalar for turnover rate of litter fast carbon pool" | "-" | "year"
+    k_c_litslow_scalar::T6 = 1.0 | (0.25, 4.0) | "scalar for turnover rate of litter slow carbon pool" | "-" | "year"
+    k_c_soilslow_scalar::T7 = 1.0 | (0.25, 4.0) | "scalar for turnover rate of soil slow carbon pool" | "-" | "year"
+    k_c_soilold_scalar::T8 = 1.0 | (0.25, 4.0) | "scalar for turnover rate of soil old carbon pool" | "-" | "year"
+
+    α_k_cVeg::T9 = 1.0 | (0.25, 4.0) | "scalar for turnover rate of all vegetation carbon pools; it has no timescale, since it scales the original pool level k." | "-" | ""
+    α_k_cLit::T10 = 1.0 | (0.25, 4.0) | "scalar for turnover rate of all litter carbon pools; it has no timescale, since it scales the original pool level k." | "-" | ""
+    α_k_cSoil::T11 = 1.0 | (0.25, 4.0) | "scalar for turnover rate of all soil carbon pools; it has no timescale, since it scales the original pool level k." | "-" | ""
+
+    CN_ratio_scalar::T12 = 1.0 | (0.25, 4.0) | "scalar for the vegetation carbon-to-nitrogen ratio" | "-" | ""
+    ηH::T13 = 1.0 | (0.01, 100.0) | "scaling factor for heterotrophic pools after spinup" | "" | ""
+    ηA::T14 = 1.0 | (0.01, 100.0) | "scaling factor for vegetation pools after spinup" | "" | ""
+    c_remain_scalar::T15 = 1.0 | (0.1, 10.0) | "scalar for the per-vegetation-type minimum remaining carbon after disturbance" | "-" | ""
+    k_hilo_scalar::T16 = 1.0 | (-Inf, Inf) | "timescale factor for split of high and low turnover rates" | "-" | "year"
 end
 #! format: on
 
@@ -31,26 +45,43 @@ function define(params::cCycleBase_GSI, forcing, land, helpers)
     @unpack_cCycleBase_GSI params
     @unpack_nt begin
         cEco ⇐ land.pools
-        (z_zero, o_one) ⇐ land.constants
+        veg_type_class_map ⇐ land.vegClass
     end
     ## Instantiate variables
-    C_to_N_cVeg = zero(cEco) #sujan
-    # C_to_N_cVeg[getZix(land.pools.cVeg, helpers.pools.zix.cVeg)] .= p_C_to_N_cVeg
+    CN_ratio_cVeg = zero(cEco) #sujan
     c_eco_k_base = zero(cEco)
     c_eco_τ = zero(cEco)
 
-    # if there is flux order check that is consistent
-    c_flow_order = Tuple(collect(1:length(findall(>(z_zero), c_flow_A_array))))
-    c_taker = Tuple([ind[1] for ind ∈ findall(>(z_zero), c_flow_A_array)])
-    c_giver = Tuple([ind[2] for ind ∈ findall(>(z_zero), c_flow_A_array)])
+    # one flow per declared edge of this approach, resolved against the configured
+    # pool structure, rather than a transfer matrix carried as a parameter. The same
+    # call keys the flows by pool-name pair and sizes the neutral flow vector, so a
+    # cFlow approach reads the topology and fills in values instead of rederiving both
+    (c_flow_order, c_taker, c_giver, pool_names, flow_edges, c_flow_taker_turnover_rank, c_flow_A_vec,
+        c_flow_QP_vec, c_flow_ME_vec) = cFlowStructure(params, cEco, helpers)
 
-    c_model = cCycleBase_GSI()
+    # Re-keyed once, at define time, onto whichever classification the experiment's
+    # vegClass approach resolved into (the canonical vocabulary, or a grouping like
+    # Classification_PlantForm) -- see getParamsPerVegType, and
+    # vegQualityTraits_vegType.jl for the same pattern applied to litter chemistry.
+    # No coarse-root table here: GSI has a single, undifferentiated cVegRoot pool
+    # (no cVegRootCoarse), unlike CASA.
+    rootfine_age_per_vegtype = getParamsPerVegType(CVEG_ROOTFINE_AGE_PER_VEGTYPE, typeof(veg_type_class_map))
+    leaf_age_per_vegtype = getParamsPerVegType(CVEG_LEAF_AGE_PER_VEGTYPE, typeof(veg_type_class_map))
+    wood_age_per_vegtype = getParamsPerVegType(CVEG_WOOD_AGE_PER_VEGTYPE, typeof(veg_type_class_map))
+    c_remain_per_vegtype = getParamsPerVegType(C_REMAIN_PER_VEGTYPE, typeof(veg_type_class_map))
+
+    # zix for the carbon cycle...
+    zix_cNonVeg, zix_cNatural, zix_cHeterotrophic, zix_cProducts = cCycleBaseZixGroups(helpers)
+
+    c_model = params
 
     ## pack land variables
     @pack_nt begin
-        c_flow_A_array ⇒ land.diagnostics
-        (c_flow_order, c_taker, c_giver) ⇒ land.constants
-        (C_to_N_cVeg, c_eco_τ, c_eco_k_base) ⇒ land.diagnostics
+        (c_flow_order, c_taker, c_giver, pool_names, flow_edges, c_flow_taker_turnover_rank) ⇒ land.cCycleBase
+        (CN_ratio_cVeg, c_eco_τ, c_eco_k_base, c_flow_A_vec, c_flow_QP_vec, c_flow_ME_vec) ⇒ land.diagnostics
+        (rootfine_age_per_vegtype, leaf_age_per_vegtype, wood_age_per_vegtype) ⇒ land.diagnostics
+        c_remain_per_vegtype ⇒ land.diagnostics
+        (zix_cNonVeg, zix_cNatural, zix_cHeterotrophic, zix_cProducts) ⇒ land.cCycleBase
         c_model ⇒ land.models
     end
     return land
@@ -59,110 +90,78 @@ end
 function precompute(params::cCycleBase_GSI, forcing, land, helpers)
     @unpack_cCycleBase_GSI params
     @unpack_nt begin
-        (C_to_N_cVeg, c_eco_k_base, c_eco_τ) ⇐ land.diagnostics
-        (z_zero, o_one) ⇐ land.constants
+        (CN_ratio_cVeg, c_eco_k_base, c_eco_τ) ⇐ land.diagnostics
+        (rootfine_age_per_vegtype, leaf_age_per_vegtype, wood_age_per_vegtype) ⇐ land.diagnostics
+        c_remain_per_vegtype ⇐ land.diagnostics
+        (c_flow_order, c_giver, c_taker, c_flow_taker_turnover_rank) ⇐ land.cCycleBase
+        veg_type_name ⇐ land.states
     end
 
     ## replace values
-    @rep_elem c_τ_Root ⇒ (c_eco_τ, 1, :cEco)
-    @rep_elem c_τ_Wood ⇒ (c_eco_τ, 2, :cEco)
-    @rep_elem c_τ_Leaf ⇒ (c_eco_τ, 3, :cEco)
-    @rep_elem c_τ_Reserve ⇒ (c_eco_τ, 4, :cEco)
-    @rep_elem c_τ_LitFast ⇒ (c_eco_τ, 5, :cEco)
-    @rep_elem c_τ_LitSlow ⇒ (c_eco_τ, 6, :cEco)
-    @rep_elem c_τ_SoilSlow ⇒ (c_eco_τ, 7, :cEco)
-    @rep_elem c_τ_SoilOld ⇒ (c_eco_τ, 8, :cEco)
+    # cVegRoot/cVegWood/cVegLeaf turnover now varies by land.states.veg_type_name,
+    # looked up in the tables define re-keyed from ParamsForVegClasses.jl; the
+    # litter/soil/reserve pools stay fixed, from GSI_TAU_DEFAULT, since they are
+    # not vegetation-type dependent. c_eco_τ is written by pool name rather than
+    # by cEco position, so a structure that orders or omits pools differently
+    # still gets its turnovers in the right slots. Both getKfromTau/
+    # getCNfromParams calls are generic over whatever pools the table covers,
+    # rather than one hand-written loop per pool -- and live as their own
+    # functions, not inline loops here, so Julia can infer this function's return
+    # type concretely (see getKfromTau's docstring,
+    # poolConfigurations/poolConfigurations.jl).
+    c_τ_default = (;
+        cVegRoot = getproperty(rootfine_age_per_vegtype, veg_type_name),
+        cVegWood = getproperty(wood_age_per_vegtype, veg_type_name),
+        cVegLeaf = getproperty(leaf_age_per_vegtype, veg_type_name),
+        cVegReserve = TAU_DORMANT,
+        cLitFast = GSI_TAU_DEFAULT.cLitFast, cLitSlow = GSI_TAU_DEFAULT.cLitSlow,
+        cSoilSlow = GSI_TAU_DEFAULT.cSoilSlow, cSoilOld = GSI_TAU_DEFAULT.cSoilOld,
+    )
+    k_c_scalars = (;
+        cVegRoot = k_c_root_scalar * α_k_cVeg, 
+        cVegWood = k_c_wood_scalar * α_k_cVeg,
+        cVegLeaf = k_c_leaf_scalar * α_k_cVeg, 
+        cVegReserve = k_c_reserve_scalar * α_k_cVeg,
+        cLitFast = k_c_litfast_scalar * α_k_cLit, 
+        cLitSlow = k_c_litslow_scalar * α_k_cLit,
+        cSoilSlow = k_c_soilslow_scalar * α_k_cSoil, 
+        cSoilOld = k_c_soilold_scalar * α_k_cSoil,
+    )
 
-    vegZix = getZix(land.pools.cVeg, helpers.pools.zix.cVeg)
-    for ix ∈ eachindex(vegZix)
-        @rep_elem p_C_to_N_cVeg[ix] ⇒ (C_to_N_cVeg, vegZix[ix], :cEco)
-    end
-    for i ∈ eachindex(c_eco_k_base)
-        tmp = c_eco_τ[i]
-        @rep_elem tmp ⇒ (c_eco_k_base, i, :cEco)
-    end
+    CN_ratio_cVeg = getCNfromParams(CN_ratio_cVeg, GSI_CN_ratio, CN_ratio_scalar, helpers)
+    c_eco_k_base = getKfromTau(c_eco_τ, c_τ_default, k_c_scalars, helpers)
+
+    # minimum remaining carbon after disturbance, by land.states.veg_type_name,
+    # looked up in the table define re-keyed from C_REMAIN_PER_VEGTYPE, scaled
+    # by the bounded c_remain_scalar -- same getParamForVegType idiom
+    # vegQualityTraits_vegType.jl uses for litter chemistry.
+    c_remain = getParamForVegType(c_remain_per_vegtype, veg_type_name, c_remain_scalar)
+
+    k_hilo_lit_split = k_hilo_scalar / (oftype(k_hilo_scalar, TAU_HILO_LIT_SPLIT)) # TAU_HILO_LIT_SPLIT is changed to actual time scale through 'year' timescale of k_hilo_scalar which will be 1/365 for daily model run ...
+
+    # c_flow_taker_turnover_rank ranks by base turnover rate, so it can only be
+    # derived now that c_eco_k_base above holds real values -- define only
+    # allocated it, zero-filled, since it runs before any precompute.
+    c_flow_taker_turnover_rank = getTakerTurnoverRank(
+        c_flow_taker_turnover_rank,
+        c_flow_order,
+        c_giver,
+        c_taker,
+        c_eco_k_base,
+        helpers.pools.zix.cVeg,
+    )
 
     ## pack land variables
     @pack_nt begin
-        (C_to_N_cVeg, c_eco_τ, c_eco_k_base, ηA, ηH) ⇒ land.diagnostics
+        (CN_ratio_cVeg, c_eco_τ, c_eco_k_base, ηA, ηH) ⇒ land.diagnostics
         c_remain ⇒ land.states
+        k_c_scalars ⇒ land.cCycleBase
+        (c_flow_taker_turnover_rank, k_hilo_lit_split) ⇒ land.cCycleBase
     end
     return land
 end
 
-function adjustPackPoolComponents(land, helpers, ::cCycleBase_GSI)
-    @unpack_nt (cVeg,
-        cLit,
-        cSoil,
-        cVegRoot,
-        cVegWood,
-        cVegLeaf,
-        cVegReserve,
-        cLitFast,
-        cLitSlow,
-        cSoilSlow,
-        cSoilOld,
-        cEco) ⇐ land.pools
-
-    zix = helpers.pools.zix
-    for (lc, l) in enumerate(zix.cVeg)
-        @rep_elem cEco[l] ⇒ (cVeg, lc, :cVeg)
-    end
-
-    for (lc, l) in enumerate(zix.cVegRoot)
-        @rep_elem cEco[l] ⇒ (cVegRoot, lc, :cVegRoot)
-    end
-
-    for (lc, l) in enumerate(zix.cVegWood)
-        @rep_elem cEco[l] ⇒ (cVegWood, lc, :cVegWood)
-    end
-
-    for (lc, l) in enumerate(zix.cVegLeaf)
-        @rep_elem cEco[l] ⇒ (cVegLeaf, lc, :cVegLeaf)
-    end
-
-    for (lc, l) in enumerate(zix.cVegReserve)
-        @rep_elem cEco[l] ⇒ (cVegReserve, lc, :cVegReserve)
-    end
-
-    for (lc, l) in enumerate(zix.cLit)
-        @rep_elem cEco[l] ⇒ (cLit, lc, :cLit)
-    end
-
-    for (lc, l) in enumerate(zix.cLitFast)
-        @rep_elem cEco[l] ⇒ (cLitFast, lc, :cLitFast)
-    end
-
-    for (lc, l) in enumerate(zix.cLitSlow)
-        @rep_elem cEco[l] ⇒ (cLitSlow, lc, :cLitSlow)
-    end
-
-    for (lc, l) in enumerate(zix.cSoil)
-        @rep_elem cEco[l] ⇒ (cSoil, lc, :cSoil)
-    end
-
-    for (lc, l) in enumerate(zix.cSoilSlow)
-        @rep_elem cEco[l] ⇒ (cSoilSlow, lc, :cSoilSlow)
-    end
-
-    for (lc, l) in enumerate(zix.cSoilOld)
-        @rep_elem cEco[l] ⇒ (cSoilOld, lc, :cSoilOld)
-    end
-    @pack_nt (cVeg,
-        cLit,
-        cSoil,
-        cVegRoot,
-        cVegWood,
-        cVegLeaf,
-        cVegReserve,
-        cLitFast,
-        cLitSlow,
-        cSoilSlow,
-        cSoilOld,
-        cEco) ⇒ land.pools
-    return land
-end
-
+poolConfiguration(::Type{<:cCycleBase_GSI}) = GSI
 purpose(::Type{cCycleBase_GSI}) = "Structure and properties of the carbon cycle components as needed for a dynamic phenology-based carbon cycle in the GSI approach."
 
 @doc """
@@ -173,13 +172,34 @@ $(getModelDocString(cCycleBase_GSI))
 
 # Extended help
 
+Turnover for the four vegetation C-compartments (root, wood, leaf, reserve) and the four
+litter/soil pools is `k = (1.0 / turnover_time) * scalar`, where `scalar` is one of
+the six `k_c_*_scalar` fields, shared across pools without their own individual
+scalar (`α_k_cLit` for both litter pools, `α_k_cSoil` for both soil
+pools). `turnover_time` for `cVegRoot`/`cVegWood`/`cVegLeaf` varies by
+`land.states.veg_type_name`: `define` re-keys `CVEG_ROOTFINE_AGE_PER_VEGTYPE`/
+`CVEG_WOOD_AGE_PER_VEGTYPE`/`CVEG_LEAF_AGE_PER_VEGTYPE` onto the experiment's
+resolved `vegClass` classification, and `precompute` looks the pixel's
+`veg_type_name` up in each. `cVegReserve` stays `TAU_DORMANT`, and
+`cLitFast`/`cLitSlow`/`cSoilSlow`/`cSoilOld` stay fixed at `GSI_TAU_DEFAULT`'s
+values, neither being vegetation-type dependent. The vegetation
+carbon-to-nitrogen ratio works as before, against `GSI_CN_ratio` and
+`CN_ratio_scalar`.
+
+The six `k_c_*_scalar` fields declare `"year"` as their timescale, so
+`getTypedModel`/`getParameters` rescale their default and bounds to the model's
+configured timestep before a run starts.
+
 *References*
  - Potter; C. S.; J. T. Randerson; C. B. Field; P. A. Matson; P. M.  Vitousek; H. A. Mooney; & S. A. Klooster. 1993. Terrestrial ecosystem  production: A process model based on global satellite & surface data.  Global Biogeochemical Cycles. 7: 811-841.
 
 *Versions*
- - 1.0 on 28.02.2020 [skoirala | @dr-ko]  
-
-*Created by*
+ - 1.0 on 28.02.2020 [skoirala | @dr-ko]
+ - 1.1 on 04.09.2026 [skoirala]: allocate `c_flow_ME_vec` here alongside `c_flow_A_vec` and `c_flow_QP_vec`
+ - 1.2 on 11.09.2026 [skoirala]: replace the 8 independently-bounded turnover fields and the 4-element `p_CN_ratio_cVeg` vector with 6 shared `k_c_*_scalar` fields and `CN_ratio_scalar`, applied against the centralized `GSI_TAU_DEFAULT`/`GSI_CN_ratio` tables via a generic per-pool-name loop; default turnover changes slightly for wood (`k=0.02`, was `0.03`), since the new shared base is tree's turnover time rather than this approach's own prior default; freeze prior behavior as `cCycleBase_GSI_Legacy`; `define`'s `c_model` now packs `params` itself rather than a fresh instance; pack `k_c_scalars` into `land.cCycleBase`
+ - 1.3 on 11.09.2026 [skoirala]: fix a bug from 1.2: the 6 `k_c_*_scalar` fields had no declared timescale, so turnover was never rescaled to the model's timestep; declaring `"year"` fixes it
+ - 1.4 on 11.09.2026 [skoirala]: `cVegRoot`/`cVegWood`/`cVegLeaf` turnover no longer reads the fixed `GSI_TAU_DEFAULT` values; `define` re-keys `CVEG_ROOTFINE_AGE_PER_VEGTYPE`/`CVEG_WOOD_AGE_PER_VEGTYPE`/`CVEG_LEAF_AGE_PER_VEGTYPE` onto the active `vegClass` classification and `precompute` looks `veg_type_name` up in each; `cVegReserve`/litter/soil turnover is unchanged
+ - 1.5 on 15.09.2026 [skoirala]: replace the flat `c_remain` parameter with `c_remain_scalar`, following the per-vegetation-type pattern of the turnover ages above
  - ncarvalhais
 """
 cCycleBase_GSI

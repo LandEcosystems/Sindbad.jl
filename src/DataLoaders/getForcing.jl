@@ -146,7 +146,7 @@ end
  collectTypesTiDim(incube::YAXArrays.YAXArray, time_dim_name::Symbol)
 """
 function collectTypesTiDim(incube::YAXArrays.YAXArray, time_dim_name::Symbol)
-    if hasdim(incube, DD.Dim{time_dim_name})
+    if hasdim(incube, time_dim_name)
         return ForcingWithTime()
     else
         return ForcingWithoutTime()

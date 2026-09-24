@@ -91,7 +91,7 @@ function writeTestData(path, vars::Vector{<:Pair})
         println(io, "# Regenerate with: julia --project=. tools/benchmark/TestSindbadTEM/derive_sindbadTEM_test_data.jl")
         println(io)
         println(io, "using SindbadTEM")
-        println(io, "using StaticArrays: SVector")
+        # println(io, "using StaticArraysCore: SVector")
         println(io, "using Dates")
         for (varname, value) in vars
             println(io)
@@ -139,7 +139,7 @@ reference_approaches = nameof.(typeof.(info.models.forward))
 # benchmarkApproaches.jl's `recordResult!`). Hand-maintained: add an approach here once its failure
 # has been triaged and is understood to be a pre-existing issue, not something this change
 # introduced.
-allowed_to_fail_approaches = (:cCycle_CASA, :cCycle_simple, :cCycleBase_CASA, :cCycleBase_simple, :cFlow_CASA, :cFlow_simple, :cFlowSoilProperties_CASA, :cFlowVegProperties_CASA, :cTauLAI_CASA, :cTauSoilW_CASA, :cTauVegProperties_CASA, :interception_Miralles2010, :runoffSurface_Orth2013, :runoffSurface_Trautmann2018)
+allowed_to_fail_approaches = (:cCycle_CASA, :cCycle_simple, :cCycleBase_CASA, :cCycleBase_CASA_Legacy, :cFlow_CASA, :cFlow_simple, :cFlowSoilProperties_CASA, :cFlowVegProperties_CASA, :cTauLAI_CASA, :cTauSoilW_CASA, :interception_Miralles2010, :runoffSurface_Orth2013, :runoffSurface_Trautmann2018)
 
 writeTestData(joinpath(test_data_dir, "forcing.jl"), "tmp_forcing", tmp_forcing)
 writeTestData(joinpath(test_data_dir, "helpers.jl"), "tmp_helpers", tmp_helpers)

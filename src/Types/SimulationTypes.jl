@@ -126,7 +126,7 @@ export EtaScaleA0H
 export EtaScaleA0HCWD
 export EtaScaleAHCWD
 export EtaScaleAH
-export NlsolveFixedpointTrustregionCEco
+export EtaScaleH
 export NlsolveFixedpointTrustregionCEcoTWS
 export NlsolveFixedpointTrustregionTWS
 export ODEAutoTsit5Rodas5
@@ -155,6 +155,10 @@ purpose(::Type{EtaScaleAHCWD}) = "scale carbon pools of CWD (cLitSlow) using ηH
 
 struct EtaScaleAH <: SpinupMode end
 purpose(::Type{EtaScaleAH}) = "scale carbon pools using diagnostic scalars for ηH and ηA"
+
+
+struct EtaScaleH <: SpinupMode end
+purpose(::Type{EtaScaleH}) = "scale only the heterotrophic carbon pools using diagnostic scalars for ηH"
 
 struct NlsolveFixedpointTrustregionCEco <: SpinupMode end
 purpose(::Type{NlsolveFixedpointTrustregionCEco}) = "use a fixed-point nonlinear solver with trust region for carbon pools (cEco)"
@@ -220,15 +224,21 @@ purpose(::Type{Spinup_cEco}) = "Spinup spinup_mode for cEco"
 export SpinupSequence
 export SpinupSequenceWithAggregator
 
-struct SpinupSequenceWithAggregator <: SpinupTypes
+struct SpinupSequenceWithAggregator{F,M<:SpinupMode} <: SpinupTypes
     forcing::Symbol
     n_repeat::Int
     n_timesteps::Int
-    spinup_mode::SpinupMode
+    spinup_mode::M
     options::NamedTuple
     aggregator_indices::Vector{Int}
     aggregator::Vector{TimeSample}
     aggregator_type::TimeSamplerMethod
+end
+
+# The forcing name is carried as the type parameter `F` as well as in the field, so that
+# looking the sequence's forcing up in the spinup forcing NamedTuple resolves at compile time.
+function SpinupSequenceWithAggregator(forcing::Symbol, n_repeat, n_timesteps, spinup_mode::M, options, aggregator_indices, aggregator, aggregator_type) where {M<:SpinupMode}
+    return SpinupSequenceWithAggregator{forcing,M}(forcing, n_repeat, n_timesteps, spinup_mode, options, aggregator_indices, aggregator, aggregator_type)
 end
 purpose(::Type{SpinupSequenceWithAggregator}) = "Spinup sequence with time aggregation for corresponding forcingtime series"
 
