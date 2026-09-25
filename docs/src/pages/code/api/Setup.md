@@ -1293,7 +1293,7 @@ function getSpinupSequenceWithTypes(seqq, helpers_dates)
             end
         end
         optns = in(seq, "options") ? seqp["options"] : (;)
-        sst = SpinupSequenceWithAggregator(seq["forcing"], seq["n_repeat"], seq["n_timesteps"], seq["spinup_mode"], optns, seq["aggregator_indices"], seq["aggregator"], seq["aggregator_type"]);
+        sst = SpinupStepWithAggregator(seq["forcing"], seq["n_repeat"], seq["n_timesteps"], seq["spinup_mode"], optns, seq["aggregator_indices"], seq["aggregator"], seq["aggregator_type"]);
         push!(seqq_typed, sst)
     end
     return seqq_typed

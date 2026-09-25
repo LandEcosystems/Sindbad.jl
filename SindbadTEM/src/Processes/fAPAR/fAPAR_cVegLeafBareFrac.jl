@@ -8,7 +8,7 @@ end
 
 function compute(params::fAPAR_cVegLeafBareFrac, forcing, land, helpers)
     ## unpack parameters
-    @unpack_fAPAR_cVegLeaf params
+    @unpack_fAPAR_cVegLeafBareFrac params
 
     ## unpack land variables
     @unpack_nt begin

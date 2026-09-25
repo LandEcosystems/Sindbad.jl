@@ -37,7 +37,7 @@ try
     selected_models = info.models.forward
     run_helpers = opti_helpers.run_helpers
 
-    runTEM!(run_helpers.space_selected_models, run_helpers.space_forcing, run_helpers.space_spinup_forcing, run_helpers.loc_forcing_t, run_helpers.space_output, run_helpers.space_land, run_helpers.tem_info)
+    runTEM!(run_helpers.space_selected_models, run_helpers.space_forcing, run_helpers.space_spinup, run_helpers.loc_forcing_t, run_helpers.space_output, run_helpers.space_land, run_helpers.tem_info)
     output_array = run_helpers.output_array
     updated_models = updateModels(default_values, parameter_table, parameter_scaling_type, selected_models)
     land_copy = deepcopy(run_helpers.space_land)
@@ -54,9 +54,9 @@ try
     rep_name = string(rep_option.variable)
 
     push!(rows, ("cost_function(x)", "(optimizer)", () -> cost_function(default_values)))
-    push!(rows, ("cost(...)", "cost_function(x)", () -> cost(default_values, default_values, selected_models, run_helpers.space_forcing, run_helpers.space_spinup_forcing, run_helpers.loc_forcing_t, output_array, run_helpers.space_output, land_copy, run_helpers.tem_info, obs_array, parameter_table, cost_options, multi_constraint_method, parameter_scaling_type, Sindbad.CostModelObs())))
+    push!(rows, ("cost(...)", "cost_function(x)", () -> cost(default_values, default_values, selected_models, run_helpers.space_forcing, run_helpers.space_spinup, run_helpers.loc_forcing_t, output_array, run_helpers.space_output, land_copy, run_helpers.tem_info, obs_array, parameter_table, cost_options, multi_constraint_method, parameter_scaling_type, Sindbad.CostModelObs())))
     push!(rows, ("updateModels", "cost(...)", () -> updateModels(default_values, parameter_table, parameter_scaling_type, selected_models)))
-    push!(rows, ("runTEM!", "cost(...)", () -> runTEM!(updated_models, run_helpers.space_forcing, run_helpers.space_spinup_forcing, run_helpers.loc_forcing_t, run_helpers.space_output, land_copy, run_helpers.tem_info)))
+    push!(rows, ("runTEM!", "cost(...)", () -> runTEM!(updated_models, run_helpers.space_forcing, run_helpers.space_spinup, run_helpers.loc_forcing_t, run_helpers.space_output, land_copy, run_helpers.tem_info)))
     push!(rows, ("metricVector", "cost(...)", () -> metricVector(output_array, obs_array, cost_options)))
     push!(rows, ("combineMetric", "cost(...)", () -> combineMetric(cost_vector, multi_constraint_method)))
     push!(rows, ("getData(:$rep_name)", "metricVector", () -> getData(output_array, obs_array, rep_option)))
@@ -68,7 +68,7 @@ catch e
     @warn "optimization cascade unavailable for this experiment; falling back to forward-only benchmark" exception=e
     run_helpers = prepTEM(forcing, info)
     push!(rows, ("prepTEM", "(root)", () -> prepTEM(forcing, info)))
-    push!(rows, ("runTEM!", "(root)", () -> runTEM!(run_helpers.space_selected_models, run_helpers.space_forcing, run_helpers.space_spinup_forcing, run_helpers.loc_forcing_t, run_helpers.space_output, run_helpers.space_land, run_helpers.tem_info)))
+    push!(rows, ("runTEM!", "(root)", () -> runTEM!(run_helpers.space_selected_models, run_helpers.space_forcing, run_helpers.space_spinup, run_helpers.loc_forcing_t, run_helpers.space_output, run_helpers.space_land, run_helpers.tem_info)))
     global mode = :forward
 end
 
