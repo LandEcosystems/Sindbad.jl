@@ -220,11 +220,30 @@ end
 purpose(::Type{Spinup_cEco}) = "Spinup spinup_mode for cEco"
 
 
-# ------------------------- spinup sequence and types ------------------------------------------------------------
+# ------------------------- spinup sequence method ------------------------------------------------------------
 export SpinupSequence
-export SpinupSequenceWithAggregator
+export SequenceDefault
+export SequenceList
+export SequenceWithAge
 
-struct SpinupSequenceWithAggregator{F,M<:SpinupMode} <: SpinupTypes
+abstract type SpinupSequence <: SpinupTypes end
+purpose(::Type{SpinupSequence}) = "Abstract type for methods that build the spinup sequence of a location in SINDBAD"
+
+struct SequenceDefault <: SpinupSequence end
+purpose(::Type{SequenceDefault}) = "spin the selected spinup models up on the mean seasonal cycle, bracketed by a run over all years, and use this when the experiment settings give no sequence"
+
+struct SequenceList <: SpinupSequence end
+purpose(::Type{SequenceList}) = "use the explicit list of spinup sequences given in the experiment settings"
+
+struct SequenceWithAge <: SpinupSequence end
+purpose(::Type{SequenceWithAge}) = "build the spinup sequence from the disturbance year of the location so that the years since disturbance are replayed"
+
+
+# ------------------------- spinup sequence and types ------------------------------------------------------------
+export SpinupStep
+export SpinupStepWithAggregator
+
+struct SpinupStepWithAggregator{F,M<:SpinupMode} <: SpinupTypes
     forcing::Symbol
     n_repeat::Int
     n_timesteps::Int
@@ -237,16 +256,16 @@ end
 
 # The forcing name is carried as the type parameter `F` as well as in the field, so that
 # looking the sequence's forcing up in the spinup forcing NamedTuple resolves at compile time.
-function SpinupSequenceWithAggregator(forcing::Symbol, n_repeat, n_timesteps, spinup_mode::M, options, aggregator_indices, aggregator, aggregator_type) where {M<:SpinupMode}
-    return SpinupSequenceWithAggregator{forcing,M}(forcing, n_repeat, n_timesteps, spinup_mode, options, aggregator_indices, aggregator, aggregator_type)
+function SpinupStepWithAggregator(forcing::Symbol, n_repeat, n_timesteps, spinup_mode::M, options, aggregator_indices, aggregator, aggregator_type) where {M<:SpinupMode}
+    return SpinupStepWithAggregator{forcing,M}(forcing, n_repeat, n_timesteps, spinup_mode, options, aggregator_indices, aggregator, aggregator_type)
 end
-purpose(::Type{SpinupSequenceWithAggregator}) = "Spinup sequence with time aggregation for corresponding forcingtime series"
+purpose(::Type{SpinupStepWithAggregator}) = "Spinup sequence with time aggregation for corresponding forcingtime series"
 
-struct SpinupSequence <: SpinupTypes
+struct SpinupStep <: SpinupTypes
     forcing::Symbol
     n_repeat::Int
     n_timesteps::Int
     spinup_mode::SpinupMode
     options::NamedTuple
 end
-purpose(::Type{SpinupSequence}) = "Basic Spinup sequence without time aggregation"
+purpose(::Type{SpinupStep}) = "Basic Spinup sequence without time aggregation"

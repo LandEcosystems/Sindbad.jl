@@ -30,27 +30,40 @@ function _indexTextColor(hex_color)
 end
 
 """
-    _carbonPoolNames(approach)
+    _carbonPoolNames(approach; pool_configuration=nothing)
 
-Return `(pool_names, configuration_name)`: `approach`'s leaf pool names in `cEco`
-index order, and the configuration they came from.
+Return `(pool_names, configuration_name)`: leaf pool names in `cEco` index order,
+and the configuration they came from.
+
+`pool_configuration`, when given, is used as the resolved pool structure directly
+(e.g. `info.pool_structure.carbon`, the experiment's settings-resolved carbon pool
+structure -- see `Sindbad.Visualization._experimentPoolConfiguration`) instead of
+`approach`'s own hardcoded `poolConfiguration`. This keeps a synthetic diagram from
+disagreeing with a real run when settings override the pool structure independently
+of the selected `cCycleBase` approach.
 """
-function _carbonPoolNames(approach)
+function _carbonPoolNames(approach; pool_configuration=nothing)
     approach_name = nameof(approach isa Type ? approach : typeof(approach))
-    configuration = poolConfiguration(approach)
-    if isnothing(configuration)
-        error("$(approach_name) declares no poolConfiguration, so it has no pool " *
-              "structure to draw. Pass a cCycleBase approach that declares one.")
-    end
-    structure = poolStructure(configuration)
-    if isnothing(structure)
-        error("$(approach_name) resolves to the configuration $(nameof(configuration)), " *
-              "which declares no poolStructure.")
+    if isnothing(pool_configuration)
+        configuration = poolConfiguration(approach)
+        if isnothing(configuration)
+            error("$(approach_name) declares no poolConfiguration, so it has no pool " *
+                  "structure to draw. Pass a cCycleBase approach that declares one.")
+        end
+        structure = poolStructure(configuration)
+        if isnothing(structure)
+            error("$(approach_name) resolves to the configuration $(nameof(configuration)), " *
+                  "which declares no poolStructure.")
+        end
+        configuration_name = nameof(configuration)
+    else
+        structure = pool_configuration
+        configuration_name = :configured
     end
     components = getfield(structure, :components)
     _, _, _, _, sub_pool_name, _ = getPoolInformation(Symbol.(keys(components)), components,
         Float64[], Int64[], Int64[], [], Symbol[], Symbol[])
-    return Tuple(unique(sub_pool_name)), nameof(configuration)
+    return Tuple(unique(sub_pool_name)), configuration_name
 end
 
 """
@@ -195,6 +208,10 @@ labelled arrow per flow.
 - `model_timestep`: the experiment's temporal resolution, for converting `land`'s
   `c_eco_k_base` (in this unit, not years) to years for T. Defaults to
   `helpers.dates.temporal_resolution`, else `"day"`. Ignored when `land` is not given.
+- `pool_configuration`: the resolved carbon pool structure to draw when `land` is not
+  given (e.g. `info.pool_structure.carbon`), in place of `approach`'s own hardcoded
+  `poolConfiguration`. Ignored when `land` is given, since `land`'s own topology is
+  then the source of truth. See `Sindbad.Visualization._experimentPoolConfiguration`.
 
 # Returns
 - `nothing` when saved to `file_path`; the plot object, unsaved and undisplayed, when
@@ -214,7 +231,7 @@ labelled arrow per flow.
   fails for `approach`, labels fall back to the bare index.
 """
 function plotCarbonFlows(approach, file_path, ::VisualizationPlots;
-        land=nothing, helpers=nothing,
+        land=nothing, helpers=nothing, pool_configuration=nothing,
         veg_type_name::Symbol=isnothing(land) ? :Evergreen_Needleleaf_Forests : land.states.veg_type_name,
         extra_approaches=(), model_timestep::Union{String,Nothing}=nothing)
     if isnothing(approach)
@@ -223,7 +240,13 @@ function plotCarbonFlows(approach, file_path, ::VisualizationPlots;
         approach = land.models.c_model
     end
     approach_name = nameof(approach isa Type ? approach : typeof(approach))
-    pool_names, configuration_name = _carbonPoolNames(approach)
+    # a caller-supplied land is the real source of truth for topology, so
+    # pool_configuration (settings-resolved, see _experimentPoolConfiguration) is only
+    # applied to the synthetic path below; it would otherwise relabel a real run's
+    # configuration_name generically as :configured for no benefit.
+    using_real_land = !isnothing(land)
+    pool_names, configuration_name = _carbonPoolNames(approach;
+        pool_configuration=using_real_land ? nothing : pool_configuration)
     flow_matrix = cFlowMatrix(approach, pool_names)
     n_pools = length(pool_names)
 
@@ -240,9 +263,9 @@ function plotCarbonFlows(approach, file_path, ::VisualizationPlots;
         takers[flow] = taker
     end
 
-    # a caller-supplied land wins on topology too (may differ from approach's own
-    # poolConfiguration); the synthetic path keeps the topology derived above
-    using_real_land = !isnothing(land)
+    # a caller-supplied land wins on topology too (may differ from pool_configuration
+    # or approach's own poolConfiguration); the synthetic path keeps the topology
+    # derived above
     if using_real_land
         # cFlowStructure's pool_names is `i => name` pairs, not bare names
         pool_names = last.(land.cCycleBase.pool_names)

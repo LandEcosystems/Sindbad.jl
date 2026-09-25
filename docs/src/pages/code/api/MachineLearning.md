@@ -241,7 +241,7 @@ function getInnerArgs(idx, grads_lib,
     scaled_params_batch, # ? input_args
     selected_models,
     space_forcing,
-    space_spinup_forcing,
+    space_spinup,
     loc_forcing_t,
     space_output,
     loc_land,
@@ -261,7 +261,7 @@ function getInnerArgs(idx, grads_lib,
     loc_forcing = space_forcing[site_location]
     loc_obs = space_observations[site_location]
     loc_output = space_output[site_location]
-    loc_spinup_forcing = space_spinup_forcing[site_location]
+    loc_spinup_forcing = space_spinup[site_location]
     loc_cost_option = cost_options[site_location]
 
     return (;
@@ -297,7 +297,7 @@ getLossForSites
 
 ```julia
 function getLossForSites(gradient_lib, loss_function::F, loss_array_sites, loss_array_split, epoch_number,
-    scaled_params, sites_list, indices_sites, models, space_forcing, space_spinup_forcing,
+    scaled_params, sites_list, indices_sites, models, space_forcing, space_spinup,
     loc_forcing_t, space_output, loc_land, tem_info, parameter_to_index, parameter_scaling_type, space_observations,
     cost_options, constraint_method) where {F}
     @sync begin
@@ -309,7 +309,7 @@ function getLossForSites(gradient_lib, loss_function::F, loss_array_sites, loss_
                 loc_forcing = space_forcing[site_location]
                 loc_obs = space_observations[site_location]
                 loc_output = space_output[site_location]
-                loc_spinup_forcing = space_spinup_forcing[site_location]
+                loc_spinup_forcing = space_spinup[site_location]
                 loc_cost_option = cost_options[site_location]
 
                 gg, gg_split, loss_indices = loss_function(loc_params, gradient_lib, models, loc_forcing, loc_spinup_forcing,
@@ -346,7 +346,7 @@ function getLossFunctionHandles(info, run_helpers, sites)
         loc_forcing = run_helpers.space_forcing[site_location]
         loc_obs = run_helpers.space_observation[site_location]
         loc_output = getCacheFromOutput(run_helpers.space_output[site_location], info.hybrid.ml_gradient.method)
-        loc_spinup_forcing = run_helpers.space_spinup_forcing[site_location]
+        loc_spinup_forcing = run_helpers.space_spinup[site_location]
         loc_cost_option = prepCostOptions(loc_obs, info.optimization.cost_options)
         loss_tmp(x) = loss(x, info.models.forward, parameter_to_index, info.optimization.run_options.parameter_scaling, loc_forcing, loc_spinup_forcing, run_helpers.loc_forcing_t, loc_output, deepcopy(run_helpers.loc_land), run_helpers.tem_info, loc_obs, loc_cost_option, info.optimization.run_options.multi_constraint_method, info.hybrid.ml_gradient.method, info.hybrid.ml_training.options.loss_function)
 

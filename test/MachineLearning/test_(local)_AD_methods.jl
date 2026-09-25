@@ -32,7 +32,7 @@ run_helpers = prepTEM(selected_models, forcing, observations, info);
 space_forcing = run_helpers.space_forcing;
 space_observations = run_helpers.space_observation;
 space_output = run_helpers.space_output;
-space_spinup_forcing = run_helpers.space_spinup_forcing;
+space_spinup = run_helpers.space_spinup;
 space_ind = run_helpers.space_ind;
 land_init = run_helpers.loc_land;
 loc_forcing_t = run_helpers.loc_forcing_t;
@@ -43,7 +43,7 @@ constraint_method = info.optimization.run_options.multi_constraint_method;
 tem_info = run_helpers.tem_info;
 
 site_example_1 = space_ind[1][1];
-@time coreTEM!(selected_models, space_forcing[site_example_1], space_spinup_forcing[site_example_1], loc_forcing_t, space_output[site_example_1], land_init, tem_info)
+@time coreTEM!(selected_models, space_forcing[site_example_1], space_spinup[site_example_1], loc_forcing_t, space_output[site_example_1], land_init, tem_info)
 
 sites_forcing = forcing.data[1].site; # sites names
 
@@ -95,7 +95,7 @@ scaled_params_batch = getParamsAct(params_batch, tbl_params);
 forward_args = (
     selected_models,
     space_forcing,
-    space_spinup_forcing,
+    space_spinup,
     loc_forcing_t,
     space_output,
     land_init,

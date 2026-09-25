@@ -41,6 +41,7 @@ This module integrates various components and utilities required to execute the 
 """
 module Simulation
    using ComponentArrays
+   using Dates
    using ProgressMeter
    using SindbadTEM
    using TimeSamplers

@@ -34,7 +34,7 @@ forcing = getForcing(info);
 
 run_helpers = prepTEM(forcing, info);
 
-@time runTEM!(run_helpers.space_selected_models, run_helpers.space_forcing, run_helpers.space_spinup_forcing, run_helpers.loc_forcing_t, run_helpers.space_output, run_helpers.space_land, run_helpers.tem_info)
+@time runTEM!(run_helpers.space_selected_models, run_helpers.space_forcing, run_helpers.space_spinup, run_helpers.loc_forcing_t, run_helpers.space_output, run_helpers.space_land, run_helpers.tem_info)
 
 
 optimized_models = info.models.forward;
@@ -52,7 +52,7 @@ n_m = updateModelParameters(parameter_table, info.models.forward, parameter_vect
 run_helpers_s = prepTEM(selected_models, forcing, info);
 @time runTEM!(selected_models,
     run_helpers_s.space_forcing,
-    run_helpers_s.space_spinup_forcing,
+    run_helpers_s.space_spinup,
     run_helpers_s.loc_forcing_t,
     run_helpers_s.space_output,
     run_helpers_s.space_land,
@@ -61,10 +61,10 @@ run_helpers_s = prepTEM(selected_models, forcing, info);
 run_helpers_n = prepTEM(n_m, forcing, info);
 @time runTEM!(n_m,
     run_helpers_n.space_forcing,
-    run_helpers_n.space_spinup_forcing,
+    run_helpers_n.space_spinup,
     run_helpers_n.loc_forcing_t,
     run_helpers_n.space_output,
     run_helpers_n.space_land,
     run_helpers_n.tem_info)
 
-@time runTEM!(run_helpers.space_selected_models, run_helpers.space_forcing, run_helpers.space_spinup_forcing, run_helpers.loc_forcing_t, run_helpers.space_output, run_helpers.space_land, run_helpers.tem_info)
+@time runTEM!(run_helpers.space_selected_models, run_helpers.space_forcing, run_helpers.space_spinup, run_helpers.loc_forcing_t, run_helpers.space_output, run_helpers.space_land, run_helpers.tem_info)
