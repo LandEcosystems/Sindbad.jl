@@ -44,7 +44,7 @@ info = getExperimentInfo(experiment_json; replace_info=replace_info); # parses a
 forcing = getForcing(info); # loads the forcing cube and applies the `forcing.subset.site` + time-range subsetting
 run_helpers = prepTEM(forcing, info); # builds per-location model/output/land state; models come from `info.models.forward`
 runTEM!(
-    run_helpers.space_selected_models, run_helpers.space_forcing, run_helpers.space_spinup_forcing,
+    run_helpers.space_selected_models, run_helpers.space_forcing, run_helpers.space_spinup,
     run_helpers.loc_forcing_t, run_helpers.space_output, run_helpers.space_land, run_helpers.tem_info,
 );
 # `run_helpers.space_output` now holds the forward run's output for every selected site.

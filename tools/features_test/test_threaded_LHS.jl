@@ -37,7 +37,7 @@ info = getExperimentInfo(experiment_json; replace_info=replace_info); # note tha
 forcing = getForcing(info);
 
 run_helpers = prepTEM(forcing, info);
-# @time runTEM!(run_helpers.space_selected_models, run_helpers.space_forcing, run_helpers.space_spinup_forcing, run_helpers.loc_forcing_t, run_helpers.space_output, run_helpers.space_land, run_helpers.tem_info);
+# @time runTEM!(run_helpers.space_selected_models, run_helpers.space_forcing, run_helpers.space_spinup, run_helpers.loc_forcing_t, run_helpers.space_output, run_helpers.space_land, run_helpers.tem_info);
 
 observations = getObservation(info, forcing.helpers);
 obs_array = [Array(_o) for _o in observations.data]; # TODO: necessary now for performance because 
@@ -65,7 +65,7 @@ p_indices = eachindex(1:parameter_set_size)
     idx = Threads.threadid()
     parameter_vector = parameter_samples[:, parameter_index]
     updated_models = updateModels(parameter_vector, parameter_updater, parameter_scaling_type, info.models.forward)
-    coreTEM!(updated_models, run_helpers.space_forcing[space_index], run_helpers.space_spinup_forcing[space_index], run_helpers.loc_forcing_t, run_helpers.space_output_mt[idx], run_helpers.space_land[space_index], run_helpers.tem_info)
+    coreTEM!(updated_models, run_helpers.space_forcing[space_index], run_helpers.space_spinup[space_index], run_helpers.loc_forcing_t, run_helpers.space_output_mt[idx], run_helpers.space_land[space_index], run_helpers.tem_info)
     cost_vector = metricVector(run_helpers.space_output_mt[idx], obs_array, cost_options)
     cost_metric = combineMetric(cost_vector, multi_constraint_method)
     # cost_samples_t[parameter_index] = cost_metric
@@ -77,7 +77,7 @@ end
     idx = Threads.threadid()
     parameter_vector = parameter_samples[:, parameter_index]
     updated_models = updateModels(parameter_vector, parameter_updater, parameter_scaling_type, info.models.forward)
-    coreTEM!(updated_models, run_helpers.space_forcing[space_index], run_helpers.space_spinup_forcing[space_index], run_helpers.loc_forcing_t, run_helpers.space_output_mt[idx], run_helpers.space_land[space_index], run_helpers.tem_info)
+    coreTEM!(updated_models, run_helpers.space_forcing[space_index], run_helpers.space_spinup[space_index], run_helpers.loc_forcing_t, run_helpers.space_output_mt[idx], run_helpers.space_land[space_index], run_helpers.tem_info)
     cost_vector = metricVector(run_helpers.space_output_mt[idx], obs_array, cost_options)
     cost_metric = combineMetric(cost_vector, multi_constraint_method)
     cost_samples_t[parameter_index] = cost_metric
@@ -92,7 +92,7 @@ parameter_indices = 1:parameter_set_size
             parameter_index = parameter_indices[idx]
             parameter_vector = parameter_samples[:, parameter_index]
             updated_models = updateModels(parameter_vector, parameter_updater, parameter_scaling_type, info.models.forward)
-            coreTEM!(updated_models, run_helpers.space_forcing[space_index], run_helpers.space_spinup_forcing[space_index], run_helpers.loc_forcing_t, run_helpers.space_output_mt[parameter_index], run_helpers.space_land[space_index], run_helpers.tem_info)
+            coreTEM!(updated_models, run_helpers.space_forcing[space_index], run_helpers.space_spinup[space_index], run_helpers.loc_forcing_t, run_helpers.space_output_mt[parameter_index], run_helpers.space_land[space_index], run_helpers.tem_info)
             cost_vector = metricVector(run_helpers.space_output_mt[parameter_index], obs_array, cost_options)
             cost_metric = combineMetric(cost_vector, multi_constraint_method)
             @info "@spawn: idx: $(idx), parameter_index: $(parameter_index), cost: $(cost_metric)"
@@ -102,7 +102,7 @@ parameter_indices = 1:parameter_set_size
 end
 
 
-@time cost(parameter_samples, defaults, info.models.forward, run_helpers.space_forcing[space_index], run_helpers.space_spinup_forcing[space_index], run_helpers.loc_forcing_t, run_helpers.output_array, run_helpers.space_output_mt, run_helpers.space_land[space_index], run_helpers.tem_info, obs_array, parameter_updater, cost_options, multi_constraint_method, parameter_scaling_type, cost_samples_c,  CostModelObsMT())
+@time cost(parameter_samples, defaults, info.models.forward, run_helpers.space_forcing[space_index], run_helpers.space_spinup[space_index], run_helpers.loc_forcing_t, run_helpers.output_array, run_helpers.space_output_mt, run_helpers.space_land[space_index], run_helpers.tem_info, obs_array, parameter_updater, cost_options, multi_constraint_method, parameter_scaling_type, cost_samples_c,  CostModelObsMT())
 for idx in eachindex(cost_samples_c) 
     cost_metric = cost_samples_c[idx]
     @info "@costfunction: idx: $(idx), cost: $(cost_metric)"
@@ -125,7 +125,7 @@ if do_serial
         idx = parameter_index
         parameter_vector = parameter_samples[:, parameter_index]
         updated_models = updateModels(parameter_vector, parameter_updater, parameter_scaling_type, info.models.forward)
-        coreTEM!(updated_models, run_helpers.space_forcing[space_index], run_helpers.space_spinup_forcing[space_index], run_helpers.loc_forcing_t, run_helpers.space_output_mt[idx], run_helpers.space_land[space_index], run_helpers.tem_info)
+        coreTEM!(updated_models, run_helpers.space_forcing[space_index], run_helpers.space_spinup[space_index], run_helpers.loc_forcing_t, run_helpers.space_output_mt[idx], run_helpers.space_land[space_index], run_helpers.tem_info)
         cost_vector = metricVector(run_helpers.space_output_mt[idx], obs_array, cost_options)
         cost_metric = combineMetric(cost_vector, multi_constraint_method)
         cost_samples_b[parameter_index] = cost_metric
