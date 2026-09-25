@@ -513,6 +513,8 @@ Processes the experiment configuration and sets up all necessary fields for mode
 - The updated `info` NamedTuple with all necessary fields for model simulation.
 """
 function setupInfo(info::NamedTuple)
+    # Retain configuration for safe, pre-run rebuilding of site-specific pool geometry.
+    setup_input = deepcopy(info)
     print_info(setupInfo, @__FILE__, @__LINE__, "Setting and consolidating Experiment Info...")
     # @show info.settings.model_structure.parameter_table.optimized
     info = setExperimentBasics(info)
@@ -576,6 +578,6 @@ function setupInfo(info::NamedTuple)
     info = set_namedtuple_subfield(info, :experiment, (:data_settings, data_settings))
     info = set_namedtuple_subfield(info, :experiment, (:exe_rules, exe_rules))
     info = drop_namedtuple_fields(info, (:temp, :settings,))
-    return info
+    return (; info..., setup_input)
 end
 
