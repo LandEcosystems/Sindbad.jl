@@ -35,6 +35,10 @@ sindbadDefaultOptions(::SpinupSequence) = (; n_repeat_base = 200, forcing_msc = 
 # one option this method adds, rather than a second copy of them
 sindbadDefaultOptions(m::SequenceWithAge) = (; invoke(sindbadDefaultOptions, Tuple{SpinupSequence}, m)..., disturbance_variable = "f_dist_year")
 
+# this method builds nothing, it replays the steps authored in the settings, so none of the
+# shared options above apply to it
+sindbadDefaultOptions(::SequenceList) = (; steps = [])
+
 sindbadDefaultOptions(::GSAMorris) = (; total_num_trajectory = 200, num_trajectory = 15, len_design_mat=10)
 
 sindbadDefaultOptions(::GSASobol) = (; samples = 5, method_options=(; order=[0, 1]), sampler="Sobol", sampler_options=(;))

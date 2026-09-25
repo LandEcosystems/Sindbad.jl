@@ -424,8 +424,8 @@ a location's spinup sequence later, in `prepTEM`, where the forcing is available
   NamedTuple with a `method` and, optionally, its `options`, or nothing.
 
 # Returns:
-- A NamedTuple with the sequence `method` instance, its `options`, and the `sequence_spec`,
-  which holds the list of steps for the list method and is empty otherwise.
+- A NamedTuple with the sequence `method` instance and its `options`. Everything a method
+  needs is in `options`, so an authored list of steps is carried there too, as `steps`.
 
 # Notes:
 - A missing or null `sequence` falls back to `SequenceDefault`, so that an experiment that
@@ -434,14 +434,14 @@ a location's spinup sequence later, in `prepTEM`, where the forcing is available
 function getSpinupSequenceConfig(seqq)
     if isnothing(seqq)
         method = SequenceDefault()
-        return (; method=method, options=sindbadDefaultOptions(method), sequence_spec=[])
+        return (; method=method, options=sindbadDefaultOptions(method))
     end
     if seqq isa NamedTuple && haskey(seqq, :method)
-        method = getTypeInstanceForNamedOptions("sequence_" * String(seqq.method))
-        options = merge_namedtuple(sindbadDefaultOptions(method), get(seqq, :options, (;)))
-        return (; method=method, options=options, sequence_spec=[])
+        method = getTypeInstanceForNamedOptions(String(seqq.method))
+        return (; method=method, options=merge_namedtuple(sindbadDefaultOptions(method), get(seqq, :options, (;))))
     end
-    return (; method=SequenceList(), options=(;), sequence_spec=seqq)
+    method = SequenceList()
+    return (; method=method, options=merge_namedtuple(sindbadDefaultOptions(method), (; steps=seqq)))
 end
 
 """

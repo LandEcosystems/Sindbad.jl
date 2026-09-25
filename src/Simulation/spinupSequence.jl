@@ -10,7 +10,7 @@ Build the spinup sequence of one location for the given sequence method.
 
 # Arguments:
 - `method`: a SINDBAD `SpinupSequence` that determines how the steps are chosen
-- `spinup_config`: the spinup settings, with the sequence `options` and `sequence_spec`
+- `spinup_config`: the spinup settings, with the sequence method and its `options`
 - `loc_forcing`: a forcing NT for a single location, from which a method may read variables
 - `helpers_dates`: a NT with date-related helpers of the experiment
 - `aggregator_cache`: a Dict of already built temporal aggregators, shared across locations
@@ -31,28 +31,28 @@ Build the spinup sequence of one location for the given sequence method.
   the forcing of a location, which only exists once the data is loaded.
 - To add a method, define a type that subtypes `SpinupSequence` in `SimulationTypes.jl`
   and a `getSpinupSequence` method for it here. The method name in the settings is the type
-  name without the `Sequence` prefix, in snake case.
+  name in snake case, so `SequenceWithAge` is written as `sequence_with_age`.
 """
 function getSpinupSequence end
 
 function getSpinupSequence(::SequenceDefault, spinup_config, _, helpers_dates, aggregator_cache)
     options = spinup_config.options
-    sequence_spec = prepSequenceDefault(; nrepeat_base=options.n_repeat_base, forcing_msc=options.forcing_msc)
-    return Tuple(getSpinupSequenceWithTypes(sequence_spec, helpers_dates, aggregator_cache))
+    steps = prepSequenceDefault(; nrepeat_base=options.n_repeat_base, forcing_msc=options.forcing_msc)
+    return Tuple(getSpinupSequenceWithTypes(steps, helpers_dates, aggregator_cache))
 end
 
 function getSpinupSequence(::SequenceList, spinup_config, _, helpers_dates, aggregator_cache)
-    return Tuple(getSpinupSequenceWithTypes(spinup_config.sequence_spec, helpers_dates, aggregator_cache))
+    return Tuple(getSpinupSequenceWithTypes(spinup_config.options.steps, helpers_dates, aggregator_cache))
 end
 
 function getSpinupSequence(::SequenceWithAge, spinup_config, loc_forcing, helpers_dates, aggregator_cache)
     options = spinup_config.options
     year_disturbance = getproperty(loc_forcing, Symbol(options.disturbance_variable))
-    sequence_spec = prepSequenceWithAge(Int(first(year_disturbance));
+    steps = prepSequenceWithAge(Int(first(year_disturbance));
         nrepeat_base=options.n_repeat_base,
         year_start=year(first(helpers_dates.range)),
         forcing_msc=options.forcing_msc)
-    return Tuple(getSpinupSequenceWithTypes(sequence_spec, helpers_dates, aggregator_cache))
+    return Tuple(getSpinupSequenceWithTypes(steps, helpers_dates, aggregator_cache))
 end
 
 
