@@ -2,14 +2,14 @@ export coreTEM
 export runTEM
 
 """
-    coreTEM(selected_models, loc_forcing, loc_spinup_forcing, loc_forcing_t, loc_land, tem_info, spinup_mode)
+    coreTEM(selected_models, loc_forcing, loc_spinup, loc_forcing_t, loc_land, tem_info, spinup_mode)
 
 Runs the SINDBAD Terrestrial Ecosystem Model (TEM) for a single location, with or without spinup, based on the specified `spinup_mode`.
 
 # Arguments:
 - `selected_models`: A tuple of all models selected in the given model structure.
 - `loc_forcing`: A forcing NamedTuple containing the time series of environmental drivers for a single location.
-- `loc_spinup_forcing`: A forcing NamedTuple for spinup, used to initialize the model to a steady state (only used if spinup is enabled).
+- `loc_spinup`: A NamedTuple with the spinup `sequence` of the location and the `forcing` derived from it, used to initialize the model to a steady state (only used if spinup is enabled).
 - `loc_forcing_t`: A forcing NamedTuple for a single location and a single time step.
 - `loc_land`: Initial SINDBAD land NamedTuple with all fields and subfields.
 - `tem_info`: A helper NamedTuple containing necessary objects for model execution and type consistencies.
@@ -20,21 +20,21 @@ Runs the SINDBAD Terrestrial Ecosystem Model (TEM) for a single location, with o
 """
 function coreTEM end
 
-function coreTEM(selected_models, loc_forcing, loc_spinup_forcing, loc_forcing_t, loc_land, tem_info, spinup_mode)
+function coreTEM(selected_models, loc_forcing, loc_spinup, loc_forcing_t, loc_land, tem_info, spinup_mode)
 
     land_prec = precomputeTEM(selected_models, loc_forcing_t, loc_land, tem_info.model_helpers)
 
-    land_spin = spinupTEM(selected_models, loc_spinup_forcing, loc_forcing_t, land_prec, tem_info, spinup_mode)
+    land_spin = spinupTEM(selected_models, loc_spinup, loc_forcing_t, land_prec, tem_info, spinup_mode)
 
     land_time_series = timeLoopTEM(selected_models, loc_forcing, loc_forcing_t, land_spin, tem_info, tem_info.run.debug_model)
     return land_time_series
 end
 
 
-function coreTEM(selected_models, loc_forcing, loc_spinup_forcing, loc_forcing_t, land_time_series, loc_land, tem_info, spinup_mode)
+function coreTEM(selected_models, loc_forcing, loc_spinup, loc_forcing_t, land_time_series, loc_land, tem_info, spinup_mode)
     land_prec = precomputeTEM(selected_models, loc_forcing_t, loc_land, tem_info.model_helpers)
 
-    land_spin = spinupTEM(selected_models, loc_spinup_forcing, loc_forcing_t, land_prec, tem_info, spinup_mode)
+    land_spin = spinupTEM(selected_models, loc_spinup, loc_forcing_t, land_prec, tem_info, spinup_mode)
 
     timeLoopTEM(selected_models, loc_forcing, loc_forcing_t, land_time_series, land_spin, tem_info, tem_info.run.debug_model)
     return nothing
@@ -42,15 +42,15 @@ end
 
 """
     runTEM(forcing::NamedTuple, info::NamedTuple)
-    runTEM(selected_models::Tuple, forcing::NamedTuple, loc_spinup_forcing, loc_forcing_t, loc_land::NamedTuple, tem_info::NamedTuple)
-    runTEM(selected_models::Tuple, loc_forcing::NamedTuple, loc_spinup_forcing, loc_forcing_t, land_time_series, loc_land::NamedTuple, tem_info::NamedTuple)
+    runTEM(selected_models::Tuple, forcing::NamedTuple, loc_spinup, loc_forcing_t, loc_land::NamedTuple, tem_info::NamedTuple)
+    runTEM(selected_models::Tuple, loc_forcing::NamedTuple, loc_spinup, loc_forcing_t, land_time_series, loc_land::NamedTuple, tem_info::NamedTuple)
 
 Runs the SINDBAD Terrestrial Ecosystem Model (TEM) for a single location, with or without spinup, based on the provided configurations. The two main variants are the ones with and without the preallocated land time series. The shorthand version with two input arguments calls the one without preallocated land time series.
 
 # Arguments:
 - `selected_models`: A tuple of all models selected in the given model structure.
 - `forcing::NamedTuple`: A forcing NamedTuple containing the time series of environmental drivers for all locations.
-- `loc_spinup_forcing`: A forcing NamedTuple for spinup, used to initialize the model to a steady state.
+- `loc_spinup`: A NamedTuple with the spinup `sequence` of the location and the `forcing` derived from it, used to initialize the model to a steady state.
 - `loc_forcing_t`: A forcing NamedTuple for a single location and a single time step.
 - `loc_land::NamedTuple`: Initial SINDBAD land NamedTuple with all fields and subfields.
 - `tem_info::NamedTuple`: A nested NamedTuple containing necessary information, including:
@@ -76,7 +76,7 @@ julia> # Run TEM with spinup (shorthand version)
 julia> # land_time_series = runTEM(forcing, info)
 
 julia> # Run TEM with spinup (detailed version)
-julia> # land_time_series = runTEM(selected_models, forcing, loc_spinup_forcing, loc_forcing_t, loc_land, tem_info)
+julia> # land_time_series = runTEM(selected_models, forcing, loc_spinup, loc_forcing_t, loc_land, tem_info)
 
 julia> # Run TEM without spinup
 julia> # land_time_series = runTEM(selected_models, forcing, nothing, loc_forcing_t, loc_land, tem_info)
@@ -86,18 +86,18 @@ function runTEM end
 
 function runTEM(forcing::NamedTuple, info::NamedTuple)
     run_helpers = prepTEM(forcing, info)
-    land_time_series = coreTEM(info.models.forward, run_helpers.space_forcing[1], run_helpers.space_spinup_forcing[1], run_helpers.loc_forcing_t, run_helpers.loc_land, run_helpers.tem_info, run_helpers.tem_info.run.spinup_TEM)
+    land_time_series = coreTEM(info.models.forward, run_helpers.space_forcing[1], run_helpers.space_spinup[1], run_helpers.loc_forcing_t, run_helpers.loc_land, run_helpers.tem_info, run_helpers.tem_info.run.spinup_TEM)
     return LandWrapper(land_time_series)
 end
 
 
-function runTEM(selected_models::Tuple, forcing::NamedTuple, loc_spinup_forcing, loc_forcing_t, loc_land::NamedTuple, tem_info::NamedTuple)
-    land_time_series = coreTEM(selected_models, forcing, loc_spinup_forcing, loc_forcing_t, loc_land, tem_info, tem_info.run.spinup_TEM)
+function runTEM(selected_models::Tuple, forcing::NamedTuple, loc_spinup, loc_forcing_t, loc_land::NamedTuple, tem_info::NamedTuple)
+    land_time_series = coreTEM(selected_models, forcing, loc_spinup, loc_forcing_t, loc_land, tem_info, tem_info.run.spinup_TEM)
     return LandWrapper(land_time_series)
 end
 
-function runTEM(selected_models::Tuple, loc_forcing::NamedTuple, loc_spinup_forcing, loc_forcing_t, land_time_series, loc_land::NamedTuple, tem_info::NamedTuple)
-    coreTEM(selected_models, loc_forcing, loc_spinup_forcing, loc_forcing_t, land_time_series, loc_land, tem_info, tem_info.run.spinup_TEM)
+function runTEM(selected_models::Tuple, loc_forcing::NamedTuple, loc_spinup, loc_forcing_t, land_time_series, loc_land::NamedTuple, tem_info::NamedTuple)
+    coreTEM(selected_models, loc_forcing, loc_spinup, loc_forcing_t, land_time_series, loc_land, tem_info, tem_info.run.spinup_TEM)
     return LandWrapper(land_time_series)
 end
 
