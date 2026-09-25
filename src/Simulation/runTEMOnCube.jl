@@ -188,8 +188,8 @@ Handle TEM spinup according to `spinup_mode`. If spinup is requested, the forcin
 - `loc_forcing`: Forcing NamedTuple containing time series for the location (all timesteps).
 - `loc_forcing_t`: Forcing NamedTuple for a single timestep (used for precompute structures).
 - `land_prec`: Precomputed/initial land NamedTuple that may be modified during spinup.
-- `tem_info`: NamedTuple with helper objects and run settings (including `spinup_sequence`
-  and `run.spinup_TEM`).
+- `tem_info`: NamedTuple with helper objects and run settings (including `spinup`,
+  `spinup_dates` and `run.spinup_TEM`).
 - `spinup_mode`: Dispatch type controlling behavior: use `DoSpinupTEM()` to run/load spinup,
   or `DoNotSpinupTEM()` to skip spinup.
 
@@ -197,15 +197,15 @@ Handle TEM spinup according to `spinup_mode`. If spinup is requested, the forcin
 - Updated land NamedTuple to be used for the main TEM time loop.
 
 # Notes
-- When `DoSpinupTEM` is used the function derives the spinup forcing via
-  `getAllSpinupForcing` and calls `spinupTEM` with `tem_info.run.spinup_TEM`.
+- When `DoSpinupTEM` is used the function builds the sequence of the location and the forcing
+  it needs via `getLocSpinup`, and calls `spinupTEM` with `tem_info.run.spinup_TEM`.
 - When `DoNotSpinupTEM` is used the input `land_prec` is returned unchanged.
 """
 function spinupTEMYax end
 
 function spinupTEMYax(selected_models, loc_forcing, loc_forcing_t, land_prec, tem_info, ::DoSpinupTEM)
-    spinup_forcing = getAllSpinupForcing(loc_forcing, tem_info.spinup_sequence, tem_info);
-    land_spin = spinupTEM(selected_models, spinup_forcing, loc_forcing_t, land_prec, tem_info, tem_info.run.spinup_TEM)
+    loc_spinup = getLocSpinup(loc_forcing, tem_info)
+    land_spin = spinupTEM(selected_models, loc_spinup, loc_forcing_t, land_prec, tem_info, tem_info.run.spinup_TEM)
     return land_spin
 end
 

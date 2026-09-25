@@ -1055,16 +1055,16 @@ SpinupMode
 
 ----
 
-### SpinupSequence
+### SpinupStep
 ```@docs
-SpinupSequence
+SpinupStep
 ```
 
 ----
 
-### SpinupSequenceWithAggregator
+### SpinupStepWithAggregator
 ```@docs
-SpinupSequenceWithAggregator
+SpinupStepWithAggregator
 ```
 
 ----
