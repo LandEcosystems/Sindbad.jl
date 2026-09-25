@@ -219,5 +219,27 @@ function getForcing(info::NamedTuple)
         end
         incube
     end
+    ### XINTERP HERE
+    incubes = remap_to_target_resolution(incubes, info)
+    ### XINTERP HERE
     return createForcingNamedTuple(incubes, f_sizes, f_dimension, info)
+end
+
+function remap_to_target_resolution(incubes, info)
+    forcing_data_settings = info.experiment.data_settings.forcing
+    if hasproperty(forcing_data_settings, :spatial_resolution_of)
+        target_resolution = forcing_data_settings.spatial_resolution_of
+        print_info(remap_to_target_resolution, @__FILE__, @__LINE__, "remapping forcing variables to target resolution: $(target_resolution)")
+        incubes = map(incubes) do incube
+            remap_to_target_resolution_single(incube, target_resolution, info)
+        end
+    end
+    return incubes
+end
+
+function remap_to_target_resolution_single(incube, target_resolution, info)
+    # Implement the logic to remap the incube to the target resolution
+    # This is a placeholder for the actual remapping logic
+    print_info(remap_to_target_resolution_single, @__FILE__, @__LINE__, "remapping single incube to target resolution: $(target_resolution)")
+    return incube  # Return the remapped incube (currently unchanged)
 end
