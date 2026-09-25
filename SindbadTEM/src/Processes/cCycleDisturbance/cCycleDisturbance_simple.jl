@@ -1,7 +1,7 @@
 export cCycleDisturbance_simple
 
 
-struct cCycleDisturbance_simple <: cCycle end
+struct cCycleDisturbance_simple <: cCycleDisturbance end
 
 function define(params::cCycleDisturbance_simple, forcing, land, helpers)
     @unpack_nt cEco ⇐ land.pools
@@ -28,6 +28,7 @@ function compute(params::cCycleDisturbance_simple, forcing, land, helpers)
     ## unpack land variables
     @unpack_nt begin
         cEco ⇐ land.pools
+        c_model ⇐ land.models
         (
             c_disturbance_mortality, c_disturbance_efflux, c_disturbance_flow, 
             c_fire_mortality, c_fire_efflux, c_fire_flow,

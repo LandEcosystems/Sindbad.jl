@@ -49,6 +49,10 @@
     "cCycleConsistency": {
       "approach": "simple"
     },
+    "cCycleDisturbance": {
+      "approach": "simple",
+      "use_in_spinup": false
+    },
     "cFire": {
       "approach": "simple",
       "use_in_spinup": false
