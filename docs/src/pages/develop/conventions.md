@@ -130,14 +130,12 @@ Use internal function such as `repElem` and its shorthand macro `@rep_elem` to d
 my_array[my_index] = new_value
 
 # Use this:
-my_array = repElem(my_array, new_value, my_array, my_array, my_index)
+my_array = repElem(my_array, new_value, my_index)
 ```
 
-Note that the long and repetitive function call is only necessary when the size the array differs from standard land.pools.
-
-For such arrays, the shorthand @rep_elem macro can be used as,
+For arrays in `land.pools`, the shorthand @rep_elem macro can be used as,
 ```julia
-@rep_elem new_pool_value ⇒ (TWS, 2, :TWS)
+@rep_elem new_pool_value ⇒ (TWS, 2)
 ```
 
 where, `new_pool_value` will be used to replace the second element of `TWS` array

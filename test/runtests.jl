@@ -83,4 +83,51 @@ end
     end
 end
 
+@testset "carbon pool name skeleton is derived from the configurations" begin
+    # setPoolsInfo emits a zix entry for every one of these, so a name a configuration
+    # lacks resolves to () rather than a missing field. This replaced a hand-written
+    # tuple that a new configuration had to be added to by hand.
+    P = SindbadTEM.Processes
+    names = Sindbad.Setup.carbonPoolNames()
+
+    @test names isa Tuple
+    @test !isempty(names)
+    @test length(unique(names)) == length(names)
+
+    # Independent flattening: the derivation goes through getPoolInformation, so
+    # recomputing the expected names with a plain recursive walk cross-checks that
+    # traversal rather than restating it.
+    # `flat`, not `names`: a nested function assigning to a name that exists in the
+    # enclosing scope captures it rather than making a local, which would clobber the
+    # skeleton being checked.
+    function flatten(components, prefix="")
+        flat = Symbol[]
+        for name in propertynames(components)
+            value = getproperty(components, name)
+            full = prefix * String(name)
+            push!(flat, Symbol(full))               # every nesting level is a pool too
+            isa(value, NamedTuple) && append!(flat, flatten(value, full))
+        end
+        return flat
+    end
+
+    for configuration in SindbadTEM.subtypes(P.CarbonPoolConfiguration)
+        for name in flatten(poolStructure(configuration).components)
+            @test name ∈ names
+        end
+        for alias in propertynames(poolAliases(configuration))
+            @test alias ∈ names
+        end
+    end
+
+    # Spot checks across the kinds of name involved: a group that only nesting
+    # produces, leaves unique to one configuration, and an alias that no structure
+    # generates but CASA needs.
+    for expected in (:cVeg, :cLit, :cSoil, :cMic, :cProducts,
+                     :cVegReserve, :cVegRootFine, :cProductsCrop, :cMicSoil,
+                     :cLitFast, :cLitSlow)
+        @test expected ∈ names
+    end
+end
+
 include("MachineLearning/test_gradientSite.jl")

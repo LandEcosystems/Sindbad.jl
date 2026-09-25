@@ -30,9 +30,9 @@ function compute(params::drainage_wFC, forcing, land, helpers)
         drain_over = at_least_zero(soilW[sl] + ΔsoilW[sl] - w_fc[sl])
         drain = min(drain_over, holdCap, lossCap)
         tmp = drain > tolerance ? drain : zero(drain)
-        @rep_elem tmp ⇒ (drainage, sl, :soilW)
-        @add_to_elem -tmp ⇒ (ΔsoilW, sl, :soilW)
-        @add_to_elem tmp ⇒ (ΔsoilW, sl + 1, :soilW)
+        @rep_elem tmp ⇒ (drainage, sl)
+        @add_to_elem -tmp ⇒ (ΔsoilW, sl)
+        @add_to_elem tmp ⇒ (ΔsoilW, sl + 1)
     end
 
     ## pack land variables

@@ -12,7 +12,7 @@ using CMAEvolutionStrategy; # required: the CMAES optimizer used by both setups'
 #                            is a vector of those indices. Kept well below the full 205 by default
 #                            to keep runs fast -- bump `n_sites` for a larger spatial domain.
 # `site_index` : which site to use when `mode == :pixel` (1..205).
-setup = "LUE";
+setup = "WROASTED";
 mode = :pixel;
 site_index = 1;
 
