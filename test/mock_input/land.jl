@@ -37,6 +37,7 @@ tmp_land = (;
     states = (;
         c_remain = 5.0f0, # do less, so that we don't start at zero, when comparing to cEco[zixVeg]
         frac_tree = 0.5f0,
+        ambient_CO2 = 336.01f0,
         ),
     diagnostics = (;
         gpp_f_soilW = 0.5f0, # 1.0f0
