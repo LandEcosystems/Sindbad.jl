@@ -14,6 +14,9 @@ function compute(params::wCycle_components, forcing, land, helpers)
     end
     total_water_prev = totalS(soilW) + totalS(groundW) + totalS(surfaceW) + totalS(snowW)
 
+    # @debug "wCycle_components"
+    # @debug ΔsoilW
+
     ## update variables
     groundW = addVec(groundW, ΔgroundW)
     snowW = addVec(snowW, ΔsnowW)

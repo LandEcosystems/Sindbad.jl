@@ -73,5 +73,6 @@ module Setup
    include("setupParameterOptimization.jl")
    include("setupHybridMachineLearning.jl")
    include("setupInfo.jl")
+   include("setupSiteSoilLayers.jl")
 
 end # module Setup

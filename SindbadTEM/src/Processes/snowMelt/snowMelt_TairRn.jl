@@ -2,7 +2,7 @@ export snowMelt_TairRn
 
 #! format: off
 @bounds @describe @units @timescale @with_kw struct snowMelt_TairRn{T1,T2} <: snowMelt
-    melt_T::T1 = 3.0 | (0.01, 10.0) | "melt factor for temperature" | "mm/°C" | ""
+    melt_T::T1 = 3.0 | (0.01, 10.0) | "melt factor for temperature" | "mm/°C/day" | "day"
     melt_Rn::T2 = 2.0 | (0.01, 3.0) | "melt factor for radiation" | "mm/MJ/m2" | ""
 end
 #! format: on
