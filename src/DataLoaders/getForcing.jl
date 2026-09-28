@@ -120,7 +120,7 @@ function createForcingNamedTuple(incubes, f_sizes, f_dimensions, info)
     f_types =  Tuple(Tuple.(Pair.(forcing_vars, data_ts_type)))
     print_info_separator()
     forcing = (;
-        data=typed_cubes,
+        data=(; zip(forcing_vars, typed_cubes)...),
         dims=indims,
         variables=forcing_vars,
         f_types = f_types,
