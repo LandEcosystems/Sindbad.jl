@@ -78,7 +78,7 @@ end
 function runTEMYax(selected_models::Tuple, forcing::NamedTuple, info::NamedTuple)
 
     # forcing/input information
-    incubes = forcing.data;
+    incubes = values(forcing.data);
     indims = forcing.dims;
     # information for running model
     run_helpers = prepTEM(forcing, info);
