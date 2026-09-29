@@ -3,7 +3,7 @@ export cMicrobialEfficiencycMic_texture
 #! format: off
 @bounds @describe @units @timescale @with_kw struct cMicrobialEfficiencycMic_texture{T1,T2} <: cMicrobialEfficiencycMic
     effA::T1 = 0.85 | (0.0, 1.0) | "Intercept of the linear of microbial carbon-transfer efficiency to soil texture." | "" | ""
-    effB::T2 = 0.68 | (0.0, Inf) | "Sensitivity of microbial carbon-transfer efficiency to soil texture (silt+clay fraction)." | "" | ""
+    effB::T2 = 0.68 | (0.0, 2.0) | "Sensitivity of microbial carbon-transfer efficiency to soil texture (silt+clay fraction)." | "" | ""
 end
 #! format: on
 
