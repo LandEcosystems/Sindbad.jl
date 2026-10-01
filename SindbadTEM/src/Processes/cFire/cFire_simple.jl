@@ -49,7 +49,7 @@ function compute(params::cFire_simple, forcing, land, helpers)
             f_loss = c_f_cVeg_dieOff + c_fire_fba * c_Fire_k[giver]
             cLoss = (at_least_zero(cEco[giver] - c_remain) * f_loss) * c_flow_QP_vec[fO]
             # part that is combusted and that goes to the litter pools
-            cLossFire = safe_divide(cLoss * (c_fire_fba * c_Fire_k[giver]), f_loss * c_Fire_cci[giver])
+            cLossFire = cLoss * c_Fire_cci[giver] * safe_divide(c_fire_fba * c_Fire_k[giver],f_loss)
             cLossNonFire = cLoss - cLossFire
 
             @add_to_elem cLossFire ⇒ (c_fire_efflux, giver)
