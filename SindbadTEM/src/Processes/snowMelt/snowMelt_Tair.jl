@@ -2,7 +2,7 @@ export snowMelt_Tair
 
 #! format: off
 @bounds @describe @units @timescale @with_kw struct snowMelt_Tair{T1} <: snowMelt
-    rate::T1 = 1.0 | (0.1, 10.0) | "snow melt rate" | "mm/°C" | "day"
+    rate::T1 = 1.0 | (0.1, 10.0) | "snow melt rate" | "mm/°C/day" | "day"
 end
 #! format: on
 
