@@ -43,8 +43,8 @@ function compute(params::cFire_simple, forcing, land, helpers)
     if c_fire_fba != z_zero || c_f_cVeg_dieOff != z_zero
         for fO ∈ c_flow_order
             giver = c_giver[fO]
-            giver ∈ zix_cVeg || continue
             taker = c_taker[fO]
+            giver ∈ zix_cVeg && taker ∈ zix_cHeterotrophic || continue
             # total mortality fraction of vegetation pool
             f_loss = c_f_cVeg_dieOff + c_fire_fba * c_Fire_k[giver]
             cLoss = (at_least_zero(cEco[giver] - c_remain) * f_loss) * c_flow_QP_vec[fO]
