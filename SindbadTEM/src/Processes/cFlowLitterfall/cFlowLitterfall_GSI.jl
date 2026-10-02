@@ -2,7 +2,7 @@ export cFlowLitterfall_GSI
 
 #! format: off
 @bounds @describe @units @timescale @with_kw struct cFlowLitterfall_GSI{T1,T2} <: cFlowLitterfall
-    k_shedding::T1 = 0.14 | (0.033, 0.33) | "rate of shedding" | "fraction" | "day"
+    k_shedding::T1 = 0.14 | (0.01, 1.0) | "rate of shedding" | "fraction" | "day"
     f_τ::T2 = 0.03 | (0.01, 0.10) | "contribution factor for current stressor" | "fraction" | "day"
 end
 #! format: on
