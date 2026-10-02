@@ -50,7 +50,7 @@ struct kSaxton2006 end
     i1::TN = 0.097 | (-Inf, Inf) | "Saxton Parameters" | "" | ""
     i2::TN = 0.043 | (-Inf, Inf) | "Saxton Parameters" | "" | ""
     n02::TN = 0.2 | (-Inf, Inf) | "Saxton Parameters" | "" | ""
-    n24::TN = 24.0 | (-Inf, Inf) | "Saxton Parameters" | "" | ""
+    n24::TN = 24.0 | (-Inf, Inf) | "Saxton Parameters" | "" | "day"
     n33::TN = 33.0 | (-Inf, Inf) | "Saxton Parameters" | "" | ""
     n36::TN = 36.0 | (-Inf, Inf) | "Saxton Parameters" | "" | ""
     n1500::TN = 1500.0 | (-Inf, Inf) | "Saxton Parameters" | "" | ""
@@ -230,6 +230,8 @@ function calcPropsSaxton2006(params::soilProperties_Saxton2006, land, helpers, s
     clay = st_clay[sl]
     sand = st_sand[sl]
     orgm = zero(st_orgm[sl])
+    # @show sl, clay, sand, orgm
+    # orgm = st_orgm[sl]
     # orgm = sp_orgm[sl]
     # orgm = z_zero
     # clay = clay
@@ -240,6 +242,7 @@ function calcPropsSaxton2006(params::soilProperties_Saxton2006, land, helpers, s
     # θ_1500: 1500 kPa moisture; #v
     θ_1500t = a1 * sand + a2 * clay + a3 * orgm + a4 * (sand * orgm) - a5 * (clay * orgm) + a6 * (sand * clay) + a7
     θ_1500 = θ_1500t + (b1 * θ_1500t - b2)
+    θ_1500 = max(θ_1500, typeof(θ_1500)(0.01))
     # θ_33t: 33 kPa moisture; first solution; #v
     # θ_33: 33 kPa moisture; normal density; #v
     θ_33t = c1 * sand + c2 * clay + c3 * orgm + c4 * (sand * orgm) - c5 * (clay * orgm) + c6 * (sand * clay) + c7
