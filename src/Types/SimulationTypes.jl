@@ -7,12 +7,12 @@ purpose(::Type{SimulationTypes}) = "Abstract type for model simulation run flags
 export RunFlag
 export DoCalcCost
 export DoNotCalcCost
-export DoUseForwardDiff
-export DoNotUseForwardDiff
 export DoFilterNanPixels
 export DoNotFilterNanPixels
 export DoRunForward
 export DoNotRunForward
+export DoRunLazy
+export DoNotRunLazy
 export DoRunOptimization
 export DoNotRunOptimization
 export DoSaveInfo
@@ -46,6 +46,12 @@ purpose(::Type{DoRunForward}) = "Enable forward model run"
 struct DoNotRunForward <: RunFlag end
 purpose(::Type{DoNotRunForward}) = "Disable forward model run"
 
+struct DoRunLazy <: RunFlag end
+purpose(::Type{DoRunLazy}) = "Enable lazy run mode for running experiements based on Diskarrays and YAXArrays"
+
+struct DoNotRunLazy <: RunFlag end
+purpose(::Type{DoNotRunLazy}) = "Disable lazy run mode for running experiements based on Diskarrays and YAXArrays"
+
 struct DoRunOptimization <: RunFlag end
 purpose(::Type{DoRunOptimization}) = "Enable model parameter optimization"
 
@@ -69,12 +75,6 @@ purpose(::Type{DoStoreSpinup}) = "Enable storing of spinup results"
 
 struct DoNotStoreSpinup <: RunFlag end
 purpose(::Type{DoNotStoreSpinup}) = "Disable storing of spinup results"
-
-struct DoUseForwardDiff <: RunFlag end
-purpose(::Type{DoUseForwardDiff}) = "Enable forward mode automatic differentiation"
-
-struct DoNotUseForwardDiff <: RunFlag end
-purpose(::Type{DoNotUseForwardDiff}) = "Disable forward mode automatic differentiation"
 
 struct DoStoreHistory <: RunFlag end
 purpose(::Type{DoStoreHistory}) = "Enable storing of training history during optimization"
@@ -134,7 +134,7 @@ export EtaScaleA0H
 export EtaScaleA0HCWD
 export EtaScaleAHCWD
 export EtaScaleAH
-export NlsolveFixedpointTrustregionCEco
+export EtaScaleH
 export NlsolveFixedpointTrustregionCEcoTWS
 export NlsolveFixedpointTrustregionTWS
 export ODEAutoTsit5Rodas5
@@ -163,6 +163,10 @@ purpose(::Type{EtaScaleAHCWD}) = "scale carbon pools of CWD (cLitSlow) using ηH
 
 struct EtaScaleAH <: SpinupMode end
 purpose(::Type{EtaScaleAH}) = "scale carbon pools using diagnostic scalars for ηH and ηA"
+
+
+struct EtaScaleH <: SpinupMode end
+purpose(::Type{EtaScaleH}) = "scale only the heterotrophic carbon pools using diagnostic scalars for ηH"
 
 struct NlsolveFixedpointTrustregionCEco <: SpinupMode end
 purpose(::Type{NlsolveFixedpointTrustregionCEco}) = "use a fixed-point nonlinear solver with trust region for carbon pools (cEco)"
@@ -224,27 +228,52 @@ end
 purpose(::Type{Spinup_cEco}) = "Spinup spinup_mode for cEco"
 
 
-# ------------------------- spinup sequence and types ------------------------------------------------------------
+# ------------------------- spinup sequence method ------------------------------------------------------------
 export SpinupSequence
-export SpinupSequenceWithAggregator
+export SequenceDefault
+export SequenceList
+export SequenceWithAge
 
-struct SpinupSequenceWithAggregator <: SpinupTypes
+abstract type SpinupSequence <: SpinupTypes end
+purpose(::Type{SpinupSequence}) = "Abstract type for methods that build the spinup sequence of a location in SINDBAD"
+
+struct SequenceDefault <: SpinupSequence end
+purpose(::Type{SequenceDefault}) = "spin the selected spinup models up on the mean seasonal cycle, bracketed by a run over all years, and use this when the experiment settings give no sequence"
+
+struct SequenceList <: SpinupSequence end
+purpose(::Type{SequenceList}) = "use the explicit list of spinup sequences given in the experiment settings"
+
+struct SequenceWithAge <: SpinupSequence end
+purpose(::Type{SequenceWithAge}) = "build the spinup sequence from the disturbance year of the location so that the years since disturbance are replayed"
+
+
+# ------------------------- spinup sequence and types ------------------------------------------------------------
+export SpinupStep
+export SpinupStepWithAggregator
+
+struct SpinupStepWithAggregator{F,M<:SpinupMode} <: SpinupTypes
     forcing::Symbol
     n_repeat::Int
     n_timesteps::Int
-    spinup_mode::SpinupMode
+    spinup_mode::M
     options::NamedTuple
     aggregator_indices::Vector{Int}
     aggregator::Vector{TimeSample}
     aggregator_type::TimeSamplerMethod
 end
-purpose(::Type{SpinupSequenceWithAggregator}) = "Spinup sequence with time aggregation for corresponding forcingtime series"
 
-struct SpinupSequence <: SpinupTypes
+# The forcing name is carried as the type parameter `F` as well as in the field, so that
+# looking the sequence's forcing up in the spinup forcing NamedTuple resolves at compile time.
+function SpinupStepWithAggregator(forcing::Symbol, n_repeat, n_timesteps, spinup_mode::M, options, aggregator_indices, aggregator, aggregator_type) where {M<:SpinupMode}
+    return SpinupStepWithAggregator{forcing,M}(forcing, n_repeat, n_timesteps, spinup_mode, options, aggregator_indices, aggregator, aggregator_type)
+end
+purpose(::Type{SpinupStepWithAggregator}) = "Spinup sequence with time aggregation for corresponding forcingtime series"
+
+struct SpinupStep <: SpinupTypes
     forcing::Symbol
     n_repeat::Int
     n_timesteps::Int
     spinup_mode::SpinupMode
     options::NamedTuple
 end
-purpose(::Type{SpinupSequence}) = "Basic Spinup sequence without time aggregation"
+purpose(::Type{SpinupStep}) = "Basic Spinup sequence without time aggregation"

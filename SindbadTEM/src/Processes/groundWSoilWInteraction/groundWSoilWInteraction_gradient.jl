@@ -24,8 +24,9 @@ function compute(params::groundWSoilWInteraction_gradient, forcing, land, helper
     @unpack_nt begin
         w_sat ⇐ land.properties
         (ΔsoilW, soilW, ΔgroundW, groundW) ⇐ land.pools
-        (n_groundW, z_zero) ⇐ land.constants
+        z_zero ⇐ land.constants
         gw_recharge ⇐ land.fluxes
+        n_groundW = groundW ⇐ helpers.pools.n_layers
     end
     # maximum groundwater storage
     p_gwmax = w_sat[end] * smax_scale
@@ -45,7 +46,7 @@ function compute(params::groundWSoilWInteraction_gradient, forcing, land, helper
 
     # adjust the delta storages
     ΔgroundW = addToEachElem(ΔgroundW, -gw_capillary_flux / n_groundW)
-    @add_to_elem gw_capillary_flux ⇒ (ΔsoilW, lastindex(ΔsoilW), :soilW)
+    @add_to_elem gw_capillary_flux ⇒ (ΔsoilW, lastindex(ΔsoilW))
 
     # adjust the gw_recharge as net flux between soil and groundwater. positive from soil to gw
     gw_recharge = gw_recharge - gw_capillary_flux

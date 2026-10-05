@@ -65,7 +65,9 @@ end
 
 Returns a vector.
 """
-function oneHotPFT end
+function oneHotPFT(args...; kwargs...)
+    error("`oneHotPFT` is not available. This function is implemented in `ext/SindbadFluxExt/MachineLearningOneHots.jl` and requires `using Flux` to be loaded.")
+end
 
 """
     vegOneHot(v_class; vegetation_labels)
@@ -79,7 +81,9 @@ function oneHotPFT end
 
 Returns a vector.
 """
-function vegOneHot end
+function vegOneHot(args...; kwargs...)
+    error("`vegOneHot` is not available. This function is implemented in `ext/SindbadFluxExt/MachineLearningOneHots.jl` and requires `using Flux` to be loaded.")
+end
 
 """
     vegOneHotbatch(veg_classes; vegetation_labels)
@@ -92,7 +96,9 @@ function vegOneHot end
     Do `using Flux` before using this function, otherwise it will error. This is because is fully defined in the `ext/SindbadFluxExt` folder.
 
 """
-function vegOneHotbatch end
+function vegOneHotbatch(args...; kwargs...)
+    error("`vegOneHotbatch` is not available. This function is implemented in `ext/SindbadFluxExt/MachineLearningOneHots.jl` and requires `using Flux` to be loaded.")
+end
 
 """
     lcKAoneHotbatch(lc_data, up_bound, lc_name, ka_labels)
@@ -107,7 +113,9 @@ function vegOneHotbatch end
     Do `using Flux` before using this function, otherwise it will error. This is because is fully defined in the `ext/SindbadFluxExt` folder.
 
 """
-function lcKAoneHotbatch end
+function lcKAoneHotbatch(args...; kwargs...)
+    error("`lcKAoneHotbatch` is not available. This function is implemented in `ext/SindbadFluxExt/MachineLearningOneHots.jl` and requires `using Flux` to be loaded.")
+end
 
 """
     vegKAoneHotbatch(pft_data, ka_labels)
@@ -120,4 +128,6 @@ function lcKAoneHotbatch end
     Do `using Flux` before using this function, otherwise it will error. This is because is fully defined in the `ext/SindbadFluxExt` folder.
 
 """
-function vegKAoneHotbatch end
+function vegKAoneHotbatch(args...; kwargs...)
+    error("`vegKAoneHotbatch` is not available. This function is implemented in `ext/SindbadFluxExt/MachineLearningOneHots.jl` and requires `using Flux` to be loaded.")
+end

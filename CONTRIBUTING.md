@@ -94,6 +94,14 @@ Then load/use `Sindbad` normally; the extension will be picked up automatically.
 - **Create an extension file** under `ext/` (e.g. `SindbadMyPkgExt.jl`) that defines methods for the relevant hooks/types in `Sindbad`.
 - **Avoid hard dependencies**: keep imports of the optional package inside the extension module only.
 
+## Continuous Integration
+
+Every PR automatically runs a required "quick" check on every push (fast, ubuntu-only). Opening
+a PR shows the on-demand comment commands (`/check-pr`, `/build-docs`, `/compile-os`,
+`/test-simulation`, `/test-tem`) available before merging, via the PR template. For the full
+detail -- what each CI workflow actually runs, what triggers it automatically, and whether it's
+required to merge -- see [`.github/README.md`](.github/README.md).
+
 ## Governance
 
 This section describes guiding governance principles for collaborating on SINDBAD.

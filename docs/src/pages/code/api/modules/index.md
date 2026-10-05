@@ -11,5 +11,6 @@ This page is an index of the main `Sindbad` modules documented on this site.
 - [`ParameterOptimization`](/pages/code/api/ParameterOptimization)
 - [`MachineLearning`](/pages/code/api/MachineLearning)
 - [`Visualization`](/pages/code/api/Visualization)
+- [`Experiment`](/pages/code/api/Experiment)
 
 

@@ -14,7 +14,8 @@ function compute(params::groundWSurfaceWInteraction_fracGroundW, forcing, land, 
     @unpack_nt begin
         (groundW, surfaceW) ⇐ land.pools
         (ΔsurfaceW, ΔgroundW) ⇐ land.pools
-        (n_surfaceW, n_groundW) ⇐ land.constants
+        n_surfaceW = surfaceW ⇐ helpers.pools.n_layers
+        n_groundW = groundW ⇐ helpers.pools.n_layers
     end
 
     ## calculate variables

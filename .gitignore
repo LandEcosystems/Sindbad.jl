@@ -14,7 +14,7 @@
 *.rar
 *.out
 *.log
-*logs
+logs/
 *.dat
 *.tmp
 *.txt
@@ -57,6 +57,7 @@ GettingStarted.md
 examples/data/
 docs/build/
 build/
+tools/benchmark/TestSindbadTEM/benchmark_output/
 __pycache__
 sandbox/*
 sandbox/.*

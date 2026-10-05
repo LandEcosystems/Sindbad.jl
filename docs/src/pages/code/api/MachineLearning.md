@@ -8,12 +8,34 @@ Sindbad.MachineLearning
 JoinDenseNN
 ```
 
+:::details Code
+
+```julia
+function JoinDenseNN(args...; kwargs...)
+    error("`JoinDenseNN` is not available. This function is implemented in `ext/SindbadFluxExt/MachineLearningNeuralNetwork.jl` and requires `using Flux` to be loaded.")
+end
+```
+
+:::
+
+
 ----
 
 ### SplitNN
 ```@docs
 SplitNN
 ```
+
+:::details Code
+
+```julia
+function SplitNN(args...; kwargs...)
+    error("`SplitNN` is not implemented for any backend yet. To implement it, add a method in `ext/<extension_name>/MachineLearningNeuralNetwork.jl` (see the commented-out draft in `ext/SindbadFluxExt/MachineLearningNeuralNetwork.jl`).")
+end
+```
+
+:::
+
 
 ----
 
@@ -25,13 +47,29 @@ activationFunction
 :::details Code
 
 ```julia
-function activationFunction end
+function activationFunction(model_options, x::ActivationType)
+    pkg = requires_package(typeof(x))
+    if !isnothing(pkg)
+        error("
+    activationFunction `$(nameof(typeof(x)))` requires the `$(pkg)` package to be loaded.
 
+    This activation function is implemented in the `Sindbad$(pkg)Ext` extension, which activates automatically once you run `using $(pkg)` in your session (alongside `using Sindbad`).
+    ")
+    else
+        error("
+    activationFunction `$(nameof(typeof(x)))` not implemented.
 
-function activationFunction(model_options, ::CustomSigmoid)
-    sigmoid_k(x, K) = one(x) / (one(x) + exp(-K * x))
-    custom_sigmoid = x -> sigmoid_k(x, model_options.k_σ)
-    return custom_sigmoid
+    To implement a new activation function:
+
+    - First add a new type as a subtype of `ActivationType` in `src/Types/MachineLearningTypes.jl`.
+
+    - Then, add a corresponding method:
+      - if it can be implemented as an internal Sindbad method without additional dependencies, implement the method in `src/MachineLearning/activationFunctions.jl`.
+      - if it requires additional dependencies, implement the method in `ext/<extension_name>/MachineLearningActivationFunctions.jl` extension.
+
+    ")
+    end
+    return
 end
 
 function activationFunction(model_options, ::CustomSigmoid)
@@ -54,10 +92,9 @@ denseNN
 :::details Code
 
 ```julia
-function denseNN end
-function destructureNN end
-function JoinDenseNN end
-function SplitNN end
+function denseNN(args...; kwargs...)
+    error("`denseNN` is not available. This function is implemented in `ext/SindbadFluxExt/MachineLearningNeuralNetwork.jl` and requires `using Flux` to be loaded.")
+end
 ```
 
 :::
@@ -73,9 +110,9 @@ destructureNN
 :::details Code
 
 ```julia
-function destructureNN end
-function JoinDenseNN end
-function SplitNN end
+function destructureNN(args...; kwargs...)
+    error("`destructureNN` is not available. This function is implemented in `ext/SindbadFluxExt/MachineLearningNeuralNetwork.jl` and requires `using Flux` to be loaded.")
+end
 ```
 
 :::
@@ -204,7 +241,7 @@ function getInnerArgs(idx, grads_lib,
     scaled_params_batch, # ? input_args
     selected_models,
     space_forcing,
-    space_spinup_forcing,
+    space_spinup,
     loc_forcing_t,
     space_output,
     loc_land,
@@ -224,7 +261,7 @@ function getInnerArgs(idx, grads_lib,
     loc_forcing = space_forcing[site_location]
     loc_obs = space_observations[site_location]
     loc_output = space_output[site_location]
-    loc_spinup_forcing = space_spinup_forcing[site_location]
+    loc_spinup_forcing = space_spinup[site_location]
     loc_cost_option = cost_options[site_location]
 
     return (;
@@ -260,7 +297,7 @@ getLossForSites
 
 ```julia
 function getLossForSites(gradient_lib, loss_function::F, loss_array_sites, loss_array_split, epoch_number,
-    scaled_params, sites_list, indices_sites, models, space_forcing, space_spinup_forcing,
+    scaled_params, sites_list, indices_sites, models, space_forcing, space_spinup,
     loc_forcing_t, space_output, loc_land, tem_info, parameter_to_index, parameter_scaling_type, space_observations,
     cost_options, constraint_method) where {F}
     @sync begin
@@ -272,7 +309,7 @@ function getLossForSites(gradient_lib, loss_function::F, loss_array_sites, loss_
                 loc_forcing = space_forcing[site_location]
                 loc_obs = space_observations[site_location]
                 loc_output = space_output[site_location]
-                loc_spinup_forcing = space_spinup_forcing[site_location]
+                loc_spinup_forcing = space_spinup[site_location]
                 loc_cost_option = cost_options[site_location]
 
                 gg, gg_split, loss_indices = loss_function(loc_params, gradient_lib, models, loc_forcing, loc_spinup_forcing,
@@ -309,7 +346,7 @@ function getLossFunctionHandles(info, run_helpers, sites)
         loc_forcing = run_helpers.space_forcing[site_location]
         loc_obs = run_helpers.space_observation[site_location]
         loc_output = getCacheFromOutput(run_helpers.space_output[site_location], info.hybrid.ml_gradient.method)
-        loc_spinup_forcing = run_helpers.space_spinup_forcing[site_location]
+        loc_spinup_forcing = run_helpers.space_spinup[site_location]
         loc_cost_option = prepCostOptions(loc_obs, info.optimization.cost_options)
         loss_tmp(x) = loss(x, info.models.forward, parameter_to_index, info.optimization.run_options.parameter_scaling, loc_forcing, loc_spinup_forcing, run_helpers.loc_forcing_t, loc_output, deepcopy(run_helpers.loc_land), run_helpers.tem_info, loc_obs, loc_cost_option, info.optimization.run_options.multi_constraint_method, info.hybrid.ml_gradient.method, info.hybrid.ml_training.options.loss_function)
 
@@ -379,18 +416,27 @@ getPullback
 :::details Code
 
 ```julia
-function getPullback(::MachineLearningPullbackType, _, _, _)
-    error("
-    getPullback `$(nameof(typeof(x)))` not implemented. 
-    
+function getPullback(x::MachineLearningPullbackType, _, _, _)
+    pkg = requires_package(typeof(x))
+    if !isnothing(pkg)
+        error("
+    getPullback `$(nameof(typeof(x)))` requires the `$(pkg)` package to be loaded.
+
+    This pullback type is implemented in the `Sindbad$(pkg)Ext` extension, which activates automatically once you run `using $(pkg)` in your session (alongside `using Sindbad`).
+    ")
+    else
+        error("
+    getPullback `$(nameof(typeof(x)))` not implemented.
+
     To implement a new pullback type:
-    
-    - First add a new type as a subtype of `MachineLearningPullbackType` in `src/Types/MachineLearningTypes.jl`. 
-    
+
+    - First add a new type as a subtype of `MachineLearningPullbackType` in `src/Types/MachineLearningTypes.jl`.
+
     - Then, add a corresponding method:
-      - if it can be implemented as an internal Sindbad method without additional dependencies, implement the method in `src/MachineLearning/getPullback.jl`.     
+      - if it can be implemented as an internal Sindbad method without additional dependencies, implement the method in `src/MachineLearning/getPullback.jl`.
       - if it requires additional dependencies, implement the method in `ext/<extension_name>/MachineLearningGetPullback.jl` extension.
     ")
+    end
 end
 ```
 
@@ -542,20 +588,9 @@ lcKAoneHotbatch
 :::details Code
 
 ```julia
-function lcKAoneHotbatch end
-
-"""
-    vegKAoneHotbatch(pft_data, ka_labels)
-
-# Arguments
-- `pft_data`: Vector array
-- `ka_labels`: KeyedArray labels, i.e. site names
-
-!!! warning
-    Do `using Flux` before using this function, otherwise it will error. This is because is fully defined in the `ext/SindbadFluxExt` folder.
-
-"""
-function vegKAoneHotbatch end
+function lcKAoneHotbatch(args...; kwargs...)
+    error("`lcKAoneHotbatch` is not available. This function is implemented in `ext/SindbadFluxExt/MachineLearningOneHots.jl` and requires `using Flux` to be loaded.")
+end
 ```
 
 :::
@@ -792,12 +827,30 @@ mlModel
 :::details Code
 
 ```julia
-function mlModel end
+function mlModel(info, n_features, x::MachineLearningModelType)
+    pkg = requires_package(typeof(x))
+    if !isnothing(pkg)
+        error("
+    mlModel `$(nameof(typeof(x)))` requires the `$(pkg)` package to be loaded.
 
-function denseNN end
-function destructureNN end
-function JoinDenseNN end
-function SplitNN end
+    This model is implemented in the `Sindbad$(pkg)Ext` extension, which activates automatically once you run `using $(pkg)` in your session (alongside `using Sindbad`).
+    ")
+    else
+        error("
+    mlModel `$(nameof(typeof(x)))` not implemented.
+
+    To implement a new ML model:
+
+    - First add a new type as a subtype of `MachineLearningModelType` in `src/Types/MachineLearningTypes.jl`.
+
+    - Then, add a corresponding method:
+      - if it can be implemented as an internal Sindbad method without additional dependencies, implement the method in `src/MachineLearning/mlModels.jl`.
+      - if it requires additional dependencies, implement the method in `ext/<extension_name>/MachineLearningMLModels.jl` extension.
+
+    ")
+    end
+    return
+end
 ```
 
 :::
@@ -810,6 +863,38 @@ function SplitNN end
 mlOptimizer
 ```
 
+:::details Code
+
+```julia
+function mlOptimizer(optimizer_options, x::MachineLearningOptimizerType)
+    pkg = requires_package(typeof(x))
+    if !isnothing(pkg)
+        error("
+    mlOptimizer `$(nameof(typeof(x)))` requires the `$(pkg)` package to be loaded.
+
+    This optimizer is implemented in the `Sindbad$(pkg)Ext` extension, which activates automatically once you run `using $(pkg)` in your session (alongside `using Sindbad`).
+    ")
+    else
+        error("
+    mlOptimizer `$(nameof(typeof(x)))` not implemented.
+
+    To implement a new ML optimizer:
+
+    - First add a new type as a subtype of `MachineLearningOptimizerType` in `src/Types/MachineLearningTypes.jl`.
+
+    - Then, add a corresponding method:
+      - if it can be implemented as an internal Sindbad method without additional dependencies, implement the method in `src/MachineLearning/mlOptimizers.jl`.
+      - if it requires additional dependencies, implement the method in `ext/<extension_name>/MachineLearningMlOptimizer.jl` extension.
+
+    ")
+    end
+    return
+end
+```
+
+:::
+
+
 ----
 
 ### oneHotPFT
@@ -820,62 +905,9 @@ oneHotPFT
 :::details Code
 
 ```julia
-function oneHotPFT end
-
-"""
-    vegOneHot(v_class; vegetation_labels)
-
-# Arguments    
-- `v_class`: get it by doing `toClass(x; vegetation_rules)`.
-- `vegetation_labels`: see them by typing `vegetation_labels`.
-
-!!! warning
-    Do `using Flux` before using this function, otherwise it will error. This is because is fully defined in the `ext/SindbadFluxExt` folder.
-
-Returns a vector.
-"""
-function vegOneHot end
-
-"""
-    vegOneHotbatch(veg_classes; vegetation_labels)
-
-# Arguments
-- veg_classes: get these from `toClass.([x1, x2,...])`
-- vegetation_labels: see them by typing `vegetation_labels`
-
-!!! warning
-    Do `using Flux` before using this function, otherwise it will error. This is because is fully defined in the `ext/SindbadFluxExt` folder.
-
-"""
-function vegOneHotbatch end
-
-"""
-    lcKAoneHotbatch(lc_data, up_bound, lc_name, ka_labels)
-
-# Arguments
-- `lc_data`: Vector array
-- `up_bound`: last index class, the range goes from `1:up_bound`, and any case not in that range uses the `up_bound` value. For `PFT` use `17` and for `KG` `32`. 
-- `lc_name`: land cover approach, either `KG` or `PFT`.
-- `ka_labels`: KeyedArray labels, i.e. site names
-
-!!! warning
-    Do `using Flux` before using this function, otherwise it will error. This is because is fully defined in the `ext/SindbadFluxExt` folder.
-
-"""
-function lcKAoneHotbatch end
-
-"""
-    vegKAoneHotbatch(pft_data, ka_labels)
-
-# Arguments
-- `pft_data`: Vector array
-- `ka_labels`: KeyedArray labels, i.e. site names
-
-!!! warning
-    Do `using Flux` before using this function, otherwise it will error. This is because is fully defined in the `ext/SindbadFluxExt` folder.
-
-"""
-function vegKAoneHotbatch end
+function oneHotPFT(args...; kwargs...)
+    error("`oneHotPFT` is not available. This function is implemented in `ext/SindbadFluxExt/MachineLearningOneHots.jl` and requires `using Flux` to be loaded.")
+end
 ```
 
 :::
@@ -1196,20 +1228,28 @@ updateMLModel
 :::details Code
 
 ```julia
-function updateMLModel(::MachineLearningUpdateType, _model_state, _model_flat, _gradient) 
-    error("
-    updateMLModel `$(nameof(typeof(x)))` not implemented. 
-    
-    To implement a new optimizer:
-    
-    - First add a new type as a subtype of `MachineLearningUpdateType` in `src/Types/MachineLearningTypes.jl`. 
-    
+function updateMLModel(x::MachineLearningUpdateType, _model_state, _model_flat, _gradient)
+    pkg = requires_package(typeof(x))
+    if !isnothing(pkg)
+        error("
+    updateMLModel `$(nameof(typeof(x)))` requires the `$(pkg)` package to be loaded.
+
+    This update method is implemented in the `Sindbad$(pkg)Ext` extension, which activates automatically once you run `using $(pkg)` in your session (alongside `using Sindbad`).
+    ")
+    else
+        error("
+    updateMLModel `$(nameof(typeof(x)))` not implemented.
+
+    To implement a new update method:
+
+    - First add a new type as a subtype of `MachineLearningUpdateType` in `src/Types/MachineLearningTypes.jl`.
+
     - Then, add a corresponding method:
-      - if it can be implemented as an internal Sindbad method without additional dependencies, implement the method in `src/MachineLearning/mlUpdate.jl`.     
+      - if it can be implemented as an internal Sindbad method without additional dependencies, implement the method in `src/MachineLearning/mlUpdate.jl`.
       - if it requires additional dependencies, implement the method in `ext/<extension_name>/MachineLearningUpdateMLModel.jl` extension.
 
     ")
-
+    end
 end
 ```
 
@@ -1223,6 +1263,17 @@ end
 vegKAoneHotbatch
 ```
 
+:::details Code
+
+```julia
+function vegKAoneHotbatch(args...; kwargs...)
+    error("`vegKAoneHotbatch` is not available. This function is implemented in `ext/SindbadFluxExt/MachineLearningOneHots.jl` and requires `using Flux` to be loaded.")
+end
+```
+
+:::
+
+
 ----
 
 ### vegOneHot
@@ -1233,78 +1284,13 @@ vegOneHot
 :::details Code
 
 ```julia
-function vegOneHot end
+function vegOneHot(args...; kwargs...)
+    error("`vegOneHot` is not available. This function is implemented in `ext/SindbadFluxExt/MachineLearningOneHots.jl` and requires `using Flux` to be loaded.")
+end
 
-"""
-    vegOneHotbatch(veg_classes; vegetation_labels)
-
-# Arguments
-- veg_classes: get these from `toClass.([x1, x2,...])`
-- vegetation_labels: see them by typing `vegetation_labels`
-
-!!! warning
-    Do `using Flux` before using this function, otherwise it will error. This is because is fully defined in the `ext/SindbadFluxExt` folder.
-
-"""
-function vegOneHotbatch end
-
-"""
-    lcKAoneHotbatch(lc_data, up_bound, lc_name, ka_labels)
-
-# Arguments
-- `lc_data`: Vector array
-- `up_bound`: last index class, the range goes from `1:up_bound`, and any case not in that range uses the `up_bound` value. For `PFT` use `17` and for `KG` `32`. 
-- `lc_name`: land cover approach, either `KG` or `PFT`.
-- `ka_labels`: KeyedArray labels, i.e. site names
-
-!!! warning
-    Do `using Flux` before using this function, otherwise it will error. This is because is fully defined in the `ext/SindbadFluxExt` folder.
-
-"""
-function lcKAoneHotbatch end
-
-"""
-    vegKAoneHotbatch(pft_data, ka_labels)
-
-# Arguments
-- `pft_data`: Vector array
-- `ka_labels`: KeyedArray labels, i.e. site names
-
-!!! warning
-    Do `using Flux` before using this function, otherwise it will error. This is because is fully defined in the `ext/SindbadFluxExt` folder.
-
-"""
-function vegKAoneHotbatch end
-
-function vegOneHotbatch end
-
-"""
-    lcKAoneHotbatch(lc_data, up_bound, lc_name, ka_labels)
-
-# Arguments
-- `lc_data`: Vector array
-- `up_bound`: last index class, the range goes from `1:up_bound`, and any case not in that range uses the `up_bound` value. For `PFT` use `17` and for `KG` `32`. 
-- `lc_name`: land cover approach, either `KG` or `PFT`.
-- `ka_labels`: KeyedArray labels, i.e. site names
-
-!!! warning
-    Do `using Flux` before using this function, otherwise it will error. This is because is fully defined in the `ext/SindbadFluxExt` folder.
-
-"""
-function lcKAoneHotbatch end
-
-"""
-    vegKAoneHotbatch(pft_data, ka_labels)
-
-# Arguments
-- `pft_data`: Vector array
-- `ka_labels`: KeyedArray labels, i.e. site names
-
-!!! warning
-    Do `using Flux` before using this function, otherwise it will error. This is because is fully defined in the `ext/SindbadFluxExt` folder.
-
-"""
-function vegKAoneHotbatch end
+function vegOneHotbatch(args...; kwargs...)
+    error("`vegOneHotbatch` is not available. This function is implemented in `ext/SindbadFluxExt/MachineLearningOneHots.jl` and requires `using Flux` to be loaded.")
+end
 ```
 
 :::
@@ -1320,35 +1306,9 @@ vegOneHotbatch
 :::details Code
 
 ```julia
-function vegOneHotbatch end
-
-"""
-    lcKAoneHotbatch(lc_data, up_bound, lc_name, ka_labels)
-
-# Arguments
-- `lc_data`: Vector array
-- `up_bound`: last index class, the range goes from `1:up_bound`, and any case not in that range uses the `up_bound` value. For `PFT` use `17` and for `KG` `32`. 
-- `lc_name`: land cover approach, either `KG` or `PFT`.
-- `ka_labels`: KeyedArray labels, i.e. site names
-
-!!! warning
-    Do `using Flux` before using this function, otherwise it will error. This is because is fully defined in the `ext/SindbadFluxExt` folder.
-
-"""
-function lcKAoneHotbatch end
-
-"""
-    vegKAoneHotbatch(pft_data, ka_labels)
-
-# Arguments
-- `pft_data`: Vector array
-- `ka_labels`: KeyedArray labels, i.e. site names
-
-!!! warning
-    Do `using Flux` before using this function, otherwise it will error. This is because is fully defined in the `ext/SindbadFluxExt` folder.
-
-"""
-function vegKAoneHotbatch end
+function vegOneHotbatch(args...; kwargs...)
+    error("`vegOneHotbatch` is not available. This function is implemented in `ext/SindbadFluxExt/MachineLearningOneHots.jl` and requires `using Flux` to be loaded.")
+end
 ```
 
 :::

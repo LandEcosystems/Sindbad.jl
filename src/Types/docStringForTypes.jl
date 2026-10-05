@@ -42,7 +42,7 @@ InputKeyedArray
 
 InputNamedDimsArray
 
-InputYaxArray
+InputYAXArray
 
 SpatialSubsetter
 
@@ -298,8 +298,6 @@ DoNotSpinupTEM
 
 DoNotStoreSpinup
 
-DoNotUseForwardDiff
-
 DoRunForward
 
 DoRunOptimization
@@ -309,8 +307,6 @@ DoSaveInfo
 DoSpinupTEM
 
 DoStoreSpinup
-
-DoUseForwardDiff
 
 SpinupTypes
 
@@ -350,9 +346,9 @@ Spinup_cEco
 
 Spinup_cEco_TWS
 
-SpinupSequence
+SpinupStep
 
-SpinupSequenceWithAggregator
+SpinupStepWithAggregator
 
 TEMTypes
 
@@ -1054,7 +1050,7 @@ InputKeyedArray
 
 InputNamedDimsArray
 
-InputYaxArray
+InputYAXArray
 
 SpatialSubsetter
 
@@ -1310,8 +1306,6 @@ DoNotSpinupTEM
 
 DoNotStoreSpinup
 
-DoNotUseForwardDiff
-
 DoRunForward
 
 DoRunOptimization
@@ -1321,8 +1315,6 @@ DoSaveInfo
 DoSpinupTEM
 
 DoStoreSpinup
-
-DoUseForwardDiff
 
 SpinupTypes
 
@@ -1362,9 +1354,9 @@ Spinup_cEco
 
 Spinup_cEco_TWS
 
-SpinupSequence
+SpinupStep
 
-SpinupSequenceWithAggregator
+SpinupStepWithAggregator
 
 TEMTypes
 
@@ -2066,7 +2058,7 @@ Sindbad.Types.InputKeyedArray
 
 Sindbad.Types.InputNamedDimsArray
 
-Sindbad.Types.InputYaxArray
+Sindbad.Types.InputYAXArray
 
 Sindbad.Types.SpatialSubsetter
 
@@ -2322,8 +2314,6 @@ Sindbad.Types.DoNotSpinupTEM
 
 Sindbad.Types.DoNotStoreSpinup
 
-Sindbad.Types.DoNotUseForwardDiff
-
 Sindbad.Types.DoRunForward
 
 Sindbad.Types.DoRunOptimization
@@ -2333,8 +2323,6 @@ Sindbad.Types.DoSaveInfo
 Sindbad.Types.DoSpinupTEM
 
 Sindbad.Types.DoStoreSpinup
-
-Sindbad.Types.DoUseForwardDiff
 
 Sindbad.Types.SpinupTypes
 
@@ -2374,9 +2362,9 @@ Sindbad.Types.Spinup_cEco
 
 Sindbad.Types.Spinup_cEco_TWS
 
-Sindbad.Types.SpinupSequence
+Sindbad.Types.SpinupStep
 
-Sindbad.Types.SpinupSequenceWithAggregator
+Sindbad.Types.SpinupStepWithAggregator
 
 SindbadTEM.TEMTypes
 
@@ -3078,7 +3066,7 @@ Sindbad.Types.InputKeyedArray
 
 Sindbad.Types.InputNamedDimsArray
 
-Sindbad.Types.InputYaxArray
+Sindbad.Types.InputYAXArray
 
 Sindbad.Types.SpatialSubsetter
 
@@ -3334,8 +3322,6 @@ Sindbad.Types.DoNotSpinupTEM
 
 Sindbad.Types.DoNotStoreSpinup
 
-Sindbad.Types.DoNotUseForwardDiff
-
 Sindbad.Types.DoRunForward
 
 Sindbad.Types.DoRunOptimization
@@ -3345,8 +3331,6 @@ Sindbad.Types.DoSaveInfo
 Sindbad.Types.DoSpinupTEM
 
 Sindbad.Types.DoStoreSpinup
-
-Sindbad.Types.DoUseForwardDiff
 
 Sindbad.Types.SpinupTypes
 
@@ -3386,9 +3370,9 @@ Sindbad.Types.Spinup_cEco
 
 Sindbad.Types.Spinup_cEco_TWS
 
-Sindbad.Types.SpinupSequence
+Sindbad.Types.SpinupStep
 
-Sindbad.Types.SpinupSequenceWithAggregator
+Sindbad.Types.SpinupStepWithAggregator
 
 SindbadTEM.TEMTypes
 

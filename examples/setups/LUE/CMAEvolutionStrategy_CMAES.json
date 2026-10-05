@@ -1,0 +1,8 @@
+{
+  "method": "CMAES",
+  "options": {
+    "ftol":1e-16,
+    "xtol":1e-16,
+    "maxfevals": 300},
+  "package": "CMAEvolutionStrategy"
+}

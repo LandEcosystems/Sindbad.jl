@@ -12,9 +12,9 @@ function compute(params::cAllocationSoilT_Friedlingstein1999, forcing, land, hel
     @unpack_cAllocationSoilT_Friedlingstein1999 params
 
     ## unpack land variables
-    @unpack_nt c_allocation_f_soilT ⇐ land.diagnostics
+    @unpack_nt c_eco_k_f_soilT ⇐ land.diagnostics
 
-    c_allocation_f_soilT = clamp(c_allocation_f_soilT, min_f_soilT, max_f_soilT)
+    c_allocation_f_soilT = clamp(c_eco_k_f_soilT, min_f_soilT, max_f_soilT)
 
     ## pack land variables
     @pack_nt c_allocation_f_soilT ⇒ land.diagnostics

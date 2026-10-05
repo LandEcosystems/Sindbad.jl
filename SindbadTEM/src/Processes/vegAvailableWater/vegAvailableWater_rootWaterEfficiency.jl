@@ -28,7 +28,7 @@ function compute(params::vegAvailableWater_rootWaterEfficiency, forcing, land, h
     end
     for sl ∈ eachindex(soilW)
         PAW_sl = root_water_efficiency[sl] * (at_least_zero(soilW[sl] + ΔsoilW[sl] - w_wp[sl]))
-        @rep_elem PAW_sl ⇒ (PAW, sl, :soilW)
+        @rep_elem PAW_sl ⇒ (PAW, sl)
     end
 
     @pack_nt PAW ⇒ land.states

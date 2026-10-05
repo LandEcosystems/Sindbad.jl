@@ -4,7 +4,7 @@ export lossComponents
 export epochLossComponents
 
 """
-    lossVector(params, models, parameter_to_index, parameter_scaling_type, loc_forcing, loc_spinup_forcing, loc_forcing_t, loc_output, land_init, tem_info, loc_obs, cost_options, constraint_method, gradient_lib, ::LossModelObsMachineLearning)
+    lossVector(params, models, parameter_to_index, parameter_scaling_type, loc_forcing, loc_spinup, loc_forcing_t, loc_output, land_init, tem_info, loc_obs, cost_options, constraint_method, gradient_lib, ::LossModelObsMachineLearning)
 
 Calculate the loss vector for a given site in hybrid (ML) modeling in SINDBAD.
 
@@ -16,7 +16,7 @@ This function runs the core TEM model with the provided parameters, forcing data
 - `parameter_to_index`: Mapping from parameter names to indices.
 - `parameter_scaling_type`: Parameter scaling configuration.
 - `loc_forcing`: Forcing data for the site.
-- `loc_spinup_forcing`: Spinup forcing data for the site.
+- `loc_spinup`: A NT with the spinup `sequence` of the site and the `forcing` derived from it.
 - `loc_forcing_t`: Forcing data for a single time step.
 - `loc_output`: Output data structure for the site.
 - `land_init`: Initial land state.
@@ -37,16 +37,16 @@ This function runs the core TEM model with the provided parameters, forcing data
 
 # Example
 ```julia
-loss_vec, loss_idx = lossVector(params, models, parameter_to_index, parameter_scaling_type, loc_forcing, loc_spinup_forcing, loc_forcing_t, loc_output, land_init, tem_info, loc_obs, cost_options, constraint_method, gradient_lib, LossModelObsMachineLearning())
+loss_vec, loss_idx = lossVector(params, models, parameter_to_index, parameter_scaling_type, loc_forcing, loc_spinup, loc_forcing_t, loc_output, land_init, tem_info, loc_obs, cost_options, constraint_method, gradient_lib, LossModelObsMachineLearning())
 ```
 """
-function lossVector(params, models, parameter_to_index, parameter_scaling_type, loc_forcing, loc_spinup_forcing, loc_forcing_t, loc_output, land_init, tem_info, loc_obs, cost_options, constraint_method, gradient_lib,::LossModelObsMachineLearning)
+function lossVector(params, models, parameter_to_index, parameter_scaling_type, loc_forcing, loc_spinup, loc_forcing_t, loc_output, land_init, tem_info, loc_obs, cost_options, constraint_method, gradient_lib,::LossModelObsMachineLearning)
     loc_output_from_cache = getOutputFromCache(loc_output, params, gradient_lib)
     models = updateModels(params, parameter_to_index, parameter_scaling_type, models)
     coreTEM!(
         models,
         loc_forcing,
-        loc_spinup_forcing,
+        loc_spinup,
         loc_forcing_t,
         loc_output_from_cache,
         land_init,
@@ -57,7 +57,7 @@ function lossVector(params, models, parameter_to_index, parameter_scaling_type, 
 end
 
 """
-    loss(params, models, parameter_to_index, parameter_scaling_type, loc_forcing, loc_spinup_forcing, loc_forcing_t, loc_output, land_init, tem_info, loc_obs, cost_options, constraint_method, gradient_lib, ::LossModelObsMachineLearning)
+    loss(params, models, parameter_to_index, parameter_scaling_type, loc_forcing, loc_spinup, loc_forcing_t, loc_output, land_init, tem_info, loc_obs, cost_options, constraint_method, gradient_lib, ::LossModelObsMachineLearning)
 
 Calculates the scalar loss for a given site in hybrid (ML) modeling in SINDBAD.
 
@@ -69,7 +69,7 @@ This function computes the loss value for a given site by first calling `lossVec
 - `parameter_to_index`: Mapping from parameter names to indices.
 - `parameter_scaling_type`: Parameter scaling configuration.
 - `loc_forcing`: Forcing data for the site.
-- `loc_spinup_forcing`: Spinup forcing data for the site.
+- `loc_spinup`: A NT with the spinup `sequence` of the site and the `forcing` derived from it.
 - `loc_forcing_t`: Forcing data for a single time step.
 - `loc_output`: Output data structure for the site.
 - `land_init`: Initial land state.
@@ -89,17 +89,17 @@ This function computes the loss value for a given site by first calling `lossVec
 
 # Example
 ```julia
-t_loss = loss(params, models, parameter_to_index, parameter_scaling_type, loc_forcing, loc_spinup_forcing, loc_forcing_t, loc_output, land_init, tem_info, loc_obs, cost_options, constraint_method, gradient_lib, LossModelObsMachineLearning())
+t_loss = loss(params, models, parameter_to_index, parameter_scaling_type, loc_forcing, loc_spinup, loc_forcing_t, loc_output, land_init, tem_info, loc_obs, cost_options, constraint_method, gradient_lib, LossModelObsMachineLearning())
 ```
 """
-function loss(params, models, parameter_to_index, parameter_scaling_type, loc_forcing, loc_spinup_forcing, loc_forcing_t, loc_output, land_init, tem_info, loc_obs, cost_options, constraint_method, gradient_lib,loss_type::LossModelObsMachineLearning)
-    loss_vector, _ = lossVector(params, models,parameter_to_index, parameter_scaling_type, loc_forcing, loc_spinup_forcing, loc_forcing_t, loc_output, land_init, tem_info, loc_obs, cost_options, constraint_method, gradient_lib, loss_type)
+function loss(params, models, parameter_to_index, parameter_scaling_type, loc_forcing, loc_spinup, loc_forcing_t, loc_output, land_init, tem_info, loc_obs, cost_options, constraint_method, gradient_lib,loss_type::LossModelObsMachineLearning)
+    loss_vector, _ = lossVector(params, models,parameter_to_index, parameter_scaling_type, loc_forcing, loc_spinup, loc_forcing_t, loc_output, land_init, tem_info, loc_obs, cost_options, constraint_method, gradient_lib, loss_type)
     t_loss = combineMetric(loss_vector, constraint_method)
     return t_loss
 end
 
-function lossComponents(params, models, parameter_to_index, parameter_scaling_type, loc_forcing, loc_spinup_forcing, loc_forcing_t, loc_output, land_init, tem_info, loc_obs, cost_options, constraint_method, gradient_lib,loss_type::LossModelObsMachineLearning)
-    loss_vector, loss_indices = lossVector(params, models,parameter_to_index, parameter_scaling_type, loc_forcing, loc_spinup_forcing, loc_forcing_t, loc_output, land_init, tem_info, loc_obs, cost_options, constraint_method, gradient_lib, loss_type)
+function lossComponents(params, models, parameter_to_index, parameter_scaling_type, loc_forcing, loc_spinup, loc_forcing_t, loc_output, land_init, tem_info, loc_obs, cost_options, constraint_method, gradient_lib,loss_type::LossModelObsMachineLearning)
+    loss_vector, loss_indices = lossVector(params, models,parameter_to_index, parameter_scaling_type, loc_forcing, loc_spinup, loc_forcing_t, loc_output, land_init, tem_info, loc_obs, cost_options, constraint_method, gradient_lib, loss_type)
     t_loss = combineMetric(loss_vector, constraint_method)
     return t_loss, loss_vector, loss_indices
 end

@@ -1,0 +1,162 @@
+name: SindbadTEM.jl benchmark
+on:
+  pull_request:
+    paths:
+      - 'SindbadTEM/src/Processes/**'
+      - 'SindbadTEM/src/Processes.jl'
+      - 'SindbadTEM/test/test_data/**'
+      - 'tools/benchmark/TestSindbadTEM/**'
+      - '.github/workflows/SindbadTEM-benchmark.yml'
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  # The comprehensive, detailed check: runs every approach's define/precompute/compute/update
+  # multiple times each (for accurate timing/allocation measurement) against the committed
+  # TestSindbadTEM-derived test data and reports status/time/allocations. Not a pass/fail gate --
+  # approaches outside the test data's own model structure are *expected* to error/not-apply, so
+  # this job never fails the build on their account (only a genuine bug in the benchmark/render
+  # scripts themselves would). Regenerate the test data via
+  # tools/benchmark/TestSindbadTEM/derive_sindbadTEM_test_data.jl if they go stale.
+  #
+  # A separate workflow file from SindbadTEM.yml (rather than a job in it) so it can be
+  # comment-triggered on its own via `/test-tem` without also re-running SindbadTEM.yml's
+  # full-matrix job -- see ci-commands.yml. On-demand only (workflow_dispatch, e.g. via
+  # `/test-tem`) -- doesn't auto-run on a PR/push; see test-model below for the one that does.
+  test-tem:
+    if: github.event_name == 'workflow_dispatch'
+    name: "SindbadTEM: test-tem (process benchmark)"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: julia-actions/setup-julia@v3
+        with:
+          version: '1'
+      - uses: julia-actions/cache@v3
+      - name: Instantiate SindbadTEM
+        shell: julia --project=SindbadTEM {0}
+        run: |
+          using Pkg
+          rm(joinpath("SindbadTEM", "Manifest.toml"); force=true)
+          Pkg.instantiate()
+      - name: Run benchmark
+        run: julia --project=SindbadTEM tools/benchmark/TestSindbadTEM/benchmarkApproaches.jl tools/benchmark/TestSindbadTEM/benchmark_output/benchmark_results.psv
+      - name: Render report
+        run: |
+          julia --project=SindbadTEM tools/benchmark/TestSindbadTEM/renderBenchmarkReport.jl \
+            tools/benchmark/TestSindbadTEM/benchmark_output/benchmark_results.psv \
+            tools/benchmark/TestSindbadTEM/benchmark_output/benchmark_report.html \
+            tools/benchmark/TestSindbadTEM/benchmark_output/benchmark_summary.md
+      - name: Add to job summary
+        if: always()
+        run: cat tools/benchmark/TestSindbadTEM/benchmark_output/benchmark_summary.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: sindbad-process-benchmark
+          path: tools/benchmark/TestSindbadTEM/benchmark_output/benchmark_report.html
+
+  # The quick, full-catalog check: runs checkApproaches.jl (define/precompute/compute
+  # type-stability + NaN/Inf checks, one call per approach, informational only; update is opt-in,
+  # off by default -- see SindbadTEM/test/checkApproaches.jl and README.md). Deliberately not part of
+  # Pkg.test("SindbadTEM") (see SindbadTEM/test/runtests.jl's comment on why) -- pure Julia logic
+  # with no OS-specific behavior, so it doesn't need its own 3-OS x 2-Julia-version matrix the
+  # way package compilation does. On-demand only (workflow_dispatch, e.g. via `/test-tem`),
+  # alongside test-tem above -- for a fast, per-push, only-the-changed-approaches version of this
+  # same check that DOES run automatically, see test-model below.
+  analyse-tem:
+    if: github.event_name == 'workflow_dispatch'
+    name: "SindbadTEM: analyse-tem (approach checks, full catalog)"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: julia-actions/setup-julia@v3
+        with:
+          version: '1'
+      - uses: julia-actions/cache@v3
+      - name: Instantiate SindbadTEM
+        shell: julia --project=SindbadTEM {0}
+        run: |
+          using Pkg
+          rm(joinpath("SindbadTEM", "Manifest.toml"); force=true)
+          Pkg.instantiate()
+      - name: Run approach checks
+        run: julia --project=SindbadTEM SindbadTEM/test/runApproachChecks.jl
+
+  # The fast, per-push, targeted version of analyse-tem above: only the approaches whose own
+  # file changed, so an ordinary PR push gets quick feedback without paying for the full ~240
+  # approach catalog every time. Maps each changed SindbadTEM/src/Processes/**/*.jl file to its
+  # approach struct name via the filename == struct name convention (holds for every approach
+  # file in the repo; verified when this job was added). A changed shared file that isn't itself
+  # one approach's file (e.g. a process's own abstract-type file, or SindbadTEM/src/Processes.jl)
+  # doesn't map to anything here and is silently skipped -- run analyse-tem or test-tem for that.
+  #
+  # Unlike analyse-tem, this one hard-fails (nonzero exit) if a *targeted* approach fails/errors
+  # -- see SINDBADTEM_TEST_APPROACHES in SindbadTEM/test/checkApproaches.jl. To actually make this
+  # block merging, it also needs to be added as a required status check under the repo's branch
+  # protection settings (Settings -> Branches) -- that's a separate, admin-only step; nothing in
+  # this file makes a check "required" on its own.
+  #
+  # The only job in this workflow that auto-runs (on a relevant PR push) -- test-tem/analyse-tem
+  # above are on-demand only. Also runs on workflow_dispatch (e.g. `/test-tem`), though the
+  # changed-approaches diff below has no base commit to compare against outside a PR/push, so it
+  # no-ops (skips) in that case.
+  test-model:
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+    name: "SindbadTEM: test-model"
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Find changed approaches
+        id: changed
+        env:
+          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          if [ -z "$BASE_SHA" ] || [ "$BASE_SHA" = "0000000000000000000000000000000000000000" ]; then
+            echo "No usable base commit (new branch or first push) -- skipping."
+            echo "approaches=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          approaches=""
+          for f in $(git diff --name-only "$BASE_SHA" "$HEAD_SHA" -- SindbadTEM/src/Processes/); do
+            case "$f" in
+              *.jl) ;;
+              *) continue ;;
+            esac
+            name=$(basename "$f" .jl)
+            dir=$(basename "$(dirname "$f")")
+            [ "$name" = "$dir" ] && continue  # the process's own abstract-type file, not an approach
+            approaches="$approaches,$name"
+          done
+          approaches="${approaches#,}"
+          echo "Changed approaches: ${approaches:-none}"
+          echo "approaches=$approaches" >> "$GITHUB_OUTPUT"
+      - uses: julia-actions/setup-julia@v3
+        if: steps.changed.outputs.approaches != ''
+        with:
+          version: '1'
+      - uses: julia-actions/cache@v3
+        if: steps.changed.outputs.approaches != ''
+      - name: Instantiate SindbadTEM
+        if: steps.changed.outputs.approaches != ''
+        shell: julia --project=SindbadTEM {0}
+        run: |
+          using Pkg
+          rm(joinpath("SindbadTEM", "Manifest.toml"); force=true)
+          Pkg.instantiate()
+      - name: Run changed-approach checks
+        if: steps.changed.outputs.approaches != ''
+        env:
+          SINDBADTEM_TEST_APPROACHES: ${{ steps.changed.outputs.approaches }}
+        run: julia --project=SindbadTEM SindbadTEM/test/runApproachChecks.jl

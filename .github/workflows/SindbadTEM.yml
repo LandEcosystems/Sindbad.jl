@@ -6,63 +6,231 @@ on:
       - '*.md'
     branches:
       - main
-  push:
-    tags:
-      - '*'
-    branches:
-      - main
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
 jobs:
-  test:
-    name: Julia ${{ matrix.version }} - ${{ matrix.os }} - ${{ matrix.arch }} - ${{ github.event_name }}
+  # Runs on every push to a PR -- ubuntu only, both Julia versions. Kept fast/cheap so it's
+  # reasonable to require before merge. For full OS coverage, use the "full-matrix" job below
+  # (Actions tab -> Run workflow, or comment `/run-full-matrix` on the PR -- see ci-commands.yml).
+  quick:
+    if: github.event_name == 'pull_request'
+    name: "SindbadTEM: Julia ${{ matrix.version }} - ${{ matrix.os }} - quick"
     runs-on: ${{ matrix.os }}
-    continue-on-error: ${{ matrix.allow_failure }}
+    timeout-minutes: 60
     env:
-      JULIA_PKG_USE_CLI_GIT: "true"
+      JULIA_NUM_PRECOMPILE_TASKS: 1
     strategy:
       fail-fast: false
       matrix:
         version:
-          - '1.10'
-          - '1.11'
+          - 'lts'
+          - '1'
         os:
           - ubuntu-latest
-          - macOS-latest
-          - windows-latest
-        arch:
-          - x64
-        allow_failure: [false]
     steps:
-      - uses: actions/checkout@v4
-      - uses: julia-actions/setup-julia@v2
+      - uses: actions/checkout@v7
+      - uses: julia-actions/setup-julia@v3
         with:
           version: ${{ matrix.version }}
-          arch: ${{ matrix.arch }}
-      - uses: actions/cache@v4
-        env:
-          cache-name: cache-artifacts
-        with:
-          path: ~/.julia/artifacts
-          key: ${{ runner.os }}-test-${{ env.cache-name }}-${{ hashFiles('**/Project.toml') }}
-          restore-keys: |
-            ${{ runner.os }}-test-${{ env.cache-name }}-
-            ${{ runner.os }}-test-
+      - uses: julia-actions/cache@v3
       - name: Develop and test SindbadTEM
         shell: julia --project=SindbadTEM {0}
+        env:
+          MATRIX_OS: ${{ matrix.os }}
+          MATRIX_VERSION: ${{ matrix.version }}
+          TEST_REPORT_CSV: test_report_${{ matrix.os }}_${{ matrix.version }}.csv
         run: |
           using Pkg
           # CI should not rely on developer-local Manifests that point to /Users/... paths.
           # (When running with `--project=SindbadTEM`, the manifest lives in `SindbadTEM/Manifest.toml`.)
           rm(joinpath("SindbadTEM","Manifest.toml"); force=true)
           Pkg.instantiate()
-          Pkg.test("SindbadTEM"; coverage=true)
+          # Timed and try/catch'd (rather than a bare Pkg.test call) so the elapsed time and
+          # pass/fail status get written to CSV -- and picked up as a build artifact -- even when
+          # tests fail; `error(err)` at the end still fails this step/job so CI signal is
+          # unchanged. Same pattern as the full-matrix job below.
+          ok, err = true, ""
+          elapsed = @elapsed try
+              Pkg.test("SindbadTEM"; coverage=true)
+          catch e
+              ok, err = false, replace(sprint(showerror, e), "\n" => " ", "," => ";")
+          end
+          # matrix.version is the label passed to setup-julia ("lts"/"1"); VERSION is the
+          # concrete Julia version that label actually resolved to on this runner.
+          julia_label = "$(ENV["MATRIX_VERSION"]): $(VERSION)"
+          open(ENV["TEST_REPORT_CSV"], "w") do io
+              println(io, "os,julia,ok,time_s,error")
+              println(io, "$(ENV["MATRIX_OS"]),$(julia_label),$(ok),$(round(elapsed, digits=1)),$(err)")
+          end
+          !ok && error(err)
       - uses: julia-actions/julia-processcoverage@v1
         with:
           directories: SindbadTEM/src
-      - uses: codecov/codecov-action@v5
+      - uses: codecov/codecov-action@v7
         with:
           files: lcov.info
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: sindbadtem-test-report-quick-${{ matrix.os }}-${{ matrix.version }}
+          path: test_report_${{ matrix.os }}_${{ matrix.version }}.csv
+
+  # Posts an immediate "in progress" comment naming what's running, before full-matrix (which
+  # can take a while) finishes -- runs in parallel with it, not blocking its start. The `report`
+  # job below overwrites this same comment (same marker) with the final result once it's done.
+  start-report:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v7
+      - name: Post in-progress status to PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          pr_number=$(gh pr list --repo "$GITHUB_REPOSITORY" --head "${{ github.ref_name }}" --state open --json number --jq '.[0].number')
+          if [ -z "$pr_number" ]; then
+            echo "No open PR for branch ${{ github.ref_name }}; skipping comment."
+            exit 0
+          fi
+          {
+            echo "<!-- ci-comment-marker: sindbadtem-full-matrix -->"
+            echo "### SindbadTEM.jl full OS matrix: in progress"
+            echo ""
+            echo "Running: Julia lts/1 x ubuntu-latest/macOS-latest/windows-latest (6 jobs)"
+            echo ""
+            echo "[View run]($RUN_URL)"
+          } > /tmp/comment_body.md
+          .github/scripts/upsert_pr_comment.sh "$pr_number" "sindbadtem-full-matrix" /tmp/comment_body.md
+
+  # Full OS x Julia-version matrix. On-demand only (workflow_dispatch, e.g. via `/compile-os`)
+  # against any branch -- including an open PR's branch, so you can validate the full matrix
+  # before merging without paying for it on every commit or every push to main.
+  full-matrix:
+    if: github.event_name == 'workflow_dispatch'
+    name: "SindbadTEM: Julia ${{ matrix.version }} - ${{ matrix.os }} - full"
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    continue-on-error: ${{ matrix.allow_failure }}
+    env:
+      # Julia 1.10 can deadlock in FileWatching.Pidfile when precompiling
+      # multiple package extensions concurrently; force serial precompilation.
+      JULIA_NUM_PRECOMPILE_TASKS: 1
+    strategy:
+      fail-fast: false
+      matrix:
+        version:
+          - 'lts'
+          - '1'
+        os:
+          - ubuntu-latest
+          - macOS-latest
+          - windows-latest
+        allow_failure: [false]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: julia-actions/setup-julia@v3
+        with:
+          version: ${{ matrix.version }}
+      - uses: julia-actions/cache@v3
+      - name: Develop and test SindbadTEM
+        shell: julia --project=SindbadTEM {0}
+        env:
+          MATRIX_OS: ${{ matrix.os }}
+          MATRIX_VERSION: ${{ matrix.version }}
+          TEST_REPORT_CSV: test_report_${{ matrix.os }}_${{ matrix.version }}.csv
+        run: |
+          using Pkg
+          # CI should not rely on developer-local Manifests that point to /Users/... paths.
+          # (When running with `--project=SindbadTEM`, the manifest lives in `SindbadTEM/Manifest.toml`.)
+          rm(joinpath("SindbadTEM","Manifest.toml"); force=true)
+          Pkg.instantiate()
+          # Timed and try/catch'd (rather than a bare Pkg.test call) so the elapsed time and
+          # pass/fail status get written to CSV -- and picked up as a build artifact -- even when
+          # tests fail; `error(err)` at the end still fails this step/job so CI signal is
+          # unchanged.
+          ok, err = true, ""
+          elapsed = @elapsed try
+              Pkg.test("SindbadTEM"; coverage=true)
+          catch e
+              ok, err = false, replace(sprint(showerror, e), "\n" => " ", "," => ";")
+          end
+          # matrix.version is the label passed to setup-julia ("lts"/"1"); VERSION is the
+          # concrete Julia version that label actually resolved to on this runner.
+          julia_label = "$(ENV["MATRIX_VERSION"]): $(VERSION)"
+          open(ENV["TEST_REPORT_CSV"], "w") do io
+              println(io, "os,julia,ok,time_s,error")
+              println(io, "$(ENV["MATRIX_OS"]),$(julia_label),$(ok),$(round(elapsed, digits=1)),$(err)")
+          end
+          !ok && error(err)
+      - uses: julia-actions/julia-processcoverage@v1
+        with:
+          directories: SindbadTEM/src
+      - uses: codecov/codecov-action@v7
+        with:
+          files: lcov.info
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: sindbadtem-test-report-${{ matrix.os }}-${{ matrix.version }}
+          path: test_report_${{ matrix.os }}_${{ matrix.version }}.csv
+
+  # Posts/updates a sticky comment on the PR whose branch this was dispatched against, so the
+  # result of an on-demand full-matrix run shows up in the PR without manual copy/paste.
+  report:
+    needs: full-matrix
+    if: always() && github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: sindbadtem-test-report-*
+          path: reports
+          merge-multiple: true
+      - name: Build timing table
+        run: |
+          shopt -s nullglob
+          csvs=(reports/*.csv)
+          {
+            if [ ${#csvs[@]} -eq 0 ]; then
+              echo "_No timing data available._"
+            else
+              echo "| OS | Julia | Status | Time (s) |"
+              echo "|---|---|---|---|"
+              for f in "${csvs[@]}"; do
+                tail -n +2 "$f"
+              done | while IFS=, read -r os version ok time_s error; do
+                status=$( [ "$ok" = "true" ] && echo "OK" || echo "FAILED" )
+                printf "| %s | %s | %s | %s |\n" "$os" "$version" "$status" "$time_s"
+              done
+            fi
+          } > /tmp/timing_table.md
+      - name: Post result to PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RESULT: ${{ needs.full-matrix.result }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          pr_number=$(gh pr list --repo "$GITHUB_REPOSITORY" --head "${{ github.ref_name }}" --state open --json number --jq '.[0].number')
+          if [ -z "$pr_number" ]; then
+            echo "No open PR for branch ${{ github.ref_name }}; skipping comment."
+            exit 0
+          fi
+          {
+            echo "<!-- ci-comment-marker: sindbadtem-full-matrix -->"
+            echo "### SindbadTEM.jl full OS matrix: $RESULT"
+            echo ""
+            cat /tmp/timing_table.md
+            echo ""
+            echo "[View run]($RUN_URL) (Julia lts/1 x ubuntu/macOS/windows)"
+          } > /tmp/comment_body.md
+          .github/scripts/upsert_pr_comment.sh "$pr_number" "sindbadtem-full-matrix" /tmp/comment_body.md

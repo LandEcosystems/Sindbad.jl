@@ -67,6 +67,7 @@ purpose(::Type{MachineLearningUpdateType}) = "Abstract type for updating the mac
 
 struct OptimisersUpdate <: MachineLearningUpdateType end
 purpose(::Type{OptimisersUpdate}) = "Use Optimisers.jl for updating the machine learning model during training"
+requires_package(::Type{OptimisersUpdate}) = "Optimisers"
 
 # Machine Learning Pullback types
 export MachineLearningPullbackType
@@ -77,6 +78,7 @@ purpose(::Type{MachineLearningPullbackType}) = "Abstract type for pullback funct
 
 struct ZygotePullback <: MachineLearningPullbackType end
 purpose(::Type{ZygotePullback}) = "Use Zygote.jl for calculating the pullback function for the Jacobian-vector product during machine learning training"
+requires_package(::Type{ZygotePullback}) = "Zygote"
 
 
 # Folds
@@ -98,6 +100,7 @@ purpose(::Type{MachineLearningModelType}) = "Abstract type for machine learning 
 
 struct FluxDenseNN <: MachineLearningModelType end
 purpose(::Type{FluxDenseNN}) = "simple dense neural network model implemented in Flux.jl"
+requires_package(::Type{FluxDenseNN}) = "Flux"
 
 ## Optimizers
 export MachineLearningOptimizerType
@@ -109,9 +112,11 @@ purpose(::Type{MachineLearningOptimizerType}) = "Abstract type for optimizers us
 
 struct OptimisersAdam <: MachineLearningOptimizerType end
 purpose(::Type{OptimisersAdam}) = "Use Optimisers.jl Adam optimizer for trainingMachine Learningmodels in SINDBAD"
+requires_package(::Type{OptimisersAdam}) = "Optimisers"
 
 struct OptimisersDescent <: MachineLearningOptimizerType end
 purpose(::Type{OptimisersDescent}) = "Use Optimisers.jl Descent optimizer for trainingMachine Learningmodels in SINDBAD"
+requires_package(::Type{OptimisersDescent}) = "Optimisers"
 
 ## Activation functions
 export ActivationType
@@ -125,12 +130,15 @@ purpose(::Type{ActivationType}) = "Abstract type for activation functions used i
 
 struct FluxRelu <: ActivationType end
 purpose(::Type{FluxRelu}) = "Use Flux.jl ReLU activation function"
+requires_package(::Type{FluxRelu}) = "Flux"
 
 struct FluxSigmoid <: ActivationType end
 purpose(::Type{FluxSigmoid}) = "Use Flux.jl Sigmoid activation function"
+requires_package(::Type{FluxSigmoid}) = "Flux"
 
 struct FluxTanh <: ActivationType end
 purpose(::Type{FluxTanh}) = "Use Flux.jl Tanh activation function"
+requires_package(::Type{FluxTanh}) = "Flux"
 
 struct CustomSigmoid <: ActivationType end
 purpose(::Type{CustomSigmoid}) = "Use a custom sigmoid activation function. In this case, the `k_σ` parameter in ml_model sections of the settings is used to control the steepness of the sigmoid function."

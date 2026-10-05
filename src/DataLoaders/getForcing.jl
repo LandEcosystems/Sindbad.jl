@@ -21,11 +21,7 @@ function collectForcingSizes(info, in_yax)
     dnames = Symbol[]
     dsizes = []
     push!(dnames, time_dim_name)
-    if time_dim_name in in_yax
-        push!(dsizes, length(getproperty(in_yax, time_dim_name)))
-    else
-        push!(dsizes, length(DimensionalData.lookup(in_yax, time_dim_name)))
-    end
+    collectTimeSizes!(in_yax, dsizes, time_dim_name)
     for space ∈ info.experiment.data_settings.forcing.data_dimension.space
         push!(dnames, Symbol(space))
         push!(dsizes, length(getproperty(in_yax, Symbol(space))))
@@ -33,6 +29,27 @@ function collectForcingSizes(info, in_yax)
     f_sizes = (; Pair.(dnames, dsizes)...)
     return f_sizes
 end
+
+
+function collectTimeSizes!(incube::YAXArrays.YAXArray, dsizes, time_dim_name)
+    new_size = length(DimensionalData.lookup(incube, time_dim_name))
+    push!(dsizes, new_size)
+    return nothing
+end
+
+function collectTimeSizes!(incube::AxisKeys.KeyedArray, dsizes, time_dim_name)
+    new_size = length(getproperty(incube, time_dim_name))
+    push!(dsizes, new_size)
+    return nothing
+end
+
+"""
+    collectTimeSizes!(incube::YAXArrays.YAXArray, dsizes, time_dim_name)
+    collectTimeSizes!(incube::AxisKeys.KeyedArray, dsizes, time_dim_name)
+
+Collects the size of the time dimension from the input cube and appends it to `dsizes`.
+"""
+function collectTimeSizes! end
 
 """
     collectForcingHelpers(info, f_sizes, f_dimensions)
@@ -93,15 +110,11 @@ function createForcingNamedTuple(incubes, f_sizes, f_dimensions, info)
     @debug "     ::variable names::"
     forcing_vars = keys(info.experiment.data_settings.forcing.variables)
     f_helpers = collectForcingHelpers(info, f_sizes, f_dimensions)
-    input_array_type = getfield(Types, to_uppercase_first(info.helpers.run.input_array_type, "Input"))()
-    typed_cubes = getInputArrayOfType(incubes, input_array_type)
+    typed_cubes = getInputArrayOfType(incubes, info.helpers.run.input_array_type)
     data_ts_type=[]
+    time_dim_name = Symbol(info.experiment.data_settings.forcing.data_dimension.time)
     for incube in typed_cubes
-        if in(:time, AxisKeys.dimnames(incube))
-            push!(data_ts_type, ForcingWithTime())
-        else
-            push!(data_ts_type, ForcingWithoutTime())
-        end 
+        push!(data_ts_type, collectTypesTiDim(incube, time_dim_name))
     end
     data_ts_type = [_dt for _dt in data_ts_type]
     f_types =  Tuple(Tuple.(Pair.(forcing_vars, data_ts_type)))
@@ -113,6 +126,31 @@ function createForcingNamedTuple(incubes, f_sizes, f_dimensions, info)
         f_types = f_types,
         helpers=f_helpers)
     return forcing
+end
+
+# Fixes bug. Collecting forcing variables `WithTime` was not working for YAXArrays
+# These two functions now dispatch on KeyedArray and YAXArray
+# remove hardcoded time_dim_name and use the one from info.experiment.data_settings.forcing.data_dimension.time 
+"""
+ collectTypesTiDim(incube::AxisKeys.KeyedArray, time_dim_name::Symbol)
+"""
+function collectTypesTiDim(incube::AxisKeys.KeyedArray, time_dim_name::Symbol)
+    if in(time_dim_name, AxisKeys.dimnames(incube))
+        return ForcingWithTime()
+    else
+        return ForcingWithoutTime()
+    end
+end
+
+"""
+ collectTypesTiDim(incube::YAXArrays.YAXArray, time_dim_name::Symbol)
+"""
+function collectTypesTiDim(incube::YAXArrays.YAXArray, time_dim_name::Symbol)
+    if hasdim(incube, time_dim_name)
+        return ForcingWithTime()
+    else
+        return ForcingWithoutTime()
+    end
 end
 
 
@@ -132,14 +170,6 @@ Reads forcing data from the `data_path` specified in the experiment configuratio
   - `f_types`: The types of the forcing data (e.g., `ForcingWithTime` or `ForcingWithoutTime`).
   - `helpers`: Helper information for the forcing data.
 
-# Examples
-```jldoctest
-julia> using Sindbad
-
-julia> # Load forcing data from experiment configuration
-julia> # forcing = getForcing(info)
-```
-
 # Notes:
 - Reads forcing data from the specified data path and processes it using the SINDBAD framework.
 - Handles spatiotemporal and spatial-only forcing data.
@@ -153,15 +183,14 @@ function getForcing(info::NamedTuple)
     if !isnothing(data_path)
         data_path = getAbsDataPath(info, data_path)
         print_info(getForcing, @__FILE__, @__LINE__, "default_data_path: `$(data_path)`")
-        nc_default = loadDataFile(data_path)
+        nc_default = YAXArrays.open_dataset(data_path)
     end
-    data_backend = getfield(Types, to_uppercase_first(info.helpers.run.input_data_backend, "Backend"))()
 
     forcing_mask = nothing
     if :sel_mask ∈ keys(forcing_data_settings)
         if !isnothing(forcing_data_settings.forcing_mask.data_path)
             mask_path = getAbsDataPath(info, forcing_data_settings.forcing_mask.data_path)
-            _, forcing_mask = getYaxFromSource(nothing, mask_path, nothing, forcing_data_settings.forcing_mask.source_variable, info, data_backend)
+            _, forcing_mask = getYaxFromSource(nothing, mask_path, nothing, forcing_data_settings.forcing_mask.source_variable)
             forcing_mask = positive_mask(forcing_mask)
         end
     end
@@ -178,7 +207,7 @@ function getForcing(info::NamedTuple)
         nc = nc_default
         vinfo = merge_namedtuple_prefer_nonempty(default_info, forcing_data_settings.variables[k])
         data_path_v = getAbsDataPath(info, getfield(vinfo, :data_path))
-        nc, yax = getYaxFromSource(nc, data_path, data_path_v, vinfo.source_variable, info, data_backend)
+        nc, yax = getYaxFromSource(nc, data_path, data_path_v, vinfo.source_variable)
         incube = subsetAndProcessYax(yax, forcing_mask, tar_dims, vinfo, info, num_type)
         v_op = vinfo.additive_unit_conversion ? " + " : " * "
         v_op = v_op * "$(vinfo.source_to_sindbad_unit)"
@@ -192,4 +221,3 @@ function getForcing(info::NamedTuple)
     end
     return createForcingNamedTuple(incubes, f_sizes, f_dimension, info)
 end
-

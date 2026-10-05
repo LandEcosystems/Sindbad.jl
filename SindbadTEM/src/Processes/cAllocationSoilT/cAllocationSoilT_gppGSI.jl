@@ -30,7 +30,7 @@ function compute(params::cAllocationSoilT_gppGSI, forcing, land, helpers)
     end
 
     # computation for the temperature effect on decomposition/mineralization
-    c_allocation_f_soilT = f_soilT_prev + (gpp_f_airT - f_soilT_prev) * τ_Tsoil
+    c_allocation_f_soilT = c_allocation_f_soilT_prev + (gpp_f_airT - c_allocation_f_soilT_prev) * τ_Tsoil
 
     # set the prev
     c_allocation_f_soilT_prev = c_allocation_f_soilT

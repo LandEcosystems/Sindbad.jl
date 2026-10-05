@@ -79,17 +79,17 @@ function precompute(params::soilProperties_Saxton1986, forcing, land, helpers)
         (α, β, k_fc, θ_fc, ψ_fc) = calcPropsSaxton1986(params, land, helpers, sl, ψ_fc)
         (_, _, k_wp, θ_wp, ψ_wp) = calcPropsSaxton1986(params, land, helpers, sl, ψ_wp)
         (_, _, k_sat, θ_sat, ψ_sat) = calcPropsSaxton1986(params, land, helpers, sl, ψ_sat)
-        @rep_elem α ⇒ (sp_α, sl, :soilW)
-        @rep_elem β ⇒ (sp_β, sl, :soilW)
-        @rep_elem k_fc ⇒ (sp_k_fc, sl, :soilW)
-        @rep_elem θ_fc ⇒ (sp_θ_fc, sl, :soilW)
-        @rep_elem ψ_fc ⇒ (sp_ψ_fc, sl, :soilW)
-        @rep_elem k_wp ⇒ (sp_k_wp, sl, :soilW)
-        @rep_elem θ_wp ⇒ (sp_θ_wp, sl, :soilW)
-        @rep_elem ψ_wp ⇒ (sp_ψ_wp, sl, :soilW)
-        @rep_elem k_sat ⇒ (sp_k_sat, sl, :soilW)
-        @rep_elem θ_sat ⇒ (sp_θ_sat, sl, :soilW)
-        @rep_elem ψ_sat ⇒ (sp_ψ_sat, sl, :soilW)
+        @rep_elem α ⇒ (sp_α, sl)
+        @rep_elem β ⇒ (sp_β, sl)
+        @rep_elem k_fc ⇒ (sp_k_fc, sl)
+        @rep_elem θ_fc ⇒ (sp_θ_fc, sl)
+        @rep_elem ψ_fc ⇒ (sp_ψ_fc, sl)
+        @rep_elem k_wp ⇒ (sp_k_wp, sl)
+        @rep_elem θ_wp ⇒ (sp_θ_wp, sl)
+        @rep_elem ψ_wp ⇒ (sp_ψ_wp, sl)
+        @rep_elem k_sat ⇒ (sp_k_sat, sl)
+        @rep_elem θ_sat ⇒ (sp_θ_sat, sl)
+        @rep_elem ψ_sat ⇒ (sp_ψ_sat, sl)
     end
 
     ## pack land variables
@@ -145,12 +145,12 @@ function calcPropsSaxton1986(params::soilProperties_Saxton1986, land, helpers, s
     # air entry pressure [kPa]
     ψ_e = abs(n100 * (d1 + d2 * θ_s))
     # θ = ones(typeof(clay), size(clay))
-    θ = o_one
-    if (ψ >= n10 & ψ <= n1500)
+    θ = oftype(A, o_one)
+    if (ψ >= n10 && ψ <= n1500)
         θ = ψ / A^(o_one / B)
     end
     # clear ndx
-    if (ψ >= ψ_e & ψ < n10)
+    if (ψ >= ψ_e && ψ < n10)
         # θ at 10 kPa [m^3/m^3]
         θ_10 = exp((f1 - log(A)) / B)
         # ---------------------------------------------------------------------
@@ -159,7 +159,7 @@ function calcPropsSaxton1986(params::soilProperties_Saxton1986, land, helpers, s
         θ = θ_10 + (n10 - ψ) * (θ_s - θ_10) / (n10 - ψ_e)
     end
     # clear ndx
-    if (ψ >=z_zero& ψ < ψ_e)
+    if (ψ >= z_zero && ψ < ψ_e)
         θ = θ_s
     end
     # clear ndx

@@ -41,6 +41,7 @@ This module integrates various components and utilities required to execute the 
 """
 module Simulation
    using ComponentArrays
+   using Dates
    using ProgressMeter
    using SindbadTEM
    using TimeSamplers
@@ -48,7 +49,10 @@ module Simulation
    using SindbadTEM.OmniTools
    using ..Setup
    using ..DataLoaders: YAXArrays
+   using ..DataLoaders: AllNaN, cleanData
    using ThreadPools
+   using YAXArrays
+   using DimensionalData: DimensionalData as DD
 
    include("utilsSimulation.jl")
    include("deriveSpinupForcing.jl")

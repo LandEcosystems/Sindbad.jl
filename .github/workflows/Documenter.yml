@@ -4,7 +4,6 @@ on:
     branches:
       - main
     tags: ['*']
-  pull_request:
   workflow_dispatch:
 
 # Add permissions for GitHub Actions to push to gh-pages
@@ -24,14 +23,19 @@ jobs:
   # Build job
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      # Julia 1.10 can deadlock in FileWatching.Pidfile when precompiling
+      # multiple package extensions concurrently; force serial precompilation.
+      JULIA_NUM_PRECOMPILE_TASKS: 1
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       - name: Setup Julia
-        uses: julia-actions/setup-julia@v2
+        uses: julia-actions/setup-julia@v3
       - name: Load Julia packages from cache
         id: julia-cache
-        uses: julia-actions/cache@v2
+        uses: julia-actions/cache@v3
       - name: Build and deploy docs
         uses: julia-actions/julia-docdeploy@v1
         env:
@@ -42,8 +46,72 @@ jobs:
       - name: Save Julia depot cache on cancel or failure
         id: julia-cache-save
         if: cancelled() || failure()
-        uses: actions/cache/save@v4
-        with: 
+        uses: actions/cache/save@v6
+        with:
           path: |
             ${{ steps.julia-cache.outputs.cache-paths }}
           key: ${{ steps.julia-cache.outputs.cache-key }}
+
+  # Posts an immediate "in progress" comment, before build (which can take a while) finishes --
+  # runs in parallel with it, not blocking its start. The `report` job below overwrites this
+  # same comment (same marker) with the final result once it's done.
+  start-report:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v7
+      - name: Post in-progress status to PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          pr_number=$(gh pr list --repo "$GITHUB_REPOSITORY" --head "${{ github.ref_name }}" --state open --json number --jq '.[0].number')
+          if [ -z "$pr_number" ]; then
+            echo "No open PR for branch ${{ github.ref_name }}; skipping comment."
+            exit 0
+          fi
+          {
+            echo "<!-- ci-comment-marker: docs-build -->"
+            echo "### Docs build: in progress"
+            echo ""
+            echo "[View run]($RUN_URL)"
+          } > /tmp/comment_body.md
+          .github/scripts/upsert_pr_comment.sh "$pr_number" "docs-build" /tmp/comment_body.md
+
+  # Posts/updates a sticky comment on the PR whose branch this was dispatched against, so the
+  # docs build result shows up alongside the /check-pr matrix report instead of only as the
+  # separate documenter/deploy status check. Only meaningful for workflow_dispatch -- push
+  # (post-merge/tag) has no PR to comment on.
+  report:
+    needs: build
+    if: always() && github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v7
+      - name: Post result to PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RESULT: ${{ needs.build.result }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          pr_number=$(gh pr list --repo "$GITHUB_REPOSITORY" --head "${{ github.ref_name }}" --state open --json number --jq '.[0].number')
+          if [ -z "$pr_number" ]; then
+            echo "No open PR for branch ${{ github.ref_name }}; skipping comment."
+            exit 0
+          fi
+          {
+            echo "<!-- ci-comment-marker: docs-build -->"
+            echo "### Docs build: $RESULT"
+            echo ""
+            echo "[View run]($RUN_URL)"
+            echo ""
+            # push_preview=false in docs/make.jl means this on-demand build doesn't deploy a
+            # PR-specific preview -- these links are the live site, which only reflects this
+            # branch's changes once merged to main (dev) or tagged (stable).
+            echo "Docs (live site, updates on merge/tag): [dev](https://landecosystems.github.io/Sindbad.jl/dev/) · [stable](https://landecosystems.github.io/Sindbad.jl/stable/)"
+          } > /tmp/comment_body.md
+          .github/scripts/upsert_pr_comment.sh "$pr_number" "docs-build" /tmp/comment_body.md

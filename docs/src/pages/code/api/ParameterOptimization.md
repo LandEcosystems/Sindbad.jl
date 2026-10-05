@@ -49,27 +49,27 @@ cost
 ```julia
 function cost end
 
-function cost(parameter_vector, _, selected_models, space_forcing, space_spinup_forcing, loc_forcing_t, output_array, space_output, space_land, tem_info, observations, parameter_updater, cost_options, multi_constraint_method, parameter_scaling_type, ::CostModelObs)
+function cost(parameter_vector, _, selected_models, space_forcing, space_spinup, loc_forcing_t, output_array, space_output, space_land, tem_info, observations, parameter_updater, cost_options, multi_constraint_method, parameter_scaling_type, ::CostModelObs)
     @debug parameter_vector
     updated_models = updateModels(parameter_vector, parameter_updater, parameter_scaling_type, selected_models)
-    runTEM!(updated_models, space_forcing, space_spinup_forcing, loc_forcing_t, space_output, space_land, tem_info)
+    runTEM!(updated_models, space_forcing, space_spinup, loc_forcing_t, space_output, space_land, tem_info)
     cost_vector = metricVector(output_array, observations, cost_options)
     cost_metric = combineMetric(cost_vector, multi_constraint_method)
     @debug cost_vector, cost_metric
     return cost_metric
 end
 
-function cost(parameter_vector, _, selected_models, space_forcing, space_spinup_forcing, loc_forcing_t, output_array, space_output, space_land, tem_info, observations, parameter_updater, cost_options, multi_constraint_method, parameter_scaling_type, ::CostModelObs)
+function cost(parameter_vector, _, selected_models, space_forcing, space_spinup, loc_forcing_t, output_array, space_output, space_land, tem_info, observations, parameter_updater, cost_options, multi_constraint_method, parameter_scaling_type, ::CostModelObs)
     @debug parameter_vector
     updated_models = updateModels(parameter_vector, parameter_updater, parameter_scaling_type, selected_models)
-    runTEM!(updated_models, space_forcing, space_spinup_forcing, loc_forcing_t, space_output, space_land, tem_info)
+    runTEM!(updated_models, space_forcing, space_spinup, loc_forcing_t, space_output, space_land, tem_info)
     cost_vector = metricVector(output_array, observations, cost_options)
     cost_metric = combineMetric(cost_vector, multi_constraint_method)
     @debug cost_vector, cost_metric
     return cost_metric
 end
 
-function cost(parameter_matrix, _, selected_models, space_forcing, space_spinup_forcing, loc_forcing_t, output_array, space_output, space_land, tem_info, observations, parameter_updater, cost_options, multi_constraint_method, parameter_scaling_type, cost_out::Vector, ::CostModelObsMT)
+function cost(parameter_matrix, _, selected_models, space_forcing, space_spinup, loc_forcing_t, output_array, space_output, space_land, tem_info, observations, parameter_updater, cost_options, multi_constraint_method, parameter_scaling_type, cost_out::Vector, ::CostModelObsMT)
     @debug "parameter_matrix:: ", size(parameter_matrix)
     parameter_set_size = size(parameter_matrix, 2)
     done_params=1
@@ -78,7 +78,7 @@ function cost(parameter_matrix, _, selected_models, space_forcing, space_spinup_
         parameter_vector = parameter_matrix[:, parameter_index]
         @debug parameter_vector
         updated_models = updateModels(parameter_vector, parameter_updater, parameter_scaling_type, selected_models)
-        coreTEM!(updated_models, space_forcing, space_spinup_forcing, loc_forcing_t, space_output[idx], space_land, tem_info)
+        coreTEM!(updated_models, space_forcing, space_spinup, loc_forcing_t, space_output[idx], space_land, tem_info)
         cost_vector = metricVector(space_output[idx], observations, cost_options)
         cost_metric = combineMetric(cost_vector, multi_constraint_method)
         cost_out[parameter_index] = cost_metric
@@ -88,17 +88,17 @@ function cost(parameter_matrix, _, selected_models, space_forcing, space_spinup_
     return cost_out
 end
 
-function cost(parameter_vector, default_values, selected_models, space_forcing, space_spinup_forcing, loc_forcing_t, output_array, space_output, space_land, tem_info, observations, parameter_updater, cost_options, multi_constraint_method, parameter_scaling_type, ::CostModelObsPriors)
+function cost(parameter_vector, default_values, selected_models, space_forcing, space_spinup, loc_forcing_t, output_array, space_output, space_land, tem_info, observations, parameter_updater, cost_options, multi_constraint_method, parameter_scaling_type, ::CostModelObsPriors)
     # prior has to be calculated before the parameters are backscaled and models are updated
     cost_prior = metric(MSE(), parameter_vector, parameter_vector, default_values)
-    cost_metric = cost(parameter_vector, default_values, selected_models, space_forcing, space_spinup_forcing, loc_forcing_t, output_array, space_output, space_land, tem_info, observations, parameter_updater, cost_options, multi_constraint_method, parameter_scaling_type, CostModelObs())
+    cost_metric = cost(parameter_vector, default_values, selected_models, space_forcing, space_spinup, loc_forcing_t, output_array, space_output, space_land, tem_info, observations, parameter_updater, cost_options, multi_constraint_method, parameter_scaling_type, CostModelObs())
     cost_metric = cost_metric + cost_prior
     @debug cost_vector, cost_metric
     return cost_metric
 end
 
-function cost(parameter_vector, default_values, selected_models, space_forcing, space_spinup_forcing, loc_forcing_t, output_array, space_output, space_land, tem_info, observations, parameter_updater, cost_options, multi_constraint_method, parameter_scaling_type)
-    cost_metric = cost(parameter_vector, default_values, selected_models, space_forcing, space_spinup_forcing, loc_forcing_t, output_array, space_output, space_land, tem_info, observations, parameter_updater, cost_options, multi_constraint_method, parameter_scaling_type, CostModelObs())
+function cost(parameter_vector, default_values, selected_models, space_forcing, space_spinup, loc_forcing_t, output_array, space_output, space_land, tem_info, observations, parameter_updater, cost_options, multi_constraint_method, parameter_scaling_type)
+    cost_metric = cost(parameter_vector, default_values, selected_models, space_forcing, space_spinup, loc_forcing_t, output_array, space_output, space_land, tem_info, observations, parameter_updater, cost_options, multi_constraint_method, parameter_scaling_type, CostModelObs())
     return cost_metric
 end
 
@@ -442,15 +442,15 @@ function optimizeTEM(forcing::NamedTuple, observations, info::NamedTuple)
     return opti_helpers.parameter_table
 end
 
-function optimizeTEMYax(forcing::NamedTuple, output::NamedTuple, tem::NamedTuple, optim::NamedTuple, observations::NamedTuple; max_cache=1e9)
+function optimizeTEMYax(forcing::NamedTuple, observations::NamedTuple, info; max_cache=1e9)
     incubes = (forcing.data..., observations.data...)
     indims = (forcing.dims..., observations.dims...)
     forcing_vars = collect(forcing.variables)
-    outdims = output.parameter_dim
+    outdims = info.output.parameter_dim
     out = output.land_init
     obs_vars = collect(observations.variables)
 
-    params = mapCube(optimizeYax, (incubes...,); out=out, tem=tem, optim=optim, forcing_vars=forcing_vars, obs_vars=obs_vars, indims=indims, outdims=outdims, max_cache=max_cache)
+    params = mapCube(optimizeYax, (incubes...,); out=out, info=info, forcing_vars=forcing_vars, obs_vars=obs_vars, indims=indims, outdims=outdims, max_cache=max_cache)
     return params
 end
 ```
@@ -468,15 +468,15 @@ optimizeTEMYax
 :::details Code
 
 ```julia
-function optimizeTEMYax(forcing::NamedTuple, output::NamedTuple, tem::NamedTuple, optim::NamedTuple, observations::NamedTuple; max_cache=1e9)
+function optimizeTEMYax(forcing::NamedTuple, observations::NamedTuple, info; max_cache=1e9)
     incubes = (forcing.data..., observations.data...)
     indims = (forcing.dims..., observations.dims...)
     forcing_vars = collect(forcing.variables)
-    outdims = output.parameter_dim
+    outdims = info.output.parameter_dim
     out = output.land_init
     obs_vars = collect(observations.variables)
 
-    params = mapCube(optimizeYax, (incubes...,); out=out, tem=tem, optim=optim, forcing_vars=forcing_vars, obs_vars=obs_vars, indims=indims, outdims=outdims, max_cache=max_cache)
+    params = mapCube(optimizeYax, (incubes...,); out=out, info=info, forcing_vars=forcing_vars, obs_vars=obs_vars, indims=indims, outdims=outdims, max_cache=max_cache)
     return params
 end
 ```
@@ -495,19 +495,27 @@ optimizer
 
 ```julia
 function optimizer(::Any, default_values::Any, ::Any, ::Any, ::Any, x::ParameterOptimizationMethod)
-    error("
-    Optimizer `$(nameof(typeof(x)))` not implemented. 
-    
+    pkg = requires_package(typeof(x))
+    if !isnothing(pkg)
+        error("
+    Optimizer `$(nameof(typeof(x)))` requires the `$(pkg)` package to be loaded.
+
+    This algorithm is implemented in the `Sindbad$(pkg)Ext` extension, which activates automatically once you run `using $(pkg)` in your session (alongside `using Sindbad`).
+    ")
+    else
+        error("
+    Optimizer `$(nameof(typeof(x)))` not implemented.
+
     To implement a new optimizer:
-    
-    - First add a new type as a subtype of `ParameterOptimizationMethod` in `src/Types/ParameterOptimizationTypes.jl`. 
-    
+
+    - First add a new type as a subtype of `ParameterOptimizationMethod` in `src/Types/ParameterOptimizationTypes.jl`.
+
     - Then, add a corresponding method:
-      - if it can be implemented as an internal Sindbad method without additional dependencies, implement the method in `src/ParameterOptimization/optimizer.jl`.     
+      - if it can be implemented as an internal Sindbad method without additional dependencies, implement the method in `src/ParameterOptimization/optimizer.jl`.
       - if it requires additional dependencies, implement the method in `ext/<extension_name>/ParameterOptimizationOptimizer.jl` extension.
 
-
     ")
+    end
     return
 end
 ```
@@ -544,7 +552,7 @@ function  prepOpti(forcing, observations, info, ::CostModelObsMT; algorithm_info
     
     space_index = 1 # the parallelization of cost computation only runs in single pixel runs
 
-    cost_function = x -> cost(x, opti_helpers.default_values, info.models.forward, run_helpers.space_forcing[space_index], run_helpers.space_spinup_forcing[space_index], run_helpers.loc_forcing_t, run_helpers.output_array, run_helpers.space_output_mt, deepcopy(run_helpers.space_land[space_index]), run_helpers.tem_info, observations, opti_helpers.parameter_table, opti_helpers.cost_options, info.optimization.run_options.multi_constraint_method, info.optimization.run_options.parameter_scaling, cost_vector, info.optimization.run_options.cost_method)
+    cost_function = x -> cost(x, opti_helpers.default_values, info.models.forward, run_helpers.space_forcing[space_index], run_helpers.space_spinup[space_index], run_helpers.loc_forcing_t, run_helpers.output_array, run_helpers.space_output_mt, deepcopy(run_helpers.space_land[space_index]), run_helpers.tem_info, observations, opti_helpers.parameter_table, opti_helpers.cost_options, info.optimization.run_options.multi_constraint_method, info.optimization.run_options.parameter_scaling, cost_vector, info.optimization.run_options.cost_method)
 
     opti_helpers = (; opti_helpers..., cost_function=cost_function, cost_vector=cost_vector)
     return opti_helpers
@@ -573,7 +581,7 @@ function  prepOpti(forcing, observations, info, cost_method::CostModelObs)
 
     cost_options = prepCostOptions(observations, info.optimization.cost_options, cost_method)
 
-    cost_function = x -> cost(x, default_values, info.models.forward, run_helpers.space_forcing, run_helpers.space_spinup_forcing, run_helpers.loc_forcing_t, run_helpers.output_array, run_helpers.space_output, deepcopy(run_helpers.space_land), run_helpers.tem_info, observations, parameter_table, cost_options, info.optimization.run_options.multi_constraint_method, info.optimization.run_options.parameter_scaling, cost_method)
+    cost_function = x -> cost(x, default_values, info.models.forward, run_helpers.space_forcing, run_helpers.space_spinup, run_helpers.loc_forcing_t, run_helpers.output_array, run_helpers.space_output, deepcopy(run_helpers.space_land), run_helpers.tem_info, observations, parameter_table, cost_options, info.optimization.run_options.multi_constraint_method, info.optimization.run_options.parameter_scaling, cost_method)
 
     opti_helpers = (; parameter_table=parameter_table, cost_function=cost_function, cost_options=cost_options, default_values=default_values, lower_bounds=lower_bounds, upper_bounds=upper_bounds, run_helpers=run_helpers)
     

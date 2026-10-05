@@ -44,7 +44,7 @@ Retrieves the list of all SINDBAD models, either from the provided `info` object
 - If the `info` object has a property `sindbad_models`, it overrides the default list.
 - This function ensures flexibility by allowing custom model lists to be specified in the experiment configuration.
 """
-function getAllSindbadModels(info; sindbad_models=standard_sindbad_model,  selected_models=standard_sindbad_model, selected_models_info=nothing)
+function getAllSindbadModels(info; sindbad_models=standard_sindbad_model, selected_models=standard_sindbad_model, selected_models_info=nothing)
     if hasproperty(info.settings.model_structure, :sindbad_models)
         sindbad_models = info.settings.model_structure.sindbad_models
         print_info(getAllSindbadModels, @__FILE__, @__LINE__, "using user-defined orders/models from model_structure.sindbad_models with model_structure including:", n_m=1)
@@ -122,7 +122,7 @@ function setOrderedSelectedModels(info::NamedTuple)
     end
     @debug "     setupInfo: creating initial out/land..."
 
-    info = (; info..., temp=(; info.temp..., models=(; sindbad_models=sindbad_models, selected_models=Table((; model=[order_selected_models...],t_repeat=t_repeat_models)))))
+    info = (; info..., temp=(; info.temp..., models=(; sindbad_models=sindbad_models, selected_models=Table((; model=[order_selected_models...], t_repeat=t_repeat_models)))))
     return info
 end
 
@@ -168,26 +168,29 @@ function setSpinupAndForwardModels(info::NamedTuple)
     # change is_spinup to a vector of indices
     is_spinup = findall(is_spinup .== 1)
 
+    info = (; info..., temp=(; info.temp..., models=(; info.temp.models..., forward=selected_approach_forward, is_spinup=is_spinup)))
     # update the parameters of the approaches if a parameter value has been added from the experiment configuration
-    default_parameter_table = getParameters(selected_approach_forward, info.temp.helpers.numbers.num_type, info.temp.helpers.dates.temporal_resolution)
+    if length(selected_approach_forward) > 0
+        default_parameter_table = getParameters(selected_approach_forward, info.temp.helpers.numbers.num_type, info.temp.helpers.dates.temporal_resolution)
 
-    input_parameter_table = nothing
-    if hasproperty(info.settings.model_structure, :parameter_table) && !isempty(info.settings.model_structure.parameter_table)
-        print_info(setSpinupAndForwardModels, @__FILE__, @__LINE__, "---using input parameters from model_structure.parameter_table in replace_info", n_m=20)
+        input_parameter_table = nothing
+        if hasproperty(info.settings.model_structure, :parameter_table) && !isempty(info.settings.model_structure.parameter_table)
+            print_info(setSpinupAndForwardModels, @__FILE__, @__LINE__, "---using input parameters from model_structure.parameter_table in replace_info", n_m=20)
 
-        input_parameter_table = info.settings.model_structure.parameter_table
-    elseif hasproperty(info[:settings], :parameters) && !isempty(info.settings.parameters)
-        print_info(setSpinupAndForwardModels, @__FILE__, @__LINE__, "     ---using input parameters from settings.parameters passed from CSV input file", n_m=20)
-        input_parameter_table = info.settings.parameters
-    end
-    updated_parameter_table = copy(default_parameter_table)
-    if !isnothing(input_parameter_table)
-        if !isa(input_parameter_table, Table)
-            error("input_parameter_table must be a Table, but its type is $(typeof(input_parameter_table)). Fix the input error in the source (table or csv file) to continue...")
+            input_parameter_table = info.settings.model_structure.parameter_table
+        elseif hasproperty(info[:settings], :parameters) && !isempty(info.settings.parameters)
+            print_info(setSpinupAndForwardModels, @__FILE__, @__LINE__, "     ---using input parameters from settings.parameters passed from CSV input file", n_m=20)
+            input_parameter_table = info.settings.parameters
         end
-        updated_parameter_table = setInputParameters(default_parameter_table, input_parameter_table, info.temp.helpers.dates.temporal_resolution)
-        selected_approach_forward = updateModelParameters(updated_parameter_table, selected_approach_forward, updated_parameter_table.optimized)
+        updated_parameter_table = copy(default_parameter_table)
+        if !isnothing(input_parameter_table)
+            if !isa(input_parameter_table, Table)
+                error("input_parameter_table must be a Table, but its type is $(typeof(input_parameter_table)). Fix the input error in the source (table or csv file) to continue...")
+            end
+            updated_parameter_table = setInputParameters(default_parameter_table, input_parameter_table, info.temp.helpers.dates.temporal_resolution)
+            selected_approach_forward = updateModelParameters(updated_parameter_table, selected_approach_forward, updated_parameter_table.optimized)
+        end
+        info = (; info..., temp=(; info.temp..., models=(; info.temp.models..., forward=selected_approach_forward, is_spinup=is_spinup, parameter_table=updated_parameter_table)))
     end
-    info = (; info..., temp=(; info.temp..., models=(; info.temp.models..., forward=selected_approach_forward, is_spinup=is_spinup, parameter_table=updated_parameter_table))) 
     return info
 end

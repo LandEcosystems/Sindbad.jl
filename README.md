@@ -35,26 +35,32 @@ The framework provides a unified system for:
 
 This repository contains the `Sindbad` package sources. The `Sindbad` package depends on several other registered packages (some maintained in separate repositories), which are installed automatically by Julia’s package manager.
 
-- **`src/`**: `Sindbad` user-facing modules:
-  - `DataLoaders/`: Data loading and preprocessing
-  - `Setup/`: Experiment configuration and setup
-  - `Simulation/`: Terrestrial ecosystem model execution
-  - `ParameterOptimization/`: Parameter calibration and optimization
-  - `MachineLearning/`: ML-assisted surrogates and emulators
-  - `Visualization/`: Plotting and visualization tools
-  - `Experiment/`: High-level experiment orchestration
-  - `Types/`: Type definitions for SINDBAD structures
-- **`ext/`**: Extension packages for optional dependencies
-- **`examples/`**: Example experiments and configurations
-- **`docs/`**: Documentation source files
+```
+Sindbad.jl/
+├── src/                        `Sindbad` user-facing modules
+│   ├── DataLoaders/            Data loading and preprocessing
+│   ├── Setup/                  Experiment configuration and setup
+│   ├── Simulation/             Terrestrial ecosystem model execution
+│   ├── ParameterOptimization/  Parameter calibration and optimization
+│   ├── MachineLearning/        ML-assisted surrogates and emulators
+│   ├── Visualization/          Plotting and visualization tools
+│   ├── Experiment/             High-level experiment orchestration
+│   └── Types/                  Type definitions for SINDBAD structures
+├── SindbadTEM/                 Core terrestrial ecosystem models, types, and utilities
+│                                (own Project.toml; registered and versioned separately)
+├── ext/                        Package extensions for optional dependencies (see below)
+├── examples/                   Example experiments, scripts, and setups
+├── docs/                       Documentation source files
+├── test/                       Test suite for the `Sindbad` package
+├── tools/                      Standing developer tools (benchmarking, data I/O, feature testing)
+├── sandbox/                    Scratch directory for local, untracked dev environments
+└── .github/                    CI workflows and PR/issue templates
+```
 
-Internal packages (SINDBAD core):
-- **`SindbadTEM`**: Core terrestrial ecosystem models, types, and utilities
-
-Related packages (SINDBAD ecosystem):
-- **`ErrorMetrics.jl`**: Model–observation metrics (maintained in a separate repository)
-- **`TimeSamplers.jl`**: Time aggregation / sampling utilities (maintained in a separate repository)
-- **`OmniTools.jl`**: Shared utility toolkit (maintained in a separate repository)
+Related packages (SINDBAD ecosystem, maintained in separate repositories):
+- **[ErrorMetrics.jl](https://github.com/LandEcosystems/ErrorMetrics.jl)**: Model–observation metrics ([docs](https://landecosystems.github.io/ErrorMetrics.jl))
+- **[TimeSamplers.jl](https://github.com/LandEcosystems/TimeSamplers.jl)**: Time aggregation / sampling utilities ([docs](https://landecosystems.github.io/TimeSamplers.jl))
+- **[OmniTools.jl](https://github.com/LandEcosystems/OmniTools.jl)**: Shared utility toolkit ([docs](https://landecosystems.github.io/OmniTools.jl))
 
 ## Installation
 
@@ -95,14 +101,26 @@ Pkg.develop(path="path/to/SINDBAD")
 Some functionality is enabled via Julia package extensions (see `Project.toml` `[weakdeps]` + `[extensions]` and `ext/`):
 
 - **`NLsolve`**: enables parts of the spinup workflow (`SindbadNLsolveExt`)
+- **`DifferentialEquations`**: enables ODE-based spinup solvers (`SindbadDifferentialEquationsExt`)
 - **`Optimization`**: enables SciML Optimization-based optimizers (`SindbadOptimizationExt`)
 - **`CMAEvolutionStrategy`**: enables CMA-ES optimizer bridge (`SindbadCMAEvolutionStrategyExt`)
+- **`Enzyme`**: enables Enzyme-based gradients for hybrid ML (`SindbadEnzymeExt`)
+- **`ForwardDiff`**: enables ForwardDiff-based gradients for hybrid ML (`SindbadForwardDiffExt`)
+- **`PolyesterForwardDiff`**: enables threaded ForwardDiff-based gradients for hybrid ML (`SindbadPolyesterForwardDiffExt`)
+- **`FiniteDiff`**: enables FiniteDiff-based gradients for hybrid ML (`SindbadFiniteDiffExt`)
+- **`FiniteDifferences`**: enables FiniteDifferences-based gradients for hybrid ML (`SindbadFiniteDifferencesExt`)
+- **`Zygote`**: enables Zygote-based gradients for hybrid ML (`SindbadZygoteExt`)
+- **`Flux`**: enables Flux-based ML models for hybrid ML (`SindbadFluxExt`)
+- **`Lux`**: enables Lux-based ML models for hybrid ML (`SindbadLuxExt`)
+- **`Optimisers`**: enables Optimisers.jl-based ML model updates (`SindbadOptimisersExt`)
+- **`PreallocationTools`**: enables cache-based ML output handling (`SindbadPreallocationToolsExt`)
+- **`Plots`**: enables Plots.jl-based visualization (`SindbadPlotsExt`)
 
 To enable an extension, add the corresponding package **in the same environment** where you use `Sindbad`:
 
 ```julia
 using Pkg
-Pkg.add("NLsolve")  # or "Optimization", "CMAEvolutionStrategy"
+Pkg.add("NLsolve")  # or any of the other extension trigger packages listed above
 ```
 
 For development setup and usage instructions, see [CONTRIBUTING.md](./CONTRIBUTING.md).

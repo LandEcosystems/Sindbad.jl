@@ -1,13 +1,20 @@
 export @add_to_elem, @pack_nt, @rep_elem, @rep_vec, @unpack_nt
 export addToElem, addToEachElem, addVec
+export adjust_pk
+export cFlowMatrix
+export edgesBetween
+export getQP
+export getQPEqual
+export getVectorOfType
 export getZix
 export processPackNT, processUnpackNT
 export repElem, repVec
-export setComponentFromMainPool, setComponents, setMainFromComponentPool
+export allocateToPools
+export setComponentFromMainPool, setFlowValue, setMainFromComponentPool
 export totalS
-
+export totalS_indices
 using ..SindbadTEM
-import StaticArraysCore: SVector
+import StaticArraysCore: SVector, StaticArray
 
 """
     @add_to_elem
@@ -15,14 +22,13 @@ import StaticArraysCore: SVector
 Macro to add a value to an element of a vector or static vector.
 
 # Arguments
-- `outparams::Expr`: Expression in the form `value ⇒ (vector, index, pool_name)`
+- `outparams::Expr`: Expression in the form `value ⇒ (vector, index)`
 
 # Examples
 ```jldoctest
 julia> using StaticArraysCore: SVector
-julia> helpers = (; pools = (; zeros = (; cOther = SVector(0.0f0, 0.0f0),),))
 julia> cOther = SVector(100.0f0, 1.0f0)
-julia> @add_to_elem 1.0f0 ⇒ (cOther, 1, :cOther)
+julia> @add_to_elem 1.0f0 ⇒ (cOther, 1)
 julia> cOther
 2-element SVector{2, Float32} with indices SOneTo(2):
  101.0f0
@@ -38,7 +44,6 @@ macro add_to_elem(outparams::Expr)
     rhsa = rhs.args
     tar = esc(rhsa[1])
     indx = rhsa[2]
-    hp_pool = rhsa[3]
     outCode = [
         Expr(:(=),
             tar,
@@ -46,7 +51,6 @@ macro add_to_elem(outparams::Expr)
                 addToElem,
                 tar,
                 lhs,
-                esc(Expr(:., :(helpers.pools.zeros), hp_pool)),
                 esc(indx)))
     ]
     return Expr(:block, outCode...)
@@ -54,15 +58,14 @@ end
 
 
 """
-    addToElem(v::SVector, Δv, v_zero, ind::Int)
-    addToElem(v::AbstractVector, Δv, _, ind::Int)
+    addToElem(v::SVector, Δv, ind::Int)
+    addToElem(v::AbstractVector, Δv, ind::Int)
 
 Add a value to a specific element of a vector.
 
 # Arguments
 - `v`: A `StaticVector` or `AbstractVector`
 - `Δv`: The value to be added
-- `v_zero`: A `StaticVector` of zeros (used for `SVector` only)
 - `ind::Int`: The index of the element to modify
 
 # Returns
@@ -72,8 +75,7 @@ Add a value to a specific element of a vector.
 ```jldoctest
 julia> using StaticArraysCore: SVector
 julia> v = SVector(1.0, 2.0, 3.0)
-julia> v_zero = SVector(0.0, 0.0, 0.0)
-julia> addToElem(v, 5.0, v_zero, 2)
+julia> addToElem(v, 5.0, 2)
 3-element SVector{3, Float64} with indices SOneTo(3):
  1.0
  7.0
@@ -82,16 +84,15 @@ julia> addToElem(v, 5.0, v_zero, 2)
 """
 function addToElem end
 
-function addToElem(v::SVector, Δv, v_zero, ind::Int)
-    n_0 = zero(first(v_zero))
-    n_1 = one(first(v_zero))
-    v_zero = v_zero .* n_0
-    v_zero = Base.setindex(v_zero, n_1, ind)
-    v = v .+ v_zero .* Δv
-    return v
+function addToElem(v::SVector{N}, Δv, ind::Int) where {N}
+    # Same NaN/Inf-safe per-element selection as repElem: pick each position
+    # instead of masking v with a zero/one vector, since `0 * Inf` and `0 * NaN`
+    # are themselves NaN. N is static, so this unrolls to plain scalar selects
+    # with no heap allocation.
+    return SVector(ntuple(i -> i == ind ? v[i] + Δv : v[i], Val(N)))
 end
 
-function addToElem(v::AbstractVector, Δv, _, ind::Int)
+function addToElem(v::AbstractVector, Δv, ind::Int)
     v[ind] = v[ind] + Δv
     return v
 end
@@ -131,6 +132,8 @@ function addToEachElem(v::AbstractVector, Δv::Real)
     v .= v .+ Δv
     return v
 end
+
+
 
 """
     addVec(v::SVector, Δv::SVector)
@@ -210,125 +213,278 @@ function getZix(dat::SVector, zixhelpersPool)
     return zixhelpersPool
 end
 
-export MutableLandNamedTuple
-export mutable_land
-
 """
-    MutableLandNamedTuple
+    getVectorOfType(source_vector, output_length)
+    getVectorOfType(source_vector, output_length, fill_value)
+    getVectorOfType(source_vector::StaticArray, output_length, fill_value)
 
-A type-stable, mutable runtime representation of a `NamedTuple`. Field names
-remain type parameters and every value is held in a typed `Ref`, so literal
-property access remains inferable while time-step updates avoid rebuilding the
-complete immutable land state.
+Return a vector of `output_length` elements shaped like `source_vector`: its element
+type and its container kind, filled with `fill_value(eltype(source_vector))`.
+`output_length` need not match `length(source_vector)`: at carbon-cycle call sites,
+`source_vector` is typically `cEco` (one entry per pool) while the result has one
+entry per carbon flow.
 
-This container is intentionally used only after model definition and
-precomputation. Setup and consistency scanning continue to use ordinary
-`NamedTuple`s.
+# Arguments
+- `source_vector`: the vector whose element type and container kind to copy
+- `output_length`: length of the returned vector
+- `fill_value`: `zero` or `one`, the function rather than a number. Defaults to `zero`
+
+# Returns
+- A vector of `output_length` elements, static when `source_vector` is static
+
+# Examples
+```jldoctest
+julia> getVectorOfType([1.0, 2.0, 3.0], 2)
+2-element Vector{Float64}:
+ 0.0
+ 0.0
+
+julia> getVectorOfType([1.0, 2.0, 3.0], 2, one)
+2-element Vector{Float64}:
+ 1.0
+ 1.0
+```
 """
-struct MutableLandNamedTuple{names,Refs<:Tuple}
-    refs::Refs
+function getVectorOfType end
+
+function getVectorOfType(source_vector, output_length)
+    return getVectorOfType(source_vector, output_length, zero)
 end
 
-@inline function MutableLandNamedTuple(nt::NamedTuple)
-    refs = map(Ref, values(nt))
-    return MutableLandNamedTuple{keys(nt),typeof(refs)}(refs)
+function getVectorOfType(source_vector, output_length, fill_value)
+    return fill(fill_value(eltype(source_vector)), output_length)
 end
 
-@generated function _land_property_ref(
-        land::MutableLandNamedTuple{names},
-        ::Val{name},
-    ) where {names,name}
-    index = findfirst(==(name), names)
-    index === nothing && return :(throw(ArgumentError("unknown land field: $name")))
-    return :(getfield(getfield(land, :refs), $index))
+function getVectorOfType(source_vector::StaticArray, output_length, fill_value)
+    return SVector{output_length}(fill(fill_value(eltype(source_vector)), output_length))
 end
 
-@inline function Base.getproperty(land::MutableLandNamedTuple, name::Symbol)
-    return _land_property_ref(land, Val(name))[]
-end
+function getQPEqual(c_flow_QP_vec, c_flow_order, c_giver, c_taker, zix_of_source)
+    for fO ∈ c_flow_order
+        c_taker[fO] ∈ zix_of_source && continue
+        give_r = c_giver[fO]
+        take_r = c_taker[fO]
 
-@inline function Base.setproperty!(
-        land::MutableLandNamedTuple,
-        name::Symbol,
-        value,
-    )
-    _land_property_ref(land, Val(name))[] = value
-    return value
-end
-
-@inline Base.propertynames(::MutableLandNamedTuple{names}) where {names} = names
-@inline Base.keys(::MutableLandNamedTuple{names}) where {names} = names
-@inline Base.values(land::MutableLandNamedTuple{names}) where {names} =
-    ntuple(i -> getfield(getfield(land, :refs), i)[], length(names))
-
-"""
-    mutable_land(land::NamedTuple)
-
-Convert the top-level land tuple and each of its first-level NamedTuple
-containers to a mutable, type-stable runtime representation. Values below the
-first level (including static arrays and metadata NamedTuples) are preserved.
-"""
-@inline _mutable_land_subfield(value::NamedTuple) = MutableLandNamedTuple(value)
-@inline _mutable_land_subfield(value) = value
-
-function mutable_land(land::NamedTuple)
-    runtime_values = map(_mutable_land_subfield, values(land))
-    runtime_refs = map(Ref, runtime_values)
-    return MutableLandNamedTuple{keys(land),typeof(runtime_refs)}(runtime_refs)
-end
-
-@inline function _pack_land_fields(
-        target::NamedTuple,
-        ::Val{names},
-        packed_values::Tuple,
-    ) where {names}
-    return merge(target, NamedTuple{names}(packed_values))
-end
-
-@generated function _pack_land_fields(
-        target::MutableLandNamedTuple{target_names},
-        ::Val{names},
-        packed_values::Tuple,
-    ) where {target_names,names}
-    assignments = Expr[]
-    for (value_index, name) in enumerate(names)
-        target_index = findfirst(==(name), target_names)
-        target_index === nothing &&
-            error("cannot pack unknown mutable land field: $name")
-        push!(
-            assignments,
-            :(
-                getfield(getfield(target, :refs), $target_index)[] =
-                    getfield(packed_values, $value_index)
-            ),
+        n_out = oftype(c_flow_QP_vec[fO],
+            count(
+                fO_i -> c_giver[fO_i] == give_r && !(c_taker[fO_i] ∈ zix_of_source),
+                c_flow_order,
+            )
         )
+        frac_out = safe_divide(one(n_out), n_out)
+        c_flow_QP_vec = repElem(c_flow_QP_vec, frac_out, fO)
     end
-    return Expr(:block, assignments..., :(target))
+    return c_flow_QP_vec
 end
 
-@inline function _pack_nested_land_fields(
-        land::NamedTuple,
-        ::Val{field},
-        names::Val,
-        packed_values::Tuple,
-    ) where {field}
-    updated = _pack_land_fields(getproperty(land, field), names, packed_values)
-    return merge(land, NamedTuple{(field,)}((updated,)))
+function getQPperFlow(turnoverRank, slowPart)
+    QP =
+        (one(turnoverRank) - abs(turnoverRank)) +
+        at_least_zero(turnoverRank) * (one(slowPart) - slowPart) +
+        at_least_zero(-turnoverRank) * slowPart
+    return QP
 end
 
-@generated function _pack_nested_land_fields(
-        land::MutableLandNamedTuple{land_names},
-        ::Val{field},
-        names::Val,
-        packed_values::Tuple,
-    ) where {land_names,field}
-    field_index = findfirst(==(field), land_names)
-    field_index === nothing && error("cannot pack unknown land container: $field")
-    return quote
-        target = getfield(getfield(land, :refs), $field_index)[]
-        _pack_land_fields(target, names, packed_values)
-        land
+function getQP(c_flow_QP_vec, c_flow_order, c_giver, c_taker, zix_of_source, 
+    c_flow_taker_turnover_rank, slowPart)
+    for fO ∈ c_flow_order
+        c_giver[fO] ∈ zix_of_source || continue
+        turnoverRank = c_flow_taker_turnover_rank[fO]
+        QP = getQPperFlow(turnoverRank, slowPart)
+        c_flow_QP_vec = repElem(c_flow_QP_vec, QP, fO)
     end
+    return c_flow_QP_vec
+end
+
+function getQP(c_flow_QP_vec, c_flow_order, c_giver, c_taker, zix_of_source, 
+    c_flow_taker_turnover_rank, slowPartLoK, slowPartHiK, k_hilo_lit_split, c_eco_k_base)
+    for fO ∈ c_flow_order
+        c_giver[fO] ∈ zix_of_source || continue
+        slowPart = c_eco_k_base[c_giver[fO]] < k_hilo_lit_split ? slowPartLoK : slowPartHiK
+        turnoverRank = c_flow_taker_turnover_rank[fO]
+        QP = getQPperFlow(turnoverRank, slowPart)
+        c_flow_QP_vec = repElem(c_flow_QP_vec, QP, fO)
+    end
+
+    return c_flow_QP_vec
+end
+
+"""
+    cFlowMatrix(c_giver, c_taker, n_pools)
+    cFlowMatrix(approach, pool_names)
+
+Return the carbon flow topology as a square matrix of flow indices, with
+`matrix[taker, giver]` holding the position of that flow in the flow vector and `0`
+where the two pools are not connected.
+
+# Arguments
+- `c_giver`: the giver index of each flow, in flow-vector order
+- `c_taker`: the taker index of each flow, in flow-vector order
+- `n_pools`: the number of carbon pools, which is the size of the square matrix
+- `approach`: a `cCycleBase` approach, as a type or an instance, whose `cFlowEdges`
+  declare the topology
+- `pool_names`: the leaf pool names in `cEco` index order, which is
+  `helpers.pools.components.cEco` at runtime
+
+# Returns
+- A `Matrix{Int}` of size `n_pools` by `n_pools`
+
+# Examples
+```jldoctest
+julia> cFlowMatrix((1, 1, 2), (2, 3, 3), 3)
+3×3 Matrix{Int64}:
+ 0  0  0
+ 1  0  0
+ 2  3  0
+```
+
+# Notes:
+- Row is the taker, column is the giver, matching every dense flow array in the
+  models (`c_flow_A_array`, `c_flow_ME_array`).
+- The two methods produce the same matrix. The three-argument form takes indices
+  the base already resolved; the two-argument form resolves an approach's
+  declared edges directly, repeating `cFlowStructure`'s `(giver, taker)` sort so
+  flow `k` here is the flow `k` the model packs.
+- `pool_names` is passed in rather than derived from `poolStructure`, since that
+  flattening (`getPoolInformation`) lives in `Sindbad.Setup`, which depends on
+  `SindbadTEM` rather than the other way round.
+"""
+function cFlowMatrix end
+
+function cFlowMatrix(c_giver, c_taker, n_pools)
+    flow_matrix = zeros(Int, n_pools, n_pools)
+    for flow ∈ eachindex(c_giver, c_taker)
+        flow_matrix[c_taker[flow], c_giver[flow]] = flow
+    end
+    return flow_matrix
+end
+
+function cFlowMatrix(approach, pool_names)
+    approach_name = nameof(approach isa Type ? approach : typeof(approach))
+    edges = cFlowEdges(approach)
+    if isempty(edges)
+        error("$(approach_name) declares no carbon flow edges, so it has no flow " *
+              "matrix. Use an approach that declares `cFlowEdges`.")
+    end
+    givers = [cFlowNamePosition(approach_name, pool_names, first(edge), edge) for edge ∈ edges]
+    takers = [cFlowNamePosition(approach_name, pool_names, last(edge), edge) for edge ∈ edges]
+    flows = collect(zip(givers, takers))
+    if length(unique(flows)) < length(flows)
+        repeated = unique([edges[i] for i ∈ findall(flow -> count(==(flow), flows) > 1, flows)])
+        error("$(approach_name) declares the carbon flow edge(s) $(repeated) more than " *
+              "once. Each giver to taker link carries one flow, so list it once.")
+    end
+    order = sortperm(flows)
+    return cFlowMatrix(givers[order], takers[order], length(pool_names))
+end
+
+"""
+    cFlowNamePosition(approach_name, pool_names, pool_name, edge)
+
+Resolve one end of a flow edge to the single position it holds in `pool_names`,
+erroring with the offending name when it is absent or repeated.
+
+Mirrors `cFlowEdgeIndex`, which does the same against `helpers.pools.zix` at run time.
+A name spanning more than one position is a group, an alias, or a multi-layer pool, and
+an edge naming one would expand into a cross product of links rather than the single
+link it reads as.
+"""
+function cFlowNamePosition(approach_name, pool_names, pool_name, edge)
+    positions = findall(==(pool_name), collect(pool_names))
+    if isempty(positions)
+        error("$(approach_name) declares the carbon flow edge `$(edge)`, but this pool " *
+              "structure has no `$(pool_name)`. Known pools: " *
+              "$(join(String.(pool_names), ", ")).")
+    end
+    if length(positions) > 1
+        error("$(approach_name) declares the carbon flow edge `$(edge)`, but " *
+              "`$(pool_name)` spans $(length(positions)) pools ($(positions)). Flow " *
+              "edges must name leaf pools, not groups or aliases, because a group " *
+              "would expand into a cross product of links.")
+    end
+    return only(positions)
+end
+
+"""
+    edgesBetween(c_giver, c_taker, giver_zix, taker_zix)
+
+Every flow-vector position whose giver is in `giver_zix` and whose taker is in
+`taker_zix`, by pool-index membership rather than by matching a literal
+`<giver>_to_<taker>` name. This lets a caller work against more than one pool
+structure without naming either config's specific pools: e.g. leaf shedding
+lands in one pool under `GSI` (`cLitFast`) and two under `CASA`
+(`cLitLeafFast`, `cLitLeafSlow`).
+
+An empty `giver_zix` or `taker_zix`, e.g. `CASA`'s absent `cVegReserve`,
+returns no edges rather than erroring.
+"""
+function edgesBetween(c_giver, c_taker, giver_zix, taker_zix)
+    # Lazy generator, not Tuple(...): every call site iterates the result once,
+    # in the hot per-timestep carbon-flow path, and materializing it would
+    # require a heap-allocated Vector first.
+    return (flow for flow ∈ eachindex(c_giver, c_taker)
+                 if c_giver[flow] ∈ giver_zix && c_taker[flow] ∈ taker_zix)
+end
+
+"""
+    setFlowValue(flow_vec, c_giver, c_taker, giver_zix, taker_zix, value)
+
+Write `value` into every flow-vector position whose giver is in `giver_zix` and
+whose taker is in `taker_zix` (via `edgesBetween`), and return the vector unchanged
+when no flow matches -- e.g. a pool structure that lacks either group entirely.
+
+`setMEFlow` is this function under the name `cMicrobialEfficiency` reads it in as.
+`cQualityPartition` goes through neither this nor named edges: its groups are
+resolved to flow-vector positions once, in `cCycleBase`'s `deriveQPGroups`, and its
+approaches write directly at those positions.
+"""
+function setFlowValue(flow_vec, c_giver, c_taker, giver_zix, taker_zix, value)
+    for flow ∈ edgesBetween(c_giver, c_taker, giver_zix, taker_zix)
+        flow_vec = repElem(flow_vec, value, flow)
+    end
+    return flow_vec
+end
+
+"""
+    allocateToPools(v, group_zix, group_n, group_vals)
+
+Spread each group's total value evenly across the pool indices in that group, writing
+`group_vals[g] / group_n[g]` into every index in `group_zix[g]`, for every group `g`.
+
+# Arguments
+- `v`: A `StaticVector` or `AbstractVector`, e.g. a pool's carbon allocation vector
+- `group_zix`: A tuple of pool-index tuples, one per group, e.g. `cVeg_zix`
+- `group_n`: The number of pool indices per group, matching `group_zix`, e.g. `cVeg_nzix`
+- `group_vals`: An indexable collection of the total value to distribute per group (its
+  own length may exceed the number of groups, e.g. a pool-shaped `SVector` of which only
+  the first few positions hold real per-group values), e.g. `c_allocation_to_veg`
+
+# Returns
+- `v` with every group's share written into its pool indices
+
+# Notes
+- `group_zix` is a heterogeneous tuple of differently-sized tuples (groups need
+  not all have the same number of pool indices), so it is recursed on via
+  `first`/`Base.tail` rather than iterated with `eachindex`, which would make
+  each element a non-concrete `Union` and allocate on every call.
+- `group_vals` is read by position (`group_vals[group_index]`) rather than
+  recursed on the same way, since callers pass it as-is (e.g.
+  `c_allocation_to_veg`) without converting it to a tuple first.
+"""
+function allocateToPools(v, group_zix::Tuple, group_n::Tuple, group_vals)
+    return allocateToPools(v, group_zix, group_n, group_vals, 1)
+end
+
+function allocateToPools(v, ::Tuple{}, ::Tuple{}, group_vals, group_index)
+    return v
+end
+
+function allocateToPools(v, group_zix::Tuple, group_n::Tuple, group_vals, group_index)
+    group_val = group_vals[group_index] / first(group_n)
+    for ix ∈ first(group_zix)
+        v = repElem(v, group_val, ix)
+    end
+    return allocateToPools(v, Base.tail(group_zix), Base.tail(group_n), group_vals, group_index + 1)
 end
 
 """
@@ -484,14 +640,13 @@ end
 Macro to replace an element of a vector or static vector.
 
 # Arguments
-- `outparams::Expr`: Expression in the form `value ⇒ (vector, index, pool_name)`
+- `outparams::Expr`: Expression in the form `value ⇒ (vector, index)`
 
 # Examples
 ```jldoctest
 julia> using StaticArraysCore: SVector
-julia> helpers = (; pools = (; zeros = (; cOther = SVector(0.0f0, 0.0f0),), ones = (; cOther = SVector(1.0f0, 1.0f0),)))
 julia> cOther = SVector(100.0f0, 1.0f0)
-julia> @rep_elem 50.0f0 ⇒ (cOther, 1, :cOther)
+julia> @rep_elem 50.0f0 ⇒ (cOther, 1)
 julia> cOther
 2-element SVector{2, Float32} with indices SOneTo(2):
   50.0f0
@@ -507,7 +662,6 @@ macro rep_elem(outparams::Expr)
     rhsa = rhs.args
     tar = esc(rhsa[1])
     indx = rhsa[2]
-    hp_pool = rhsa[3]
     outCode = [
         Expr(:(=),
             tar,
@@ -515,24 +669,20 @@ macro rep_elem(outparams::Expr)
                 repElem,
                 tar,
                 lhs,
-                esc(Expr(:., :(helpers.pools.zeros), hp_pool)),
-                esc(Expr(:., :(helpers.pools.ones), hp_pool)),
                 esc(indx)))
     ]
     return Expr(:block, outCode...)
 end
 
 """
-    repElem(v::AbstractVector, v_elem, _, _, ind::Int)
-    repElem(v::SVector, v_elem, v_zero, v_one, ind::Int)
+    repElem(v::AbstractVector, v_elem, ind::Int)
+    repElem(v::SVector, v_elem, ind::Int)
 
 Replace an element of a vector with a new value.
 
 # Arguments
 - `v`: A `StaticVector` or `AbstractVector`
 - `v_elem`: The new value to assign
-- `v_zero`: A `StaticVector` of zeros (used for `SVector` only)
-- `v_one`: A `StaticVector` of ones (used for `SVector` only)
 - `ind::Int`: The index of the element to replace
 
 # Returns
@@ -542,9 +692,7 @@ Replace an element of a vector with a new value.
 ```jldoctest
 julia> using StaticArraysCore: SVector
 julia> v = SVector(1.0, 2.0, 3.0)
-julia> v_zero = SVector(0.0, 0.0, 0.0)
-julia> v_one = SVector(1.0, 1.0, 1.0)
-julia> repElem(v, 5.0, v_zero, v_one, 2)
+julia> repElem(v, 5.0, 2)
 3-element SVector{3, Float64} with indices SOneTo(3):
  1.0
  5.0
@@ -553,20 +701,18 @@ julia> repElem(v, 5.0, v_zero, v_one, 2)
 """
 function repElem end
 
-function repElem(v::AbstractVector, v_elem, _, _, ind::Int)
+function repElem(v::AbstractVector, v_elem, ind::Int)
     v[ind] = v_elem
     return v
 end
 
-function repElem(v::SVector, v_elem, v_zero, v_one, ind::Int)
-    n_0 = zero(first(v_zero))
-    n_1 = one(first(v_zero))
-    v_zero = v_zero .* n_0
-    v_zero = Base.setindex(v_zero, n_1, ind)
-    v_one = v_one .* n_0 .+ n_1
-    v_one = Base.setindex(v_one, n_0, ind)
-    v = v .* v_one .+ v_zero .* v_elem
-    return v
+function repElem(v::SVector{N}, v_elem, ind::Int) where {N}
+    # Written as a per-element tuple selection (rather than a zero/one mask
+    # multiplied into v) because that arithmetic is not exact when v holds NaN or
+    # Inf: `0 * Inf` and `0 * NaN` are themselves NaN, so the mask poisons every
+    # position of v, not just the one being replaced. N is static, so this unrolls
+    # to plain scalar selects with no heap allocation.
+    return SVector(ntuple(i -> i == ind ? v_elem : v[i], Val(N)))
 end
 
 """
@@ -629,9 +775,11 @@ function repVec(v::AbstractVector, v_new)
 end
 
 function repVec(v::SVector, v_new)
-    n_0 = zero(first(v))
-    v = v .* n_0 + v_new
-    return v
+    # `zero(v)` depends only on v's type, not its runtime values, so this is exact
+    # even when v holds NaN or Inf -- unlike the `v .* zero(...)` mask this replaced,
+    # where `0 * Inf` and `0 * NaN` are themselves NaN. `v_new` is broadcast in via
+    # `.+`, matching both a scalar and a same-size vector.
+    return zero(v) .+ v_new
 end
 
 """
@@ -669,13 +817,9 @@ Set component pool values using values from the main pool.
             push!(gen_output.args, Expr(:(=),
                 s_comp,
                 Expr(:call,
-                    rep_elem,
+                    repElem,
                     s_comp,
                     Expr(:ref, s_main, ix),
-                    Expr(:., :(helpers.pools.zeros), QuoteNode(s_comp)),
-                    Expr(:., :(helpers.pools.ones), QuoteNode(s_comp)),
-                    :(land.constants.z_zero),
-                    :(land.constants.o_one),
                     c_ix)))
 
             c_ix += 1
@@ -691,64 +835,6 @@ Set component pool values using values from the main pool.
                             Expr(:kw, s_comp, s_comp))))))))
     end
     return gen_output
-end
-
-"""
-    setComponents(land, helpers, Val{s_main}, Val{s_comps}, Val{zix})
-
-Set component pools from main pool values.
-
-# Arguments
-- `land`: A core SINDBAD NamedTuple containing all variables for a given time step
-- `helpers`: Helper NamedTuple with necessary objects for model run and type consistencies
-- `::Val{s_main}`: A NamedTuple with names of the main pools
-- `::Val{s_comps}`: A NamedTuple with names of the component pools
-- `::Val{zix}`: A NamedTuple with zix (indices) of each pool
-
-# Returns
-- Generated code expression to set components
-
-# Notes
-- This function generates code at runtime to set component pools
-"""
-function setComponents(
-    land,
-    helpers,
-    ::Val{s_main},
-    ::Val{s_comps},
-    ::Val{zix}) where {s_main, s_comps, zix}
-    output = quote end
-    push!(output.args, Expr(:(=), s_main, Expr(:., :(land.pools), QuoteNode(s_main))))
-    foreach(s_comps) do s_comp
-        push!(output.args, Expr(:(=), s_comp, Expr(:., :(land.pools), QuoteNode(s_comp))))
-        zix_pool = getfield(zix, s_comp)
-        c_ix = 1
-        foreach(zix_pool) do ix
-            push!(output.args, Expr(:(=),
-                s_comp,
-                Expr(:call,
-                    rep_elem,
-                    s_comp,
-                    Expr(:ref, s_main, ix),
-                    Expr(:., :(helpers.pools.zeros), QuoteNode(s_comp)),
-                    Expr(:., :(helpers.pools.ones), QuoteNode(s_comp)),
-                    :(land.constants.z_zero),
-                    :(land.constants.o_one),
-                    c_ix)))
-
-            c_ix += 1
-        end
-        push!(output.args, Expr(:(=),
-            :land,
-            Expr(:tuple,
-                Expr(:(...), :land),
-                Expr(:(=),
-                    :pools,
-                    (Expr(:tuple,
-                        Expr(:parameters, Expr(:(...), :(land.pools)),
-                            Expr(:kw, s_comp, s_comp))))))))
-    end
-    return output
 end
 
 """
@@ -786,13 +872,9 @@ Set main pool values from component pool values.
             push!(gen_output.args, Expr(:(=),
                 s_main,
                 Expr(:call,
-                    rep_elem,
+                    repElem,
                     s_main,
                     Expr(:ref, s_comp, c_ix),
-                    Expr(:., :(helpers.pools.zeros), QuoteNode(s_main)),
-                    Expr(:., :(helpers.pools.ones), QuoteNode(s_main)),
-                    :(land.constants.z_zero),
-                    :(land.constants.o_one),
                     ix)))
             c_ix += 1
         end
@@ -849,6 +931,19 @@ function totalS(s)
 end
 
 """
+    totalS_indices(s, s_indices)
+
+Return the total storage amount for specific indices of a storage array.
+"""
+function totalS_indices(s, s_indices)
+    sm = zero(eltype(s))
+    for si ∈ s_indices
+        sm = sm + s[si]
+    end
+    return sm
+end
+
+"""
     @unpack_nt
 
 Macro to unpack variables from a named tuple.
@@ -873,4 +968,23 @@ macro unpack_nt(inparams)
         outCode = processUnpackNT(inparams)
     end
     return outCode
+end
+
+
+"""
+    adjust_pk(c_eco_k, kValue, flowValue, maxValue, zix, helpers)
+"""
+function adjust_pk(c_eco_k, kValue, flowValue, maxValue, zix, helpers)
+    c_eco_k_f_sum = zero(eltype(c_eco_k))
+    c_eco_k_sum = zero(eltype(c_eco_k))
+    for ix ∈ zix
+        # get max possible loss and total loss per pool
+        tmp = min(c_eco_k[ix] + kValue + flowValue, maxValue)
+        @rep_elem tmp ⇒ (c_eco_k, ix)
+        c_eco_k_f_sum = c_eco_k_f_sum + tmp
+        # get max possible loss to litter and total loss to litter per pool
+        tmp_k = at_least_zero(tmp - flowValue)
+        c_eco_k_sum = c_eco_k_sum + tmp_k
+    end
+    return c_eco_k, c_eco_k_f_sum, c_eco_k_sum
 end

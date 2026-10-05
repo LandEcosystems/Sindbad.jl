@@ -23,9 +23,9 @@ makedocs(; sitename="Sindbad",
     build="build",
     )
 
-DocumenterVitepress.deploydocs(; 
+DocumenterVitepress.deploydocs(;
     repo = "github.com/LandEcosystems/Sindbad.jl.git", # this must be the full URL!
     branch = "gh-pages",
     devbranch = "main",
-    push_preview = true
+    push_preview = false # don't push PR preview builds to gh-pages; still builds (and deploys) on push to main/tags
 )

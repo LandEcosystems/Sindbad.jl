@@ -14,7 +14,7 @@ function define(params::runoffSurface_Trautmann2018, forcing, land, helpers)
     Rdelay = z / (sum(z) * ones(1, 61))
 
     ## pack land variables
-    @pack_nt (z, Rdelay) ⇒ land.surface_runoff
+    @pack_nt (z, Rdelay) ⇒ land.runoffSurface
     return land
 end
 
@@ -24,7 +24,7 @@ function compute(params::runoffSurface_Trautmann2018, forcing, land, helpers)
     @unpack_runoffSurface_Trautmann2018 params
 
     ## unpack land variables
-    @unpack_nt (z, Rdelay) ⇐ land.surface_runoff
+    @unpack_nt (z, Rdelay) ⇐ land.runoffSurface
 
     ## unpack land variables
     @unpack_nt begin
@@ -51,7 +51,7 @@ function compute(params::runoffSurface_Trautmann2018, forcing, land, helpers)
     ## pack land variables
     @pack_nt begin
         surface_runoff ⇒ land.fluxes
-        (Rdelay, dSurf) ⇒ land.surface_runoff
+        (Rdelay, dSurf) ⇒ land.runoffSurface
     end
     return land
 end

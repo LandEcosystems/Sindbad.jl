@@ -12,7 +12,7 @@ function compute(params::runoffSaturationExcess_Bergstroem1992VegFractionFroSoil
     ## unpack parameters and forcing
     #@needscheck
     @unpack_runoffSaturationExcess_Bergstroem1992VegFractionFroSoil params
-    @unpack_nt frac_frozen_soil ⇐ forcing
+    @unpack_nt frac_frozen_soil ⇐ land.states
 
     ## unpack land variables
     @unpack_nt begin
@@ -21,6 +21,7 @@ function compute(params::runoffSaturationExcess_Bergstroem1992VegFractionFroSoil
         soilW ⇐ land.pools
         ΔsoilW ⇐ land.pools
         (z_zero, o_one) ⇐ land.constants
+        tolerance ⇐ helpers.numbers
     end
 
     # scale the input frozen soil fraction; maximum is 1

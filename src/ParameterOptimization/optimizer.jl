@@ -51,18 +51,26 @@ julia> # optim_para = optimizer(cost_function, default_values, lower_bounds, upp
 - The results are processed to extract the optimized parameter vector (`optim_para`), which is returned to the user.
 """
 function optimizer(::Any, default_values::Any, ::Any, ::Any, ::Any, x::ParameterOptimizationMethod)
-    error("
-    Optimizer `$(nameof(typeof(x)))` not implemented. 
-    
+    pkg = requires_package(typeof(x))
+    if !isnothing(pkg)
+        error("
+    Optimizer `$(nameof(typeof(x)))` requires the `$(pkg)` package to be loaded.
+
+    This algorithm is implemented in the `Sindbad$(pkg)Ext` extension, which activates automatically once you run `using $(pkg)` in your session (alongside `using Sindbad`).
+    ")
+    else
+        error("
+    Optimizer `$(nameof(typeof(x)))` not implemented.
+
     To implement a new optimizer:
-    
-    - First add a new type as a subtype of `ParameterOptimizationMethod` in `src/Types/ParameterOptimizationTypes.jl`. 
-    
+
+    - First add a new type as a subtype of `ParameterOptimizationMethod` in `src/Types/ParameterOptimizationTypes.jl`.
+
     - Then, add a corresponding method:
-      - if it can be implemented as an internal Sindbad method without additional dependencies, implement the method in `src/ParameterOptimization/optimizer.jl`.     
+      - if it can be implemented as an internal Sindbad method without additional dependencies, implement the method in `src/ParameterOptimization/optimizer.jl`.
       - if it requires additional dependencies, implement the method in `ext/<extension_name>/ParameterOptimizationOptimizer.jl` extension.
 
-
     ")
+    end
     return
 end

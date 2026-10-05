@@ -223,7 +223,8 @@ function setDatesInfo(info::NamedTuple)
         end
         tmp_dates = set_namedtuple_field(tmp_dates, (time_prop, prop_val))
     end
-    timestep = getfield(Dates, Symbol(titlecase(info.settings.experiment.basics.time.temporal_resolution)))(1)
+    tr_n, tr_unit = parseTemporalResolution(info.settings.experiment.basics.time.temporal_resolution)
+    timestep = getfield(Dates, Symbol(titlecase(tr_unit)))(tr_n)
     time_range = DateTime(info.settings.experiment.basics.time.date_begin):timestep:DateTime(info.settings.experiment.basics.time.date_end)
     tmp_dates = set_namedtuple_field(tmp_dates, (:temporal_resolution, info.settings.experiment.basics.time.temporal_resolution))
     tmp_dates = set_namedtuple_field(tmp_dates, (:timestep, timestep))
@@ -248,20 +249,46 @@ Sets up model run flags and output array types for the experiment.
 function setModelRunInfo(info::NamedTuple)
     print_info(setModelRunInfo, @__FILE__, @__LINE__, "setting Model Run Flags...")
     if info.settings.experiment.flags.run_optimization
+        # consistency checks (cCycleConsistency_simple, waterBalance_simple) must never run during optimization
         info = @set info.settings.experiment.flags.catch_model_errors = false
+    else
+        # ...and must always run, unconditionally, during forward/cost runs, regardless of the user's setting
+        info = @set info.settings.experiment.flags.catch_model_errors = true
     end
     run_vals = convertRunFlagsToTypes(info)
-    output_array_type = getfield(Types, to_uppercase_first(info.settings.experiment.model_output.output_array_type, "Output"))()
+    # check if lazy run is set, and if so, set output array type to YAXArray regardless of the setting in json, as well as land output type to YAXArray
+    run_lazy = get(info.settings.experiment.flags, :run_lazy, false)
+
+    in_output_array_type = info.settings.experiment.model_output.output_array_type
+    if run_lazy
+        in_output_array_type = "YAXArray"
+    end
+    output_array_type = getfield(Types, to_uppercase_first(in_output_array_type, "Output"))()
     run_info = (; run_vals..., output_array_type = output_array_type)
+
+    run_info = set_namedtuple_field(run_info, (:run_lazy, getTypeInstanceForFlags(:run_lazy, run_lazy, "Do")))
+
     run_info = set_namedtuple_field(run_info, (:save_single_file, getTypeInstanceForFlags(:save_single_file, info.settings.experiment.model_output.save_single_file, "Do")))
-    run_info = set_namedtuple_field(run_info, (:use_forward_diff, run_vals.use_forward_diff))
-    run_info = set_namedtuple_field(run_info, (:input_data_backend, info.settings.experiment.exe_rules.input_data_backend))
-    run_info = set_namedtuple_field(run_info, (:input_array_type, info.settings.experiment.exe_rules.input_array_type))
+    # a lazy run always needs lazy (YAXArray) forcing/observation data; a non-lazy run always needs KeyedArray
+    input_array_type = run_lazy ? InputYAXArray() : InputKeyedArray()
+    run_info = set_namedtuple_field(run_info, (:input_array_type, input_array_type))
 
     parallelization = titlecase(info.settings.experiment.exe_rules.parallelization)
     run_info = set_namedtuple_field(run_info, (:parallelization, getfield(Types, Symbol(parallelization*"Parallelization"))()))
-    land_output_type = getfield(Types, to_uppercase_first(info.settings.experiment.exe_rules.land_output_type, "PreAlloc"))()
+
+    # if lazy, the run helpers will handle the output array type and land output type, so we set those to YAXArray here regardless of the setting in json, and the run helpers will overwrite it if not lazy
+    in_land_output_type = info.settings.experiment.exe_rules.land_output_type
+    if run_lazy
+        in_land_output_type = "YAXArray"
+    end
+    land_output_type = getfield(Types, to_uppercase_first(in_land_output_type, "PreAlloc"))()
     run_info = set_namedtuple_field(run_info, (:land_output_type, land_output_type))
+
+    ## visualization backend
+    visualization_backend = get(info.settings.experiment.exe_rules, :visualization_backend, "Types")
+    visualization_backend_type = getfield(Types, to_uppercase_first(visualization_backend, "Visualization"))()
+    run_info = set_namedtuple_field(run_info, (:visualization_backend, visualization_backend_type))
+    
     info = (; info..., temp=(; info.temp..., helpers=(; info.temp.helpers..., run=run_info)))
     return info
 end
@@ -300,7 +327,7 @@ Validates and sets the absolute path for the restart file used in spinup.
 - The updated `info` NamedTuple with the absolute restart file path set.
 """
 function setRestartFilePath(info::NamedTuple)
-    restart_file_in = info.settings.experiment.model_spinup.restart_file
+    restart_file_in = get(info.settings.experiment.model_spinup, :restart_file, nothing)
     restart_file = nothing
 
     if !isnothing(restart_file_in)
@@ -320,69 +347,125 @@ function setRestartFilePath(info::NamedTuple)
 end
 
 """
+    getSpinupAggregator(forcing_name, helpers_dates, aggregator_cache)
+
+Build the temporal aggregator of a spinup forcing set, reusing an already built one when the
+same forcing name has been seen before.
+
+# Arguments:
+- `forcing_name`: The name of the spinup forcing set, e.g. `"day_MSC"`.
+- `helpers_dates`: A NamedTuple containing date-related helpers.
+- `aggregator_cache`: A Dict in which aggregators built so far are kept, keyed by forcing name.
+
+# Returns:
+- A tuple of the aggregator, its flattened indices, the number of timesteps, and the sampler type.
+
+# Notes:
+- The aggregator depends only on the forcing name and the experiment date range, both of which
+  are the same for every location. Caching it keeps the per-location cost of building a
+  sequence to choosing the repeats and the spinup modes.
+"""
+function getSpinupAggregator(forcing_name, helpers_dates, aggregator_cache)
+    forcing_key = Symbol(forcing_name)
+    haskey(aggregator_cache, forcing_key) && return aggregator_cache[forcing_key]
+    forcing_str = String(forcing_name)
+    skip_sampling = startswith(forcing_str, helpers_dates.temporal_resolution)
+    aggregator = create_TimeSampler(helpers_dates.range, to_uppercase_first(forcing_str, "Time"), mean, skip_sampling)
+    aggregator_indices = [_ind for _ind in vcat(aggregator[1].indices...)]
+    aggregator_type = TimeNoDiff()
+    n_timesteps = length(aggregator[1].indices)
+    if occursin("_year", forcing_str)
+        aggregator_type = TimeIndexed()
+        n_timesteps = length(aggregator_indices)
+    end
+    built = (Vector{TimeSample}(aggregator), aggregator_indices, n_timesteps, aggregator_type)
+    aggregator_cache[forcing_key] = built
+    return built
+end
+
+"""
     getSpinupSequenceWithTypes(seqq, helpers_dates)
+    getSpinupSequenceWithTypes(seqq, helpers_dates, aggregator_cache)
 
 Processes the spinup sequence and assigns types for temporal aggregators for spinup forcing.
 
 # Arguments:
 - `seqq`: The spinup sequence from the experiment configuration.
 - `helpers_dates`: A NamedTuple containing date-related helpers.
+- `aggregator_cache`: A Dict of already built aggregators, shared across the locations of a run.
 
 # Returns:
 - A processed spinup sequence with forcing types for temporal aggregators.
 """
-function getSpinupSequenceWithTypes(seqq, helpers_dates)
+function getSpinupSequenceWithTypes end
+
+getSpinupSequenceWithTypes(seqq, helpers_dates) = getSpinupSequenceWithTypes(seqq, helpers_dates, Dict{Symbol,Any}())
+
+function getSpinupSequenceWithTypes(seqq, helpers_dates, aggregator_cache)
     seqq_typed = []
     for seq in seqq
-        for kk in keys(seq)
-            if kk == "forcing"
-                skip_sampling = false
-                if startswith(kk, helpers_dates.temporal_resolution)
-                    skip_sampling = true
-                end
-                aggregator = create_TimeSampler(helpers_dates.range, to_uppercase_first(seq[kk], "Time"), mean, skip_sampling)
-                seq["aggregator"] = aggregator
-                seq["aggregator_type"] = TimeNoDiff()
-                seq["aggregator_indices"] = [_ind for _ind in vcat(aggregator[1].indices...)]
-                seq["n_timesteps"] = length(aggregator[1].indices)
-                if occursin("_year", seq[kk])
-                    seq["aggregator_type"] = TimeIndexed()
-                    seq["n_timesteps"] = length(seq["aggregator_indices"])
-                end
-            end
-            if kk == "spinup_mode"
-                seq[kk] = getTypeInstanceForNamedOptions(seq[kk])
-            end
-            if seq[kk] isa String
-                seq[kk] = Symbol(seq[kk])
-            end
-        end
-        optns = in(seq, "options") ? seqp["options"] : (;)
-        sst = SpinupSequenceWithAggregator(seq["forcing"], seq["n_repeat"], seq["n_timesteps"], seq["spinup_mode"], optns, seq["aggregator_indices"], seq["aggregator"], seq["aggregator_type"]);
+        aggregator, aggregator_indices, n_timesteps, aggregator_type = getSpinupAggregator(seq["forcing"], helpers_dates, aggregator_cache)
+        spinup_mode = getTypeInstanceForNamedOptions(seq["spinup_mode"])
+        optns = haskey(seq, "options") ? seq["options"] : (;)
+        sst = SpinupStepWithAggregator(Symbol(seq["forcing"]), seq["n_repeat"], n_timesteps, spinup_mode, optns, aggregator_indices, aggregator, aggregator_type);
         push!(seqq_typed, sst)
     end
     return seqq_typed
 end
 
 """
+    getSpinupSequenceConfig(seqq)
+
+Normalizes the `sequence` field of the spinup settings into the method and options that build
+a location's spinup sequence later, in `prepTEM`, where the forcing is available.
+
+# Arguments:
+- `seqq`: The `sequence` field of the spinup settings. Either a list of sequence steps, or a
+  NamedTuple with a `method` and, optionally, its `options`, or nothing.
+
+# Returns:
+- A NamedTuple with the sequence `method` instance and its `options`. Everything a method
+  needs is in `options`, so an authored list of steps is carried there too, as `steps`.
+
+# Notes:
+- A missing or null `sequence` falls back to `SequenceDefault`, so that an experiment that
+  runs the spinup without naming a sequence gets a sensible one rather than no steps at all.
+"""
+function getSpinupSequenceConfig(seqq)
+    if isnothing(seqq)
+        method = SequenceDefault()
+        return (; method=method, options=sindbadDefaultOptions(method))
+    end
+    if seqq isa NamedTuple && haskey(seqq, :method)
+        method = getTypeInstanceForNamedOptions(String(seqq.method))
+        return (; method=method, options=merge_namedtuple(sindbadDefaultOptions(method), get(seqq, :options, (;))))
+    end
+    method = SequenceList()
+    return (; method=method, options=merge_namedtuple(sindbadDefaultOptions(method), (; steps=seqq)))
+end
+
+"""
     setSpinupInfo(info::NamedTuple)
 
-Processes the spinup configuration and prepares the spinup sequence.
+Processes the spinup configuration and prepares the spinup sequence method.
 
 # Arguments:
 - `info`: A NamedTuple containing the experiment configuration.
 
 # Returns:
 - The updated `info` NamedTuple with spinup-related fields added.
+
+# Notes:
+- The sequence itself is not built here. A sequence method may need the forcing of a location
+  to decide the steps, so the sequence is built per location in `prepTEM`.
 """
 function setSpinupInfo(info)
     print_info(setSpinupInfo, @__FILE__, @__LINE__, "setting Spinup Info...")
     info = setRestartFilePath(info)
     infospin = info.settings.experiment.model_spinup
-    # change spinup sequence dispatch variables to Val, get the temporal aggregators
-    seqq = infospin.sequence
-    seqq_typed = getSpinupSequenceWithTypes(seqq, info.temp.helpers.dates)
-    infospin = set_namedtuple_field(infospin, (:sequence, [_s for _s in seqq_typed]))
+    seq_config = getSpinupSequenceConfig(get(infospin, :sequence, nothing))
+    infospin = drop_namedtuple_fields(infospin, (:sequence,))
+    infospin = (; infospin..., seq_config...)
     info = set_namedtuple_subfield(info, :temp, (:spinup, infospin))
     return info
 end
@@ -462,12 +545,19 @@ function setupInfo(info::NamedTuple)
     land_init = createInitLand(info.pools, info.temp)
     info = (; info..., temp=(; info.temp..., helpers=(; info.temp.helpers..., land_init=land_init)))
 
+    data_settings = (;)
+    if hasproperty(info.settings, :forcing)
+        data_settings = set_namedtuple_field(data_settings, (:forcing, info.settings.forcing))
+    end
     if (info.settings.experiment.flags.run_optimization || info.settings.experiment.flags.calc_cost) && hasproperty(info.settings.optimization, :algorithm_optimization)
         # @info "  setupInfo: setting ParameterOptimization and Observation info..."
         info = setOptimization(info)
+        data_settings = set_namedtuple_field(data_settings, (:optimization, info.settings.optimization))
     else
-        parameter_table = info.temp.models.parameter_table
-        checkParameterBounds(parameter_table.name, parameter_table.initial, parameter_table.lower, parameter_table.upper, ScaleNone(), p_units=parameter_table.units, show_info=true, model_names=parameter_table.model_approach)
+        parameter_table = get(info.temp.models, :parameter_table, nothing)
+        if !isnothing(parameter_table)
+            checkParameterBounds(parameter_table.name, parameter_table.initial, parameter_table.lower, parameter_table.upper, ScaleNone(), p_units=parameter_table.units, show_info=true, model_names=parameter_table.model_approach)
+        end
      end
 
     if hasproperty(info.settings, :hybrid)
@@ -480,7 +570,6 @@ function setupInfo(info::NamedTuple)
     end
 
     print_info(setupInfo, @__FILE__, @__LINE__, "Cleaning Info Fields...")
-    data_settings = (; forcing = info.settings.forcing, optimization = info.settings.optimization)
     exe_rules = info.settings.experiment.exe_rules
     info = drop_namedtuple_fields(info, (:model_structure, :experiment, :output, :pools))
     info = (; info..., info.temp...)

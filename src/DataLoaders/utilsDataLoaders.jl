@@ -1,5 +1,8 @@
 export getNumberOfTimeSteps
 export mapCleanData
+export cleanData
+export applyUnitConversion
+export applyQCBound
 export subsetAndProcessYax
 export yaxCubeToKeyedArray
 export toDimStackArray
@@ -105,28 +108,40 @@ function getDataDims(c, mappinginfo)
     axnames = DimensionalData.name(dims(c))
     inollt = findall(∉(mappinginfo), axnames)
     !isempty(inollt) && append!(inax, axnames[inollt])
-    return InDims(inax...; filter=AllNaN())
+    #return InDims(inax...; filter=AllNaN())
+    return Tuple(inax)
 end
 
 """
     getDimPermutation(datDims, permDims)
+
 Returns the permutation indices required to rearrange dimensions from `datDims` to match `permDims`.
 
+If a target dimension is missing from the source data, such as time for a purely
+spatial variable, it is left out of the permutation since it does not exist in
+this array. If the source data has a dimension that is not part of the target
+list at all, such as soil_depth for a spatiovertical variable, that dimension is
+kept and placed before the matched target dims, in its original relative order.
+This guarantees the target dims always end up trailing, in the order given by
+`permDims`, no matter how many dimensions the source variable has or what
+physical order they are stored in. Downstream callers such as
+`OmniTools.view_at_trailing_indices` rely on this trailing order when indexing a
+per-pixel location out of the array.
+
 # Arguments
-- `datDims`: Array of current dimension names or indices
-- `permDims`: Array of target dimension names or indices in desired order
+- `datDims`: array of current dimension names
+- `permDims`: array of target dimension names in desired order
 
 # Returns
-- Array of indices representing the required permutation
+- array of indices representing the required permutation
 """
 function getDimPermutation(datDims, permDims)
+    matched_dims = [pd for pd ∈ permDims if pd in datDims]
+    extra_dims = [dd for dd ∈ datDims if !(dd in permDims)]
+    desired_order = vcat(extra_dims, matched_dims)
     new_dim = Int[]
-    for pd ∈ permDims
-        datIndex = length(permDims)
-        if pd in datDims
-            datIndex = findfirst(isequal(pd), datDims)
-        end
-        push!(new_dim, datIndex)
+    for dd ∈ desired_order
+        push!(new_dim, findfirst(isequal(dd), datDims))
     end
     return new_dim
 end
@@ -142,7 +157,7 @@ Converts the provided input data into a specific input array type.
     - `::InputArray`: Specifies the input array type as a simple array
     - `::InputKeyedArray`: Specifies the input array type as a keyed array
     - `::InputNamedDimsArray`: Specifies the input array type as a named dims array
-    - `::InputYaxArray`: Specifies the input array type as a YAX array
+    - `::InputYAXArray`: Specifies the input array type as a YAX array
 
 # Returns
 Returns the input data converted to the specified input array type.
@@ -172,7 +187,7 @@ function getInputArrayOfType(input_data, ::InputNamedDimsArray)
     return named_array_data
 end
 
-function getInputArrayOfType(input_data, ::InputYaxArray)
+function getInputArrayOfType(input_data, ::InputYAXArray)
     return input_data
 end
 
@@ -193,9 +208,11 @@ function getSindbadDims(c)
     act_dimnames = []
     foreach(dimnames) do dimn
         td = dimn
+        #=
         if dimn in (:Ti, :Time, :TIME, :t, :T, :TI)
             td = :time
         end
+        =#
         push!(act_dimnames, td)
     end
     return [act_dimnames[k] => getproperty(c, dimnames[k]) |> Array for k ∈ eachindex(dimnames)]
@@ -246,115 +263,26 @@ function getTargetDimensionOrder(info)
 end
 
 """
-    getYaxFromSource(nc, data_path, data_path_v, source_variable, info, <: DataFormatBackend)
+    getYaxFromSource(nc, data_path, data_path_v, source_variable)
 
-Retrieve the data from a specified source.
-
-# Arguments
-- `nc`: The NetCDF file or object to read data from.
-- `data_path`: The path to the data within the NetCDF file.
-- `data_path_v`: The path to the variable within the NetCDF file.
-- `source_variable`: The name of the source variable to extract data for.
-- `info`: Additional information or metadata required for processing.
-- `<: DataFormatBackend`: Specifies the SINDBAD backend being used.
-    - `::BackendNetcdf`: Specifies that the function operates on a NetCDF backend.
-    - `::BackendZarr`: Specifies that the backend being used is Zarr.
-
-# Returns
-- The file object and extracted YAX data from the specified source.
-
-# Notes
-- Ensure that the `nc` object and paths provided are valid and accessible.
-- The functions are specific to the NetCDF and Zarr backend and may not work with other backends.
-"""
-function getYaxFromSource end
-
-function getYaxFromSource(nc, data_path, data_path_v, source_variable, info, ::BackendNetcdf)
-    if endswith(data_path_v, ".zarr")
-        error("data path $(data_path_v) ends with .zarr (zarr data) but input data backend in experiment.exe_rules.input_data_backend is set as netcdf. Change input_data_backend or data_path.")
-    end
-    nc = loadDataFromPath(nc, data_path, data_path_v, source_variable)
-    v = nc[source_variable]
-    forcing_data_settings = info.experiment.data_settings.forcing
-    ax = map(NCDatasets.dimnames(v)) do dn
-        rax = nothing
-        if dn == forcing_data_settings.data_dimension.time
-            t = nc[forcing_data_settings.data_dimension.time]
-            t = [_t for _t in t]
-            rax = Dim{Symbol(dn)}(t)
-        else
-            if dn in keys(nc)
-                dv = info.helpers.numbers.num_type.(nc[dn][:])
-            else
-                data_path_tmp = isnothing(data_path) ? data_path_v : data_path
-                error("To avoid possible issues with dimensions, Sindbad does not run when the dimension variable $(dn) is not available in input data file $(data_path_tmp). Add the variable to the data, and try again.")
-            end
-            rax = Dim{Symbol(dn)}(dv)
-        end
-        rax
-    end
-    yax = YAXArray(Tuple(ax), v |> Array)
-    return nc, yax
-end
-
-function getYaxFromSource(nc, data_path, data_path_v, source_variable, _, ::BackendZarr)
-    if endswith(data_path_v, ".nc")
-        error("data path $(data_path_v) ends with .nc (netCDF data) but input data backend in experiment.exe_rules.input_data_backend is set as zarr. Using zopen to open a nc data will crash the session. Change input_data_backend or data_path.")
-    end
-
-    nc = loadDataFromPath(nc, data_path, data_path_v, source_variable)
-    yax = nc[source_variable]
-    return nc, yax
-end
-
-"""
-    loadDataFile(data_path::String) -> Any
-
-Load data from the specified file path.
+Load (or reuse) the dataset containing `source_variable` and return it along with the
+variable as a lazy YAXArray.
 
 # Arguments
-- `data_path::String`: The path to the data file to be loaded.
+- `nc`: An already-open dataset (e.g. from a previous call), or `nothing`.
+- `data_path`: The default data path that `nc`, if given, was opened from.
+- `data_path_v`: The data path for this specific variable. If it is `nothing` or the
+  same as `data_path`, `nc` is reused; otherwise it is opened with `YAXArrays.open_dataset`.
+- `source_variable`: The name of the source variable to extract.
 
 # Returns
-- The data loaded from the specified file. The return type depends on the file format and its contents.
-
-# Notes
-- Ensure that the file exists and is accessible at the given path.
-- The function assumes the file format is supported by the implementation.
+- The (possibly newly opened) dataset and the extracted variable as a lazy YAXArray.
 """
-function loadDataFile(data_path)
-    if endswith(data_path, ".nc")
-        nc = NCDataset(data_path)
-    elseif endswith(data_path, ".zarr")
-        nc = YAXArrays.open_dataset(zopen(data_path))
-    else
-        error("The file ending/data type is not supported for $(datapath). Either use .nc or .zarr file")
+function getYaxFromSource(nc, data_path, data_path_v, source_variable)
+    if !isnothing(data_path_v) && data_path_v !== data_path
+        nc = YAXArrays.open_dataset(data_path_v)
     end
-    return nc
-end
-
-"""
-    loadDataFromPath(nc, data_path, data_path_v, source_variable)
-
-Load data from specified NetCDF paths using given parameters.
-
-# Arguments
-- `nc`: NetCDF file handle
-- `data_path`: Path to the main data in NetCDF file
-- `data_path_v`: Path to the variable data in NetCDF file
-- `source_variable`: Name of the source variable to load
-
-# Returns
-Data loaded from the specified paths in the NetCDF file.
-"""
-function loadDataFromPath(nc, data_path, data_path_v, source_variable)
-    if isnothing(data_path_v) || (data_path_v === data_path)
-        nc = nc
-    else
-        @info "   data_path: $(data_path_v)"
-        nc = loadDataFile(data_path_v)
-    end
-    return nc
+    return nc, nc[source_variable]
 end
 
 """
@@ -430,16 +358,19 @@ function subsetAndProcessYax(yax, forcing_mask, tar_dims, _data_info, info, ::Va
     end
 
     #todo mean of the data instead of zero or nan
-    vfill = 0.0
-    if fill_nan
-        vfill = NaN
-    end
-    vNT = Val{num_type}()
-    if clean_data
-        yax = mapCleanData(yax, yax_qc, vfill, bounds_qc, _data_info, vNT)
-    else
-        yax = map(yax_point -> replace_invalid_number(yax_point, vfill), yax)
-        # yax = num_type.(yax)
+    # do a proper check on input type for forcing and if is not lazy do the cleanup
+    if info.helpers.run.run_lazy isa DoNotRunLazy
+        vfill = 0.0
+        if fill_nan
+            vfill = NaN
+        end
+        vNT = Val{num_type}()
+        if clean_data
+            yax = mapCleanData(yax, yax_qc, vfill, bounds_qc, _data_info, vNT)
+        else
+            yax = map(yax_point -> replace_invalid_number(yax_point, vfill), yax)
+            yax = map(num_type, yax)
+        end
     end
     return yax
 end

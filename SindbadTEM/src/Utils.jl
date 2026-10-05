@@ -14,6 +14,8 @@ module Utils
     export getSindbadModels
     export getTypedModel
     export getUnitConversionForParameter
+    export isValidTimescale
+    export parseTemporalResolution
     export modelParameter
     export modelParameters
 
@@ -86,11 +88,15 @@ function getInOutModel(model::LandEcosystem; verbose=true)
 end
 
 
-function getInOutModel(model::LandEcosystem, model_funcs::Tuple)
+function getInOutModel(model::LandEcosystem, model_funcs::Tuple; verbose=false)
     mo_in_out=SindbadTEM.DataStructures.OrderedDict()
-    println("   collecting I/O/P of: $(nameof(typeof(model))).jl")
+    if verbose
+        println("   collecting I/O/P of: $(nameof(typeof(model))).jl")
+    end
     for func in model_funcs
-        println("   ...$(func)...")
+        if verbose
+            println("   ...$(func)...")
+        end
         io_func = getInOutModel(model, func)
         if length(model_funcs) == 2 && :parameters in model_funcs
             if func !== :parameters
@@ -187,7 +193,6 @@ function getInOutModel(model, model_func::Symbol)
             out_v_str = replace(strip(out_line), "(" => "",  ")" => "")
             out_v_list = [(strip(_v)) for _v in split(out_v_str, ",")[1:end]]
 
-            # @show out_v_list, (!isempty).(out_v_list)
             out_v_list = Symbol.(out_v_list[(!isempty).(out_v_list)])
             Pair.(Ref(out_line_tar), out_v_list)
         catch e
@@ -403,6 +408,51 @@ end
 
 
 """
+    parseTemporalResolution(resolution)
+
+Parses a temporal resolution string into an integer count and a base unit string.
+
+Accepts either a bare unit (e.g. "day", "hour") or an n-unit string of the form
+"<positive integer>-<unit>" (e.g. "6-hour", "2-day", "3-month"). A bare unit is
+equivalent to "1-<unit>".
+
+# Arguments:
+- `resolution`: a temporal resolution string, e.g. "day", "6-hour", "3-month"
+
+# Returns:
+- `(n::Int, unit::String)`: the multiplier count and the base unit string.
+"""
+function parseTemporalResolution(resolution)
+    parts = split(String(resolution), "-")
+    if length(parts) == 1
+        return 1, String(parts[1])
+    elseif length(parts) == 2
+        n = tryparse(Int, parts[1])
+        if isnothing(n)
+            error("invalid temporal resolution \"$(resolution)\": count \"$(parts[1])\" is not an integer. Expected format \"<integer>-<unit>\", e.g. \"6-hour\".")
+        elseif n <= 0
+            error("invalid temporal resolution \"$(resolution)\": count must be a positive integer, got $(n).")
+        end
+        return n, String(parts[2])
+    else
+        error("invalid temporal resolution \"$(resolution)\": expected a bare unit (e.g. \"day\") or \"<integer>-<unit>\" (e.g. \"6-hour\"), got $(length(parts)) dash-separated parts.")
+    end
+end
+
+"""
+    isValidTimescale(timescale)
+
+Checks whether a parameter `timescale` string is either blank (not time-dependent) or
+one of the units in `SindbadTEM.Processes.TIMESCALE_DAY_MULTIPLIER`, optionally
+prefixed with a positive integer count (e.g. "8-day"). Propagates any error
+`parseTemporalResolution` raises for a malformed `<n>-<unit>` prefix.
+"""
+function isValidTimescale(timescale)
+    _, unit = parseTemporalResolution(timescale)
+    return isempty(unit) || haskey(SindbadTEM.Processes.TIMESCALE_DAY_MULTIPLIER, unit)
+end
+
+"""
     getUnitConversionForParameter(p_timescale, model_timestep)
 
 helper/wrapper function to get unit conversion factors for model parameters that are timescale dependent
@@ -412,52 +462,24 @@ helper/wrapper function to get unit conversion factors for model parameters that
 - `model_timestep`: time step of the model run
 """
 function getUnitConversionForParameter(p_timescale, model_timestep)
-    conversion = 1
-    time_multiplier = 1
-    # time multiplier compared to daily time steps
-    if model_timestep == "second"
-        time_multiplier = 1/(60* 60 * 24)
-    elseif model_timestep == "minute"
-        time_multiplier = 1/(60 * 24)
-    elseif model_timestep == "halfhour"
-        time_multiplier = 1/48
-    elseif model_timestep == "hour"
-        time_multiplier = 1/24
-    elseif model_timestep == "day"
-        time_multiplier = 1
-    elseif model_timestep == "week"
-        time_multiplier = 7
-    elseif model_timestep == "month"
-        time_multiplier = 30
-    elseif model_timestep == "year"
-        time_multiplier = 365
-    elseif model_timestep == "decade"
-        time_multiplier = 365 * 10
-    else
-        error("running model at $(model_timestep) is not supported")
+    p_n, p_unit = parseTemporalResolution(p_timescale)
+    m_n, m_unit = parseTemporalResolution(model_timestep)
+    if p_n != 1 || m_n != 1
+        base_conversion = getUnitConversionForParameter(p_unit, m_unit)
+        # an empty p_unit means the parameter has no declared timescale (not time-dependent),
+        # so it must stay a no-op regardless of any n-unit multiplier on either side
+        return isempty(p_unit) ? base_conversion : base_conversion * m_n / p_n
     end
 
-    # modelling at other time steps
-    if p_timescale == "second"
-        conversion = 60 * 60 * 24 * time_multiplier
-    elseif p_timescale == "minute"
-        conversion = 60 * 24 * time_multiplier
-    elseif p_timescale == "halfhour"
-        conversion = 48 * time_multiplier
-    elseif p_timescale == "hour"
-        conversion = 24 * time_multiplier
-    elseif p_timescale == "day"
-        conversion = 1 * time_multiplier
-    elseif p_timescale == "week"
-        conversion = 1/7 * time_multiplier
-    elseif p_timescale == "month"
-        conversion = 1/30 * time_multiplier
-    elseif p_timescale == "year"
-        conversion = 1/365 * time_multiplier
-    elseif p_timescale == "decade"
-        conversion = 1/(365 * 10) * time_multiplier
-    end
-    return conversion
+    haskey(SindbadTEM.Processes.TIMESCALE_DAY_MULTIPLIER, m_unit) || error("running model at $(model_timestep) is not supported")
+    m_days = SindbadTEM.Processes.TIMESCALE_DAY_MULTIPLIER[m_unit]
+
+    isempty(p_unit) && return 1
+
+    haskey(SindbadTEM.Processes.TIMESCALE_DAY_MULTIPLIER, p_unit) || error("parameter timescale \"$(p_timescale)\" is not supported")
+    p_days = SindbadTEM.Processes.TIMESCALE_DAY_MULTIPLIER[p_unit]
+
+    return m_days / p_days
 end
 
 
@@ -533,7 +555,6 @@ function modelParameter(model::LandEcosystem, show=true)
         end
     else
         p_vec = map(pnames) do fn
-            # @show model, fn
             mod_prop = getproperty(model, fn)
             p_val = getproperty(model, fn)
             p_describe = SindbadTEM.Processes.describe(model, fn)

@@ -94,7 +94,41 @@ function checkMissingVarInfo()
         end  
     end      
    return nothing
-end 
+end
+```
+
+:::
+
+
+----
+
+#### defaultVariableInfo
+```@docs
+defaultVariableInfo
+```
+
+:::details Code
+
+```julia
+function defaultVariableInfo(string_key=false)
+    if string_key
+        return DataStructures.OrderedDict(
+            "standard_name" => "",
+            "long_name" => "",
+            "units" => "",
+            "land_field" => "",
+            "description" => ""
+        )
+    else
+        return DataStructures.OrderedDict(
+            :standard_name => "",
+            :long_name => "",
+            :units => "",
+            :land_field => "",
+            :description => ""
+        )
+    end
+end
 ```
 
 :::
@@ -244,7 +278,6 @@ whatIs
 function whatIs end
 
 function whatIs(var_name::String)
-    @show var_name
     if startswith(var_name, "land")
         var_name = var_name[6:end]
     end
@@ -257,7 +290,6 @@ function whatIs(var_name::String)
 end
 
 function whatIs(var_name::String)
-    @show var_name
     if startswith(var_name, "land")
         var_name = var_name[6:end]
     end

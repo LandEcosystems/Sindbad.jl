@@ -195,7 +195,7 @@ function getConfiguration(sindbad_experiment::String; replace_info=Dict())
             info = replaceInfoFields(info, non_exp_dict)
         end
     end
-    if !haskey(info["experiment"]["basics"]["config_files"], "optimization")
+    if !haskey(info["experiment"]["basics"]["config_files"], "optimization") && (info["experiment"]["flags"]["run_optimization"] || info["experiment"]["flags"]["calc_cost"])
         @warn "The config files in experiment_json and changes in replace_info do not include optimization_json. But, the settings for flags to run_optimization [set as $(info["experiment"]["flags"]["run_optimization"])] and/or calc_cost [set as $(info["experiment"]["flags"]["calc_cost"])] are set to true. These flags will be set to false from now on. The experiment will not run as intended further downstream. Cannot run optimization or calculate cost without the optimization settings. "
         info["experiment"]["flags"]["run_optimization"] = false
         info["experiment"]["flags"]["calc_cost"] = false

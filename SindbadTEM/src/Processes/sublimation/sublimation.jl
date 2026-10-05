@@ -18,9 +18,9 @@ function update(params::sublimation, forcing, land, helpers)
         snowW ⇐ land.pools
         ΔsnowW ⇐ land.pools
     end
-	@add_to_elem ΔsnowW[1] ⇒ (snowW, 1, :snowW)
+	@add_to_elem ΔsnowW[1] ⇒ (snowW, 1)
     # update snow pack
-	@add_to_elem -ΔsnowW[1] ⇒ (ΔsnowW, 1, :snowW)
+	@add_to_elem -ΔsnowW[1] ⇒ (ΔsnowW, 1)
     ## pack land variables
     @pack_nt begin
         snowW ⇒ land.pools

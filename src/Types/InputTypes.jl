@@ -3,26 +3,12 @@ export InputTypes
 abstract type InputTypes <: SindbadTypes end
 purpose(::Type{InputTypes}) = "Abstract type for input data and processing related options in SINDBAD"
 
-# -------------------------------- forcing backend --------------------------------
-export DataFormatBackend
-export BackendNetcdf
-export BackendZarr
-
-abstract type DataFormatBackend <: InputTypes end
-purpose(::Type{DataFormatBackend}) = "Abstract type for input data backends in SINDBAD"
-
-struct BackendNetcdf <: DataFormatBackend end
-purpose(::Type{BackendNetcdf}) = "Use NetCDF format for input data"
-
-struct BackendZarr <: DataFormatBackend end
-purpose(::Type{BackendZarr}) = "Use Zarr format for input data"
-
 # -------------------------------- input array type in named tuple --------------------------------
 export InputArrayBackend
 export InputArray
 export InputKeyedArray
 export InputNamedDimsArray
-export InputYaxArray
+export InputYAXArray
 
 abstract type InputArrayBackend <: InputTypes end
 purpose(::Type{InputArrayBackend}) = "Abstract type for input data array types in SINDBAD"
@@ -36,8 +22,8 @@ purpose(::Type{InputKeyedArray}) = "Use keyed arrays for input data"
 struct InputNamedDimsArray <: InputArrayBackend end
 purpose(::Type{InputNamedDimsArray}) = "Use named dimension arrays for input data"
 
-struct InputYaxArray <: InputArrayBackend end
-purpose(::Type{InputYaxArray}) = "Use YAXArray for input data"
+struct InputYAXArray <: InputArrayBackend end
+purpose(::Type{InputYAXArray}) = "Use YAXArray for input data"
 
 
 # -------------------------------- forcing variable type --------------------------------

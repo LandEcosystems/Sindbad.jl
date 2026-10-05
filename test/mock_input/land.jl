@@ -40,7 +40,7 @@ tmp_land = (;
         ),
     diagnostics = (;
         gpp_f_soilW = 0.5f0, # 1.0f0
-        C_to_N_cVeg = [0.25f0, 0.25f0, 0.25f0, 0.25f0],
+        CN_ratio_cVeg = [0.25f0, 0.25f0, 0.25f0, 0.25f0],
         c_allocation =[0.25f0, 0.25f0, 0.25f0, 0.25f0],
         auto_respiration_f_airT = 0.5f0,
         c_fVegDieOff = 0.5f0, # 0.5f0,

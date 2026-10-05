@@ -23,7 +23,7 @@ function update(params::capillaryFlow, forcing, land, helpers)
     soilW = addVec(soilW, ΔsoilW)
 
     for l in eachindex(ΔsoilW)
-        @rep_elem zero(eltype(ΔsoilW)) ⇒ (ΔsoilW, l, :soilW)
+        @rep_elem zero(eltype(ΔsoilW)) ⇒ (ΔsoilW, l)
     end
 
     ## pack land variables

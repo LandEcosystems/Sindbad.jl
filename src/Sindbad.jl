@@ -71,6 +71,7 @@ and visualization workflows.
   - `NLsolve` → `SindbadNLsolveExt`
   - `Optimization` → `SindbadOptimizationExt`
   - `CMAEvolutionStrategy` → `SindbadCMAEvolutionStrategyExt`
+  - `Plots` → `SindbadPlotsExt`
 
 # Examples:
 ```jldoctest

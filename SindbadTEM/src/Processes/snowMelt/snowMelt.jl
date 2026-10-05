@@ -25,7 +25,7 @@ function update(params::snowMelt, forcing, land, helpers)
 
     # reset delta storage
     for l in eachindex(ΔsnowW)
-        @rep_elem zero(eltype(ΔsnowW)) ⇒ (ΔsnowW, l, :snowW)
+        @rep_elem zero(eltype(ΔsnowW)) ⇒ (ΔsnowW, l)
     end
 
     ## pack land variables

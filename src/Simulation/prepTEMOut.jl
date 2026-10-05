@@ -20,7 +20,6 @@ Defines and instantiates numeric arrays for SINDBAD output variables.
 # Notes:
 - The arrays are created with dimensions based on the forcing sizes and the depth information of the output variables.
 - The numeric type of the arrays is determined by the model settings (`info.helpers.numbers.num_type`).
-- If forward differentiation is enabled (`info.helpers.run.use_forward_diff`), the array type is adjusted accordingly.
 
 # Examples
 ```jldoctest
@@ -41,50 +40,12 @@ function getNumericArrays(info, forcing_sizes)
         depth_size = first(depth_info)
         ar = nothing
         ax_vals = values(forcing_sizes)
-        ar = Array{getOutArrayType(tem_helpers.numbers.num_type, info.helpers.run.use_forward_diff), length(values(forcing_sizes)) + 1}(undef, ax_vals[1], depth_size, ax_vals[2:end]...)
+        ar = Array{tem_helpers.numbers.num_type, length(values(forcing_sizes)) + 1}(undef, ax_vals[1], depth_size, ax_vals[2:end]...)
         v_ind += 1
         ar .= info.helpers.numbers.num_type(NaN)
     end
     outarray = [outarray...]
     return outarray
-end
-
-"""
-    getOutArrayType(num_type, ::DoUseForwardDiff | ::DoNotUseForwardDiff)
-
-Determines the type of elements to be used in the output array based on whether forward differentiation is enabled.
-
-# Arguments:
-- `num_type`: The numeric type specified in the model settings (e.g., `Float64`).
-- `::DoUseForwardDiff`: A type dispatch indicating that forward differentiation is enabled. Returns a generic type (`Real`) to support differentiation.
-- `::DoNotUseForwardDiff`: A type dispatch indicating that forward differentiation is not enabled. Returns the specified numeric type (`num_type`).
-
-# Returns:
-- The type of elements to be used in the output array:
-  - `Real` if forward differentiation is enabled.
-  - `num_type` if forward differentiation is not enabled.
-
-# Examples
-```jldoctest
-julia> using Sindbad
-
-julia> # Get array type with forward differentiation enabled
-julia> getOutArrayType(Float64, DoUseForwardDiff())
-Real
-
-julia> # Get array type without forward differentiation
-julia> getOutArrayType(Float64, DoNotUseForwardDiff())
-Float64
-```
-"""
-function getOutArrayType end
-
-function getOutArrayType(_, ::DoUseForwardDiff)
-    return Real
-end
-
-function getOutArrayType(num_type, ::DoNotUseForwardDiff)
-    return num_type
 end
 
 """
@@ -145,7 +106,7 @@ function getOutDims(info, forcing_helpers, ::OutputYAXArray)
         od = []
         for _dim in dim_pairs
             if first(_dim) ∉ space_dims
-                push!(od, YAXArrays.Dim{first(_dim)}(last(_dim)))
+                push!(od, DD.rebuild(DD.Dimensions.name2dim(first(_dim)),(last(_dim))))
             end
         end
         Tuple(od)
@@ -155,13 +116,14 @@ function getOutDims(info, forcing_helpers, ::OutputYAXArray)
         vname = string(last(vname_full))
         _properties = collectMetadata(info, vname_full)
         vdims = var_dims[v_index]
-        outformat = info.settings.experiment.model_output.format
+        # outformat = info.settings.experiment.model_output.format
+        outformat = info.output.format # ? test and see if this works, which it should!
         backend = outformat == "nc" ? :netcdf : :zarr
-        out_dim = YAXArrays.OutDims(vdims...;
+        out_dim = YAXArrays.XOutput(vdims...)#=;
         properties = _properties,
         path=info.output.file_info.file_prefix * "_$(vname).$(outformat)",
         backend=backend,
-        overwrite=true)
+        overwrite=true)=#
         v_index += 1
         out_dim
     end
@@ -419,11 +381,11 @@ function setupOptiOutput(info::NamedTuple, output::NamedTuple, ::DoRunOptimizati
     paramaxis = YAXArrays.Dim{:parameter}(params)
     outformat = info.output.format
     backend = outformat == "nc" ? :netcdf : :zarr
-    od = YAXArrays.OutDims(paramaxis;
-        path=joinpath(info.output.dirs.optimization,
-            "optimized_parameters.$(outformat)"),
-        backend=backend,
-        overwrite=true)
+    od = YAXArrays.XOutput(paramaxis)
+        #path=joinpath(info.output.dirs.optimization,
+        #    "optimized_parameters.$(outformat)"),
+        #backend=backend,
+        #overwrite=true)
     # list of parameter
     output = set_namedtuple_field(output, (:parameter_dim, od))
     return output

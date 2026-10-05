@@ -5,10 +5,10 @@ struct runoffSaturationExcess_satFraction <: runoffSaturationExcess end
 function compute(params::runoffSaturationExcess_satFraction, forcing, land, helpers)
 
     ## unpack land variables
-    @unpack_nt (WBP, satFrac) ⇐ land.states
+    @unpack_nt (WBP, frac_saturation) ⇐ land.states
 
     ## calculate variables
-    sat_excess_runoff = WBP * satFrac
+    sat_excess_runoff = WBP * frac_saturation
 
     # update the WBP
     WBP = WBP - sat_excess_runoff
