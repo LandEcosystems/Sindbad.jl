@@ -31,13 +31,16 @@ function compute(params::drainage_dos, forcing, land, helpers)
     @unpack_nt begin
         drainage ⇐ land.fluxes
         (w_sat, soil_β, w_fc) ⇐ land.properties
+        idx_soilW_end ⇐ land.properties
         (soilW, ΔsoilW) ⇐ land.pools
         (z_zero, o_one) ⇐ land.constants
         tolerance ⇐ helpers.numbers
     end
 
     ## calculate drainage
-    for sl ∈ 1:(length(land.pools.soilW)-1)
+    # drain only between active layers. the bottom active layer loses water to
+    # groundwater through recharge, as the last layer does in a full column.
+    for sl ∈ 1:(idx_soilW_end-1)
         soilW_sl = min(at_least_zero(soilW[sl] + ΔsoilW[sl]), w_sat[sl])
         drain_fraction = clamp_zero_one(((soilW_sl) / w_sat[sl])^(dos_exp * soil_β[sl])) * n24
         drainage_tmp = drain_fraction * (soilW_sl)
@@ -51,7 +54,9 @@ function compute(params::drainage_dos, forcing, land, helpers)
         @add_to_elem -tmp ⇒ (ΔsoilW, sl)
         @add_to_elem tmp ⇒ (ΔsoilW, sl + 1)
     end
-    @rep_elem z_zero ⇒ (drainage, lastindex(drainage))
+    for sl ∈ idx_soilW_end:lastindex(drainage)
+        @rep_elem z_zero ⇒ (drainage, sl)
+    end
     ## pack land variables
     @pack_nt begin
         drainage ⇒ land.fluxes

@@ -12,16 +12,17 @@ function compute(params::groundWRecharge_fraction, forcing, land, helpers)
 
     ## unpack land variables
     @unpack_nt begin
+        idx_soilW_end ⇐ land.properties
         (ΔsoilW, soilW, ΔgroundW, groundW) ⇐ land.pools
         n_groundW = groundW ⇐ helpers.pools.n_layers
     end
 
     ## calculate variables
     # calculate recharge
-    gw_recharge = rf * (soilW[end] + ΔsoilW[end])
+    gw_recharge = rf * (soilW[idx_soilW_end] + ΔsoilW[idx_soilW_end])
 
     ΔgroundW = addToEachElem(ΔgroundW, gw_recharge / n_groundW)
-    @add_to_elem -gw_recharge ⇒ (ΔsoilW, lastindex(ΔsoilW))
+    @add_to_elem -gw_recharge ⇒ (ΔsoilW, idx_soilW_end)
 
     ## pack land variables
     @pack_nt begin

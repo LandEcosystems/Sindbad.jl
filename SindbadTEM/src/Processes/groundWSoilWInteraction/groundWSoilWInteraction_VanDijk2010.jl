@@ -21,6 +21,7 @@ function compute(params::groundWSoilWInteraction_VanDijk2010, forcing, land, hel
 
     ## unpack land variables
     @unpack_nt begin
+        idx_soilW_end ⇐ land.properties
         (k_fc, k_sat, w_sat) ⇐ land.properties
         (ΔsoilW, ΔgroundW, groundW, soilW) ⇐ land.pools
         unsat_k_model ⇐ land.models
@@ -31,20 +32,20 @@ function compute(params::groundWSoilWInteraction_VanDijk2010, forcing, land, hel
 
     # calculate recharge
     # degree of saturation & unsaturated hydraulic conductivity of the lowermost soil layer
-    dosSoilend = clamp_zero_one((soilW[end] + ΔsoilW[end]) / w_sat[end])
-    k_sat = k_sat[end] # assume GW is saturated
-    k_fc = k_fc[end] # assume GW is saturated
-    k_unsat = unsatK(land, helpers, lastindex(soilW), unsat_k_model)
+    dosSoilend = clamp_zero_one((soilW[idx_soilW_end] + ΔsoilW[idx_soilW_end]) / w_sat[idx_soilW_end])
+    k_sat = k_sat[idx_soilW_end] # assume GW is saturated
+    k_fc = k_fc[idx_soilW_end] # assume GW is saturated
+    k_unsat = unsatK(land, helpers, idx_soilW_end, unsat_k_model)
 
     # get the capillary flux
     c_flux = sqrt(k_unsat * k_sat) * (o_one - dosSoilend)
     gw_capillary_flux = at_least_zero(min(c_flux, max_fraction * (sum(groundW) + sum(ΔgroundW)),
-        soilW[end] + ΔsoilW[end]))
+        soilW[idx_soilW_end] + ΔsoilW[idx_soilW_end]))
     # @debug gw_capillary_flux
 
     # adjust the delta storages
     ΔgroundW = addToEachElem(ΔgroundW, -gw_capillary_flux / n_groundW)
-    @add_to_elem gw_capillary_flux ⇒ (ΔsoilW, lastindex(ΔsoilW))
+    @add_to_elem gw_capillary_flux ⇒ (ΔsoilW, idx_soilW_end)
 
     # adjust the gw_recharge as net flux between soil and groundwater. positive from soil to gw
     gw_recharge = gw_recharge - gw_capillary_flux

@@ -35,10 +35,13 @@ function define(params::soilWBase_smax2fRD4, forcing, land, helpers)
     w_sat = zero(soilW)
     w_fc = zero(soilW)
     w_wp = zero(soilW)
+    idx_soilW_end = lastindex(soilW)
+    cumulative_soil_depths = cumsum(soil_layer_thickness)
+    soil_depth = sum(soil_layer_thickness)
 
     ## pack land variables
     @pack_nt begin
-        (soil_layer_thickness, w_sat, w_fc, w_wp) ⇒ land.properties
+        (cumulative_soil_depths, idx_soilW_end, soil_depth, soil_layer_thickness, w_sat, w_fc, w_wp) ⇒ land.properties
         rootwater_capacities ⇒ land.soilWBase
     end
     return land

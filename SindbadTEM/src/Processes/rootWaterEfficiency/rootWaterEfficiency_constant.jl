@@ -10,18 +10,15 @@ function define(params::rootWaterEfficiency_constant, forcing, land, helpers)
     @unpack_rootWaterEfficiency_constant params
     
     @unpack_nt begin
-        soil_layer_thickness ⇐ land.properties
         soilW ⇐ land.pools            
     end
 
-    cumulative_soil_depths = cumsum(soil_layer_thickness)
     ## Instantiate
     root_water_efficiency = one.(soilW)
 
     ## pack land variables
     @pack_nt begin
         root_water_efficiency ⇒ land.diagnostics
-        cumulative_soil_depths ⇒ land.properties
     end
 
     return land

@@ -26,9 +26,12 @@ function define(params::soilWBase_smax2Layer, forcing, land, helpers)
     w_sat = zero(soilW)
     w_fc = zero(soilW)
     w_wp = zero(soilW)
+    idx_soilW_end = lastindex(soilW)
+    cumulative_soil_depths = cumsum(soil_layer_thickness)
+    soil_depth = sum(soil_layer_thickness)
 
     ## pack land variables
-    @pack_nt (soil_layer_thickness, w_sat, w_fc, w_wp) ⇒ land.properties
+    @pack_nt (cumulative_soil_depths, idx_soilW_end, soil_depth, soil_layer_thickness, w_sat, w_fc, w_wp) ⇒ land.properties
     return land
 end
 

@@ -6,6 +6,7 @@ function compute(params::groundWRecharge_kUnsat, forcing, land, helpers)
 
     ## unpack land variables
     @unpack_nt begin
+        idx_soilW_end ⇐ land.properties
         w_sat ⇐ land.properties
         unsat_k_model ⇐ land.models
         (ΔsoilW, soilW, ΔgroundW, groundW) ⇐ land.pools
@@ -13,11 +14,11 @@ function compute(params::groundWRecharge_kUnsat, forcing, land, helpers)
     end
 
     # calculate recharge
-    k_unsat = unsatK(land, helpers, lastindex(soilW), unsat_k_model)
-    gw_recharge = min(k_unsat, soilW[end] + ΔsoilW[end])
+    k_unsat = unsatK(land, helpers, idx_soilW_end, unsat_k_model)
+    gw_recharge = min(k_unsat, soilW[idx_soilW_end] + ΔsoilW[idx_soilW_end])
 
     ΔgroundW = addToEachElem(ΔgroundW, gw_recharge / n_groundW)
-    @add_to_elem -gw_recharge ⇒ (ΔsoilW, lastindex(ΔsoilW))
+    @add_to_elem -gw_recharge ⇒ (ΔsoilW, idx_soilW_end)
 
     ## pack land variables
     @pack_nt begin
