@@ -209,6 +209,12 @@ function getForcing(info::NamedTuple)
         data_path_v = getAbsDataPath(info, getfield(vinfo, :data_path))
         nc, yax = getYaxFromSource(nc, data_path, data_path_v, vinfo.source_variable)
         incube = subsetAndProcessYax(yax, forcing_mask, tar_dims, vinfo, info, num_type)
+        space_dims = Symbol.(vinfo.space_dimensions)
+        for (i,dim) in enumerate(space_dims)
+            if hasdim(incube, dim)
+                incube = set(incube, dim .=> Symbol(default_info.space_dimensions[i]))
+            end
+        end
         v_op = vinfo.additive_unit_conversion ? " + " : " * "
         v_op = v_op * "$(vinfo.source_to_sindbad_unit)"
         v_string = "`$(k)` ($(vinfo.sindbad_unit), $(vinfo.bounds)) = <$(vinfo.space_time_type)> `$(vinfo.source_variable)` ($(vinfo.source_unit)) $(v_op)"
@@ -217,29 +223,17 @@ function getForcing(info::NamedTuple)
             f_sizes = collectForcingSizes(info, incube)
             f_dimension = getSindbadDims(incube)
         end
-        incube
+        k => incube
     end
-    ### XINTERP HERE
-    incubes = remap_to_target_resolution(incubes, info)
-    ### XINTERP HERE
-    return createForcingNamedTuple(incubes, f_sizes, f_dimension, info)
-end
-
-function remap_to_target_resolution(incubes, info)
-    forcing_data_settings = info.experiment.data_settings.forcing
     if hasproperty(forcing_data_settings, :spatial_resolution_of)
-        target_resolution = forcing_data_settings.spatial_resolution_of
-        print_info(remap_to_target_resolution, @__FILE__, @__LINE__, "remapping forcing variables to target resolution: $(target_resolution)")
-        incubes = map(incubes) do incube
-            remap_to_target_resolution_single(incube, target_resolution, info)
+        targetcube = last(only(filter(x->first(x) == Symbol(forcing_data_settings.spatial_resolution_of), incubes)))
+        target_resolution = dims(targetcube)
+        print_info(getForcing, @__FILE__, @__LINE__, "remapping forcing variables to target resolution: $(target_resolution)")
+        interpincubes = map(incubes) do incube
+            YAXArrays.xresample(last(incube), to=target_resolution)
         end
+    else 
+        interpincubes = last.(incubes)
     end
-    return incubes
-end
-
-function remap_to_target_resolution_single(incube, target_resolution, info)
-    # Implement the logic to remap the incube to the target resolution
-    # This is a placeholder for the actual remapping logic
-    print_info(remap_to_target_resolution_single, @__FILE__, @__LINE__, "remapping single incube to target resolution: $(target_resolution)")
-    return incube  # Return the remapped incube (currently unchanged)
+    return createForcingNamedTuple(interpincubes, f_sizes, f_dimension, info)
 end
