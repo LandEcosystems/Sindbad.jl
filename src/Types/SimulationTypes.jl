@@ -122,6 +122,7 @@ purpose(::Type{SpinupTypes}) = "Abstract type for model spinup related functions
 export SpinupMode
 export AllForwardModels
 export SelSpinupModels
+export SpinupInput
 export EtaScaleA0H
 export EtaScaleA0HCWD
 export EtaScaleAHCWD
@@ -180,6 +181,9 @@ purpose(::Type{ODETsit5}) = "use the Tsit5 method from DifferentialEquations.jl 
 
 struct SelSpinupModels <: SpinupMode end
 purpose(::Type{SelSpinupModels}) = "run only the models selected for spinup in the model structure"
+
+struct SpinupInput <: SpinupMode end
+purpose(::Type{SpinupInput}) = "replace the pools with the forcing variables of the same name, e.g., the main pools of a restart file, and fill their component pools"
 
 struct SSPDynamicSSTsit5 <: SpinupMode end
 purpose(::Type{SSPDynamicSSTsit5}) = "use the SteadyState solver with DynamicSS and Tsit5 methods"

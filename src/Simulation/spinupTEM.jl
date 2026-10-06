@@ -330,6 +330,98 @@ function spinup(_, _, _, land, helpers, _, ::EtaScaleA0HCWD)
     return land
 end
 
+function spinup(_, _, loc_forcing_t, land, tem_info, _, ::SpinupInput)
+    pools = replacePoolsFromForcing(land.pools, loc_forcing_t)
+    @pack_nt pools ⇒ land
+    land = setComponentsFromForcedMainPools(land, tem_info.model_helpers, loc_forcing_t)
+    return land
+end
+
+"""
+    setComponentsFromForcedMainPools(land, helpers, loc_forcing_t)
+
+Fills the component pools of every main pool that was read from the forcing, e.g.,
+`cVeg`, `cVegRoot` and `cSoil` from `cEco`, and `soilW` and `groundW` from `TWS`.
+
+# Arguments:
+- `land`: a SINDBAD NamedTuple containing all variables for a given time step
+- `helpers`: the model helpers with the pool information of the model structure
+- `loc_forcing_t`: a forcing NamedTuple for a single location and a single time step
+
+# Notes:
+- The main pools are the keys of `helpers.pools.vals.self`. Those and the forcing names
+  are type parameters, so the selection happens at compile time.
+"""
+@generated function setComponentsFromForcedMainPools(land, helpers, loc_forcing_t)
+    vals_type = fieldtype(fieldtype(helpers, :pools), :vals)
+    main_pools = fieldnames(fieldtype(vals_type, :self))
+    forced_main_pools = Tuple(m for m ∈ main_pools if m ∈ fieldnames(loc_forcing_t))
+    gen_output = quote end
+    for m ∈ forced_main_pools
+        push!(gen_output.args, :(land = setComponentFromMainPool(land, helpers,
+            helpers.pools.vals.self.$m, helpers.pools.vals.all_components.$m, helpers.pools.vals.zix.$m)))
+    end
+    push!(gen_output.args, :(return land))
+    return gen_output
+end
+
+"""
+    replacePoolsFromForcing(pools, loc_forcing_t)
+
+Replaces every variable of `land.pools` that has a forcing variable of the same name
+with the forcing value of the location.
+
+# Arguments:
+- `pools`: the `pools` field of a SINDBAD land NamedTuple
+- `loc_forcing_t`: a forcing NamedTuple for a single location and a single time step.
+  It holds the full value of every forcing variable without a time dimension, such as
+  the variables of a restart file.
+
+# Returns:
+- `pools` with the matching variables replaced
+
+# Notes:
+- The variable names are type parameters of `pools` and `loc_forcing_t`, so the
+  matching is done at compile time and the function is type stable.
+- Each replaced value keeps the container and number type of the pool.
+- The number of layers of the forcing value must equal the size of the pool,
+  otherwise an error is thrown.
+"""
+@generated function replacePoolsFromForcing(pools, loc_forcing_t)
+    matched_vars = Tuple(v for v ∈ fieldnames(pools) if v ∈ fieldnames(loc_forcing_t))
+    gen_output = quote end
+    for v ∈ matched_vars
+        push!(gen_output.args, quote
+            new_value = matchPoolType(pools.$v, loc_forcing_t.$v, $(QuoteNode(v)))
+            pools = merge(pools, NamedTuple{($(QuoteNode(v)),)}((new_value,)))
+        end)
+    end
+    push!(gen_output.args, :(return pools))
+    return gen_output
+end
+
+"""
+    matchPoolType(pool_value, forcing_value, name)
+
+Converts the forcing value of a location to the container and number type of the pool
+it replaces, after checking that both have the same number of layers.
+"""
+function matchPoolType(pool_value, forcing_value, name)
+    length(forcing_value) == length(pool_value) || throwSpinupInputSizeError(name, length(pool_value), length(forcing_value))
+    if ismutable(pool_value)
+        new_value = similar(pool_value)
+        for i ∈ eachindex(new_value)
+            new_value[i] = forcing_value[i]
+        end
+        return new_value
+    end
+    return typeof(pool_value)(vec(forcing_value))
+end
+
+@noinline function throwSpinupInputSizeError(name, n_land, n_forcing)
+    error("SpinupInput: land.pools.$(name) has $(n_land) layer(s) but the forcing variable $(name) has $(n_forcing). Check that the restart file was written with the same model structure and pool settings.")
+end
+
 """
     sequenceForcing(spinup_forcings::NamedTuple, forc_name::Symbol)
 
