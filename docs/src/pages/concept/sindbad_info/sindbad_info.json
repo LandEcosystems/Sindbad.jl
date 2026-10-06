@@ -1141,8 +1141,7 @@
     {
       "name": "spinup",
       "children": [
-        { "name": "restart_file", "value": 1 },
-        { "name": "sequence", "value": 1 }
+        { "name": "spinup_sequence", "value": 1 }
       ]
     },
     {

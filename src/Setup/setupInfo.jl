@@ -316,37 +316,6 @@ end
 
 
 """
-    setRestartFilePath(info::NamedTuple)
-
-Validates and sets the absolute path for the restart file used in spinup.
-
-# Arguments:
-- `info`: A NamedTuple containing the experiment configuration.
-
-# Returns:
-- The updated `info` NamedTuple with the absolute restart file path set.
-"""
-function setRestartFilePath(info::NamedTuple)
-    restart_file_in = get(info.settings.experiment.model_spinup, :restart_file, nothing)
-    restart_file = nothing
-
-    if !isnothing(restart_file_in)
-        if restart_file_in[(end-4):end] != ".jld2"
-            error(
-                "info.settings.experiment.model_spinup.restartFile has a file ending other than .jld2. Only jld2 files are supported for loading spinup. Either give a correct file or set info.settings.experiment.flags.load_spinup to false."
-            )
-        end
-        if isabspath(restart_file_in)
-            restart_file = restart_file_in
-        else
-            restart_file = joinpath(info.temp.experiment.dirs.experiment, restart_file_in)
-        end
-        info = @set info.settings.experiment.model_spinup.restart_file = restart_file
-    end
-    return info
-end
-
-"""
     getSpinupAggregator(forcing_name, helpers_dates, aggregator_cache)
 
 Build the temporal aggregator of a spinup forcing set, reusing an already built one when the
@@ -456,16 +425,18 @@ Processes the spinup configuration and prepares the spinup sequence method.
 - The updated `info` NamedTuple with spinup-related fields added.
 
 # Notes:
+- The sequence is read from `spinup_sequence` in the experiment settings. It is either a
+  list of spinup steps or a sequence method with its options.
 - The sequence itself is not built here. A sequence method may need the forcing of a location
   to decide the steps, so the sequence is built per location in `prepTEM`.
 """
 function setSpinupInfo(info)
     print_info(setSpinupInfo, @__FILE__, @__LINE__, "setting Spinup Info...")
-    info = setRestartFilePath(info)
-    infospin = info.settings.experiment.model_spinup
-    seq_config = getSpinupSequenceConfig(get(infospin, :sequence, nothing))
-    infospin = drop_namedtuple_fields(infospin, (:sequence,))
-    infospin = (; infospin..., seq_config...)
+    exp_settings = info.settings.experiment
+    if hasproperty(exp_settings, :model_spinup)
+        error("The experiment settings have a `model_spinup` section, which is no longer used. Move its `sequence` to `spinup_sequence` at the top level of the experiment settings, e.g. `\"spinup_sequence\": [...]`, and remove `model_spinup`. In replace_info, use the key `experiment.spinup_sequence`.")
+    end
+    infospin = getSpinupSequenceConfig(get(exp_settings, :spinup_sequence, nothing))
     info = set_namedtuple_subfield(info, :temp, (:spinup, infospin))
     return info
 end
