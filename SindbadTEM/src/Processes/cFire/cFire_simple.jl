@@ -43,13 +43,13 @@ function compute(params::cFire_simple, forcing, land, helpers)
     if c_fire_fba != z_zero || c_f_cVeg_dieOff != z_zero
         for fO ∈ c_flow_order
             giver = c_giver[fO]
-            giver ∈ zix_cVeg || continue
             taker = c_taker[fO]
+            giver ∈ zix_cVeg && taker ∈ zix_cHeterotrophic || continue
             # total mortality fraction of vegetation pool
             f_loss = c_f_cVeg_dieOff + c_fire_fba * c_Fire_k[giver]
             cLoss = (at_least_zero(cEco[giver] - c_remain) * f_loss) * c_flow_QP_vec[fO]
             # part that is combusted and that goes to the litter pools
-            cLossFire = safe_divide(cLoss * (c_fire_fba * c_Fire_k[giver]), f_loss * c_Fire_cci[giver])
+            cLossFire = cLoss * c_Fire_cci[giver] * safe_divide(c_fire_fba * c_Fire_k[giver],f_loss)
             cLossNonFire = cLoss - cLossFire
 
             @add_to_elem cLossFire ⇒ (c_fire_efflux, giver)
