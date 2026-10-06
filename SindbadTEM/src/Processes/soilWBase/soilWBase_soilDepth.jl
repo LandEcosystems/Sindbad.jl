@@ -53,6 +53,7 @@ function precompute(params::soilWBase_soilDepth, forcing, land, helpers)
         idx_soilW_end ⇐ land.properties
         soilW ⇐ land.pools
         soil_depths = soilW ⇐ helpers.pools.layer_thickness
+        tolerance ⇐ helpers.numbers
     end
 
     # soil depth of the location in mm. the forcing may hold it as a scalar or
@@ -62,7 +63,7 @@ function precompute(params::soilWBase_soilDepth, forcing, land, helpers)
     if !(isfinite(depth_in) && depth_in > zero(depth_in))
         error("soilWBase_soilDepth: invalid f_soil_depth = $(depth_in) mm. Soil depth must be finite and positive.")
     end
-    if depth_in > column_depth * (one(column_depth) + 1e-6)
+    if depth_in > column_depth * (one(column_depth) + tolerance)
         error("soilWBase_soilDepth: f_soil_depth = $(depth_in) mm is deeper than the soil column of $(column_depth) mm set in pools.water.components.soilW of model_structure.json.")
     end
     soil_depth = convert(eltype(soil_layer_thickness), min(depth_in, column_depth))
