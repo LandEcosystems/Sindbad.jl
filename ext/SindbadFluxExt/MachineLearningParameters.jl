@@ -1,11 +1,12 @@
 using Sindbad.DataLoaders: DD
 using DimensionalData: hasdim
-using YAXArrays: Cube, YAXArray
-using YAXArrays.DAT: xmap, XOutput, ⊘
+using YAXArrays: Cube, YAXArray, xmap, XOutput, ⊘
+using Dates
 
 import Flux
 import Sindbad.MachineLearning:
     predictParameters,
+    predictParametersPixel!,
     assembleFeatures,
     scaleToBounds,
     oneHotPFT
@@ -79,7 +80,7 @@ Arguments:
 - `lower_bound`: Lower bounds for the parameters.
 - `upper_bound`: Upper bounds for the parameters.
 - `ps_names`: Parameter names (defining the `:parameter` dimension).
-- `path`: Output path for saving the cube (optional).
+- `path`: Output path for saving the cube (optional, e.g. `"parameters.zarr"`). Providing a path is recommended for large datasets to stream chunk-by-chunk computation to disk.
 - `metadata_global`: Global metadata to merge into output properties (default: `Dict()`).
 - `overwrite`: Whether to overwrite output file if it exists (default: `true`).
 """
@@ -103,10 +104,10 @@ function predictParameters(
     end
 
     in_args = map(cubes_tuple) do c
-        if hasdim(c, :Variables)
-            c ⊘ (DD.Dim{:Variables},)
-        elseif hasdim(c, "Variables")
-            c ⊘ (DD.Dim{Symbol("Variables")},)
+        c_dims = DD.dims(c)
+        var_dim_idx = findfirst(d -> DD.name(d) == :Variables || string(DD.name(d)) == "Variables", c_dims)
+        if !isnothing(var_dim_idx)
+            c ⊘ (:Variables,)
         else
             c ⊘ ()
         end
@@ -114,18 +115,27 @@ function predictParameters(
 
     properties = Dict{String, Any}(
         "name" => "parameters",
-        "description" => "neural network spatial parameters estimations",
+        "long_name" => "Estimated Ecosystem Model Parameters",
+        "description" => "Spatial parameter estimates generated via trained neural network using input covariates and bounded within parameter ranges.",
+        "source" => "Sindbad.jl",
+        "parameter_names" => String.(ps_names),
+        "n_parameters" => length(ps_names),
+        "lower_bounds" => collect(lower_bound),
+        "upper_bounds" => collect(upper_bound),
+        "created_at" => string(Dates.now()),
     )
     properties = merge(properties, metadata_global)
 
+    reduce_dims = Tuple(unique(Symbol(DD.name(d)) for c in cubes_tuple for d in DD.dims(c) if DD.name(d) == :Variables || string(DD.name(d)) == "Variables"))
+
     param_axis = DD.Dim{:parameter}(String.(ps_names))
     out_spec = if isempty(path)
-        XOutput(param_axis; outtype=Float32, properties=properties)
+        XOutput(param_axis; destroyaxes=reduce_dims, outtype=Float32, properties=properties)
     else
-        XOutput(param_axis; path=path, outtype=Float32, properties=properties, overwrite=overwrite)
+        XOutput(param_axis; destroyaxes=reduce_dims, path=path, outtype=Float32, properties=properties, overwrite=overwrite)
     end
 
-    return xmap(
+    result = xmap(
         predictParametersPixel!,
         in_args...;
         output = out_spec,
@@ -136,4 +146,13 @@ function predictParameters(
             kwargs...,
         ),
     )
+
+    # Drop any leftover singleton reduced dimensions from the output
+    for rdim in reduce_dims
+        if DD.hasdim(result, rdim) && size(result, rdim) == 1
+            result = DD.dropdims(result; dims=rdim)
+        end
+    end
+
+    return result
 end
