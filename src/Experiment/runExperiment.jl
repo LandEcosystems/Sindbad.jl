@@ -133,7 +133,7 @@ function runExperiment(info::NamedTuple, forcing::NamedTuple, ::DoCalcCost)
     observations = getObservation(info, forcing.helpers)
     obs_array = [Array(_o) for _o in observations.data]; # TODO: necessary now for performance because view of keyedarray is slow
     print_info(runExperiment, @__FILE__, @__LINE__, "do forward run...")
-    forward_output = runForward(forcing, info, DoNotRunLazy())
+    forward_output = runForward(forcing, info, DoNotRunLazy()).output
     print_info(runExperiment, @__FILE__, @__LINE__, "calculate cost...")
     cost_options = prepCostOptions(obs_array, info.optimization.cost_options)
     loss_vector = metricVector(forward_output, obs_array, cost_options)
@@ -149,7 +149,7 @@ end
 function runExperiment(info::NamedTuple, forcing::NamedTuple, ::Union{DoRunForward, DoNotRunOptimization})
     run_output = runForward(forcing, info, info.helpers.run.run_lazy)
     set_log_level()
-    return (; forcing, info, output=run_output)
+    return (; forcing, info, output=run_output.output, restart=run_output.restart)
 end
 
 
@@ -218,6 +218,7 @@ function runExperimentForward(sindbad_experiment::String; replace_info=Dict(), l
     run_output = runExperiment(info, forcing, info.helpers.run.run_forward)
     output_dims = getOutDims(info, forcing.helpers)
     saveOutCubes(info, values(run_output.output), output_dims, info.output.variables)
+    saveRestartCubes(info, run_output.restart)
     set_log_level()
     return run_output
 end
@@ -248,14 +249,16 @@ function runExperimentForwardParams(params_vector::Vector, sindbad_experiment::S
 
     default_models = info.models.forward;
 
-    default_output = runForward(default_models, forcing, info, DoNotRunLazy())
+    default_output = runForward(default_models, forcing, info, DoNotRunLazy()).output
 
     parameter_table = info.optimization.parameter_table;
     optimized_models = updateModelParameters(parameter_table, default_models, params_vector)
-    optimized_output = runForward(optimized_models, forcing, info, DoNotRunLazy())
+    optimized_run = runForward(optimized_models, forcing, info, DoNotRunLazy())
+    optimized_output = optimized_run.output
 
     output_dims = getOutDims(info, forcing.helpers)
     saveOutCubes(info, values(optimized_output), output_dims, info.output.variables)
+    saveRestartCubes(info, optimized_run.restart)
 
     forward_output = (; optimized=optimized_output, default=default_output)
     set_log_level()
@@ -285,10 +288,11 @@ function runExperimentFullOutput(sindbad_experiment::String; replace_info=Dict()
     info = @set info.helpers.run.land_output_type = PreAllocArrayAll()
     run_helpers = prepTEM(info.models.forward, forcing, info)
     info = @set info.output.variables = run_helpers.output_vars
-    runTEM!(run_helpers.space_selected_models, run_helpers.space_forcing, run_helpers.space_spinup, run_helpers.loc_forcing_t, run_helpers.space_output, run_helpers.space_land, run_helpers.tem_info)
+    runTEM!(run_helpers.space_selected_models, run_helpers.space_forcing, run_helpers.space_spinup, run_helpers.loc_forcing_t, run_helpers.space_output, run_helpers.space_restart, run_helpers.space_land, run_helpers.tem_info)
     output_dims = run_helpers.output_dims
     run_output = run_helpers.output_array
     saveOutCubes(info, run_output, output_dims, run_helpers.output_vars)
+    saveRestartCubes(info, run_helpers.restart)
     set_log_level()
     return (; forcing, info, output=(; Pair.(getUniqueVarNames(run_helpers.output_vars), run_output)...))
 end
@@ -384,10 +388,9 @@ Run a SINDBAD forward simulation, choosing between eager and lazy execution.
   - `DoRunLazy`: Run lazily over YAXArrays via `runTEMYax`
 
 # Returns
-- For `DoNotRunLazy` mode:
-  - A NamedTuple pairing each unique output variable name (from `info.output.variables`) with its computed time series
-- For `DoRunLazy` mode:
-  - The lazy YAXArray output produced by `runTEMYax`
+- A NamedTuple with:
+  - `output`: for `DoNotRunLazy`, a NamedTuple pairing each unique output variable name (from `info.output.variables`) with its computed time series. For `DoRunLazy`, the lazy YAXArray output produced by `runTEMYax`.
+  - `restart`: the pools after spinup of every location, to be written with `saveRestartCubes`
 
 # Description
 This function is the entry point for executing the forward model of a SINDBAD experiment. It dispatches on the run mode to select between two execution strategies:
@@ -407,15 +410,14 @@ end
 # parameter-updated models), so callers route their forward runs through `runForward`
 # instead of calling `runTEM!`/`runTEMYax` directly.
 function runForward(selected_models, forcing, info, ::DoNotRunLazy)
-    run_output = runTEM!(selected_models, forcing, info)
-    run_output = (; Pair.(getUniqueVarNames(info.output.variables), run_output)...)
-    return run_output
+    run_helpers = prepTEM(selected_models, forcing, info)
+    runTEM!(run_helpers.space_selected_models, run_helpers.space_forcing, run_helpers.space_spinup, run_helpers.loc_forcing_t, run_helpers.space_output, run_helpers.space_restart, run_helpers.space_land, run_helpers.tem_info)
+    run_output = (; Pair.(getUniqueVarNames(info.output.variables), run_helpers.output_array)...)
+    return (; output=run_output, restart=run_helpers.restart)
 end
 
 function runForward(selected_models, forcing, info, ::DoRunLazy)
-    run_output = runTEMYax(
-        selected_models,
-        forcing,
-        info)
-    return run_output
+    run_output = runTEMYax(selected_models, forcing, info)
+    restart = (; dataset=run_output.restart, variables=run_output.restart_vars)
+    return (; output=run_output.output, restart=restart)
 end

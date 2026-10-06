@@ -354,6 +354,36 @@ run_helpers = helpPrepTEM(selected_models, info, forcing, observations, output, 
 function helpPrepTEM end
 
 """
+    prepRestart(info, forcing_helpers, loc_land, space_ind, tem_info)
+
+Prepares the arrays that collect `land.pools` after spinup for the restart file.
+
+# Arguments:
+- `info`: a SINDBAD NT with all information needed for setup and execution of an experiment
+- `forcing_helpers`: a NT with information on forcing sizes and dimensions
+- `loc_land`: the land of one location after a model run of one time step
+- `space_ind`: the spatial indices of all locations
+- `tem_info`: helper NT with necessary objects for model run and type consistencies
+
+# Returns:
+- `restart`: a NT with the `variables`, `dims` and `data` of the restart file
+- `space_restart`: the per-location views into `restart.data`
+- `tem_info`: `tem_info` with `vals.restart_vars` set for the generated output writer
+
+# Notes:
+- The arrays are only filled by the forward runs that take `space_restart`. The
+  optimization and cost runs never touch them.
+"""
+function prepRestart(info, forcing_helpers, loc_land, space_ind, tem_info)
+    restart = getRestartDimsArrays(info, forcing_helpers, loc_land)
+    space_restart = map([space_ind...]) do lsi
+        getLocData(restart.data, lsi)
+    end
+    tem_info =  (; tem_info..., vals=(; tem_info.vals..., restart_vars=Val(restart.variables)))
+    return restart, space_restart, tem_info
+end
+
+"""
     plotActualCarbonFlows(info, land)
 
 If `land.models.c_model` exists (only a `cCycleBase` approach's `define` packs it),
@@ -402,13 +432,15 @@ function helpPrepTEM(selected_models, info, forcing::NamedTuple, output::NamedTu
         getLocData(output_array, lsi)
     end
 
+    restart, space_restart, tem_info = prepRestart(info, forcing.helpers, loc_land, space_ind, tem_info)
+
     space_land = getSpaceLand(loc_land, space_spinup, info.helpers.run.store_spinup)
 
     space_selected_models = [[selected_models for _ ∈ 1:length(space_ind)]...]
 
     forcing_nt_array = nothing
 
-    run_helpers = (; space_selected_models, space_forcing, space_ind, space_spinup, loc_forcing_t, output_array, space_output, space_land, loc_land, output_dims, output_vars, tem_info)
+    run_helpers = (; space_selected_models, space_forcing, space_ind, space_spinup, loc_forcing_t, output_array, space_output, space_land, loc_land, output_dims, output_vars, restart, space_restart, tem_info)
     return run_helpers
 end
 
@@ -445,13 +477,15 @@ function helpPrepTEM(selected_models, info, forcing::NamedTuple, output::NamedTu
         getLocData(output_array, lsi)
     end
 
+    restart, space_restart, tem_info = prepRestart(info, forcing.helpers, loc_land, space_ind, tem_info)
+
     space_land = getSpaceLand(loc_land, space_spinup, info.helpers.run.store_spinup)
 
     space_selected_models = [[selected_models for _ ∈ 1:length(space_ind)]...]
 
     forcing_nt_array = nothing
 
-    run_helpers = (; space_selected_models, space_forcing, space_ind, space_spinup, loc_forcing_t, output_array, space_output, space_land, loc_land, output_dims, output_vars=info.output.variables, tem_info)
+    run_helpers = (; space_selected_models, space_forcing, space_ind, space_spinup, loc_forcing_t, output_array, space_output, space_land, loc_land, output_dims, output_vars=info.output.variables, restart, space_restart, tem_info)
     return run_helpers
 end
 
@@ -681,12 +715,40 @@ function runTEMOne(selected_models, loc_forcing, land_init, tem, spinup_sequence
     loc_land = computeTEM(selected_models, loc_forcing_t, loc_land, tem.model_helpers)
     # loc_land = drop_empty_namedtuple_fields(loc_land)
     loc_land = addSpinupLog(loc_land, spinup_sequence, tem.run.store_spinup)
+    checkSpinupInput(loc_land, loc_forcing_t, spinup_sequence)
     # loc_land = definePrecomputeTEM(selected_models, loc_forcing_t, loc_land,
         # tem.model_helpers)
     # loc_land = precomputeTEM(selected_models, loc_forcing_t, loc_land,
         # tem.model_helpers)
     # loc_land = computeTEM(selected_models, loc_forcing_t, loc_land, tem.model_helpers)
     return loc_forcing_t, loc_land
+end
+
+"""
+    checkSpinupInput(loc_land, loc_forcing_t, spinup_sequence)
+
+Checks the use of `SpinupInput` in the spinup sequence once during setup. It does
+nothing when the sequence has no `SpinupInput` step.
+
+# Notes:
+- `SpinupInput` sets the initial pools from the forcing, so it must be the first step
+  of the sequence. Any other position throws an error.
+- A warning is shown when the forcing has no variable with the name of a pool, in which
+  case the `SpinupInput` step does nothing.
+"""
+function checkSpinupInput(loc_land, loc_forcing_t, spinup_sequence)
+    input_steps = findall(seq -> seq.spinup_mode isa SpinupInput, collect(spinup_sequence))
+    isempty(input_steps) && return nothing
+    if input_steps != [1]
+        error("The spinup mode `SpinupInput` must be the first step of the spinup sequence, and only once, but it is at step(s) $(input_steps). Move it to the start of the sequence.")
+    end
+    matched_vars = intersect(propertynames(loc_land.pools), propertynames(loc_forcing_t))
+    if isempty(matched_vars)
+        @warn "The spinup mode `SpinupInput` replaces land.pools with forcing variables of the same name, but the forcing has none of them. Add the variables of the restart file to the forcing settings."
+    else
+        print_info(checkSpinupInput, @__FILE__, @__LINE__, "`SpinupInput` replaces $(matched_vars) from the forcing", n_f=6)
+    end
+    return nothing
 end
 
 function updateForcingHelpers(new_forcing_helpers, parameter_set_size)

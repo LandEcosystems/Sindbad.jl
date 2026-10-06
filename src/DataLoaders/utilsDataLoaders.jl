@@ -84,7 +84,8 @@ function cleanData(_data, _data_fill, _data_info, ::Val{T}) where {T}
     _data = applyUnitConversion(_data, _data_info.source_to_sindbad_unit,
         _data_info.additive_unit_conversion)
     bounds = _data_info.bounds
-    if !isnothing(bounds)
+    # no bounds, given as null or an empty list, means no clamping
+    if !isnothing(bounds) && !isempty(bounds)
         _data = clamp(_data, first(bounds), last(bounds))
     end
     return T(_data)

@@ -1,6 +1,7 @@
 
 export getOutDims
 export getOutDimsArrays
+export getRestartDimsArrays
 export prepTEMOut
 export setupOptiOutput
 
@@ -213,7 +214,7 @@ function getOutDimsArrays(info, forcing_helpers, oayax::OutputYAXArray)
 end
 
 """
-    getOutDimsPairs(tem_output, forcing_helpers; dthres=1)
+    getOutDimsPairs(tem_output, forcing_helpers; dthres=1, with_time=true)
 
 Creates dimension pairs for each output variable based on forcing dimensions and depth information.
 
@@ -221,6 +222,7 @@ Creates dimension pairs for each output variable based on forcing dimensions and
 - `tem_output`: A NamedTuple containing information about output variables and depth dimensions of output arrays.
 - `forcing_helpers`: A NamedTuple with information on forcing sizes, dimensions, and optional permutations.
 - `dthres`: (Optional) A threshold for the number of depth layers to define depth as a new dimension. Defaults to `1`.
+- `with_time`: (Optional) Whether to include the leading time dimension. Defaults to `true`. The restart file sets it to `false`.
 
 # Returns:
 - A vector of tuples, where each tuple contains dimension pairs for an output variable. Each dimension pair is represented as a `Pair` of a dimension name and its corresponding range or size.
@@ -249,7 +251,7 @@ outdims_pairs = getOutDimsPairs(tem_output, forcing_helpers)
 outdims_pairs = getOutDimsPairs(tem_output, forcing_helpers; dthres=2)
 ```
 """
-function getOutDimsPairs(tem_output, forcing_helpers; dthres=1)
+function getOutDimsPairs(tem_output, forcing_helpers; dthres=1, with_time=true)
     forcing_axes = forcing_helpers.axes
     dim_loops = first.(forcing_axes)
     axes_dims_pairs = []
@@ -273,7 +275,7 @@ function getOutDimsPairs(tem_output, forcing_helpers; dthres=1)
         depth_size = first(depth_info)
         depth_name = last(depth_info)
         od = []
-        push!(od, axes_dims_pairs[1])
+        with_time && push!(od, axes_dims_pairs[1])
         if depth_size > dthres
             if depth_size == 1
                 depth_name = "idx"
@@ -287,6 +289,50 @@ function getOutDimsPairs(tem_output, forcing_helpers; dthres=1)
         Tuple(od)
     end
     return outdims_pairs
+end
+
+
+"""
+    getRestartDimsArrays(info, forcing_helpers, loc_land)
+
+Prepares the variables, dimensions and arrays of the restart file, which holds the main
+pools after spinup.
+
+# Arguments:
+- `info`: A SINDBAD NamedTuple containing all information needed for setup and execution of an experiment.
+- `forcing_helpers`: A NamedTuple with information on forcing sizes and dimensions.
+- `loc_land`: The land of one location after a model run of one time step.
+
+# Returns:
+- A NamedTuple with:
+  - `variables`: the field and subfield pairs from `getRestartVars`.
+  - `dims_pairs`: the dimension pairs of each variable without the time dimension.
+    A layer dimension is only included for variables with more than one layer.
+  - `dims`: the `Dim` objects built from `dims_pairs`, used for saving.
+  - `data`: one array per variable with the layout `(1, depth, space...)`.
+
+# Notes:
+- The arrays keep a leading time dimension of size 1 so that `getLocData` and
+  `setOutputForTimeStep!` work on them the same way as on the output arrays.
+"""
+function getRestartDimsArrays(info, forcing_helpers, loc_land)
+    restart_vars = getRestartVars(info, loc_land)
+    # the dimension names follow the output settings, but the sizes always come from
+    # land so that every layer of a variable is stored
+    depth_info = map(restart_vars, getLandVarDepthInfo(info, loc_land, restart_vars)) do var_pair, d_info
+        length(getproperty(getproperty(loc_land, first(var_pair)), last(var_pair))), last(d_info)
+    end
+    restart_info = (; variables=restart_vars, depth_info=depth_info)
+    dims_pairs = getOutDimsPairs(restart_info, forcing_helpers; with_time=false)
+    restart_dims = map(dims_pairs) do dim_pairs
+        Tuple(YAXArrays.Dim{first(_dim)}(last(_dim)) for _dim in dim_pairs)
+    end
+    num_type = info.helpers.numbers.num_type
+    space_sizes = Base.tail(values(forcing_helpers.sizes))
+    restart_array = map(depth_info) do d_info
+        fill(num_type(NaN), 1, first(d_info), space_sizes...)
+    end
+    return (; variables=restart_vars, dims_pairs=dims_pairs, dims=restart_dims, data=[restart_array...])
 end
 
 

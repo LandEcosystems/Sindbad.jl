@@ -53,6 +53,7 @@ module Simulation
    using ThreadPools
    using YAXArrays
    using DimensionalData: DimensionalData as DD
+   using FillArrays: Fill
 
    include("utilsSimulation.jl")
    include("deriveSpinupForcing.jl")
