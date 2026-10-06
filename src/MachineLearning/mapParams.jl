@@ -1,39 +1,27 @@
-export stackFeatures
-export mapParamsPFT
-export mapParamsAll
+export assembleFeatures
+export predictParameters
 
 """
-    mapParamsPFT(inPFTcube, trainedNN, lower_bound, upper_bound, ps_names, path; metadata_global = Dict())
+    assembleFeatures(args...; kwargs...)
 
-Compute parameters using a neural network and the PFT covariates.
+Stack input features into a 1D vector for neural network parameter prediction.
 
 !!! warning
-    Do `using Flux` before using this function, otherwise it will error. This is because is fully defined in the `ext/SindbadFluxExt` folder.
+    Do `using Flux` before using this function, otherwise it will error. This function is implemented in `ext/SindbadFluxExt/MachineLearningParameters.jl` and requires `using Flux` to be loaded.
 """
-function mapParamsPFT(args...; kwargs...)
-    error("`mapParamsPFT` is not available. This function is implemented in `ext/SindbadFluxExt/MachineLearningParameters.jl` and requires `using Flux` to be loaded.")
+function assembleFeatures(args...; kwargs...)
+    error("`assembleFeatures` is not available. This function is implemented in `ext/SindbadFluxExt/MachineLearningParameters.jl` and requires `using Flux` to be loaded.")
 end
 
 """
-    mapParamsAll(incubes, trainedNN, lower_bound, upper_bound, ps_names, path; metadata_global = Dict())
+    predictParameters(incubes, trained_nn, lower_bound, upper_bound, ps_names, path = ""; metadata_global = Dict(), overwrite = true)
 
-Compute all parameters using a neural network and all input covariates.
-
-!!! warning
-    Do `using Flux` before using this function, otherwise it will error. This is because is fully defined in the `ext/SindbadFluxExt` folder.
-"""
-function mapParamsAll(args...; kwargs...)
-    error("`mapParamsAll` is not available. This function is implemented in `ext/SindbadFluxExt/MachineLearningParameters.jl` and requires `using Flux` to be loaded.")
-end
-
-"""
-    stackFeatures(pft, kg, add_args...; up_bound=17, veg_cat=false, clim_cat=false)
-
-Stack all features into a vector.
+Compute spatial parameter cubes using a trained neural network and input covariates via `xmap`.
+The resulting cube has dimensions `(parameter, spatial_dims...)`.
 
 !!! warning
-    Do `using Flux` before using this function, otherwise it will error. This is because is fully defined in the `ext/SindbadFluxExt` folder.
+    Do `using Flux` before using this function, otherwise it will error. This function is implemented in `ext/SindbadFluxExt/MachineLearningParameters.jl` and requires `using Flux` to be loaded.
 """
-function stackFeatures(args...; kwargs...)
-    error("`stackFeatures` is not available. This function is implemented in `ext/SindbadFluxExt/MachineLearningParameters.jl` and requires `using Flux` to be loaded.")
+function predictParameters(args...; kwargs...)
+    error("`predictParameters` is not available. This function is implemented in `ext/SindbadFluxExt/MachineLearningParameters.jl` and requires `using Flux` to be loaded.")
 end

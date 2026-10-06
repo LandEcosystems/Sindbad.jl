@@ -48,7 +48,7 @@ module DataLoaders
    using NetCDF
    using YAXArrayBase
    using YAXArrays: YAXArrays, Cube, YAXArray
-   using YAXArrays.DAT: InDims, OutDims, mapCube
+   using YAXArrays.DAT: InDims, OutDims, mapCube, xmap, XOutput, ⊘
    using Zarr
    using TimeSamplers
 
