@@ -33,6 +33,7 @@ function getSpatialSubset(ss, v)
             ss_r = getproperty(ss, ssn)
             if !isnothing(ss_r)
                 ss_range = collect(ss_r)
+                checkSubsetValues(v, ssn, ss_range)
                 ss_typeName = Symbol("Space" * string(ssn))
                 v = spatialSubset(v, ss_range, getfield(Types, ss_typeName)())
             end
@@ -42,13 +43,30 @@ function getSpatialSubset(ss, v)
 end
 
 """
+    checkSubsetValues(v, dim_name, ss_range)
+
+Throws an error that lists the subset values missing from the spatial dimension
+`dim_name` of `v`. The subset is by value, so a list of positions such as `[1, 5]` is
+only valid when the dimension itself holds those numbers.
+"""
+function checkSubsetValues(v, dim_name, ss_range)
+    hasdim(v, dim_name) || return nothing
+    dim_values = collect(DD.lookup(v, dim_name))
+    missing_values = filter(x -> !any(isequal(x), dim_values), ss_range)
+    if !isempty(missing_values)
+        error("The spatial subset of `$(dim_name)` has values that are not in the data: $(first(missing_values, 5)). The subset is by value, not by position, so give the values of the `$(dim_name)` dimension, for example `ds.$(dim_name).val[indices]`. The first values of the dimension are $(first(dim_values, 5)).")
+    end
+    return nothing
+end
+
+"""
     spatialSubset(v, ss_range, <: SpatialSubsetter)
 
 Extracts a spatial subset of the input data `v` based on the specified range and spatial dimension.
 
 # Arguments:
 - `v`: The input data from which a spatial subset is to be extracted.
-- `ss_range`: The range of indices or values to subset along the specified spatial dimension.
+- `ss_range`: The values of the spatial dimension to keep, such as site names or the latitudes of the grid cells.
 
 # Returns:
 - A subset of the input data `v` corresponding to the specified spatial range and dimension.
@@ -60,6 +78,11 @@ $(methods_of(SpatialSubsetter))
 # Extended help
 
 # Notes:
+- The subset is always by value, never by position. The same subset therefore selects the
+  same locations from any file on the same spatial axis, even one that holds only some of
+  the locations, such as a restart file written by a subset run.
+- Every value must exist in the spatial dimension of `v`, otherwise an error is thrown.
+  Floating point coordinates such as latitudes must match the stored values exactly.
 - The function dynamically selects the appropriate field in `v` based on the spatial type provided.
 - The spatial type determines the field name (e.g., `site`, `lat`, `longitude`, `id`, etc.) used for subsetting.
 
@@ -68,45 +91,45 @@ $(methods_of(SpatialSubsetter))
 julia> using Sindbad
 
 julia> # Subset data by latitude
-julia> # subset = spatialSubset(data, 10:20, Spacelat())
+julia> # subset = spatialSubset(data, [50.25, 50.75], Spacelat())
 
 julia> # Subset data by longitude
-julia> # subset = spatialSubset(data, 30:40, Spacelongitude())
+julia> # subset = spatialSubset(data, [10.25, 10.75], Spacelongitude())
 
-julia> # Subset data by site ID
-julia> # subset = spatialSubset(data, 1:5, Spaceid())
+julia> # Subset data by site name
+julia> # subset = spatialSubset(data, ["DE-Hai", "DE-Tha"], Spacesite())
 ```
 """
 function spatialSubset end
 
 function spatialSubset(v, ss_range, ::Spacesite)
-    return v[site=ss_range]
+    return v[site=At(ss_range)]
 end
 
 function spatialSubset(v, ss_range, ::Spacelat)
-    return v[lat=ss_range]
+    return v[lat=At(ss_range)]
 end
 
 function spatialSubset(v, ss_range, ::Spacelatitude)
-    return v[latitude=ss_range]
+    return v[latitude=At(ss_range)]
 end
 
 function spatialSubset(v, ss_range, ::Spacelon)
-    return v[lon=ss_range]
+    return v[lon=At(ss_range)]
 end
 
 function spatialSubset(v, ss_range, ::Spacelongitude)
-    return v[longitude=ss_range]
+    return v[longitude=At(ss_range)]
 end
 
 function spatialSubset(v, ss_range, ::Spaceid)
-    return v[id=ss_range]
+    return v[id=At(ss_range)]
 end
 
 function spatialSubset(v, ss_range, ::SpaceId)
-    return v[Id=ss_range]
+    return v[Id=At(ss_range)]
 end
 
 function spatialSubset(v, ss_range, ::SpaceID)
-    return v[ID=ss_range]
+    return v[ID=At(ss_range)]
 end
