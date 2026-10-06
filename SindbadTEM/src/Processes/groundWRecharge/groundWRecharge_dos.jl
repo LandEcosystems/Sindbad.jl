@@ -28,6 +28,7 @@ function compute(params::groundWRecharge_dos, forcing, land, helpers)
 
     ## unpack land variables
     @unpack_nt begin
+        idx_soilW_end ⇐ land.properties
         (w_sat, soil_β) ⇐ land.properties
         (ΔsoilW, soilW, ΔgroundW, groundW) ⇐ land.pools
         (z_zero, o_one) ⇐ land.constants
@@ -35,12 +36,12 @@ function compute(params::groundWRecharge_dos, forcing, land, helpers)
         n_groundW = groundW ⇐ helpers.pools.n_layers
     end
     # calculate recharge
-    dos_soil_end = clamp_zero_one((soilW[end] + ΔsoilW[end]) / w_sat[end])
-    recharge_fraction = clamp_zero_one((dos_soil_end)^(dos_exp * soil_β[end])) * n24
-    gw_recharge = recharge_fraction * (soilW[end] + ΔsoilW[end])
+    dos_soil_end = clamp_zero_one((soilW[idx_soilW_end] + ΔsoilW[idx_soilW_end]) / w_sat[idx_soilW_end])
+    recharge_fraction = clamp_zero_one((dos_soil_end)^(dos_exp * soil_β[idx_soilW_end])) * n24
+    gw_recharge = recharge_fraction * (soilW[idx_soilW_end] + ΔsoilW[idx_soilW_end])
 
     ΔgroundW = addToEachElem(ΔgroundW, gw_recharge / n_groundW)
-    @add_to_elem -gw_recharge ⇒ (ΔsoilW, lastindex(ΔsoilW))
+    @add_to_elem -gw_recharge ⇒ (ΔsoilW, idx_soilW_end)
 
     ## pack land variables
     @pack_nt begin

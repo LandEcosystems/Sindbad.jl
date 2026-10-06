@@ -28,13 +28,16 @@ function compute(params::capillaryFlow_VanDijk2010, forcing, land, helpers)
     ## unpack land variables
     @unpack_nt begin
         (k_fc, w_sat) ⇐ land.properties
+        idx_soilW_end ⇐ land.properties
         soil_capillary_flux ⇐ land.fluxes
         (soilW, ΔsoilW) ⇐ land.pools
         tolerance ⇐ helpers.numbers
         (z_zero, o_one) ⇐ land.constants
     end
 
-    for sl ∈ 1:(length(soilW)-1)
+    # capillary rise only between active layers. the bottom active layer gets
+    # water from groundwater through groundWSoilWInteraction.
+    for sl ∈ 1:(idx_soilW_end-1)
         dos_soilW = clamp_zero_one((soilW[sl] + ΔsoilW[sl]) ./ w_sat[sl])
         tmpCapFlow = sqrt(k_fc[sl+1] * k_fc[sl]) * (o_one - dos_soilW)
         holdCap = at_least_zero(w_sat[sl] - (soilW[sl] + ΔsoilW[sl]))
@@ -44,6 +47,9 @@ function compute(params::capillaryFlow_VanDijk2010, forcing, land, helpers)
         @rep_elem tmp ⇒ (soil_capillary_flux, sl)
         @add_to_elem soil_capillary_flux[sl] ⇒ (ΔsoilW, sl)
         @add_to_elem -soil_capillary_flux[sl] ⇒ (ΔsoilW, sl + 1)
+    end
+    for sl ∈ idx_soilW_end:lastindex(soil_capillary_flux)
+        @rep_elem z_zero ⇒ (soil_capillary_flux, sl)
     end
 
     ## pack land variables

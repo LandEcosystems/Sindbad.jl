@@ -21,6 +21,7 @@ function compute(params::groundWSoilWInteraction_gradientNeg, forcing, land, hel
     @unpack_groundWSoilWInteraction_gradientNeg params
     ## unpack land variables
     @unpack_nt begin
+        idx_soilW_end ⇐ land.properties
         w_sat ⇐ land.properties
         (ΔsoilW, soilW, ΔgroundW, groundW) ⇐ land.pools
         z_zero ⇐ land.constants
@@ -28,19 +29,19 @@ function compute(params::groundWSoilWInteraction_gradientNeg, forcing, land, hel
         n_groundW = groundW ⇐ helpers.pools.n_layers
     end
     # maximum groundwater storage
-    p_gwmax = w_sat[end] * smax_scale
+    p_gwmax = w_sat[idx_soilW_end] * smax_scale
 
-    total_soilW = soilW[end] + ΔsoilW[end]
+    total_soilW = soilW[idx_soilW_end] + ΔsoilW[idx_soilW_end]
     total_groundW = totalS(groundW, ΔgroundW)
 
     # gradient between groundW[1] & soilW
-    tmp_gradient = total_groundW / p_gwmax - total_soilW / w_sat[end] # the sign of the gradient gives direction of flow: positive = flux to soil; negative = flux to gw from soilW
+    tmp_gradient = total_groundW / p_gwmax - total_soilW / w_sat[idx_soilW_end] # the sign of the gradient gives direction of flow: positive = flux to soil; negative = flux to gw from soilW
 
     # scale gradient with pot flux rate to get pot flux
     pot_flux = tmp_gradient * max_flux # need to make sure that the flux does not overflow | underflow storages
 
     # adjust the pot flux to what is there
-    tmp = min(pot_flux, w_sat[end] - total_soilW, total_groundW)
+    tmp = min(pot_flux, w_sat[idx_soilW_end] - total_soilW, total_groundW)
     tmp = max(tmp, -total_soilW, -total_groundW)
 
     # -> set all the positive values (from groundwater to soil) to zero
@@ -48,7 +49,7 @@ function compute(params::groundWSoilWInteraction_gradientNeg, forcing, land, hel
 
     # adjust the delta storages
     ΔgroundW = addToEachElem(ΔgroundW, -gw_capillary_flux / n_groundW)
-    @add_to_elem gw_capillary_flux ⇒ (ΔsoilW, lastindex(ΔsoilW))
+    @add_to_elem gw_capillary_flux ⇒ (ΔsoilW, idx_soilW_end)
 
     # adjust the gw_recharge as net flux between soil and groundwater. positive from soil to gw
     gw_recharge = gw_recharge - gw_capillary_flux
