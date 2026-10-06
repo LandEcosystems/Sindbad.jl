@@ -76,5 +76,6 @@ module MachineLearning
     include("vegClasses.jl")
     include("mlModels.jl")
     include("loadCovariates.jl")
+    include("mapParams.jl")
 
 end
