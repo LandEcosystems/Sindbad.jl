@@ -17,19 +17,7 @@ function define(params::cCycleConsistency_simple, forcing, land, helpers)
     giver_lower = Tuple([c_giver[f] for f ∈ eachindex(c_giver, c_taker) if c_taker[f] > c_giver[f]])
     giver_upper_unique = unique(giver_upper)
     giver_lower_unique = unique(giver_lower)
-    giver_upper_indices = []
-    for giv in giver_upper_unique
-        giver_pos = findall(==(giv), c_giver)
-        push!(giver_upper_indices, Tuple(giver_pos))
-    end
-    giver_lower_indices = []
-    for giv in giver_lower_unique
-        giver_pos = findall(==(giv), c_giver)
-        push!(giver_lower_indices, Tuple(giver_pos))
-    end
-    giver_lower_indices = Tuple(giver_lower_indices)
-    giver_upper_indices = Tuple(giver_upper_indices)
-    @pack_nt (giver_lower_unique, giver_lower_indices, giver_upper_unique, giver_upper_indices) ⇒ land.cCycleConsistency
+    @pack_nt (giver_lower_unique, giver_upper_unique) ⇒ land.cCycleConsistency
     return land
 end
 
@@ -83,7 +71,7 @@ function checkCcycleErrors(params::cCycleConsistency_simple, forcing, land, help
         c_flow_QP_vec ⇐ land.diagnostics
         c_flow_ME_vec ⇐ land.diagnostics
         (c_giver, c_taker) ⇐ land.cCycleBase
-        (giver_lower_unique, giver_lower_indices, giver_upper_unique, giver_upper_indices) ⇐ land.cCycleConsistency
+        (giver_lower_unique, giver_upper_unique) ⇐ land.cCycleConsistency
         tolerance ⇐ helpers.numbers
     end
 
@@ -186,27 +174,38 @@ function checkCcycleErrors(params::cCycleConsistency_simple, forcing, land, help
     # below the diagonal
     # the sum of A per column below the diagonals is always < 1. The tolerance allows for small overshoot over 1, but this may result in a negative carbon pool if frequent
 
-    for (i, giv) in enumerate(giver_upper_unique)
-        s = zero(eltype(c_flow_A_vec))
-        for ind in giver_upper_indices[i]
-            s = s + c_flow_A_vec[ind]
-        end
+    # sum each giver's outflows by scanning c_giver directly. giver_*_indices is a
+    # tuple of tuples with different lengths, so indexing it with a runtime index
+    # cannot be inferred and allocates at every time step.
+    for giv in giver_upper_unique
+        s = giverOutflowSum(c_flow_A_vec, c_giver, giv)
         if (s - one(s)) > helpers.numbers.tolerance
             throwError(land, "sum of giver flow greater than one in upper cFlow vector for $(helpers.pools.components.cEco[giv]) pool. Cannot continue.")
         end
     end
 
-    for (i, giv) in enumerate(giver_lower_unique)
-        s = zero(eltype(c_flow_A_vec))
-        for ind in giver_lower_indices[i]
-            s = s + c_flow_A_vec[ind]
-        end
+    for giv in giver_lower_unique
+        s = giverOutflowSum(c_flow_A_vec, c_giver, giv)
         if (s - one(s)) > helpers.numbers.tolerance
             throwError(land, "sum of giver flow greater than one in lower cFlow vector for $(helpers.pools.components.cEco[giv]) pool. Cannot continue.")
         end
     end
 
     return nothing
+end
+
+"""
+giverOutflowSum(c_flow_A_vec, c_giver, giv)
+sum of the flow vector over every flow whose giver pool is giv
+"""
+function giverOutflowSum(c_flow_A_vec, c_giver, giv)
+    s = zero(eltype(c_flow_A_vec))
+    for fO in eachindex(c_giver)
+        if c_giver[fO] == giv
+            s = s + c_flow_A_vec[fO]
+        end
+    end
+    return s
 end
 
 function checkCcycleErrors(params::cCycleConsistency_simple, forcing, land, helpers, ::DoNotCatchModelErrors) #when check is off/false
