@@ -45,7 +45,7 @@ function assembleFeatures(pft, kg, add_args...; up_bound_pft=17, up_bound_kg=32,
 end
 
 """
-    predictParametersPixel!(out_ps, in_covariates...; trained_nn, lower_bound, upper_bound, kwargs...)
+    predictParametersPixel!(out_ps, in_covariates...; trained_nn, lower_bound, upper_bound, f_features = assembleFeatures, kwargs...)
 
 Pixel-level kernel for predicting parameters from input covariates.
 Writes scaled parameters into `out_ps`.
@@ -55,32 +55,42 @@ Writes scaled parameters into `out_ps`.
 - `trained_nn`: A trained neural network model.
 - `lower_bound`: Parameter lower bounds.
 - `upper_bound`: Parameter upper bounds.
+- `f_features`: Feature assembly function mapping pixel covariates to a 1D vector for `trained_nn` (default: `assembleFeatures`).
 """
-function predictParametersPixel!(out_ps, in_covariates...; trained_nn, lower_bound, upper_bound, kwargs...)
+function predictParametersPixel!(
+    out_ps,
+    in_covariates...;
+    trained_nn,
+    lower_bound,
+    upper_bound,
+    f_features = assembleFeatures,
+    kwargs...,
+)
     if any(c -> (c isa AbstractArray ? (all(isnan, c) || all(ismissing, c)) : (isnan(c) || ismissing(c))), in_covariates)
         out_ps .= NaN32
         return
     end
 
-    x_in = assembleFeatures(in_covariates...; kwargs...)
+    x_in = f_features(in_covariates...; kwargs...)
     new_ps = scaleToBounds.(trained_nn(x_in), lower_bound, upper_bound)
     out_ps[:] = new_ps
 end
 
 """
-    predictParameters(incubes, trained_nn, lower_bound, upper_bound, ps_names, path = ""; metadata_global = Dict{String, Any}(), overwrite = true, kwargs...)
+    predictParameters(incubes, trained_nn, lower_bound, upper_bound, ps_names, path = ""; f_features = assembleFeatures, metadata_global = Dict{String, Any}(), overwrite = true, kwargs...)
 
 Compute spatial parameter cubes using a trained neural network and input covariates via `xmap`.
 
 The returned cube has the dimension order `(parameter, spatial_dims...)`.
 
 Arguments:
-- `incubes`: Input covariate cube, Tuple of cubes, or Vector of cubes.
+- `incubes`: Input covariate cube, Tuple of cubes, or Vector of cubes. For multi-variable covariate cubes (e.g. continuous soil covariates, climate features, or AlphaEarth embeddings), the variable dimension must be named `:Variables` (e.g. `Dim{:Variables}`). `predictParameters` automatically detects `:Variables`, slices along it to extract per-pixel feature vectors, passes them to `f_features`, and ensures the dimension is stripped from the output cube.
 - `trained_nn`: A trained neural network model.
 - `lower_bound`: Lower bounds for the parameters.
 - `upper_bound`: Upper bounds for the parameters.
 - `ps_names`: Parameter names (defining the `:parameter` dimension).
 - `path`: Output path for saving the cube (optional, e.g. `"parameters.zarr"`). Providing a path is recommended for large datasets to stream chunk-by-chunk computation to disk.
+- `f_features`: Feature assembly function mapping pixel covariates to a 1D input vector for `trained_nn` (default: `assembleFeatures`). Custom feature assemblers (e.g. for custom covariate orderings or AlphaEarth embeddings) can be passed here.
 - `metadata_global`: Global metadata to merge into output properties (default: `Dict()`).
 - `overwrite`: Whether to overwrite output file if it exists (default: `true`).
 """
@@ -91,6 +101,7 @@ function predictParameters(
     upper_bound,
     ps_names,
     path = "";
+    f_features = assembleFeatures,
     metadata_global = Dict{String, Any}(),
     overwrite = true,
     kwargs...,
@@ -143,6 +154,7 @@ function predictParameters(
             trained_nn = trained_nn,
             lower_bound = lower_bound,
             upper_bound = upper_bound,
+            f_features = f_features,
             kwargs...,
         ),
     )

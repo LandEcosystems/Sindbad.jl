@@ -137,5 +137,27 @@ using Flux
         # NaN propagation from pft_cube[2, 2]
         @test isnan(out_multi[1, 2, 2])
         @test isnan(out_multi[2, 2, 2])
+
+        # 3. Custom f_features (e.g. for custom embeddings / AlphaEarth)
+        custom_emb_dim = Dim{:Variables}(["emb_1", "emb_2", "emb_3", "emb_4"])
+        emb_data = rand(Float32, 3, 2, 4)
+        emb_cube = YAXArray((ax_lon, ax_lat, custom_emb_dim), emb_data)
+
+        custom_nn = Flux.Chain(Flux.Dense(4 => 4, Flux.relu), Flux.Dense(4 => 2, Flux.sigmoid))
+        custom_assembler = (emb; kwargs...) -> vec(Float32.(emb))
+
+        out_custom = predictParameters(
+            emb_cube,
+            custom_nn,
+            lower_bound,
+            upper_bound,
+            ps_names;
+            f_features = custom_assembler,
+        )
+
+        @test name.(dims(out_custom)) == (:parameter, :Lon, :Lat)
+        @test size(out_custom) == (2, 3, 2)
+        @test 0.0f0 <= out_custom[1, 1, 1] <= 10.0f0
+        @test 100.0f0 <= out_custom[2, 1, 1] <= 200.0f0
     end
 end
