@@ -127,7 +127,8 @@ end
 
 # Returns:
 - a NamedTuple with the `output` Dataset, the `restart` Dataset with the pools after
-  spinup, and the `restart_vars` written to it
+  spinup, the `restart_vars` written to it, and the `spinup_mode` of the step that saved
+  the restart
 """
 function runTEMYax(selected_models::Tuple, forcing::NamedTuple, info::NamedTuple)
 
@@ -177,7 +178,7 @@ function runTEMYax(selected_models::Tuple, forcing::NamedTuple, info::NamedTuple
         dropPaddedDimsYax(r_cube, setdiff(DD.name.(alloutdims), DD.name.(r_out.outaxes)))
     end
     restart_ds = Dataset(; zip(last.(restart_vars), restart_cubes)...)
-    return (; output=output_ds, restart=restart_ds, restart_vars=restart_vars)
+    return (; output=output_ds, restart=restart_ds, restart_vars=restart_vars, spinup_mode=getSaveRestartSpinupMode(info))
 end
 
 """

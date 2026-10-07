@@ -418,6 +418,6 @@ end
 
 function runForward(selected_models, forcing, info, ::DoRunLazy)
     run_output = runTEMYax(selected_models, forcing, info)
-    restart = (; dataset=run_output.restart, variables=run_output.restart_vars)
+    restart = (; dataset=run_output.restart, variables=run_output.restart_vars, spinup_mode=run_output.spinup_mode)
     return (; output=run_output.output, restart=restart)
 end

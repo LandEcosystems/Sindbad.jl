@@ -135,13 +135,14 @@ the restart file. That is the last step unless the settings mark another one.
   spatial dimensions only. The spinup runs before the simulation period, so the
   `restart_date` global attribute is the start date of the simulation. The
   `spinup_sequence_method` global attribute is the name of the spinup sequence method,
-  e.g., `sequence_list` or `sequence_with_age`.
+  e.g., `sequence_list` or `sequence_with_age`, and `spinup_mode` is the spinup mode of
+  the step that saved the restart, e.g., `SelSpinupModels`.
 - Each variable is named after its subfield in `land.pools`, so the file can be added
   to the forcing for the `SpinupInput` spinup mode.
 """
 function saveRestartCubes(info, restart)
     data_path = getRestartFilePath(info)
-    restart_metadata = getRestartMetadata(info)
+    restart_metadata = getRestartMetadata(info, restart)
     restart_ds = getRestartDataset(info, restart, restart_metadata)
     print_info(nothing, @__FILE__, @__LINE__, "saving pools after the spinup step with save_restart to `$(data_path)`", n_m=4)
     DataLoaders.YAXArrays.savedataset(restart_ds, path=data_path, overwrite=true)
@@ -160,20 +161,22 @@ function getRestartFilePath(info)
 end
 
 """
-    getRestartMetadata(info)
+    getRestartMetadata(info, restart)
 
-Returns the global metadata of the output files with the date of the restart state and
-the spinup sequence method added.
+Returns the global metadata of the output files with the date of the restart state, the
+spinup sequence method and the spinup mode of the step that saved the restart added.
 
 # Notes:
 - The method is written with its name in the settings, e.g., `sequence_with_age` for
   `SequenceWithAge`.
+- The spinup mode is the name of its type, e.g., `SelSpinupModels` or `SpinupInput`.
 """
-function getRestartMetadata(info)
+function getRestartMetadata(info, restart)
     restart_metadata = copy(info.output.file_info.global_metadata)
     restart_metadata["restart_date"] = string(info.helpers.dates.date_begin)
     method_name = string(nameof(typeof(info.spinup.method)))
     restart_metadata["spinup_sequence_method"] = lowercase(replace(method_name, r"(?<!^)([A-Z])" => s"_\1"))
+    restart_metadata["spinup_mode"] = restart.spinup_mode
     return restart_metadata
 end
 

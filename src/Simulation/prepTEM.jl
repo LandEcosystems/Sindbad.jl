@@ -354,7 +354,7 @@ run_helpers = helpPrepTEM(selected_models, info, forcing, observations, output, 
 function helpPrepTEM end
 
 """
-    prepRestart(info, forcing_helpers, loc_land, space_ind, tem_info)
+    prepRestart(info, forcing_helpers, loc_land, space_ind, space_spinup, tem_info)
 
 Prepares the arrays that collect the main pools after the spinup step with
 `save_restart` from the restart file.
@@ -364,10 +364,12 @@ Prepares the arrays that collect the main pools after the spinup step with
 - `forcing_helpers`: a NT with information on forcing sizes and dimensions
 - `loc_land`: the land of one location after a model run of one time step
 - `space_ind`: the spatial indices of all locations
+- `space_spinup`: the spinup sequence and forcing of every location
 - `tem_info`: helper NT with necessary objects for model run and type consistencies
 
 # Returns:
-- `restart`: a NT with the `variables`, `dims` and `data` of the restart file
+- `restart`: a NT with the `variables`, `dims` and `data` of the restart file, and the
+  `spinup_mode` of the spinup step that saves the restart
 - `space_restart`: the per-location views into `restart.data`
 - `tem_info`: `tem_info` with `vals.restart_vars` set for the generated output writer
 
@@ -375,13 +377,56 @@ Prepares the arrays that collect the main pools after the spinup step with
 - The arrays are only filled by the forward runs that take `space_restart`. The
   optimization and cost runs never touch them.
 """
-function prepRestart(info, forcing_helpers, loc_land, space_ind, tem_info)
+function prepRestart(info, forcing_helpers, loc_land, space_ind, space_spinup, tem_info)
     restart = getRestartDimsArrays(info, forcing_helpers, loc_land)
+    spinup_mode = getSaveRestartSpinupMode([loc_spinup.sequence for loc_spinup in space_spinup], tem_info.run.spinup_TEM)
+    restart = (; restart..., spinup_mode)
     space_restart = map([space_ind...]) do lsi
         getLocData(restart.data, lsi)
     end
     tem_info =  (; tem_info..., vals=(; tem_info.vals..., restart_vars=Val(restart.variables)))
     return restart, space_restart, tem_info
+end
+
+"""
+    getSaveRestartSpinupMode(sequences, spinup_flag)
+    getSaveRestartSpinupMode(info)
+
+Returns the name of the spinup mode type of the spinup step that saves the restart,
+e.g., `SelSpinupModels` or `SpinupInput`.
+
+# Arguments:
+- `sequences`: the spinup sequence of every location
+- `spinup_flag`: `DoSpinupTEM` or `DoNotSpinupTEM`
+- `info`: a SINDBAD NT with the spinup settings, used when the sequences of the
+  locations are not built, as in the lazy run
+
+# Notes:
+- Without spinup the restart holds the pools before the time loop, and the mode is `none`.
+- When the locations save the restart after steps with different modes, all of them are
+  given, separated by commas.
+- From the settings alone, a sequence method that builds the steps per location, such
+  as `SequenceWithAge`, gives `per_location`.
+"""
+function getSaveRestartSpinupMode(sequences, spinup_flag)
+    spinup_flag isa DoNotSpinupTEM && return "none"
+    modes = unique([string(nameof(typeof(step.spinup_mode))) for sequence ∈ sequences for step ∈ sequence if step.save_restart])
+    return isempty(modes) ? "none" : join(modes, ", ")
+end
+
+function getSaveRestartSpinupMode(info)
+    info.helpers.run.spinup_TEM isa DoNotSpinupTEM && return "none"
+    method = info.spinup.method
+    steps = if method isa SequenceList
+        info.spinup.options.steps
+    elseif method isa SequenceDefault
+        prepSequenceDefault(; nrepeat_base=info.spinup.options.n_repeat_base, forcing_msc=info.spinup.options.forcing_msc)
+    else
+        return "per_location"
+    end
+    isempty(steps) && return "none"
+    save_step = steps[findfirst(Setup.getSaveRestartFlags(steps))]
+    return string(nameof(typeof(getTypeInstanceForNamedOptions(save_step["spinup_mode"]))))
 end
 
 """
@@ -433,7 +478,7 @@ function helpPrepTEM(selected_models, info, forcing::NamedTuple, output::NamedTu
         getLocData(output_array, lsi)
     end
 
-    restart, space_restart, tem_info = prepRestart(info, forcing.helpers, loc_land, space_ind, tem_info)
+    restart, space_restart, tem_info = prepRestart(info, forcing.helpers, loc_land, space_ind, space_spinup, tem_info)
 
     space_land = getSpaceLand(loc_land, space_spinup, info.helpers.run.store_spinup)
 
@@ -478,7 +523,7 @@ function helpPrepTEM(selected_models, info, forcing::NamedTuple, output::NamedTu
         getLocData(output_array, lsi)
     end
 
-    restart, space_restart, tem_info = prepRestart(info, forcing.helpers, loc_land, space_ind, tem_info)
+    restart, space_restart, tem_info = prepRestart(info, forcing.helpers, loc_land, space_ind, space_spinup, tem_info)
 
     space_land = getSpaceLand(loc_land, space_spinup, info.helpers.run.store_spinup)
 
