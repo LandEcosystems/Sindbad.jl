@@ -88,7 +88,9 @@ function cleanData(_data, _data_fill, _data_info, ::Val{T}) where {T}
     if !isnothing(bounds) && !isempty(bounds)
         _data = clamp(_data, first(bounds), last(bounds))
     end
-    return T(_data)
+    # the assertion keeps the cleaned data concretely typed when the bounds are an
+    # untyped empty list, for which the type of the clamp cannot be inferred
+    return T(_data)::T
 end
 
 

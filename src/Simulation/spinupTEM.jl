@@ -547,7 +547,7 @@ end
 
 
 """
-    spinupTEM(selected_models, loc_spinup, loc_forcing_t, land, tem_info, spinup_mode)
+    spinupTEM(selected_models, loc_spinup, loc_forcing_t, land, tem_info, spinup_mode, loc_restart=nothing)
 
 The main spinup function that handles the spinup method based on inputs from spinup.json. Either the spinup is loaded or/and run using spinup functions for different spinup methods.
 
@@ -557,6 +557,7 @@ The main spinup function that handles the spinup method based on inputs from spi
 - `loc_forcing_t`: a forcing NT for a single location and a single time step
 - `land`: SINDBAD NT input to the spinup of TEM during which subfield(s) of pools are overwritten
 - `tem_info`: helper NT with necessary objects for model run and type consistencies
+- `loc_restart`: where the pools are stored for the restart file, after the step of the sequence whose `save_restart` is true. With `nothing`, the default, nothing is stored. Without spinup, the pools of the input land are stored.
 - `spinup_mode`: A type dispatch that determines whether spinup is included or excluded:
     - `::DoSpinupTEM`: Runs the spinup process before the main simulation. Set `spinup_TEM` to `true` in the flag section of experiment_json.
     - `::DoNotSpinupTEM`: Skips the spinup process and directly runs the main simulation. Set `spinup_TEM` to `false` in the flag section of experiment_json.
@@ -580,14 +581,14 @@ julia> # land = spinupTEM(selected_models, forcing, loc_forcing_t, land, tem_inf
 """
 function spinupTEM end
 
-function spinupTEM(selected_models, loc_spinup, loc_forcing_t, land, tem_info, ::DoSpinupTEM)
+function spinupTEM(selected_models, loc_spinup, loc_forcing_t, land, tem_info, ::DoSpinupTEM, loc_restart=nothing)
     land = setSpinupLog(land, 1, tem_info.run.store_spinup)
-    land, _ = runSpinupSequences(loc_spinup.sequence, selected_models, loc_spinup.forcing, loc_forcing_t, land, tem_info, 2)
+    land, _ = runSpinupSequences(loc_spinup.sequence, selected_models, loc_spinup.forcing, loc_forcing_t, land, tem_info, 2, loc_restart)
     return land
 end
 
 """
-    runSpinupSequences(spin_seqs, selected_models, spinup_forcings, loc_forcing_t, land, tem_info, log_index)
+    runSpinupSequences(spin_seqs, selected_models, spinup_forcings, loc_forcing_t, land, tem_info, log_index, loc_restart=nothing)
 
 Runs every spinup sequence of `spin_seqs` in order, threading `land` and the spinup log index through the sequences.
 
@@ -599,6 +600,7 @@ Runs every spinup sequence of `spin_seqs` in order, threading `land` and the spi
 - `land`: SINDBAD NT input to the spinup of TEM during which subfield(s) of pools are overwritten
 - `tem_info`: helper NT with necessary objects for model run and type consistencies
 - `log_index`: the index in the spinup log at which the next sequence starts writing
+- `loc_restart`: where the pools are stored for the restart file after the step whose `save_restart` is true, or `nothing`
 
 # Returns:
 - a tuple of the updated `land` and the next free `log_index`
@@ -608,20 +610,40 @@ Runs every spinup sequence of `spin_seqs` in order, threading `land` and the spi
 """
 function runSpinupSequences end
 
-runSpinupSequences(::Tuple{}, _, _, _, land, _, log_index) = (land, log_index)
+runSpinupSequences(::Tuple{}, selected_models, spinup_forcings, loc_forcing_t, land, tem_info, log_index, loc_restart=nothing) = (land, log_index)
 
-function runSpinupSequences(spin_seqs::Tuple, selected_models, spinup_forcings, loc_forcing_t, land, tem_info, log_index)
+function runSpinupSequences(spin_seqs::Tuple, selected_models, spinup_forcings, loc_forcing_t, land, tem_info, log_index, loc_restart=nothing)
     spin_seq = first(spin_seqs)
     n_repeat = spin_seq.n_repeat
     @debug "Spinup: \n         spinup_mode: $(nameof(typeof(spin_seq.spinup_mode))), forcing: $(spin_seq.forcing)"
     sel_forcing = sequenceForcing(spinup_forcings, spin_seq.forcing)
     land = spinupSequence(selected_models, sel_forcing, loc_forcing_t, land, tem_info, spin_seq.n_timesteps, log_index, n_repeat, spin_seq.spinup_mode)
-    return runSpinupSequences(Base.tail(spin_seqs), selected_models, spinup_forcings, loc_forcing_t, land, tem_info, log_index + n_repeat)
+    spin_seq.save_restart && setRestart!(loc_restart, land, tem_info)
+    return runSpinupSequences(Base.tail(spin_seqs), selected_models, spinup_forcings, loc_forcing_t, land, tem_info, log_index + n_repeat, loc_restart)
 end
 
-function spinupTEM(selected_models, loc_spinup, loc_forcing_t, land, tem_info, ::DoNotSpinupTEM)
+function spinupTEM(selected_models, loc_spinup, loc_forcing_t, land, tem_info, ::DoNotSpinupTEM, loc_restart=nothing)
+    setRestart!(loc_restart, land, tem_info)
     return land
 end
+
+"""
+    setRestart!(loc_restart, land, tem_info)
+
+Stores the main pools of `land` for the restart file.
+
+# Arguments:
+- `loc_restart`: where the pools are stored. It is `nothing` when no restart data is
+  collected, the restart arrays of the location in an eager run, or a function that
+  takes the land in a lazy run.
+- `land`: the land whose pools are stored
+- `tem_info`: helper NT with the restart variables in `vals.restart_vars`
+"""
+function setRestart! end
+
+setRestart!(::Nothing, _, _) = nothing
+setRestart!(store_restart::Function, land, _) = store_restart(land)
+setRestart!(loc_restart, land, tem_info) = setOutputForTimeStep!(loc_restart, land, 1, tem_info.vals.restart_vars)
 
 
 """

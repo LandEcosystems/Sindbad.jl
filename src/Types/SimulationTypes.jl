@@ -256,12 +256,14 @@ struct SpinupStepWithAggregator{F,M<:SpinupMode} <: SpinupTypes
     aggregator_indices::Vector{Int}
     aggregator::Vector{TimeSample}
     aggregator_type::TimeSamplerMethod
+    save_restart::Bool
 end
 
 # The forcing name is carried as the type parameter `F` as well as in the field, so that
 # looking the sequence's forcing up in the spinup forcing NamedTuple resolves at compile time.
-function SpinupStepWithAggregator(forcing::Symbol, n_repeat, n_timesteps, spinup_mode::M, options, aggregator_indices, aggregator, aggregator_type) where {M<:SpinupMode}
-    return SpinupStepWithAggregator{forcing,M}(forcing, n_repeat, n_timesteps, spinup_mode, options, aggregator_indices, aggregator, aggregator_type)
+# `save_restart` marks the step after which the pools are stored for the restart file.
+function SpinupStepWithAggregator(forcing::Symbol, n_repeat, n_timesteps, spinup_mode::M, options, aggregator_indices, aggregator, aggregator_type, save_restart=false) where {M<:SpinupMode}
+    return SpinupStepWithAggregator{forcing,M}(forcing, n_repeat, n_timesteps, spinup_mode, options, aggregator_indices, aggregator, aggregator_type, save_restart)
 end
 purpose(::Type{SpinupStepWithAggregator}) = "Spinup sequence with time aggregation for corresponding forcingtime series"
 
@@ -271,5 +273,7 @@ struct SpinupStep <: SpinupTypes
     n_timesteps::Int
     spinup_mode::SpinupMode
     options::NamedTuple
+    save_restart::Bool
 end
+SpinupStep(forcing, n_repeat, n_timesteps, spinup_mode, options) = SpinupStep(forcing, n_repeat, n_timesteps, spinup_mode, options, false)
 purpose(::Type{SpinupStep}) = "Basic Spinup sequence without time aggregation"

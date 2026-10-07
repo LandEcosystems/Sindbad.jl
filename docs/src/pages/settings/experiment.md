@@ -180,6 +180,8 @@ Variables follow the `field.subfield` convention of the `land` structure.
 
 The `spinup_sequence` entry configures the model spinup. It is either a list of spinup steps run in order, or a sequence method with its options, e.g. `{"method": "sequence_with_age", "options": {...}}`. When it is missing or null, the default sequence is used.
 
+The pools for the restart file are saved after the step with `"save_restart": true`. A step without the field is false. When no step is true, the last step saves the restart, and more than one true step is an error.
+
 :::tabs
 
 == Explanation
@@ -188,7 +190,8 @@ The `spinup_sequence` entry configures the model spinup. It is either a list of 
   {
     "forcing": "Forcing data source for sequence block",
     "n_repeat": "Number of sequence repetitions",
-    "spinup_mode": "Models or methods to use in block"
+    "spinup_mode": "Models or methods to use in block",
+    "save_restart": "Optional. true to save the pools for the restart file after this step"
   }
 ]
 ```

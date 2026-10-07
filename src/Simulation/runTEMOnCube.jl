@@ -13,19 +13,20 @@ run the SINBAD CORETEM for a given location
 - `loc_land`: initial SINDBAD land with all fields and subfields
 - `tem_info`: helper NT with necessary objects for model run and type consistencies
 - `tem_spinup`: a NT with information/instruction on spinning up the TEM
+- `store_restart`: a function that stores the pools of a land for the restart file, called
+  after the spinup step with `save_restart`, or `nothing` to store nothing
 
 # Returns:
-- the land time series wrapped in a `LandWrapper`, and the land after spinup, which is
-  saved to the restart file
+- the land time series wrapped in a `LandWrapper`
 """
-function coreTEMYax(selected_models, loc_forcing, loc_land, tem_info)
+function coreTEMYax(selected_models, loc_forcing, loc_land, tem_info, store_restart=nothing)
 
     loc_forcing_t = getForcingForTimeStep(loc_forcing, deepcopy(loc_forcing), 1, tem_info.vals.forcing_types)
     land_prec = definePrecomputeTEM(selected_models, loc_forcing_t, loc_land, tem_info.model_helpers)
     # land_prec = precomputeTEM(selected_models, loc_forcing_t, land_prec, tem_info.model_helpers) # ? do I need this step here? 
-    land_spin = spinupTEMYax(selected_models, loc_forcing, loc_forcing_t, land_prec, tem_info, tem_info.run.spinup_TEM)
+    land_spin = spinupTEMYax(selected_models, loc_forcing, loc_forcing_t, land_prec, tem_info, tem_info.run.spinup_TEM, store_restart)
     land_time_series = timeLoopTEM(selected_models, loc_forcing, loc_forcing_t, land_spin, tem_info, tem_info.run.debug_model)
-    return LandWrapper(land_time_series), land_spin
+    return LandWrapper(land_time_series)
 end
 
 
@@ -51,31 +52,54 @@ function TEMYax(map_cubes...;selected_models::Tuple, forcing_vars, loc_land::Nam
     any(in_forcing -> any(v -> ismissing(v) || isnan(v), in_forcing), inputs)
 
     # ? apply clean_data fields to input data points
-    _data_fill, _forcing_default_info, _num_type, _forcing_vars_info = clean_data
+    _data_fill, _num_type, _forcing_data_info = clean_data
 
     inputs = map(enumerate(inputs)) do (i, in_forcing)
-        _data_info = merge_namedtuple(_forcing_default_info, _forcing_vars_info[i])
+        _data_info = _forcing_data_info[i]
         map(data_point -> cleanData(data_point, _data_fill, _data_info, _num_type), in_forcing)
     end
     loc_forcing = (; Pair.(forcing_vars, inputs)...)
-    land_out, land_spin = coreTEMYax(selected_models, loc_forcing, loc_land, tem)
+    # the restart cubes are filled after the spinup step with `save_restart`
+    store_restart = land -> fillRestartYax(restarts, land, restart_vars)
+    land_out = coreTEMYax(selected_models, loc_forcing, loc_land, tem, store_restart)
     i = 1
     foreach(output_vars) do var_pair
         data = land_out[first(var_pair)][last(var_pair)]
             fillOutputYax(outputs[i], data)
             i += 1
     end
-    fillRestartYax(restarts, land_spin, restart_vars)
+end
+
+"""
+    getForcingDataInfo(info, forcing_vars)
+
+Returns the cleaning info of every forcing variable, i.e., the settings of the variable
+merged into `default_forcing` the same way as in `getForcing`.
+
+# Arguments:
+- `info`: a SINDBAD NT with all information needed for setup and execution of an experiment
+- `forcing_vars`: the names of the forcing variables, in the order of the forcing cubes
+
+# Notes:
+- An empty or null setting of a variable, such as `"bounds": []`, keeps the value of
+  `default_forcing`, whose bounds are always typed. The merge is done once here rather
+  than for every pixel.
+"""
+function getForcingDataInfo(info, forcing_vars)
+    default_info = info.experiment.data_settings.forcing.default_forcing
+    vars_info = info.experiment.data_settings.forcing.variables
+    return map(v -> merge_namedtuple_prefer_nonempty(default_info, getproperty(vars_info, Symbol(v))), Tuple(forcing_vars))
 end
 
 """
     fillRestartYax(restarts, land, restart_vars)
 
-Fills the restart cubes of one location with the pools after spinup.
+Fills the restart cubes of one location with the pools after the spinup step with
+`save_restart`.
 
 # Arguments:
 - `restarts`: the restart output arrays of one location
-- `land`: the land after spinup
+- `land`: the land after the spinup step with `save_restart`
 - `restart_vars`: the field and subfield pairs of the restart variables
 """
 function fillRestartYax(restarts, land, restart_vars)
@@ -114,9 +138,8 @@ function runTEMYax(selected_models::Tuple, forcing::NamedTuple, info::NamedTuple
     run_helpers = prepTEM(forcing, info);
     loc_land = deepcopy(run_helpers.loc_land);
     _data_fill = 0.0f0
-    _forcing_default_info = info.experiment.data_settings.forcing.default_forcing
     _num_type = Val{info.helpers.numbers.num_type}()
-    _forcing_vars_info = info.experiment.data_settings.forcing.variables
+    _forcing_data_info = getForcingDataInfo(info, forcing.variables)
     #output = XOutput.(getproperty.(run_helpers.output_dims, :axisdesc))
     output = run_helpers.output_dims
     # land_init already has every pool, so no model run is needed to find them
@@ -139,7 +162,7 @@ function runTEMYax(selected_models::Tuple, forcing::NamedTuple, info::NamedTuple
         output_vars=run_helpers.output_vars,
         loc_land=loc_land,
         tem=run_helpers.tem_info,
-        clean_data=(; _data_fill, _forcing_default_info, _num_type, _forcing_vars_info),
+        clean_data=(; _data_fill, _num_type, _forcing_data_info),
         restart_vars=restart_vars),
         output = new_output,
         #outdims=run_helpers.output_dims,
@@ -206,15 +229,15 @@ function psTEMYax(in_pixel_cube...; selected_models::Tuple, param_to_index, forc
     outputs, inputs = unpackYaxForward(in_pixel_cube[1:end-1]; output_vars, forcing_vars)
     in_new_params = last(in_pixel_cube)
     # ? apply clean_data fields to input data points
-    _data_fill, _forcing_default_info, _num_type, _forcing_vars_info = clean_data
+    _data_fill, _num_type, _forcing_data_info = clean_data
 
     inputs = map(enumerate(inputs)) do (i, in_forcing)
-        _data_info = getCombinedNamedTuple(_forcing_default_info, _forcing_vars_info[i])
+        _data_info = _forcing_data_info[i]
         map(data_point -> cleanData(data_point, _data_fill, _data_info, _num_type), in_forcing)
     end
     loc_forcing = (; Pair.(forcing_vars, inputs)...)
     updated_models = updateModelParameters(param_to_index, selected_models, in_new_params)
-    land_out, _ = coreTEMYax(updated_models, loc_forcing, loc_land, tem)
+    land_out = coreTEMYax(updated_models, loc_forcing, loc_land, tem)
     i = 1
     foreach(output_vars) do var_pair
         data = land_out[first(var_pair)][last(var_pair)]
@@ -240,9 +263,8 @@ function runTEMYaxParameters(selected_models::Tuple, forcing::NamedTuple, in_cub
     run_helpers = prepTEM(forcing, info)
     loc_land = deepcopy(run_helpers.loc_land)
     _data_fill = 0.0f0
-    _forcing_default_info = info.experiment.data_settings.forcing.default_forcing
     _num_type = Val{info.helpers.numbers.num_type}()
-    _forcing_vars_info = info.experiment.data_settings.forcing.variables
+    _forcing_data_info = getForcingDataInfo(info, forcing.variables)
 
     outcubes = mapCube(psTEMYax,
         (in_cubes_all...,);
@@ -252,7 +274,7 @@ function runTEMYaxParameters(selected_models::Tuple, forcing::NamedTuple, in_cub
         output_vars=run_helpers.output_vars,
         loc_land=loc_land,
         tem=run_helpers.tem_info,
-        clean_data=(; _data_fill, _forcing_default_info, _num_type, _forcing_vars_info),
+        clean_data=(; _data_fill, _num_type, _forcing_data_info),
         indims=indims,
         outdims=run_helpers.output_dims,
         max_cache=info.experiment.exe_rules.yax_max_cache,
@@ -264,7 +286,7 @@ end
 
 
 """
-    spinupTEMYax(selected_models, loc_forcing, loc_forcing_t, land_prec, tem_info, spinup_mode)
+    spinupTEMYax(selected_models, loc_forcing, loc_forcing_t, land_prec, tem_info, spinup_mode, store_restart=nothing)
 
 Handle TEM spinup according to `spinup_mode`. If spinup is requested, the forcing needed for the Spinup is derived and a normal spinup is performed. If spinup is skipped, the provided precomputed land is returned unchanged.
 
@@ -277,6 +299,9 @@ Handle TEM spinup according to `spinup_mode`. If spinup is requested, the forcin
   `spinup_dates` and `run.spinup_TEM`).
 - `spinup_mode`: Dispatch type controlling behavior: use `DoSpinupTEM()` to run/load spinup,
   or `DoNotSpinupTEM()` to skip spinup.
+- `store_restart`: a function that stores the pools for the restart file after the spinup
+  step with `save_restart`, or `nothing`. Without spinup, it stores the pools of
+  `land_prec`.
 
 # Returns
 - Updated land NamedTuple to be used for the main TEM time loop.
@@ -288,13 +313,14 @@ Handle TEM spinup according to `spinup_mode`. If spinup is requested, the forcin
 """
 function spinupTEMYax end
 
-function spinupTEMYax(selected_models, loc_forcing, loc_forcing_t, land_prec, tem_info, ::DoSpinupTEM)
+function spinupTEMYax(selected_models, loc_forcing, loc_forcing_t, land_prec, tem_info, ::DoSpinupTEM, store_restart=nothing)
     loc_spinup = getLocSpinup(loc_forcing, tem_info)
-    land_spin = spinupTEM(selected_models, loc_spinup, loc_forcing_t, land_prec, tem_info, tem_info.run.spinup_TEM)
+    land_spin = spinupTEM(selected_models, loc_spinup, loc_forcing_t, land_prec, tem_info, tem_info.run.spinup_TEM, store_restart)
     return land_spin
 end
 
-function spinupTEMYax(_, _, _, land_prec, _, ::DoNotSpinupTEM)
+function spinupTEMYax(selected_models, loc_forcing, loc_forcing_t, land_prec, tem_info, ::DoNotSpinupTEM, store_restart=nothing)
+    setRestart!(store_restart, land_prec, tem_info)
     return land_prec
 end
 

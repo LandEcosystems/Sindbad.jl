@@ -356,7 +356,8 @@ function helpPrepTEM end
 """
     prepRestart(info, forcing_helpers, loc_land, space_ind, tem_info)
 
-Prepares the arrays that collect `land.pools` after spinup for the restart file.
+Prepares the arrays that collect the main pools after the spinup step with
+`save_restart` from the restart file.
 
 # Arguments:
 - `info`: a SINDBAD NT with all information needed for setup and execution of an experiment

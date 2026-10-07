@@ -296,7 +296,7 @@ end
     getRestartDimsArrays(info, forcing_helpers, loc_land)
 
 Prepares the variables, dimensions and arrays of the restart file, which holds the main
-pools after spinup.
+pools after the spinup step with `save_restart`.
 
 # Arguments:
 - `info`: A SINDBAD NamedTuple containing all information needed for setup and execution of an experiment.

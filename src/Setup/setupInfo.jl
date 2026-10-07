@@ -372,14 +372,44 @@ getSpinupSequenceWithTypes(seqq, helpers_dates) = getSpinupSequenceWithTypes(seq
 
 function getSpinupSequenceWithTypes(seqq, helpers_dates, aggregator_cache)
     seqq_typed = []
-    for seq in seqq
+    save_restart_flags = getSaveRestartFlags(seqq)
+    for (seq, save_restart) in zip(seqq, save_restart_flags)
         aggregator, aggregator_indices, n_timesteps, aggregator_type = getSpinupAggregator(seq["forcing"], helpers_dates, aggregator_cache)
         spinup_mode = getTypeInstanceForNamedOptions(seq["spinup_mode"])
         optns = haskey(seq, "options") ? seq["options"] : (;)
-        sst = SpinupStepWithAggregator(Symbol(seq["forcing"]), seq["n_repeat"], n_timesteps, spinup_mode, optns, aggregator_indices, aggregator, aggregator_type);
+        sst = SpinupStepWithAggregator(Symbol(seq["forcing"]), seq["n_repeat"], n_timesteps, spinup_mode, optns, aggregator_indices, aggregator, aggregator_type, save_restart);
         push!(seqq_typed, sst)
     end
     return seqq_typed
+end
+
+"""
+    getSaveRestartFlags(seqq)
+
+Returns the `save_restart` flag of every step of a spinup sequence. The pools are
+stored for the restart file after the step whose flag is true.
+
+# Arguments:
+- `seqq`: the steps of the spinup sequence, as given in the settings
+
+# Returns:
+- a vector with one `Bool` per step
+
+# Notes:
+- A step without a `save_restart` field is false, so older sequences keep working.
+- When no step is true, the last step saves the restart.
+- More than one true step throws an error.
+"""
+function getSaveRestartFlags(seqq)
+    save_restart_flags = Bool[haskey(seq, "save_restart") && seq["save_restart"] === true for seq in seqq]
+    n_saves = count(save_restart_flags)
+    if n_saves > 1
+        error("The spinup sequence has `save_restart` set to true in steps $(findall(save_restart_flags)). Only one step can save the restart.")
+    end
+    if n_saves == 0 && !isempty(save_restart_flags)
+        save_restart_flags[end] = true
+    end
+    return save_restart_flags
 end
 
 """
@@ -411,6 +441,35 @@ function getSpinupSequenceConfig(seqq)
     end
     method = SequenceList()
     return (; method=method, options=merge_namedtuple(sindbadDefaultOptions(method), (; steps=seqq)))
+end
+
+"""
+    setDefaultForcingBounds(forcing_settings, num_type)
+
+Sets the bounds of `default_forcing` to `[-Inf, Inf]` of the model number type when they
+are missing, null or an empty list.
+
+# Arguments:
+- `forcing_settings`: the forcing settings from the forcing configuration file
+- `num_type`: the number type of the model, from `model_number_type` in the experiment
+
+# Returns:
+- the forcing settings with typed default bounds
+
+# Notes:
+- JSON cannot hold infinite numbers, so the open bounds are set here. A forcing variable
+  without its own bounds then gets typed bounds that do not clamp, instead of an
+  untyped empty list, so the cleaned forcing data stays concretely typed.
+"""
+function setDefaultForcingBounds(forcing_settings, num_type)
+    hasproperty(forcing_settings, :default_forcing) || return forcing_settings
+    default_forcing = forcing_settings.default_forcing
+    bounds = hasproperty(default_forcing, :bounds) ? default_forcing.bounds : nothing
+    if isnothing(bounds) || isempty(bounds)
+        default_forcing = merge(default_forcing, (; bounds=[typemin(num_type), typemax(num_type)]))
+        forcing_settings = merge(forcing_settings, (; default_forcing=default_forcing))
+    end
+    return forcing_settings
 end
 
 """
@@ -543,7 +602,7 @@ function setupInfo(info::NamedTuple)
 
     data_settings = (;)
     if hasproperty(info.settings, :forcing)
-        data_settings = set_namedtuple_field(data_settings, (:forcing, info.settings.forcing))
+        data_settings = set_namedtuple_field(data_settings, (:forcing, setDefaultForcingBounds(info.settings.forcing, info.temp.helpers.numbers.num_type)))
     end
     if (info.settings.experiment.flags.run_optimization || info.settings.experiment.flags.calc_cost) && hasproperty(info.settings.optimization, :algorithm_optimization)
         # @info "  setupInfo: setting ParameterOptimization and Observation info..."

@@ -390,7 +390,7 @@ Run a SINDBAD forward simulation, choosing between eager and lazy execution.
 # Returns
 - A NamedTuple with:
   - `output`: for `DoNotRunLazy`, a NamedTuple pairing each unique output variable name (from `info.output.variables`) with its computed time series. For `DoRunLazy`, the lazy YAXArray output produced by `runTEMYax`.
-  - `restart`: the pools after spinup of every location, to be written with `saveRestartCubes`
+  - `restart`: the pools of every location after the spinup step with `save_restart`, to be written with `saveRestartCubes`
 
 # Description
 This function is the entry point for executing the forward model of a SINDBAD experiment. It dispatches on the run mode to select between two execution strategies:

@@ -31,6 +31,7 @@ Spinup is configured in the experiment settings file through two main sections:
   - `forcing`: Forcing variant to use
   - `n_repeat`: Number of sequence repetitions
   - `spinup_mode`: The spinup method to use
+  - `save_restart`: Optional, false by default. The pools for the restart file are saved after the step where it is true. When no step sets it, the last step is used. Only one step can set it.
 
 ## Available Spinup Methods
 
