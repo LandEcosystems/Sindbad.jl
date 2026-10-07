@@ -433,12 +433,35 @@ Processes the spinup configuration and prepares the spinup sequence method.
 function setSpinupInfo(info)
     print_info(setSpinupInfo, @__FILE__, @__LINE__, "setting Spinup Info...")
     exp_settings = info.settings.experiment
-    if hasproperty(exp_settings, :model_spinup)
-        error("The experiment settings have a `model_spinup` section, which is no longer used. Move its `sequence` to `spinup_sequence` at the top level of the experiment settings, e.g. `\"spinup_sequence\": [...]`, and remove `model_spinup`. In replace_info, use the key `experiment.spinup_sequence`.")
-    end
-    infospin = getSpinupSequenceConfig(get(exp_settings, :spinup_sequence, nothing))
+    spinup_sequence = getSpinupSequenceSetting(exp_settings)
+    infospin = getSpinupSequenceConfig(spinup_sequence)
     info = set_namedtuple_subfield(info, :temp, (:spinup, infospin))
     return info
+end
+
+"""
+    getSpinupSequenceSetting(exp_settings)
+
+Returns the spinup sequence from the experiment settings, or `nothing` when there is
+none. `spinup_sequence` at the top level is used when present. Otherwise the sequence
+of the older `model_spinup` section is used, with a deprecation warning, so that
+existing experiment files keep working.
+"""
+function getSpinupSequenceSetting(exp_settings)
+    has_new = hasproperty(exp_settings, :spinup_sequence)
+    has_old = hasproperty(exp_settings, :model_spinup) && hasproperty(exp_settings.model_spinup, :sequence)
+    if has_new && has_old
+        @warn "The experiment settings have both `spinup_sequence` and `model_spinup.sequence`. Using `spinup_sequence` and ignoring `model_spinup`."
+    end
+    if has_new
+        spinup_sequence = exp_settings.spinup_sequence
+    elseif has_old
+        @warn "`model_spinup.sequence` in the experiment settings is deprecated. Move it to `spinup_sequence` at the top level, e.g. `\"spinup_sequence\": [...]`. In replace_info, use the key `experiment.spinup_sequence`."
+        spinup_sequence = exp_settings.model_spinup.sequence
+    else
+        spinup_sequence = nothing
+    end
+    return spinup_sequence
 end
 
 
