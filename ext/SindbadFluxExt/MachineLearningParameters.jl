@@ -35,12 +35,12 @@ end
 function assembleFeatures(pft, kg, add_args...; up_bound_pft=17, up_bound_kg=32, veg_cat=false, clim_cat=true)
     pft_val = pft isa AbstractArray ? only(pft) : pft
     veg_onehot = oneHotPFT(pft_val, up_bound_pft, veg_cat)
-    if !clim_cat
-        return reduce(vcat, [veg_onehot, add_args...])
-    else
+    if clim_cat
         kg_val = kg isa AbstractArray ? only(kg) : kg
         kg_onehot = Flux.onehot(kg_val, 1:up_bound_kg, up_bound_kg)
         return reduce(vcat, [kg_onehot, veg_onehot, add_args...])
+    else
+        return reduce(vcat, [veg_onehot, add_args...])
     end
 end
 
@@ -115,12 +115,11 @@ function predictParameters(
     end
 
     in_args = map(cubes_tuple) do c
-        c_dims = DD.dims(c)
-        var_dim_idx = findfirst(d -> DD.name(d) == :Variables || string(DD.name(d)) == "Variables", c_dims)
-        if !isnothing(var_dim_idx)
-            c ⊘ (:Variables,)
-        else
+        var_dim_idx =  DD.dims(c, :Variables)
+        if isnothing(var_dim_idx)
             c ⊘ ()
+        else
+            c ⊘ (:Variables,)
         end
     end
 
@@ -137,8 +136,7 @@ function predictParameters(
     )
     properties = merge(properties, metadata_global)
 
-    reduce_dims = Tuple(unique(Symbol(DD.name(d)) for c in cubes_tuple for d in DD.dims(c) if DD.name(d) == :Variables || string(DD.name(d)) == "Variables"))
-
+    reduce_dims =  DD.name(filter(!isnothing, DD.dims.(cubes_tuple, :Variables)))
     param_axis = DD.Dim{:parameter}(String.(ps_names))
     out_spec = XOutput(param_axis; destroyaxes=reduce_dims, outtype=Float32, properties=properties)
 

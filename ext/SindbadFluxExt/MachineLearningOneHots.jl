@@ -21,14 +21,14 @@ function vegOneHot(v_class; vegetation_labels=vegetation_labels)
 end
 
 function oneHotPFT(pft, up_bound, veg_class)
-    if !veg_class
-        return Flux.onehot(pft, 1:up_bound, up_bound)
-    else
+    if veg_class
         _pft = pft
         if length(pft)==1
             _pft = pft[1]
         end
         return vegOneHot(toClass(_pft))
+    else
+        return Flux.onehot(pft, 1:up_bound, up_bound)
     end
 end
 
