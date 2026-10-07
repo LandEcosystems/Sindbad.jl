@@ -27,7 +27,7 @@ function predictParametersPixel!(args...; kwargs...)
 end
 
 """
-    predictParameters(incubes, trained_nn, lower_bound, upper_bound, ps_names, path = ""; f_features = assembleFeatures, metadata_global = Dict(), overwrite = true, kwargs...)
+    predictParameters(incubes, trained_nn, lower_bound, upper_bound, ps_names, path = ""; f_features = assembleFeatures, metadata_global = Dict(), overwrite = false, kwargs...)
 
 Compute spatial parameter cubes using a trained neural network and input covariates via `xmap`.
 The resulting cube has dimensions `(parameter, spatial_dims...)`.
@@ -41,7 +41,7 @@ Arguments:
 - `path`: Output path for saving the cube (optional, e.g. `"parameters.zarr"`). Providing a path is recommended for large datasets to stream chunk-by-chunk computation to disk and avoid high in-memory usage.
 - `f_features`: Feature assembly function mapping pixel covariates to a 1D input vector for `trained_nn` (default: `assembleFeatures`). Custom feature assemblers (e.g. for custom covariate orderings or AlphaEarth embeddings) can be passed here.
 - `metadata_global`: Global metadata to merge into output properties (default: `Dict()`).
-- `overwrite`: Whether to overwrite output file if it exists (default: `true`).
+- `overwrite`: Whether to overwrite output file if it exists (default: `false`).
 
 !!! warning
     Do `using Flux` before using this function, otherwise it will error. This function is implemented in `ext/SindbadFluxExt/MachineLearningParameters.jl` and requires `using Flux` to be loaded.

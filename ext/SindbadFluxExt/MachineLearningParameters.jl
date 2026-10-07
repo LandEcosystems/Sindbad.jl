@@ -77,7 +77,7 @@ function predictParametersPixel!(
 end
 
 """
-    predictParameters(incubes, trained_nn, lower_bound, upper_bound, ps_names, path = ""; f_features = assembleFeatures, metadata_global = Dict{String, Any}(), overwrite = true, kwargs...)
+    predictParameters(incubes, trained_nn, lower_bound, upper_bound, ps_names, path = ""; f_features = assembleFeatures, metadata_global = Dict{String, Any}(), overwrite = false, kwargs...)
 
 Compute spatial parameter cubes using a trained neural network and input covariates via `xmap`.
 
@@ -92,7 +92,7 @@ Arguments:
 - `path`: Output path for saving the cube (optional, e.g. `"parameters.zarr"`). Providing a path is recommended for large datasets to stream chunk-by-chunk computation to disk.
 - `f_features`: Feature assembly function mapping pixel covariates to a 1D input vector for `trained_nn` (default: `assembleFeatures`). Custom feature assemblers (e.g. for custom covariate orderings or AlphaEarth embeddings) can be passed here.
 - `metadata_global`: Global metadata to merge into output properties (default: `Dict()`).
-- `overwrite`: Whether to overwrite output file if it exists (default: `true`).
+- `overwrite`: Whether to overwrite output file if it exists (default: `false`).
 """
 function predictParameters(
     incubes,
@@ -103,7 +103,7 @@ function predictParameters(
     path = "";
     f_features = assembleFeatures,
     metadata_global = Dict{String, Any}(),
-    overwrite = true,
+    overwrite = false,
     kwargs...,
 )
     cubes_tuple = if incubes isa Tuple
@@ -155,17 +155,17 @@ function predictParameters(
         ),
     )
 
+    if !isempty(path)
+        ds = Dataset(parameters = result)
+        ds_saved = compute_to_zarr(ds, path; overwrite=overwrite)
+        return ds_saved.parameters
+    end
+
     # Drop any leftover singleton reduced dimensions from the output
     for rdim in reduce_dims
         if DD.hasdim(result, rdim) && size(result, rdim) == 1
             result = DD.dropdims(result; dims=rdim)
         end
-    end
-
-    if !isempty(path)
-        ds = Dataset(parameters = result)
-        ds_saved = compute_to_zarr(ds, path; overwrite=overwrite)
-        return ds_saved.parameters
     end
 
     return result
