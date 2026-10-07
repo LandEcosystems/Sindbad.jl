@@ -159,5 +159,21 @@ using Flux
         @test size(out_custom) == (2, 3, 2)
         @test 0.0f0 <= out_custom[1, 1, 1] <= 10.0f0
         @test 100.0f0 <= out_custom[2, 1, 1] <= 200.0f0
+
+        # 4. Save to disk via compute_to_zarr when path is provided
+        tmp_dir = mktempdir()
+        tmp_path = joinpath(tmp_dir, "predicted_params.zarr")
+        out_saved = predictParameters(
+            pft_cube,
+            nn_pft,
+            lower_bound,
+            upper_bound,
+            ps_names,
+            tmp_path;
+            overwrite = true,
+        )
+        @test ispath(tmp_path)
+        @test name.(dims(out_saved)) == (:parameter, :Lon, :Lat)
+        @test size(out_saved) == (2, 3, 2)
     end
 end

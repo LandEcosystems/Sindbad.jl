@@ -1,6 +1,6 @@
 using Sindbad.DataLoaders: DD
 using DimensionalData: hasdim
-using YAXArrays: Cube, YAXArray, xmap, XOutput, ⊘
+using YAXArrays: Cube, YAXArray, Dataset, xmap, XOutput, ⊘, compute_to_zarr
 using Dates
 
 import Flux
@@ -140,11 +140,7 @@ function predictParameters(
     reduce_dims = Tuple(unique(Symbol(DD.name(d)) for c in cubes_tuple for d in DD.dims(c) if DD.name(d) == :Variables || string(DD.name(d)) == "Variables"))
 
     param_axis = DD.Dim{:parameter}(String.(ps_names))
-    out_spec = if isempty(path)
-        XOutput(param_axis; destroyaxes=reduce_dims, outtype=Float32, properties=properties)
-    else
-        XOutput(param_axis; destroyaxes=reduce_dims, path=path, outtype=Float32, properties=properties, overwrite=overwrite)
-    end
+    out_spec = XOutput(param_axis; destroyaxes=reduce_dims, outtype=Float32, properties=properties)
 
     result = xmap(
         predictParametersPixel!,
@@ -164,6 +160,12 @@ function predictParameters(
         if DD.hasdim(result, rdim) && size(result, rdim) == 1
             result = DD.dropdims(result; dims=rdim)
         end
+    end
+
+    if !isempty(path)
+        ds = Dataset(parameters = result)
+        ds_saved = compute_to_zarr(ds, path; overwrite=overwrite)
+        return ds_saved.parameters
     end
 
     return result
