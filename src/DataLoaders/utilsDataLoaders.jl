@@ -350,7 +350,9 @@ function subsetAndProcessYax(yax, forcing_mask, tar_dims, _data_info, info, ::Va
     end
     if hasproperty(yax, Symbol(forcing_data_settings.data_dimension.time))
         init_date = DateTime(info.helpers.dates.date_begin)
-        last_date = DateTime(info.helpers.dates.date_end)
+        # date_end covers its whole timestep, so data stamped within the last period
+        # such as a daily value at 11:00 UTC is kept and matches the dates range.
+        last_date = DateTime(info.helpers.dates.date_end) + info.helpers.dates.timestep - Millisecond(1)
         yax = yax[time=(init_date .. last_date)]
     end
 
