@@ -155,17 +155,17 @@ function predictParameters(
         ),
     )
 
-    if !isempty(path)
-        ds = Dataset(parameters = result)
-        ds_saved = compute_to_zarr(ds, path; overwrite=overwrite)
-        return ds_saved.parameters
-    end
-
     # Drop any leftover singleton reduced dimensions from the output
     for rdim in reduce_dims
         if DD.hasdim(result, rdim) && size(result, rdim) == 1
             result = DD.dropdims(result; dims=rdim)
         end
+    end
+
+    if !isempty(path)
+        ds = Dataset(parameters = result)
+        ds_saved = compute_to_zarr(ds, path; overwrite=overwrite)
+        return ds_saved.parameters
     end
 
     return result
