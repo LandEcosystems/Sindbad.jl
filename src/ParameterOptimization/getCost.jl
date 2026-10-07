@@ -111,7 +111,6 @@ function getDataWithoutNaN(y, yσ, ŷ, idxs)
 end
 
 function getDataWithoutNaN(y, yσ, ŷ)
-    @debug sum(is_invalid_number.(y)), sum(is_invalid_number.(yσ)), sum(is_invalid_number.(ŷ))
     idxs = (.!isnan.(y .* yσ .* ŷ)) # TODO this has to be run because LandWrapper produces a vector. So, dispatch with the inefficient versions without idxs argument
     return y[idxs], yσ[idxs], ŷ[idxs]
 end
@@ -140,38 +139,30 @@ function metricVector end
 
 function metricVector(model_output, observations, cost_options)
     loss_vector = map(cost_options) do cost_option
-        @debug "***cost for $(cost_option.variable)***"
         lossMetric = cost_option.cost_metric
         (y, yσ, ŷ) = getData(model_output, observations, cost_option)
         (y, yσ, ŷ) = getDataWithoutNaN(y, yσ, ŷ, cost_option.valids)
-        @debug "size y, yσ, ŷ", size(y), size(yσ), size(ŷ)
         # (y, yσ, ŷ) = getDataWithoutNaN(y, yσ, ŷ, cost_option.valids)
         metr = metric(lossMetric, ŷ, y, yσ) * cost_option.cost_weight
         if isnan(metr)
             metr = oftype(metr, 1e19)
         end
-        @debug "$(cost_option.variable) => $(nameof(typeof(lossMetric))): $(metr)"
         metr
     end
-    @debug "\n-------------------\n"
     return loss_vector
 end
 
 function metricVector(model_output::LandWrapper, observations, cost_options)
     loss_vector = map(cost_options) do cost_option
-        @debug "$(cost_option.variable)"
         lossMetric = cost_option.cost_metric
         (y, yσ, ŷ) = getData(model_output, observations, cost_option)
-        @debug "size y, yσ, ŷ", size(y), size(yσ), size(ŷ), size(idxs)
         (y, yσ, ŷ) = getDataWithoutNaN(y, yσ, ŷ) ## cannot use the valids because LandWrapper produces vector
         metr = metric(lossMetric, ŷ, y, yσ) * cost_option.cost_weight
         if isnan(metr)
             metr = oftype(metr, 1e19)
         end
-        @debug "$(cost_option.variable) => $(nameof(typeof(lossMetric))): $(metr)"
         metr
     end
-    @debug "\n-------------------\n"
     return loss_vector
 end
 

@@ -17,7 +17,6 @@ aggregate the data based on the order of aggregation.
 function aggregateData end
 
 function aggregateData(dat, cost_option, ::TimeSpace)
-    @debug "aggregating data", size(dat)
     dat = do_time_sampling(dat, cost_option.temporal_aggr, cost_option.temporal_aggr_type)
     dat = doSpatialAggregation(dat, cost_option, cost_option.spatial_data_aggr)
     return dat
