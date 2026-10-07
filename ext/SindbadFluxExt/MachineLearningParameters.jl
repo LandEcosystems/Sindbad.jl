@@ -1,4 +1,4 @@
-using Sindbad.DataLoaders: DD
+using DimensionalData: DimensionalData as DD
 using DimensionalData: hasdim
 using YAXArrays: Cube, YAXArray, Dataset, xmap, XOutput, ⊘, compute_to_zarr
 using Dates

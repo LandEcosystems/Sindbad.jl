@@ -1,6 +1,6 @@
 using Test
 using Sindbad
-using Sindbad.DataLoaders: DD
+using DimensionalData: DimensionalData as DD
 using DimensionalData
 using YAXArrays: YAXArray, Cube
 using Flux
