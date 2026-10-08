@@ -16,7 +16,7 @@ const CUBE_NAN_PIXEL = (2, 1)
 """
     makeMockForcingCube(dir; seed=42)
 
-write a small synthetic forcing dataset (longitude × latitude × Ti, plus one purely spatial
+write a small synthetic forcing dataset (Ti × longitude × latitude, plus one purely spatial
 variable) to `dir/forcing.zarr` and return its path. Values are drawn inside the bounds set
 in `forcing.json` so that the bounds clamping is a no-op on clean data.
 """
@@ -41,7 +41,8 @@ function makeMockForcingCube(dir; seed=42)
         "f_VPD_day" => spatiotemporal(0.1, 3.0),
     )
     vars["f_airT_day"][CUBE_NAN_PIXEL..., 10] = NaN32
-    cubes = Dict{Symbol,Any}(Symbol(k) => YAXArray((lon, lat, time), v) for (k, v) in vars)
+    # stored time first, as the in-memory runner slices pixels assuming that order, the cube runner selects by name
+    cubes = Dict{Symbol,Any}(Symbol(k) => YAXArray((time, lon, lat), permutedims(v, (3, 1, 2))) for (k, v) in vars)
     cubes[:f_static] = YAXArray((lon, lat), Float32.(rand(rng, CUBE_N_LON, CUBE_N_LAT)))
 
     path = joinpath(dir, "forcing.zarr")
@@ -50,16 +51,19 @@ function makeMockForcingCube(dir; seed=42)
 end
 
 """
-    mockCubeExperiment(dir; spinup=false, output_variables=nothing)
+    mockCubeExperiment(dir; spinup=false, lazy=true, output_variables=nothing)
 
 write the synthetic forcing to `dir`, set up the experiment in `CUBE_EXPERIMENT_JSON` with
 its output redirected to `dir`, and return `(info, forcing)`.
+
+With `lazy=false` the forcing is loaded in memory (keyed arrays) for the in-memory runner `runTEM!`
+instead of the lazy cube runner `runTEMOnCube`.
 
 `output_variables` replaces the output variables of `experiment.json`, as a `Dict` of
 `"field.variable" => depth_dimension_or_nothing`. `replace_info` merges dictionaries instead
 of replacing them, so in that case the settings are copied to `dir` and edited there.
 """
-function mockCubeExperiment(dir; spinup=false, output_variables=nothing)
+function mockCubeExperiment(dir; spinup=false, lazy=true, output_variables=nothing)
     forcing_path = makeMockForcingCube(dir)
     experiment_json = CUBE_EXPERIMENT_JSON
     if !isnothing(output_variables)
@@ -76,6 +80,7 @@ function mockCubeExperiment(dir; spinup=false, output_variables=nothing)
         "forcing.default_forcing.data_path" => forcing_path,
         "experiment.model_output.path" => dir,
         "experiment.flags.spinup_TEM" => spinup,
+        "experiment.flags.run_lazy" => lazy,
     )
     info = getExperimentInfo(experiment_json; replace_info=replace_info)
     forcing = getForcing(info)

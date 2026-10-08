@@ -43,6 +43,8 @@ jobs:
           using Pkg
           # CI should not rely on developer-local Manifests that point to /Users/... paths.
           rm("Manifest.toml"; force=true)
+          # Use the in-repo SindbadTEM, not the registered release, which can lag behind it.
+          Pkg.develop(path="SindbadTEM")
           Pkg.instantiate()  # Install all dependencies
           Pkg.test("Sindbad"; coverage=true)
       - uses: julia-actions/julia-processcoverage@v1
@@ -122,6 +124,8 @@ jobs:
           using Pkg
           # CI should not rely on developer-local Manifests that point to /Users/... paths.
           rm("Manifest.toml"; force=true)
+          # Use the in-repo SindbadTEM, not the registered release, which can lag behind it.
+          Pkg.develop(path="SindbadTEM")
           Pkg.instantiate()  # Install all dependencies
           # Timed and try/catch'd (rather than a bare Pkg.test call) so the elapsed time and
           # pass/fail status get written to CSV -- and picked up as a build artifact -- even when

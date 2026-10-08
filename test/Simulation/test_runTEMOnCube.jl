@@ -100,40 +100,20 @@ end
         @test all(c -> c isa YAXArray, forcing.data)
     end
 
-    @testset "runTEMYax (reference) with scalar outputs" begin
-        info, forcing = mockCubeExperiment(mktempdir(); output_variables=SCALAR_OUTPUTS)
-        ds = runTEMYax(info.models.forward, forcing, info)
-        @test ds isa Dataset
-        @test Set(keys(ds.cubes)) == SCALAR_NAMES
-        for name in SCALAR_NAMES
-            cube = ds.cubes[name]
-            @test DD.name(DD.dims(cube)) == (:Ti, :longitude, :latitude)
-            @test size(cube) == (365, CUBE_N_LON, CUBE_N_LAT)
-            # the NaN put in the forcing is filled by cleanData, so no pixel is lost
-            @test all(isfinite, cube[:, :, :])
-        end
-        @test all(0 .<= ds.cubes[:gpp_f_airT][:, :, :] .<= 1)
-        @test all(ds.cubes[:gpp][:, :, :] .>= 0)
-    end
-
-    @testset "runTEMYax (reference) with layered outputs" begin
-        # getOutDims puts the layer axis before time, (d_soil, Ti), while fillOutputYax
-        # writes as if time came first, so any per-layer output fails with a DimensionMismatch
-        # xmap is lazy, the error only shows up once the cube is read
-        info, forcing = mockCubeExperiment(mktempdir(); output_variables=LAYERED_OUTPUTS)
-        ds = runTEMYax(info.models.forward, forcing, info)
-        @test ds isa Dataset
-        @test_broken try
-            all(isfinite, readcubedata(ds.cubes[:soilW]))
-        catch err
-            err isa DimensionMismatch || rethrow()
-            false
-        end
-    end
-
     # reads every output cube of a Dataset into memory
     readOutputs(ds) = Dict(k => readcubedata(ds.cubes[k]) for k in keys(ds.cubes))
     sameOutputs(a, b) = keys(a) == keys(b) && all(k -> DD.dims(a[k]) == DD.dims(b[k]) && a[k].data == b[k].data, keys(a))
+
+    # the same experiment run by the in-memory runner, runTEM! on keyed arrays, as an independent reference.
+    # Its outputs are (Ti, layer or 1, longitude, latitude) arrays.
+    function inMemoryOutputs(output_variables; spinup=false)
+        info_m, forcing_m = mockCubeExperiment(mktempdir(); lazy=false, spinup=spinup, output_variables=output_variables)
+        @test info_m.helpers.run.run_lazy isa Sindbad.Types.DoNotRunLazy
+        return Dict(pairs(Sindbad.Experiment.runForward(info_m.models.forward, forcing_m, info_m, Sindbad.Types.DoNotRunLazy())))
+    end
+    # time first and the variable's own axis second, so dropping the singleton axes gives the in-memory layout
+    sameAsInMemory(cubes, in_memory) = keys(cubes) == keys(in_memory) &&
+        all(k -> length(cubes[k]) == length(in_memory[k]) && reshape(cubes[k].data, size(in_memory[k])) == in_memory[k], keys(cubes))
 
     # a parameter cube with the spatial axes of the forcing and the default values of `parameter_table` in every pixel
     function defaultParameterCube(forcing, parameter_table)
@@ -145,14 +125,28 @@ end
 
     info, forcing = mockCubeExperiment(mktempdir(); output_variables=SCALAR_OUTPUTS)
     models = info.models.forward
-    reference = readOutputs(runTEMYax(models, forcing, info))
     plain = readOutputs(runTEMOnCube(models, forcing, info))
     parameter_table = filter(row -> row.name in (:εmax, :opt_airT),
         getParameters(models, info.helpers.numbers.num_type, info.helpers.dates.temporal_resolution))
 
-    @testset "runTEMOnCube matches runTEMYax" begin
+    @testset "runTEMOnCube with scalar outputs" begin
         @test Set(keys(plain)) == SCALAR_NAMES
-        @test sameOutputs(plain, reference)
+        for name in SCALAR_NAMES
+            @test DD.name(DD.dims(plain[name])) == (:Ti, :longitude, :latitude)
+            @test size(plain[name]) == (365, CUBE_N_LON, CUBE_N_LAT)
+            # the NaN put in the forcing is filled by cleanData, so no pixel is lost
+            @test all(isfinite, plain[name])
+        end
+        @test all(0 .<= plain[:gpp_f_airT] .<= 1)
+        @test all(plain[:gpp] .>= 0)
+    end
+
+    @testset "runTEMOnCube matches the in-memory runner" begin
+        @test sameAsInMemory(plain, inMemoryOutputs(SCALAR_OUTPUTS))
+    end
+
+    @testset "runForward in lazy mode runs runTEMOnCube" begin
+        @test sameOutputs(readOutputs(Sindbad.Experiment.runForward(models, forcing, info, Sindbad.Types.DoRunLazy())), plain)
     end
 
     # a forcing variable as an array with the axes of the scalar outputs, (Ti, longitude, latitude)
@@ -200,6 +194,8 @@ end
         # the singleton axes do not change the values
         @test canonical(:gpp)[:, 1, 1, 1, :, :] == plain[:gpp].data
         @test gpp_f_airT == plain[:gpp_f_airT].data
+        # same values and layer order as the in-memory runner
+        @test sameAsInMemory(layered, inMemoryOutputs(LAYERED_OUTPUTS))
     end
 
     @testset "runTEMOnCube with a single output variable" begin
@@ -215,9 +211,6 @@ end
         with_parameters = readOutputs(runTEMOnCube(models, forcing, info, parameter_cube, parameter_table))
         # same axes as without parameters, the parameter axis is dropped
         @test sameOutputs(with_parameters, plain)
-        # the deprecated entry point forwards to runTEMOnCube
-        deprecated = readOutputs(Sindbad.Simulation.runTEMYaxParameters(models, forcing, parameter_cube, parameter_table, info))
-        @test sameOutputs(deprecated, plain)
     end
 
     @testset "runTEMOnCube with a parameter changed in one pixel" begin
@@ -237,11 +230,10 @@ end
         @test changed[:ambient_CO2].data == plain[:ambient_CO2].data
     end
 
-    @testset "runTEMOnCube matches runTEMYax with spinup" begin
+    @testset "runTEMOnCube matches the in-memory runner with spinup" begin
         info_sp, forcing_sp = mockCubeExperiment(mktempdir(); spinup=true, output_variables=SCALAR_OUTPUTS)
         @test info_sp.helpers.run.spinup_TEM isa Sindbad.Types.DoSpinupTEM
-        reference_sp = readOutputs(runTEMYax(info_sp.models.forward, forcing_sp, info_sp))
         plain_sp = readOutputs(runTEMOnCube(info_sp.models.forward, forcing_sp, info_sp))
-        @test sameOutputs(plain_sp, reference_sp)
+        @test sameAsInMemory(plain_sp, inMemoryOutputs(SCALAR_OUTPUTS; spinup=true))
     end
 end

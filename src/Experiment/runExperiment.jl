@@ -381,13 +381,13 @@ Run a SINDBAD forward simulation, choosing between eager and lazy execution.
 - `info::NamedTuple`: A SINDBAD NamedTuple containing all information needed for setup and execution of an experiment
 - `mode::RunFlag`: Type dispatch parameter determining how the forward run is executed:
   - `DoNotRunLazy`: Run eagerly in memory via `runTEM!`
-  - `DoRunLazy`: Run lazily over YAXArrays via `runTEMYax`
+  - `DoRunLazy`: Run lazily over YAXArrays via `runTEMOnCube`
 
 # Returns
 - For `DoNotRunLazy` mode:
   - A NamedTuple pairing each unique output variable name (from `info.output.variables`) with its computed time series
 - For `DoRunLazy` mode:
-  - The lazy YAXArray output produced by `runTEMYax`
+  - The `Dataset` of lazy output cubes produced by `runTEMOnCube`
 
 # Description
 This function is the entry point for executing the forward model of a SINDBAD experiment. It dispatches on the run mode to select between two execution strategies:
@@ -405,7 +405,7 @@ end
 
 # Explicit-model forms: run an arbitrary set of `selected_models` (e.g. default vs.
 # parameter-updated models), so callers route their forward runs through `runForward`
-# instead of calling `runTEM!`/`runTEMYax` directly.
+# instead of calling `runTEM!`/`runTEMOnCube` directly.
 function runForward(selected_models, forcing, info, ::DoNotRunLazy)
     run_output = runTEM!(selected_models, forcing, info)
     run_output = (; Pair.(getUniqueVarNames(info.output.variables), run_output)...)
@@ -413,9 +413,6 @@ function runForward(selected_models, forcing, info, ::DoNotRunLazy)
 end
 
 function runForward(selected_models, forcing, info, ::DoRunLazy)
-    run_output = runTEMYax(
-        selected_models,
-        forcing,
-        info)
+    run_output = runTEMOnCube(selected_models, forcing, info)
     return run_output
 end
