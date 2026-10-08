@@ -103,29 +103,26 @@
       "diagnostics.WUE": null
     }
   },
-  "model_spinup": {
-    "restart_file": null,
-    "sequence": [
-      {
-        "forcing": "all_years",
-        "n_repeat": 1,
-        "spinup_mode": "all_forward_models"
-      },
-      {
-        "forcing": "day_MSC",
-        "n_repeat": 1,
-        "spinup_mode": "all_forward_models"
-      },
-      {
-        "forcing": "first_year",
-        "n_repeat": 20,
-        "spinup_mode": "all_forward_models"
-      },
-      {
-        "forcing": "first_year",
-        "n_repeat": 1,
-        "spinup_mode": "eta_scale_AH"
-      }
-    ]
-  }
+  "spinup_sequence": [
+    {
+      "forcing": "all_years",
+      "n_repeat": 1,
+      "spinup_mode": "all_forward_models"
+    },
+    {
+      "forcing": "day_MSC",
+      "n_repeat": 1,
+      "spinup_mode": "all_forward_models"
+    },
+    {
+      "forcing": "first_year",
+      "n_repeat": 20,
+      "spinup_mode": "all_forward_models"
+    },
+    {
+      "forcing": "first_year",
+      "n_repeat": 1,
+      "spinup_mode": "eta_scale_AH"
+    }
+  ]
 }

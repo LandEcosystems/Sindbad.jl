@@ -434,6 +434,37 @@ end
 =#
 
 """
+    setPoolPropsFromTable(f, acc, table::NamedTuple, zix, args...)
+
+Fold `f(acc, value, ixs, Val(pool_name), args...)` over every entry of `table`,
+where `ixs` is the `zix` field of the same pool name and `args` are passed on
+to `f` unchanged. The loop over the pool names
+is unrolled at compile time, so each `zix` field and table value keeps its
+concrete type. A runtime loop over `pairs(table)` would make the pool name a
+plain `Symbol` and box every lookup, allocating on each call.
+"""
+@generated function setPoolPropsFromTable(f, acc, table::NamedTuple{names}, zix, args...) where {names}
+    body = Expr(:block)
+    for n in names
+        q = QuoteNode(n)
+        push!(body.args, :(acc = f(acc, getfield(table, $q), getfield(zix, $q), Val($q), args...)))
+    end
+    push!(body.args, :(return acc))
+    return body
+end
+
+# the pool name carried by the `Val` that `setPoolPropsFromTable` passes to `f`
+poolKey(::Val{k}) where {k} = k
+
+# write the value v into x at every index in ixs
+function repElems(x, v, ixs)
+    for ix in ixs
+        x = repElem(x, v, ix)
+    end
+    return x
+end
+
+"""
     getKfromTau(c_eco, table, scalar, helpers)
 
 Multiply each pool in `table` (a per-pool-name `NamedTuple` mapping to a
@@ -454,26 +485,24 @@ keys as `table`, dispatched on `scalar`'s type.
   `cCycleBase_CASA`; the target array and whether the scalar varies by pool
   differ by approach, the loop does not.
 """
-function getKfromTau(c_eco, table, scalar::Real, helpers)
-    T = eltype(c_eco)
-    for (pool_name, turnover_time) in pairs(table)
-        for ix in getproperty(helpers.pools.zix, pool_name)
-            tmp = (one(T) / T(turnover_time)) * scalar
-            c_eco = repElem(c_eco, tmp, ix)
-        end
-    end
+function getKfromTau(c_eco, table, scalar, helpers)
+    c_eco = setPoolPropsFromTable(setPoolK, c_eco, table, helpers.pools.zix, scalar)
     return c_eco
 end
-function getKfromTau(c_eco, table, scalar_for::NamedTuple, helpers)
-    T = eltype(c_eco)
-    for (pool_name, turnover_time) in pairs(table)
-        scalar = getproperty(scalar_for, pool_name)
-        for ix in getproperty(helpers.pools.zix, pool_name)
-            tmp = (one(T) / T(turnover_time)) * scalar
-            c_eco = repElem(c_eco, tmp, ix)
-        end
-    end
-    return c_eco
+
+# k of one pool from its turnover time, with one scalar shared by every pool
+function setPoolK(k, turnover_time, ixs, _, scalar::Real)
+    T = eltype(k)
+    k_pool = (one(T) / T(turnover_time)) * scalar
+    k = repElems(k, k_pool, ixs)
+    return k
+end
+
+# k of one pool from its turnover time, with the scalar of that pool
+function setPoolK(k, turnover_time, ixs, pool_name, scalar_for::NamedTuple)
+    scalar = getfield(scalar_for, poolKey(pool_name))
+    k = setPoolK(k, turnover_time, ixs, pool_name, scalar)
+    return k
 end
 
 """
@@ -486,14 +515,15 @@ the single-scalar form exists, since every `cCycleBase` approach applies one
 shared `CN_ratio_scalar` across all pools.
 """
 function getCNfromParams(CN_ratio_cVeg, table, cn_scalar, helpers)
-    T = eltype(CN_ratio_cVeg)
-    for (pool_name, CN_ratio) in pairs(table)
-        for ix in getproperty(helpers.pools.zix, pool_name)
-            tmp = T(CN_ratio) * cn_scalar
-            CN_ratio_cVeg = repElem(CN_ratio_cVeg, tmp, ix)
-        end
-    end
+    CN_ratio_cVeg = setPoolPropsFromTable(setPoolCN, CN_ratio_cVeg, table, helpers.pools.zix, cn_scalar)
     return CN_ratio_cVeg
+end
+
+# CN ratio of one pool, scaled by cn_scalar
+function setPoolCN(cn, CN_ratio, ixs, _, cn_scalar)
+    cn_pool = eltype(cn)(CN_ratio) * cn_scalar
+    cn = repElems(cn, cn_pool, ixs)
+    return cn
 end
 
 """
@@ -508,31 +538,35 @@ intentionally not read here. Both components are scaled by the same shared
 `scalar` and written into `c_fire_ccMin`/`c_fire_ccMax` via `repElem`.
 """
 function getFireCCFromParams(c_fire_ccMin, c_fire_ccMax, table, scalar, helpers)
-    Tmin = eltype(c_fire_ccMin)
-    Tmax = eltype(c_fire_ccMax)
-    for (pool_name, cc) in pairs(table)
-        cc_min, cc_max, _ = cc
-        for ix in getproperty(helpers.pools.zix, pool_name)
-            c_fire_ccMin = repElem(c_fire_ccMin, Tmin(cc_min) * scalar, ix)
-            c_fire_ccMax = repElem(c_fire_ccMax, Tmax(cc_max) * scalar, ix)
-        end
-    end
+    init = (c_fire_ccMin, c_fire_ccMax)
+    (c_fire_ccMin, c_fire_ccMax) = setPoolPropsFromTable(setPoolCC, init, table, helpers.pools.zix, scalar)
     return c_fire_ccMin, c_fire_ccMax
 end
 
 function getFireCCFromParams(c_fire_ccMin, c_fire_ccMax, c_fire_cc_weight, table, scalar, helpers)
-    Tmin = eltype(c_fire_ccMin)
-    Tmax = eltype(c_fire_ccMax)
-    Tw = eltype(c_fire_cc_weight)
-    for (pool_name, cc) in pairs(table)
-        cc_min, cc_max, weight = cc
-        for ix in getproperty(helpers.pools.zix, pool_name)
-            c_fire_ccMin = repElem(c_fire_ccMin, Tmin(cc_min) * scalar, ix)
-            c_fire_ccMax = repElem(c_fire_ccMax, Tmax(cc_max) * scalar, ix)
-            c_fire_cc_weight = repElem(c_fire_cc_weight, Tw(weight), ix)
-        end
-    end
+    init = (c_fire_ccMin, c_fire_ccMax, c_fire_cc_weight)
+    (c_fire_ccMin, c_fire_ccMax, c_fire_cc_weight) = setPoolPropsFromTable(setPoolCC, init, table, helpers.pools.zix, scalar)
     return c_fire_ccMin, c_fire_ccMax, c_fire_cc_weight
+end
+
+# fire combustion completeness (ccMin, ccMax) of one pool, scaled by scalar
+function setPoolCC(cc_vecs::NTuple{2,Any}, cc, ixs, _, scalar)
+    cc_min_vec, cc_max_vec = cc_vecs
+    cc_min, cc_max, _ = cc
+    cc_min_vec = repElems(cc_min_vec, eltype(cc_min_vec)(cc_min) * scalar, ixs)
+    cc_max_vec = repElems(cc_max_vec, eltype(cc_max_vec)(cc_max) * scalar, ixs)
+    return cc_min_vec, cc_max_vec
+end
+
+# fire combustion completeness (ccMin, ccMax) scaled by scalar, and its unscaled
+# weight, of one pool
+function setPoolCC(cc_vecs::NTuple{3,Any}, cc, ixs, _, scalar)
+    cc_min_vec, cc_max_vec, weight_vec = cc_vecs
+    cc_min, cc_max, weight = cc
+    cc_min_vec = repElems(cc_min_vec, eltype(cc_min_vec)(cc_min) * scalar, ixs)
+    cc_max_vec = repElems(cc_max_vec, eltype(cc_max_vec)(cc_max) * scalar, ixs)
+    weight_vec = repElems(weight_vec, eltype(weight_vec)(weight), ixs)
+    return cc_min_vec, cc_max_vec, weight_vec
 end
 
 """
@@ -541,13 +575,14 @@ end
 Scatter a per-pool-name aboveground-fraction table to the active `cEco` indices.
 """
 function getAbovegroundFractionFromParams(c_fire_aboveground_fraction, table, helpers)
-    T = eltype(c_fire_aboveground_fraction)
-    for (pool_name, fraction) in pairs(table)
-        for ix in getproperty(helpers.pools.zix, pool_name)
-            c_fire_aboveground_fraction = repElem(c_fire_aboveground_fraction, T(fraction), ix)
-        end
-    end
+    c_fire_aboveground_fraction = setPoolPropsFromTable(setPoolFraction, c_fire_aboveground_fraction, table, helpers.pools.zix)
     return c_fire_aboveground_fraction
+end
+
+# aboveground fraction of one pool
+function setPoolFraction(frac, fraction, ixs, _)
+    frac = repElems(frac, eltype(frac)(fraction), ixs)
+    return frac
 end
 
 """

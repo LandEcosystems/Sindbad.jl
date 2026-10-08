@@ -316,37 +316,6 @@ end
 
 
 """
-    setRestartFilePath(info::NamedTuple)
-
-Validates and sets the absolute path for the restart file used in spinup.
-
-# Arguments:
-- `info`: A NamedTuple containing the experiment configuration.
-
-# Returns:
-- The updated `info` NamedTuple with the absolute restart file path set.
-"""
-function setRestartFilePath(info::NamedTuple)
-    restart_file_in = get(info.settings.experiment.model_spinup, :restart_file, nothing)
-    restart_file = nothing
-
-    if !isnothing(restart_file_in)
-        if restart_file_in[(end-4):end] != ".jld2"
-            error(
-                "info.settings.experiment.model_spinup.restartFile has a file ending other than .jld2. Only jld2 files are supported for loading spinup. Either give a correct file or set info.settings.experiment.flags.load_spinup to false."
-            )
-        end
-        if isabspath(restart_file_in)
-            restart_file = restart_file_in
-        else
-            restart_file = joinpath(info.temp.experiment.dirs.experiment, restart_file_in)
-        end
-        info = @set info.settings.experiment.model_spinup.restart_file = restart_file
-    end
-    return info
-end
-
-"""
     getSpinupAggregator(forcing_name, helpers_dates, aggregator_cache)
 
 Build the temporal aggregator of a spinup forcing set, reusing an already built one when the
@@ -403,14 +372,44 @@ getSpinupSequenceWithTypes(seqq, helpers_dates) = getSpinupSequenceWithTypes(seq
 
 function getSpinupSequenceWithTypes(seqq, helpers_dates, aggregator_cache)
     seqq_typed = []
-    for seq in seqq
+    save_restart_flags = getSaveRestartFlags(seqq)
+    for (seq, save_restart) in zip(seqq, save_restart_flags)
         aggregator, aggregator_indices, n_timesteps, aggregator_type = getSpinupAggregator(seq["forcing"], helpers_dates, aggregator_cache)
         spinup_mode = getTypeInstanceForNamedOptions(seq["spinup_mode"])
         optns = haskey(seq, "options") ? seq["options"] : (;)
-        sst = SpinupStepWithAggregator(Symbol(seq["forcing"]), seq["n_repeat"], n_timesteps, spinup_mode, optns, aggregator_indices, aggregator, aggregator_type);
+        sst = SpinupStepWithAggregator(Symbol(seq["forcing"]), seq["n_repeat"], n_timesteps, spinup_mode, optns, aggregator_indices, aggregator, aggregator_type, save_restart);
         push!(seqq_typed, sst)
     end
     return seqq_typed
+end
+
+"""
+    getSaveRestartFlags(seqq)
+
+Returns the `save_restart` flag of every step of a spinup sequence. The pools are
+stored for the restart file after the step whose flag is true.
+
+# Arguments:
+- `seqq`: the steps of the spinup sequence, as given in the settings
+
+# Returns:
+- a vector with one `Bool` per step
+
+# Notes:
+- A step without a `save_restart` field is false, so older sequences keep working.
+- When no step is true, the last step saves the restart.
+- More than one true step throws an error.
+"""
+function getSaveRestartFlags(seqq)
+    save_restart_flags = Bool[haskey(seq, "save_restart") && seq["save_restart"] === true for seq in seqq]
+    n_saves = count(save_restart_flags)
+    if n_saves > 1
+        error("The spinup sequence has `save_restart` set to true in steps $(findall(save_restart_flags)). Only one step can save the restart.")
+    end
+    if n_saves == 0 && !isempty(save_restart_flags)
+        save_restart_flags[end] = true
+    end
+    return save_restart_flags
 end
 
 """
@@ -445,6 +444,35 @@ function getSpinupSequenceConfig(seqq)
 end
 
 """
+    setDefaultForcingBounds(forcing_settings, num_type)
+
+Sets the bounds of `default_forcing` to `[-Inf, Inf]` of the model number type when they
+are missing, null or an empty list.
+
+# Arguments:
+- `forcing_settings`: the forcing settings from the forcing configuration file
+- `num_type`: the number type of the model, from `model_number_type` in the experiment
+
+# Returns:
+- the forcing settings with typed default bounds
+
+# Notes:
+- JSON cannot hold infinite numbers, so the open bounds are set here. A forcing variable
+  without its own bounds then gets typed bounds that do not clamp, instead of an
+  untyped empty list, so the cleaned forcing data stays concretely typed.
+"""
+function setDefaultForcingBounds(forcing_settings, num_type)
+    hasproperty(forcing_settings, :default_forcing) || return forcing_settings
+    default_forcing = forcing_settings.default_forcing
+    bounds = hasproperty(default_forcing, :bounds) ? default_forcing.bounds : nothing
+    if isnothing(bounds) || isempty(bounds)
+        default_forcing = merge(default_forcing, (; bounds=[typemin(num_type), typemax(num_type)]))
+        forcing_settings = merge(forcing_settings, (; default_forcing=default_forcing))
+    end
+    return forcing_settings
+end
+
+"""
     setSpinupInfo(info::NamedTuple)
 
 Processes the spinup configuration and prepares the spinup sequence method.
@@ -456,18 +484,43 @@ Processes the spinup configuration and prepares the spinup sequence method.
 - The updated `info` NamedTuple with spinup-related fields added.
 
 # Notes:
+- The sequence is read from `spinup_sequence` in the experiment settings. It is either a
+  list of spinup steps or a sequence method with its options.
 - The sequence itself is not built here. A sequence method may need the forcing of a location
   to decide the steps, so the sequence is built per location in `prepTEM`.
 """
 function setSpinupInfo(info)
     print_info(setSpinupInfo, @__FILE__, @__LINE__, "setting Spinup Info...")
-    info = setRestartFilePath(info)
-    infospin = info.settings.experiment.model_spinup
-    seq_config = getSpinupSequenceConfig(get(infospin, :sequence, nothing))
-    infospin = drop_namedtuple_fields(infospin, (:sequence,))
-    infospin = (; infospin..., seq_config...)
+    exp_settings = info.settings.experiment
+    spinup_sequence = getSpinupSequenceSetting(exp_settings)
+    infospin = getSpinupSequenceConfig(spinup_sequence)
     info = set_namedtuple_subfield(info, :temp, (:spinup, infospin))
     return info
+end
+
+"""
+    getSpinupSequenceSetting(exp_settings)
+
+Returns the spinup sequence from the experiment settings, or `nothing` when there is
+none. `spinup_sequence` at the top level is used when present. Otherwise the sequence
+of the older `model_spinup` section is used, with a deprecation warning, so that
+existing experiment files keep working.
+"""
+function getSpinupSequenceSetting(exp_settings)
+    has_new = hasproperty(exp_settings, :spinup_sequence)
+    has_old = hasproperty(exp_settings, :model_spinup) && hasproperty(exp_settings.model_spinup, :sequence)
+    if has_new && has_old
+        @warn "The experiment settings have both `spinup_sequence` and `model_spinup.sequence`. Using `spinup_sequence` and ignoring `model_spinup`."
+    end
+    if has_new
+        spinup_sequence = exp_settings.spinup_sequence
+    elseif has_old
+        @warn "`model_spinup.sequence` in the experiment settings is deprecated. Move it to `spinup_sequence` at the top level, e.g. `\"spinup_sequence\": [...]`. In replace_info, use the key `experiment.spinup_sequence`."
+        spinup_sequence = exp_settings.model_spinup.sequence
+    else
+        spinup_sequence = nothing
+    end
+    return spinup_sequence
 end
 
 
@@ -549,7 +602,7 @@ function setupInfo(info::NamedTuple)
 
     data_settings = (;)
     if hasproperty(info.settings, :forcing)
-        data_settings = set_namedtuple_field(data_settings, (:forcing, info.settings.forcing))
+        data_settings = set_namedtuple_field(data_settings, (:forcing, setDefaultForcingBounds(info.settings.forcing, info.temp.helpers.numbers.num_type)))
     end
     if (info.settings.experiment.flags.run_optimization || info.settings.experiment.flags.calc_cost) && hasproperty(info.settings.optimization, :algorithm_optimization)
         # @info "  setupInfo: setting ParameterOptimization and Observation info..."
