@@ -67,6 +67,7 @@ function predictParametersPixel!(
     kwargs...,
 )
     if any(c -> (c isa AbstractArray ? (all(isnan, c) || all(ismissing, c)) : (isnan(c) || ismissing(c))), in_covariates)
+        out_ps .= NaN32
         return
     end
 
