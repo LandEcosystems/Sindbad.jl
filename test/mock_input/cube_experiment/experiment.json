@@ -1,0 +1,69 @@
+{
+  "basics": {
+    "config_files": {
+      "forcing": "forcing.json",
+      "model_structure": "model_structure.json"
+    },
+    "domain": "mock_cube",
+    "name": "cube_mwe",
+    "time": {
+      "date_begin": "2015-01-01",
+      "date_end": "2015-12-31",
+      "temporal_resolution": "day"
+    }
+  },
+  "exe_rules": {
+    "input_array_type": "yax_array",
+    "input_data_backend": "zarr",
+    "land_output_type": "array",
+    "longtuple_size": null,
+    "model_array_type": "static_array",
+    "model_number_type": "Float32",
+    "parallelization": "threads",
+    "tolerance": 1.0e-2,
+    "yax_max_cache": 1e8
+  },
+  "flags": {
+    "calc_cost": false,
+    "catch_model_errors": false,
+    "debug_model": false,
+    "filter_nan_pixels": false,
+    "inline_update": false,
+    "run_forward": true,
+    "run_lazy": true,
+    "run_optimization": false,
+    "save_info": false,
+    "spinup_TEM": false,
+    "store_spinup": false
+  },
+  "model_output": {
+    "depth_dimensions": {
+      "d_soil": "soilW",
+      "d_tws": "TWS"
+    },
+    "format": "zarr",
+    "output_array_type": "array",
+    "path": null,
+    "plot_model_output": false,
+    "save_single_file": true,
+    "variables": {
+      "fluxes.gpp": null,
+      "diagnostics.gpp_f_airT": null,
+      "diagnostics.gpp_potential": null,
+      "states.ambient_CO2": null,
+      "diagnostics.gpp_climate_stressors": 4,
+      "pools.soilW": "d_soil",
+      "pools.TWS": "d_tws"
+    }
+  },
+  "model_spinup": {
+    "restart_file": null,
+    "sequence": [
+      {
+        "forcing": "first_year",
+        "n_repeat": 2,
+        "spinup_mode": "all_forward_models"
+      }
+    ]
+  }
+}

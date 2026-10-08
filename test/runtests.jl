@@ -131,3 +131,4 @@ end
 end
 
 include("MachineLearning/test_gradientSite.jl")
+include("Simulation/test_runTEMOnCube.jl")
