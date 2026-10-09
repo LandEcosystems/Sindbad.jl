@@ -297,6 +297,60 @@ function getSpaceLand(loc_land, space_spinup, store_spinup_mode)
     end)
 end
 
+
+"""
+    getLocationModels(selected_models, forcing, space_ind)
+
+Returns the models of every location, with the parameters per location from the
+parameters input applied.
+
+# Arguments:
+- `selected_models`: a tuple of all models selected in the given model structure
+- `forcing`: a forcing NamedTuple, whose `parameters` field holds the parameters per
+  location from `getParameters`, or `nothing`
+- `space_ind`: the spatial indices of the locations to run
+
+# Returns:
+- A NamedTuple with:
+  - `space_selected_models`: a vector with one tuple of models per location. Without
+    parameters per location, every element is `selected_models`. Otherwise the
+    parameters of each element are set to the values at that location.
+  - `parameters`: `nothing` without parameters per location. Otherwise a NamedTuple
+    with the `parameter_table` of what was applied, for reference. It is the table of
+    `forcing.parameters` with `initial` and `optimized` set to the mean over the
+    locations, and with their `min` and `max`.
+
+# Notes:
+- The values are used as they are, because `getParameters` already converted their
+  units, replaced NaN and clamped them to their bounds.
+- All elements have the same concrete type, see `setParametersKeepTypes`.
+"""
+function getLocationModels(selected_models, forcing, space_ind)
+    forcing_parameters = get(forcing, :parameters, nothing)
+    if isnothing(forcing_parameters)
+        return (; space_selected_models=[[selected_models for _ ∈ 1:length(space_ind)]...], parameters=nothing)
+    end
+    print_info(getLocationModels, @__FILE__, @__LINE__, "setting the parameters of the models of each location", n_f=6)
+    input_table = forcing_parameters.parameter_table
+    parameter_to_index = getParameterIndices(selected_models, input_table)
+    space_values = map([space_ind...]) do loc_ind
+        map(p_data -> p_data[loc_ind...], collect(forcing_parameters.data))
+    end
+    space_selected_models = map(space_values) do loc_values
+        setParametersKeepTypes(selected_models, parameter_to_index, loc_values)
+    end
+
+    p_indices = eachindex(input_table.name_full)
+    p_mean = [sum(v[p_i] for v ∈ space_values) / length(space_values) for p_i ∈ p_indices]
+    p_min = [minimum(v[p_i] for v ∈ space_values) for p_i ∈ p_indices]
+    p_max = [maximum(v[p_i] for v ∈ space_values) for p_i ∈ p_indices]
+    parameter_table = Table(input_table; initial=p_mean, optimized=copy(p_mean), min=p_min, max=p_max)
+    foreach(p_indices) do p_i
+        print_info(nothing, @__FILE__, @__LINE__, "→→→    `$(input_table.name_full[p_i])`: mean $(p_mean[p_i]), min $(p_min[p_i]), max $(p_max[p_i])", n_m=8)
+    end
+    return (; space_selected_models, parameters=(; parameter_table))
+end
+
 """
     helpPrepTEM(selected_models, info, forcing::NamedTuple, output::NamedTuple, ::PreAlloc)
 
@@ -482,11 +536,11 @@ function helpPrepTEM(selected_models, info, forcing::NamedTuple, output::NamedTu
 
     space_land = getSpaceLand(loc_land, space_spinup, info.helpers.run.store_spinup)
 
-    space_selected_models = [[selected_models for _ ∈ 1:length(space_ind)]...]
+    space_selected_models, parameters = getLocationModels(selected_models, forcing, space_ind)
 
     forcing_nt_array = nothing
 
-    run_helpers = (; space_selected_models, space_forcing, space_ind, space_spinup, loc_forcing_t, output_array, space_output, space_land, loc_land, output_dims, output_vars, restart, space_restart, tem_info)
+    run_helpers = (; space_selected_models, space_forcing, space_ind, space_spinup, loc_forcing_t, output_array, space_output, space_land, loc_land, output_dims, output_vars, restart, space_restart, tem_info, parameters)
     return run_helpers
 end
 
@@ -527,11 +581,11 @@ function helpPrepTEM(selected_models, info, forcing::NamedTuple, output::NamedTu
 
     space_land = getSpaceLand(loc_land, space_spinup, info.helpers.run.store_spinup)
 
-    space_selected_models = [[selected_models for _ ∈ 1:length(space_ind)]...]
+    space_selected_models, parameters = getLocationModels(selected_models, forcing, space_ind)
 
     forcing_nt_array = nothing
 
-    run_helpers = (; space_selected_models, space_forcing, space_ind, space_spinup, loc_forcing_t, output_array, space_output, space_land, loc_land, output_dims, output_vars=info.output.variables, restart, space_restart, tem_info)
+    run_helpers = (; space_selected_models, space_forcing, space_ind, space_spinup, loc_forcing_t, output_array, space_output, space_land, loc_land, output_dims, output_vars=info.output.variables, restart, space_restart, tem_info, parameters)
     return run_helpers
 end
 
@@ -569,11 +623,11 @@ function helpPrepTEM(selected_models, info, forcing::NamedTuple, output::NamedTu
         getLocData(output_array, lsi)
     end
 
-    space_selected_models = [[selected_models for _ ∈ 1:length(space_ind)]...]
+    space_selected_models, parameters = getLocationModels(selected_models, forcing, space_ind)
 
     forcing_nt_array = nothing
 
-    run_helpers = (; space_selected_models, space_forcing, space_ind, space_spinup, loc_forcing_t, space_output, loc_land, output_vars=output.variables, tem_info)
+    run_helpers = (; space_selected_models, space_forcing, space_ind, space_spinup, loc_forcing_t, space_output, loc_land, output_vars=output.variables, tem_info, parameters)
 
     return run_helpers
 end
@@ -632,10 +686,10 @@ function helpPrepTEM(selected_models, info, forcing::NamedTuple, output::NamedTu
     output_vars = output.variables
     output_dims = output.dims
 
-    space_selected_models = [[selected_models for _ ∈ 1:length(space_ind)]...]
+    space_selected_models, parameters = getLocationModels(selected_models, forcing, space_ind)
 
     land_time_series = nothing
-    run_helpers = (; loc_forcing, loc_forcing_t, loc_spinup, loc_land, land_time_series, space_selected_models, space_ind, output_dims, output_vars, tem_info)
+    run_helpers = (; loc_forcing, loc_forcing_t, loc_spinup, loc_land, land_time_series, space_selected_models, space_ind, output_dims, output_vars, tem_info, parameters)
     return run_helpers
 end
 

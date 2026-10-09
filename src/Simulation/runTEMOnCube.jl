@@ -41,12 +41,16 @@ end
 - `tem`: a nested NT with necessary information of helpers, models, and spinup needed to run SINDBAD TEM and models
 - `selected_models`: a tuple of all models selected in the given model structure
 - `forcing_vars`: forcing variables
+- `parameter_to_index`: the index of each parameter per location in the models, or
+  `nothing` when there are none. The values of the location then set the parameters of
+  `selected_models` before the run.
 """
-function TEMYax(map_cubes...;selected_models::Tuple, forcing_vars, loc_land::NamedTuple, output_vars, tem::NamedTuple, clean_data, restart_vars=())
+function TEMYax(map_cubes...;selected_models::Tuple, forcing_vars, loc_land::NamedTuple, output_vars, tem::NamedTuple, clean_data, restart_vars=(), parameter_to_index=nothing)
     # Make NaN check here instead of AllNaN filters
     
 
-    outputs, inputs, restarts = unpackYaxForward(map_cubes; output_vars, forcing_vars, restart_vars)
+    outputs, inputs, restarts, parameter_inputs = unpackYaxForward(map_cubes; output_vars, forcing_vars, restart_vars)
+    selected_models = setLocationParametersYax(selected_models, parameter_to_index, parameter_inputs)
     # What exactly should the NaN check be? 
     # Do I check per variable, or for all variables together?
     any(in_forcing -> any(v -> ismissing(v) || isnan(v), in_forcing), inputs)
@@ -131,10 +135,14 @@ end
   the restart
 """
 function runTEMYax(selected_models::Tuple, forcing::NamedTuple, info::NamedTuple)
-
     # forcing/input information
     incubes = forcing.data;
     indims = forcing.dims;
+    # the parameters per location have no core dimensions, so each location gets one
+    # value per parameter, which sets the parameters of its models in TEMYax
+    parameter_cubes, parameter_to_index = getParameterCubesYax(selected_models, forcing)
+    incubes = (incubes..., parameter_cubes...)
+    indims = (indims..., map(_ -> (), parameter_cubes)...)
     # information for running model
     run_helpers = prepTEM(forcing, info);
     loc_land = deepcopy(run_helpers.loc_land);
@@ -164,7 +172,8 @@ function runTEMYax(selected_models::Tuple, forcing::NamedTuple, info::NamedTuple
         loc_land=loc_land,
         tem=run_helpers.tem_info,
         clean_data=(; _data_fill, _num_type, _forcing_data_info),
-        restart_vars=restart_vars),
+        restart_vars=restart_vars,
+        parameter_to_index=parameter_to_index),
         output = new_output,
         #outdims=run_helpers.output_dims,
         #max_cache=info.experiment.exe_rules.yax_max_cache,
@@ -336,6 +345,10 @@ unpack the input and output cubes from all cubes thrown by mapCube
 - `forcing_vars`: forcing variables
 - `output_vars`: output variables
 - `restart_vars`: restart variables, whose cubes follow the output cubes
+
+# Notes:
+- The cubes of the parameters per location, if any, follow the forcing cubes and are
+  returned last.
 """
 function unpackYaxForward(all_cubes; output_vars, forcing_vars, restart_vars=())
     nin = length(forcing_vars)
@@ -344,7 +357,48 @@ function unpackYaxForward(all_cubes; output_vars, forcing_vars, restart_vars=())
     outputs = all_cubes[1:nout]
     restarts = all_cubes[(nout+1):(nout+nres)]
     inputs = all_cubes[(nout+nres+1):(nout+nres+nin)]
-    return outputs, inputs, restarts
+    parameter_inputs = all_cubes[(nout+nres+nin+1):end]
+    return outputs, inputs, restarts, parameter_inputs
+end
+
+
+"""
+    getParameterCubesYax(selected_models, forcing)
+
+Returns the cubes of the parameters per location and the index of each parameter in
+the models, for the input cubes of `xmap`.
+
+# Returns:
+- `()` and `nothing` when `forcing.parameters` is `nothing`, so the input cubes of
+  `xmap` are only the forcing.
+- Otherwise the cubes of `forcing.parameters.data`, which hold values that are already
+  in run units and within bounds, and the `parameter_to_index` from
+  `getParameterIndices`.
+"""
+function getParameterCubesYax(selected_models, forcing)
+    forcing_parameters = get(forcing, :parameters, nothing)
+    isnothing(forcing_parameters) && return (), nothing
+    parameter_to_index = getParameterIndices(selected_models, forcing_parameters.parameter_table)
+    return Tuple(forcing_parameters.data), parameter_to_index
+end
+
+
+"""
+    setLocationParametersYax(selected_models, parameter_to_index, parameter_inputs)
+
+Returns the models of one location with the parameters set from the values of the
+parameters per location, or `selected_models` when there are none.
+
+# Arguments:
+- `selected_models`: a tuple of all models selected in the given model structure
+- `parameter_to_index`: the index of each parameter in the models, or `nothing`
+- `parameter_inputs`: the value of each parameter at the location, as arrays without
+  dimensions from `xmap`
+"""
+setLocationParametersYax(selected_models, ::Nothing, _) = selected_models
+
+function setLocationParametersYax(selected_models, parameter_to_index, parameter_inputs)
+    return setParametersKeepTypes(selected_models, parameter_to_index, map(first, parameter_inputs))
 end
 
 
