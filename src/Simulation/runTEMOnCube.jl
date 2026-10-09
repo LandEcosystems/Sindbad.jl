@@ -69,7 +69,7 @@ function TEMYax(map_cubes...;selected_models::Tuple, forcing_vars, loc_land::Nam
     i = 1
     foreach(output_vars) do var_pair
         data = land_out[first(var_pair)][last(var_pair)]
-            fillOutputYax(outputs[i], data)
+            fillOutputYax(outputs[i], data, var_pair)
             i += 1
     end
 end
@@ -251,7 +251,7 @@ function psTEMYax(in_pixel_cube...; selected_models::Tuple, param_to_index, forc
     i = 1
     foreach(output_vars) do var_pair
         data = land_out[first(var_pair)][last(var_pair)]
-            fillOutputYax(outputs[i], data)
+            fillOutputYax(outputs[i], data, var_pair)
             i += 1
     end
 end
@@ -404,15 +404,24 @@ end
 
 
 """
-    fillOutputYax(xout, xin)
+    fillOutputYax(xout, xin, var_pair)
 
 fills the output array position with the input data/vector
 
 # Arguments:
 - `xout`: output array location
 - `xin`: input data/vector
+- `var_pair`: the field and subfield pair of the output variable, used in the error
+
+# Notes:
+- The number of layers of the output must equal the number of layers of the variable in
+  land, the same check as `checkOutputLayers` in a run that is not lazy. It is done once
+  per location and variable, not per time step.
 """
-function fillOutputYax(xout, xin)
+function fillOutputYax(xout, xin, var_pair)
+    n_land = length(first(xin))
+    n_out = length(xout) ÷ length(xin)
+    n_land == n_out || throwOutputLayerError(var_pair, n_out, n_land)
     if ndims(xout) == ndims(xin) && length(xin[1]) == 1
         for i ∈ eachindex(xin)
             xout[i] = xin[i][1]

@@ -299,6 +299,47 @@ end
 
 
 """
+    checkOutputLayers(output_vars, depth_info, loc_land)
+
+Checks that every output variable has as many layers in the settings as the variable
+has in land, and throws an error otherwise.
+
+# Arguments:
+- `output_vars`: the field and subfield pairs of the output variables
+- `depth_info`: the number of layers and the name of the depth dimension of each output
+  variable, from the `model_output.variables` settings
+- `loc_land`: the land of one location after a model run of one time step
+
+# Notes:
+- It runs once during setup, so it adds no cost to the time loop. Without it, an output
+  with more layers than the variable keeps unused layers of NaN, and one with fewer
+  layers fails during the run.
+- Only numbers and arrays in land are checked.
+"""
+function checkOutputLayers(output_vars, depth_info, loc_land)
+    foreach(output_vars, depth_info) do var_pair, d_info
+        land_value = getproperty(getproperty(loc_land, first(var_pair)), last(var_pair))
+        (land_value isa Number || land_value isa AbstractArray) || return nothing
+        n_land = length(land_value)
+        n_land == first(d_info) || throwOutputLayerError(var_pair, first(d_info), n_land, last(d_info))
+        return nothing
+    end
+    return nothing
+end
+
+"""
+    throwOutputLayerError(var_pair, n_out, n_land, dim_name="")
+
+Throws the error for an output variable whose number of layers in the settings differs
+from the number of layers of the variable in land.
+"""
+@noinline function throwOutputLayerError(var_pair, n_out, n_land, dim_name="")
+    dim_text = isempty(string(dim_name)) ? "" : " (depth dimension `$(dim_name)`)"
+    error("The output `$(first(var_pair)).$(last(var_pair))` has $(n_out) layer(s) in the settings$(dim_text), but land has $(n_land). Set its depth dimension in `model_output.variables` of the experiment settings to one with $(n_land) layer(s).")
+end
+
+
+"""
     getLocationModels(selected_models, forcing, space_ind)
 
 Returns the models of every location, with the parameters per location from the
@@ -520,6 +561,7 @@ function helpPrepTEM(selected_models, info, forcing::NamedTuple, output::NamedTu
     ## run the model for one time step
     print_info(helpPrepTEM, @__FILE__, @__LINE__, "model run for one location and time step", n_f=6)
     loc_forcing_t, loc_land = runTEMOne(selected_models, space_forcing[1], land_init, tem_info, space_spinup[1].sequence)
+    checkOutputLayers(info.output.variables, info.output.depth_info, loc_land)
 
     addErrorCatcher(loc_land, info.helpers.run.debug_model)
     plotActualCarbonFlows(info, loc_land)
@@ -615,6 +657,7 @@ function helpPrepTEM(selected_models, info, forcing::NamedTuple, output::NamedTu
     ## run the model for one time step
     print_info(helpPrepTEM, @__FILE__, @__LINE__, "model run for one location and time step", n_f=6)
     loc_forcing_t, loc_land = runTEMOne(selected_models, space_forcing[1], land_init, tem_info, space_spinup[1].sequence)
+    checkOutputLayers(info.output.variables, info.output.depth_info, loc_land)
 
     addErrorCatcher(loc_land, info.helpers.run.debug_model)
     plotActualCarbonFlows(info, loc_land)
@@ -680,6 +723,7 @@ function helpPrepTEM(selected_models, info, forcing::NamedTuple, output::NamedTu
     loc_forcing = getLocData(forcing_nt_array, space_ind[1])
     loc_spinup = getLocSpinup(loc_forcing, tem_info)
     loc_forcing_t, loc_land = runTEMOne(selected_models, loc_forcing, land_init, tem_info, loc_spinup.sequence)
+    checkOutputLayers(info.output.variables, info.output.depth_info, loc_land)
     addErrorCatcher(loc_land, info.helpers.run.debug_model)
     plotActualCarbonFlows(info, loc_land)
 
