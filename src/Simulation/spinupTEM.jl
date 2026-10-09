@@ -531,7 +531,6 @@ Runs sequential loops for model spin-up simulations for each repeat of a spinup 
 """
 function spinupSequenceLoop(spinup_models, sel_forcing, loc_forcing_t, land, tem_info, n_timesteps, log_loop, n_repeat, spinup_mode)
     for loop_index ∈ 1:n_repeat
-        @debug "        Loop: $(loop_index)/$(n_repeat)"
         land = spinup(spinup_models,
             sel_forcing,
             loc_forcing_t,
@@ -615,7 +614,6 @@ runSpinupSequences(::Tuple{}, selected_models, spinup_forcings, loc_forcing_t, l
 function runSpinupSequences(spin_seqs::Tuple, selected_models, spinup_forcings, loc_forcing_t, land, tem_info, log_index, loc_restart=nothing)
     spin_seq = first(spin_seqs)
     n_repeat = spin_seq.n_repeat
-    @debug "Spinup: \n         spinup_mode: $(nameof(typeof(spin_seq.spinup_mode))), forcing: $(spin_seq.forcing)"
     sel_forcing = sequenceForcing(spinup_forcings, spin_seq.forcing)
     land = spinupSequence(selected_models, sel_forcing, loc_forcing_t, land, tem_info, spin_seq.n_timesteps, log_index, n_repeat, spin_seq.spinup_mode)
     spin_seq.save_restart && setRestart!(loc_restart, land, tem_info)

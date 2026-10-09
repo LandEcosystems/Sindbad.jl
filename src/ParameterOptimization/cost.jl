@@ -42,31 +42,24 @@ julia> # cost_value = cost(parameter_vector, default_values, selected_models, sp
 function cost end
 
 function cost(parameter_vector, _, selected_models, space_forcing, space_spinup, loc_forcing_t, output_array, space_output, space_land, tem_info, observations, parameter_updater, cost_options, multi_constraint_method, parameter_scaling_type, ::CostModelObs)
-    @debug parameter_vector
     updated_models = updateModels(parameter_vector, parameter_updater, parameter_scaling_type, selected_models)
     runTEM!(updated_models, space_forcing, space_spinup, loc_forcing_t, space_output, space_land, tem_info)
     cost_vector = metricVector(output_array, observations, cost_options)
     cost_metric = combineMetric(cost_vector, multi_constraint_method)
-    @debug cost_vector, cost_metric
     return cost_metric
 end
 
 
 function cost(parameter_matrix, _, selected_models, space_forcing, space_spinup, loc_forcing_t, output_array, space_output, space_land, tem_info, observations, parameter_updater, cost_options, multi_constraint_method, parameter_scaling_type, cost_out::Vector, ::CostModelObsMT)
-    @debug "parameter_matrix:: ", size(parameter_matrix)
     parameter_set_size = size(parameter_matrix, 2)
-    done_params=1
     Threads.@threads for parameter_index in eachindex(1:parameter_set_size)
         idx = Threads.threadid()
         parameter_vector = parameter_matrix[:, parameter_index]
-        @debug parameter_vector
         updated_models = updateModels(parameter_vector, parameter_updater, parameter_scaling_type, selected_models)
         coreTEM!(updated_models, space_forcing, space_spinup, loc_forcing_t, space_output[idx], space_land, tem_info)
         cost_vector = metricVector(space_output[idx], observations, cost_options)
         cost_metric = combineMetric(cost_vector, multi_constraint_method)
         cost_out[parameter_index] = cost_metric
-        @debug "Parameter column:: ", idx, round(100 * done_params/parameter_set_size,digits=2), parameter_set_size, cost_metric, cost_vector
-        done_params += 1
     end
     return cost_out
 end
@@ -77,7 +70,6 @@ function cost(parameter_vector, default_values, selected_models, space_forcing, 
     cost_prior = metric(MSE(), parameter_vector, parameter_vector, default_values)
     cost_metric = cost(parameter_vector, default_values, selected_models, space_forcing, space_spinup, loc_forcing_t, output_array, space_output, space_land, tem_info, observations, parameter_updater, cost_options, multi_constraint_method, parameter_scaling_type, CostModelObs())
     cost_metric = cost_metric + cost_prior
-    @debug cost_vector, cost_metric
     return cost_metric
 end
 
@@ -144,7 +136,6 @@ function costLand(parameter_vector::AbstractArray, selected_models, forcing, spi
     land_wrapper_timeseries = runTEM(updated_models, forcing, spinup_forcing, loc_forcing_t, land_timeseries, land_init, tem_info)
     cost_vector = metricVector(land_wrapper_timeseries, observations, cost_options)
     cost_metric = combineMetric(cost_vector, multi_constraint_method)
-    @debug cost_vector, cost_metric
     return cost_metric
 end
 
@@ -153,6 +144,5 @@ function costLand(parameter_vector::AbstractArray, selected_models, forcing, spi
     land_wrapper_timeseries = runTEM(updated_models, forcing, spinup_forcing, loc_forcing_t, land_init, tem_info)
     cost_vector = metricVector(land_wrapper_timeseries, observations, cost_options)
     cost_metric = combineMetric(cost_vector, multi_constraint_method)
-    @debug cost_vector, cost_metric
     return cost_metric
 end
