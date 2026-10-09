@@ -24,14 +24,14 @@ export cCycleBase_GSI
     k_c_leaf_scalar::T3 = 1.0 | (0.25, 4.0) | "scalar for turnover rate of leaf carbon pool" | "-" | "year"
     k_c_reserve_scalar::T4 = 1.0 | (0.25, 4.0) | "scalar for turnover rate of reserve carbon pool" | "-" | "year"
 
-    k_c_litfast_scalar::T5 = 1.0 | (0.25, 4.0) | "scalar for turnover rate of litter fast carbon pool" | "-" | "year"
-    k_c_litslow_scalar::T6 = 1.0 | (0.25, 4.0) | "scalar for turnover rate of litter slow carbon pool" | "-" | "year"
-    k_c_soilslow_scalar::T7 = 1.0 | (0.25, 4.0) | "scalar for turnover rate of soil slow carbon pool" | "-" | "year"
+    k_c_litfast_scalar::T5 = 1.0 | (0.05, 20.0) | "scalar for turnover rate of litter fast carbon pool" | "-" | "year"
+    k_c_litslow_scalar::T6 = 1.0 | (0.05, 20.0) | "scalar for turnover rate of litter slow carbon pool" | "-" | "year"
+    k_c_soilslow_scalar::T7 = 1.0 | (0.05, 20.0) | "scalar for turnover rate of soil slow carbon pool" | "-" | "year"
     k_c_soilold_scalar::T8 = 1.0 | (0.25, 4.0) | "scalar for turnover rate of soil old carbon pool" | "-" | "year"
 
     α_k_cVeg::T9 = 1.0 | (0.25, 4.0) | "scalar for turnover rate of all vegetation carbon pools; it has no timescale, since it scales the original pool level k." | "-" | ""
-    α_k_cLit::T10 = 1.0 | (0.25, 4.0) | "scalar for turnover rate of all litter carbon pools; it has no timescale, since it scales the original pool level k." | "-" | ""
-    α_k_cSoil::T11 = 1.0 | (0.25, 4.0) | "scalar for turnover rate of all soil carbon pools; it has no timescale, since it scales the original pool level k." | "-" | ""
+    α_k_cLit::T10 = 1.0 | (0.05, 20.0) | "scalar for turnover rate of all litter carbon pools; it has no timescale, since it scales the original pool level k." | "-" | ""
+    α_k_cSoil::T11 = 1.0 | (0.05, 20.0) | "scalar for turnover rate of all soil carbon pools; it has no timescale, since it scales the original pool level k." | "-" | ""
 
     CN_ratio_scalar::T12 = 1.0 | (0.25, 4.0) | "scalar for the vegetation carbon-to-nitrogen ratio" | "-" | ""
     ηH::T13 = 1.0 | (0.01, 100.0) | "scaling factor for heterotrophic pools after spinup" | "" | ""
