@@ -143,7 +143,7 @@ function  prepOpti(forcing, observations, info, ::CostModelObsMT; algorithm_info
     
     space_index = 1 # the parallelization of cost computation only runs in single pixel runs
 
-    cost_function = x -> cost(x, opti_helpers.default_values, info.models.forward, run_helpers.space_forcing[space_index], run_helpers.space_spinup[space_index], run_helpers.loc_forcing_t, run_helpers.output_array, run_helpers.space_output_mt, deepcopy(run_helpers.space_land[space_index]), run_helpers.tem_info, observations, opti_helpers.parameter_table, opti_helpers.cost_options, info.optimization.run_options.multi_constraint_method, info.optimization.run_options.parameter_scaling, cost_vector, info.optimization.run_options.cost_method)
+    cost_function = x -> cost(x, opti_helpers.default_values, getCostModels(info, run_helpers, space_index), run_helpers.space_forcing[space_index], run_helpers.space_spinup[space_index], run_helpers.loc_forcing_t, run_helpers.output_array, run_helpers.space_output_mt, deepcopy(run_helpers.space_land[space_index]), run_helpers.tem_info, observations, opti_helpers.parameter_table, opti_helpers.cost_options, info.optimization.run_options.multi_constraint_method, info.optimization.run_options.parameter_scaling, cost_vector, info.optimization.run_options.cost_method)
 
     opti_helpers = (; opti_helpers..., cost_function=cost_function, cost_vector=cost_vector)
     return opti_helpers
@@ -153,7 +153,7 @@ function  prepOpti(forcing, observations, info, ::CostModelObsLandTS)
     opti_helpers = prepOpti(forcing, observations, info, CostModelObs())
     run_helpers = opti_helpers.run_helpers
 
-    cost_function = x -> costLand(x, info.models.forward, run_helpers.loc_forcing, run_helpers.loc_spinup, run_helpers.loc_forcing_t, run_helpers.land_time_series, run_helpers.loc_land, run_helpers.tem_info, observations, opti_helpers.parameter_table, opti_helpers.cost_options, info.optimization.run_options.multi_constraint_method, info.optimization.run_options.parameter_scaling)
+    cost_function = x -> costLand(x, getCostModels(info, run_helpers, 1), run_helpers.loc_forcing, run_helpers.loc_spinup, run_helpers.loc_forcing_t, run_helpers.land_time_series, run_helpers.loc_land, run_helpers.tem_info, observations, opti_helpers.parameter_table, opti_helpers.cost_options, info.optimization.run_options.multi_constraint_method, info.optimization.run_options.parameter_scaling)
 
     opti_helpers = (; opti_helpers..., cost_function=cost_function)
     
@@ -164,7 +164,8 @@ end
 function  prepOpti(forcing, observations, info, cost_method::CostModelObs)
     run_helpers = prepTEM(forcing, info)
 
-    parameter_helpers = prepParameters(info.optimization.parameter_table, info.optimization.run_options.parameter_scaling)
+    opti_parameter_table = setInitialFromParameterInput(info.optimization.parameter_table, get(run_helpers, :parameters, nothing))
+    parameter_helpers = prepParameters(opti_parameter_table, info.optimization.run_options.parameter_scaling)
     
     parameter_table = parameter_helpers.parameter_table
     default_values = parameter_helpers.default_values
@@ -173,11 +174,92 @@ function  prepOpti(forcing, observations, info, cost_method::CostModelObs)
 
     cost_options = prepCostOptions(observations, info.optimization.cost_options, cost_method)
 
-    cost_function = x -> cost(x, default_values, info.models.forward, run_helpers.space_forcing, run_helpers.space_spinup, run_helpers.loc_forcing_t, run_helpers.output_array, run_helpers.space_output, deepcopy(run_helpers.space_land), run_helpers.tem_info, observations, parameter_table, cost_options, info.optimization.run_options.multi_constraint_method, info.optimization.run_options.parameter_scaling, cost_method)
+    cost_function = x -> cost(x, default_values, getCostModels(info, run_helpers), run_helpers.space_forcing, run_helpers.space_spinup, run_helpers.loc_forcing_t, run_helpers.output_array, run_helpers.space_output, deepcopy(run_helpers.space_land), run_helpers.tem_info, observations, parameter_table, cost_options, info.optimization.run_options.multi_constraint_method, info.optimization.run_options.parameter_scaling, cost_method)
 
     opti_helpers = (; parameter_table=parameter_table, cost_function=cost_function, cost_options=cost_options, default_values=default_values, lower_bounds=lower_bounds, upper_bounds=upper_bounds, run_helpers=run_helpers)
     
     return opti_helpers
+end
+
+
+"""
+    getCostModels(info, run_helpers[, space_index])
+
+Returns the models to update in the cost function of the optimization.
+
+# Arguments:
+- `info`: the experiment info, whose `models.forward` are the models of all locations
+  without parameters per location
+- `run_helpers`: the run helpers from `prepTEM`, with the models of each location and
+  the applied `parameters` when a json or zarr/nc parameters input is set
+- `space_index`: the location of a single-location cost, if any
+
+# Returns:
+- Without parameters per location, `info.models.forward`, which is the same for all
+  locations.
+- Otherwise the vector of the models of each location, or the models of `space_index`.
+  The optimized parameters are set on top of the parameters of each location.
+"""
+function getCostModels(info, run_helpers)
+    isnothing(get(run_helpers, :parameters, nothing)) && return info.models.forward
+    return run_helpers.space_selected_models
+end
+
+function getCostModels(info, run_helpers, space_index)
+    isnothing(get(run_helpers, :parameters, nothing)) && return info.models.forward
+    return run_helpers.space_selected_models[space_index]
+end
+
+
+"""
+    setInitialFromParameterInput(opti_table, applied_parameters)
+
+Returns the table of the parameters to optimize, with the start value of each parameter
+that is also set by the parameters input taken from that input.
+
+# Arguments:
+- `opti_table`: the table of the parameters to optimize
+- `applied_parameters`: the `parameters` of the run helpers from `prepTEM`, or `nothing`
+
+# Returns:
+- `opti_table` itself when no parameter is in both. Otherwise a copy with `initial` set
+  for those parameters.
+
+# Notes:
+- The start value is the value of the parameters input. When it differs between
+  locations, it is the mean over the locations.
+- The value is in the units of the run, like the table, and is clamped to the bounds of
+  the optimization. The bounds and everything else come from the optimization settings.
+- The optimized value replaces the input values of the parameter at every location.
+"""
+function setInitialFromParameterInput(opti_table, applied_parameters)
+    isnothing(applied_parameters) && return opti_table
+    applied_table = applied_parameters.parameter_table
+    both = inputParametersToOptimize(applied_table, opti_table)
+    isempty(both) && return opti_table
+    print_info(setInitialFromParameterInput, @__FILE__, @__LINE__, "the parameters $(both) are set by the parameters input and optimized. Their start value is the input value, or its mean over the locations, and the optimized value is used at every location.")
+    opti_table = copy(opti_table)
+    opti_names = string.(opti_table.name_full)
+    applied_names = string.(applied_table.name_full)
+    for name_full ∈ both
+        o_i = findfirst(==(name_full), opti_names)
+        a_i = findfirst(==(name_full), applied_names)
+        start_value = clamp(applied_table.optimized[a_i], opti_table.lower[o_i], opti_table.upper[o_i])
+        opti_table.initial[o_i] = oftype(opti_table.initial[o_i], start_value)
+    end
+    return opti_table
+end
+
+
+"""
+    inputParametersToOptimize(applied_table, opti_table)
+
+Returns the full names of the parameters that are set by the parameters input and are
+also optimized.
+"""
+function inputParametersToOptimize(applied_table, opti_table)
+    opti_names = string.(opti_table.name_full)
+    return filter(in(opti_names), string.(applied_table.name_full))
 end
 
 

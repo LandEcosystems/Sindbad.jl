@@ -291,3 +291,14 @@ function updateModels(parameter_vector, parameter_updater, parameter_scaling_typ
     updated_models = updateModelParameters(parameter_updater, selected_models, parameter_vector)
     return updated_models
 end
+
+# A vector holds the models of every location, which differ when a parameter input is set.
+# The same parameter vector is applied to each of them, and the mapped parameters keep
+# their values per location.
+function updateModels(parameter_vector, parameter_updater, parameter_scaling_type, space_selected_models::AbstractVector)
+    parameter_vector = backScaleParameters(parameter_vector, parameter_updater, parameter_scaling_type)
+    parameter_to_index = parameter_updater isa Table ? getParameterIndices(first(space_selected_models), parameter_updater) : parameter_updater
+    return map(space_selected_models) do selected_models
+        setParametersKeepTypes(selected_models, parameter_to_index, parameter_vector)
+    end
+end
