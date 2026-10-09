@@ -604,6 +604,7 @@ function setupInfo(info::NamedTuple)
     if hasproperty(info.settings, :forcing)
         data_settings = set_namedtuple_field(data_settings, (:forcing, setDefaultForcingBounds(info.settings.forcing, info.temp.helpers.numbers.num_type)))
     end
+    data_settings = set_namedtuple_field(data_settings, (:parameters, getParameterInput(info)))
     if (info.settings.experiment.flags.run_optimization || info.settings.experiment.flags.calc_cost) && hasproperty(info.settings.optimization, :algorithm_optimization)
         # @info "  setupInfo: setting ParameterOptimization and Observation info..."
         info = setOptimization(info)
