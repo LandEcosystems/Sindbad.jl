@@ -1,4 +1,6 @@
 export getParameters
+export getParameterFileDims
+export saveParameterDataset
 
 
 """
@@ -46,6 +48,8 @@ function getParameters(info::NamedTuple, forcing_axes)
     end
     space_dims = Symbol.(info.experiment.data_settings.forcing.data_dimension.space)
     num_type = info.helpers.numbers.num_type
+    axes_values = Dict(Symbol(first(f_axis)) => last(f_axis) for f_axis ∈ forcing_axes)
+    forcing_space_dims = Tuple(DD.Dim{s_dim}(axes_values[s_dim]) for s_dim ∈ space_dims)
     open_files = Dict{String,Any}()
     var_names, var_sources = listParameterVariables(parameter_input, open_files)
 
@@ -54,13 +58,13 @@ function getParameters(info::NamedTuple, forcing_axes)
         dataset = openParameterFile!(open_files, var_source.data_path)
         attributes = readVariableAttributes(dataset, var_source.source_variable, var_source.data_path)
         p_row = resolveParameterVariable(var_name, var_source, parameter_input, attributes, info)
-        yax = selectForcingLocations(dataset[var_source.source_variable], forcing_axes, space_dims, var_name)
+        yax = selectForcingLocations(dataset[var_source.source_variable], forcing_axes, space_dims, var_name, dataset)
         p_values = cleanParameterValues(Array(yax), p_row, num_type)
         push!(table_rows, (; p_row..., n_nan=p_values.n_nan, n_clamped=p_values.n_clamped))
         print_info(nothing, @__FILE__, @__LINE__, "`$(var_name)` = `$(p_row.name_full)` ($(p_row.units)) from `$(var_source.source_variable)` in `$(var_source.data_path)` * $(p_row.unit_factor)", n_m=4)
-        # kept as a cube on the spatial dimensions of the forcing, so a lazy run can
-        # map over it together with the forcing
-        YAXArray(DD.dims(yax), p_values.data)
+        # kept as a cube on the spatial dimensions and coordinates of the forcing, so a
+        # lazy run can map over it together with the forcing
+        YAXArray(forcing_space_dims, p_values.data)
     end
 
     parameter_table = Table([table_rows...])
@@ -257,7 +261,7 @@ end
 
 
 """
-    selectForcingLocations(yax, forcing_axes, space_dims, var_name)
+    selectForcingLocations(yax, forcing_axes, space_dims, var_name, dataset)
 
 Returns the values of `yax` at the coordinates of the forcing, with the spatial
 dimensions of the forcing in its order.
@@ -265,25 +269,79 @@ dimensions of the forcing in its order.
 # Notes:
 - The coordinates are selected by value, so the file may have more locations than the
   forcing, in any order.
+- When the file has a `<dim>_name` variable, e.g., `site_name`, the values of that
+  variable are matched with the coordinates of the forcing instead of the coordinate of
+  the dimension, which is then an index. See `getParameterFileDims`.
 - An error lists the coordinates of the forcing that are missing in the file.
 """
-function selectForcingLocations(yax, forcing_axes, space_dims, var_name)
+function selectForcingLocations(yax, forcing_axes, space_dims, var_name, dataset)
     axes_values = Dict(Symbol(first(f_axis)) => last(f_axis) for f_axis ∈ forcing_axes)
     for s_dim ∈ space_dims
         haskey(axes_values, s_dim) || error("The forcing has no coordinates for the spatial dimension `$(s_dim)`.")
         hasdim(yax, s_dim) || error("The parameter variable `$(var_name)` has no `$(s_dim)` dimension. Its dimensions are $(DD.name(DD.dims(yax))).")
         forcing_values = axes_values[s_dim]
-        missing_values = setdiff(forcing_values, collect(DD.lookup(yax, s_dim)))
+        file_values = getFileLocationValues(yax, s_dim, dataset)
+        missing_values = setdiff(forcing_values, file_values)
         if !isempty(missing_values)
             error("The parameter variable `$(var_name)` has no values for $(length(missing_values)) `$(s_dim)` of the forcing: $(missing_values).")
         end
-        yax = yax[DD.Dim{s_dim}(At(forcing_values))]
+        positions = [findfirst(==(v), file_values) for v ∈ forcing_values]
+        yax = yax[DD.Dim{s_dim}(positions)]
     end
     extra_dims = setdiff(DD.name(DD.dims(yax)), space_dims)
     if !isempty(extra_dims)
         error("The parameter variable `$(var_name)` has the dimensions $(extra_dims) besides the spatial dimensions of the forcing. A parameters input only supports spatial parameters.")
     end
     return permutedims(yax, getDimPermutation(DD.name(DD.dims(yax)), space_dims))
+end
+
+"""
+    getFileLocationValues(yax, s_dim, dataset)
+
+Returns the values that identify the locations of a spatial dimension of a parameter
+file: the `<dim>_name` variable when the file has one, else the coordinate of the
+dimension.
+"""
+function getFileLocationValues(yax, s_dim, dataset)
+    name_var = Symbol(string(s_dim) * "_name")
+    if haskey(dataset.cubes, name_var)
+        return vec(Array(dataset.cubes[name_var].data))
+    end
+    return collect(DD.lookup(yax, s_dim))
+end
+
+
+"""
+    getParameterFileDims(space_dims, axes_values)
+
+Returns the dimensions of the variables of a parameter file, and the `<dim>_name`
+variables that hold the coordinates that are not numbers.
+
+# Arguments:
+- `space_dims`: the names of the spatial dimensions, in order
+- `axes_values`: a dictionary of the coordinates of each spatial dimension
+
+# Returns:
+- `dims`: a tuple of dimensions. A dimension with numeric coordinates, e.g., `lat`, keeps
+  them. Any other, e.g., `site` with site names, gets the index `1:n` as coordinate.
+- `name_cubes`: a vector of `<dim>_name => YAXArray` pairs with the coordinates that were
+  replaced by an index, e.g., `site_name`.
+
+# Notes:
+- Tools such as Panoply cannot plot a variable along a coordinate of strings, so the
+  names are kept in their own variable. `getParameters` matches the locations with that
+  variable.
+"""
+function getParameterFileDims(space_dims, axes_values)
+    name_cubes = Pair{Symbol,Any}[]
+    dims = map(Tuple(space_dims)) do s_dim
+        coord = collect(axes_values[s_dim])
+        eltype(coord) <: Number && return DD.Dim{s_dim}(coord)
+        index_dim = DD.Dim{s_dim}(collect(1:length(coord)))
+        push!(name_cubes, Symbol(string(s_dim) * "_name") => YAXArray((index_dim,), string.(coord)))
+        index_dim
+    end
+    return dims, name_cubes
 end
 
 
@@ -322,4 +380,27 @@ function cleanParameterValues(values, p_row, num_type)
         @warn "The parameter `$(p_row.name_full)` is outside [$(p_row.lower), $(p_row.upper)] at $(n_clamped) of $(length(values)) locations. The values are clamped to the bounds."
     end
     return (; data=Array{num_type}(data), n_nan=n_nan, n_clamped=n_clamped)
+end
+
+
+"""
+    saveParameterDataset(params_ds, data_path)
+
+Saves the dataset of a parameter file, including the `<dim>_name` variables of strings.
+
+# Arguments:
+- `params_ds`: the dataset with the parameter variables and the `<dim>_name` variables
+- `data_path`: the path of the zarr or netCDF file to write
+
+# Notes:
+- `savedataset` cannot copy variables of strings, because it sizes its copy buffer from
+  the size of the element type. The file is therefore created as a skeleton and each
+  variable is written directly, which is fine for the small arrays of a parameter file.
+"""
+function saveParameterDataset(params_ds, data_path)
+    disk_ds = YAXArrays.savedataset(params_ds, path=data_path, overwrite=true, skeleton=true)
+    for (var_name, cube) ∈ params_ds.cubes
+        disk_ds.cubes[var_name].data[:] = Array(cube.data)
+    end
+    return data_path
 end

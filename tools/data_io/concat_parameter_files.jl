@@ -29,18 +29,27 @@ Concatenates the parameter files `param_paths` along `site_dim` and writes the r
 
 # Notes:
 - A site must be in only one file.
+- The site names are read from the `site_name` variable when a file has it, else from
+  the site coordinate. The combined file keeps them in `site_name` with an index as the
+  site coordinate, as `saveParameterCubes` does.
 - The attributes of each variable are taken from the first file that has it. Its
   `model`, `name`, `timescale_run` and `units` must be the same in every file.
 """
 function concatParameterFiles(param_paths, out_path; site_dim=:site)
     datasets = [open_dataset(p) for p ∈ param_paths]
-    site_values = [collect(DimensionalData.lookup(first(values(ds.cubes)), site_dim)) for ds ∈ datasets]
+    name_var = Symbol(string(site_dim) * "_name")
+    # the site names are in `<site_dim>_name` when the file has it, else in the coordinate
+    site_values = map(datasets) do ds
+        haskey(ds.cubes, name_var) && return vec(Array(ds.cubes[name_var].data))
+        return collect(DimensionalData.lookup(first(values(ds.cubes)), site_dim))
+    end
     all_sites = reduce(vcat, site_values)
     if length(unique(all_sites)) != length(all_sites)
         error("Some sites are in more than one parameter file: $(unique(filter(s -> count(==(s), all_sites) > 1, all_sites)))")
     end
 
-    var_names = unique(reduce(vcat, [collect(keys(ds.cubes)) for ds ∈ datasets]))
+    var_names = filter(!=(name_var), unique(reduce(vcat, [collect(keys(ds.cubes)) for ds ∈ datasets])))
+    site_dims, name_cubes = getParameterFileDims([site_dim], Dict(site_dim => all_sites))
     all_yax = Pair{Symbol,Any}[]
     variable_attributes = Pair{String,Any}[]
     for var_name ∈ var_names
@@ -62,12 +71,12 @@ function concatParameterFiles(param_paths, out_path; site_dim=:site)
             end
             return Float64.(vec(Array(cube.data)))
         end
-        push!(all_yax, var_name => YAXArray((DimensionalData.Dim{site_dim}(all_sites),), reduce(vcat, var_data), attributes))
+        push!(all_yax, var_name => YAXArray(site_dims, reduce(vcat, var_data), attributes))
         push!(variable_attributes, string(var_name) => attributes)
     end
 
     properties = Dict{String,Any}("parameter_source" => "concatenation", "source_files" => join(param_paths, ", "))
-    savedataset(Dataset(; all_yax..., properties=properties), path=out_path, overwrite=true)
+    saveParameterDataset(Dataset(; all_yax..., name_cubes..., properties=properties), out_path)
     json_path = first(splitext(rstrip(out_path, '/'))) * ".json"
     writeParameterInputJson(json_path, abspath(out_path), variable_attributes)
     println("wrote $(length(var_names)) parameters for $(length(all_sites)) sites to $(out_path) and $(json_path)")
@@ -78,12 +87,15 @@ end
 """
     findParameterFiles(path_output; exclude=String[])
 
-Returns the paths of the parameter files, i.e., the zarr directories named `params_*`,
-under `path_output`, except those in `exclude`.
+Returns the paths of the parameter files under `path_output`, except those in
+`exclude`. These are the zarr directories and netCDF files named `params_*`, which an
+optimization writes to its optimization output directory.
 """
 function findParameterFiles(path_output; exclude=String[])
-    all_dirs = [joinpath(root, d) for (root, dirs, _) ∈ walkdir(path_output) for d ∈ dirs]
-    return filter(all_dirs) do p
-        startswith(basename(p), "params_") && endswith(p, ".zarr") && p ∉ exclude
+    all_paths = String[]
+    for (root, dirs, files) ∈ walkdir(path_output)
+        append!(all_paths, joinpath.(root, filter(d -> endswith(d, ".zarr"), dirs)))
+        append!(all_paths, joinpath.(root, filter(f -> endswith(f, ".nc"), files)))
     end
+    return filter(p -> startswith(basename(p), "params_") && p ∉ exclude, all_paths)
 end

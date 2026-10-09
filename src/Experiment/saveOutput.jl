@@ -221,12 +221,16 @@ per parameter, and writes its `params.json` next to it.
 - A NamedTuple with the `data_path` of the parameter file and the `json_path`.
 
 # Notes:
-- The file is `params_` followed by the base name of the output files, in the output
-  format, for example `params_<experiment>_<domain>.zarr`. The json has the same name
-  with a `.json` extension.
+- The file is in the optimization output directory, next to the csv of the optimized
+  parameters. Its name is `params_` followed by the base name of the output files, in
+  the output format, for example `params_<experiment>_<domain>.zarr`. The json has the
+  same name with a `.json` extension.
 - Each variable is named `<model>__<parameter>`, see `parameterVariableName`, and has the
-  spatial dimensions of the forcing without time. The optimization gives one value for
-  the whole domain, so every location has the same value.
+  spatial dimensions of the forcing without time. A spatial dimension whose coordinates
+  are not numbers, e.g., `site`, has the index `1:n` as coordinate, and the site names
+  are in the `site_name` variable, see `getParameterFileDims`.
+- The optimization gives one value for the whole domain, so every location has the
+  same value.
 - The attributes of each variable are the columns of the parameter table, see
   `parameterVariableAttributes`. The values are in the units of this run, given by the
   `units` and `timescale_run` attributes.
@@ -238,7 +242,7 @@ function saveParameterCubes(info, parameter_table, forcing_helpers)
     data_path = getParameterFilePath(info)
     space_dims = Symbol.(forcing_helpers.dimensions.space)
     axes_values = Dict(Symbol(first(f_axis)) => last(f_axis) for f_axis ∈ forcing_helpers.axes)
-    yax_dims = Tuple(DataLoaders.YAXArrays.Dim{s_dim}(axes_values[s_dim]) for s_dim ∈ space_dims)
+    yax_dims, name_cubes = DataLoaders.getParameterFileDims(space_dims, axes_values)
     space_sizes = Tuple(forcing_helpers.sizes[s_dim] for s_dim ∈ space_dims)
 
     variable_attributes = Pair{String,Any}[]
@@ -261,9 +265,9 @@ function saveParameterCubes(info, parameter_table, forcing_helpers)
     param_metadata["experiment_name"] = info.experiment.basics.name
     param_metadata["experiment_domain"] = info.experiment.basics.domain
     param_metadata["temporal_resolution"] = info.experiment.basics.temporal_resolution
-    params_ds = DataLoaders.YAXArrays.Dataset(; all_yax..., properties=param_metadata)
+    params_ds = DataLoaders.YAXArrays.Dataset(; all_yax..., name_cubes..., properties=param_metadata)
     print_info(saveParameterCubes, @__FILE__, @__LINE__, "saving the optimized parameters to the parameter file `$(data_path)`", n_m=4)
-    DataLoaders.YAXArrays.savedataset(params_ds, path=data_path, overwrite=true)
+    DataLoaders.saveParameterDataset(params_ds, data_path)
 
     json_path = first(splitext(rstrip(data_path, '/'))) * ".json"
     writeParameterInputJson(json_path, abspath(data_path), variable_attributes)
@@ -274,10 +278,16 @@ end
 """
     getParameterFilePath(info)
 
-Returns the path of the parameter file, which is the output file prefix with
-`params_` added in front of its base name.
+Returns the path of the parameter file. It is in the optimization output directory, next
+to the csv of the optimized parameters, and its name is the base name of the output
+files with `params_` added in front.
+
+# Notes:
+- Without an optimization output directory, e.g., in a run that does not optimize, the
+  file is in the data output directory.
 """
 function getParameterFilePath(info)
     file_prefix = info.output.file_info.file_prefix
-    return joinpath(dirname(file_prefix), "params_" * basename(file_prefix)) * ".$(info.output.format)"
+    param_dir = hasproperty(info.output.dirs, :optimization) ? info.output.dirs.optimization : dirname(file_prefix)
+    return joinpath(param_dir, "params_" * basename(file_prefix)) * ".$(info.output.format)"
 end
