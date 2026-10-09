@@ -1,0 +1,70 @@
+{
+  "data_dimension": {
+    "time": "Ti",
+    "permute": null,
+    "space": ["longitude", "latitude"]
+  },
+  "default_forcing": {
+    "additive_unit_conversion": false,
+    "bounds": [],
+    "data_path": "set_by_the_tests.zarr",
+    "depth_dimension": null,
+    "is_categorical": false,
+    "standard_name": null,
+    "sindbad_unit": null,
+    "source_product": "synthetic",
+    "source_to_sindbad_unit": 1.0,
+    "source_unit": null,
+    "source_variable": null,
+    "space_time_type": "spatiotemporal"
+  },
+  "forcing_mask": {
+    "data_path": null,
+    "source_variable": null
+  },
+  "variables": {
+    "f_ambient_CO2": {
+      "bounds": [200, 500],
+      "sindbad_unit": "ppm",
+      "source_unit": "ppm",
+      "source_variable": "f_ambient_CO2"
+    },
+    "f_PAR": {
+      "bounds": [0, 50],
+      "sindbad_unit": "MJ m-2 d-1",
+      "source_unit": "MJ m-2 d-1",
+      "source_variable": "f_PAR"
+    },
+    "f_rg": {
+      "bounds": [0.0, 100.0],
+      "sindbad_unit": "MJ m-2 d-1",
+      "source_unit": "MJ m-2 d-1",
+      "source_variable": "f_rg"
+    },
+    "f_rg_pot": {
+      "bounds": [0.0, 100.0],
+      "sindbad_unit": "MJ m-2 d-1",
+      "source_unit": "MJ m-2 d-1",
+      "source_variable": "f_rg_pot"
+    },
+    "f_airT_day": {
+      "bounds": [-80.0, 60.0],
+      "sindbad_unit": "°C",
+      "source_unit": "°C",
+      "source_variable": "f_airT_day"
+    },
+    "f_VPD_day": {
+      "bounds": [0.01, 100.0],
+      "sindbad_unit": "kPa",
+      "source_unit": "kPa",
+      "source_variable": "f_VPD_day"
+    },
+    "f_static": {
+      "bounds": [0.0, 1.0],
+      "sindbad_unit": "-",
+      "source_unit": "-",
+      "source_variable": "f_static",
+      "space_time_type": "spatial"
+    }
+  }
+}

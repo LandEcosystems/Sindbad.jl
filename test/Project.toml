@@ -1,5 +1,6 @@
 [deps]
 BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
+Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
 DimensionalData = "0703355e-b756-11e9-17c0-8b28908087d0"
 FiniteDiff = "6a86dc24-6348-571c-b903-95158fe2bd41"
 FiniteDifferences = "26cc04aa-876d-5657-8c51-4c34ba976000"
@@ -9,10 +10,12 @@ JLD2 = "033835bb-8acc-5ee8-8aae-3f567f8a3819"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 PolyesterForwardDiff = "98d1487c-24ca-40b6-b7ab-df2af84e126b"
 PreallocationTools = "d236fae5-4411-538c-8e31-a6e3d9e00b46"
+Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 Sindbad = "36c3e672-7dee-4606-99b5-7e5d8d85a313"
 SindbadTEM = "6686e6de-2010-4bf8-9178-b2bcc470766e"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 YAXArrays = "c21b50f5-aa40-41ea-b809-c0f5e47bfa5c"
+Zarr = "0a941bbe-ad1d-11e8-39d9-ab76183a1d99"
 
 [sources]
 Sindbad = {path = ".."}
