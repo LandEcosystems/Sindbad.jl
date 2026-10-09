@@ -131,3 +131,4 @@ end
 end
 
 include("MachineLearning/test_gradientSite.jl")
+include("MachineLearning/test_predictParameters.jl")
