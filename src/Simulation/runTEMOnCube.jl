@@ -398,7 +398,7 @@ parameters per location, or `selected_models` when there are none.
 setLocationParametersYax(selected_models, ::Nothing, _) = selected_models
 
 function setLocationParametersYax(selected_models, parameter_to_index, parameter_inputs)
-    return setParametersKeepTypes(selected_models, parameter_to_index, map(first, parameter_inputs))
+    return setTypedParameters(selected_models, parameter_to_index, map(first, parameter_inputs))
 end
 
 

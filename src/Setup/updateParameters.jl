@@ -299,6 +299,6 @@ function updateModels(parameter_vector, parameter_updater, parameter_scaling_typ
     parameter_vector = backScaleParameters(parameter_vector, parameter_updater, parameter_scaling_type)
     parameter_to_index = parameter_updater isa Table ? getParameterIndices(first(space_selected_models), parameter_updater) : parameter_updater
     return map(space_selected_models) do selected_models
-        setParametersKeepTypes(selected_models, parameter_to_index, parameter_vector)
+        setTypedParameters(selected_models, parameter_to_index, parameter_vector)
     end
 end

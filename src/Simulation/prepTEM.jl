@@ -364,7 +364,7 @@ parameters input applied.
 # Notes:
 - The values are used as they are, because `getParameters` already converted their
   units, replaced NaN and clamped them to their bounds.
-- All elements have the same concrete type, see `setParametersKeepTypes`.
+- All elements have the same concrete type, see `setTypedParameters`.
 """
 function getLocationModels(selected_models, forcing, space_ind)
     forcing_parameters = get(forcing, :parameters, nothing)
@@ -378,7 +378,7 @@ function getLocationModels(selected_models, forcing, space_ind)
         map(p_data -> p_data[loc_ind...], collect(forcing_parameters.data))
     end
     space_selected_models = map(space_values) do loc_values
-        setParametersKeepTypes(selected_models, parameter_to_index, loc_values)
+        setTypedParameters(selected_models, parameter_to_index, loc_values)
     end
 
     p_indices = eachindex(input_table.name_full)

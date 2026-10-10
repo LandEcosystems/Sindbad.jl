@@ -1,7 +1,7 @@
 export getParameterInput
 export parameterVariableName
 export parameterVariableAttributes
-export setParametersKeepTypes
+export setTypedParameters
 export writeParameterInputJson
 
 
@@ -143,7 +143,7 @@ end
 
 
 """
-    setParametersKeepTypes(selected_models, parameter_to_index, parameter_values)
+    setTypedParameters(selected_models, parameter_to_index, parameter_values)
 
 Returns the models with the parameters in `parameter_to_index` set from
 `parameter_values`.
@@ -161,7 +161,7 @@ Returns the models with the parameters in `parameter_to_index` set from
 - `updateModelParameters` with a `parameter_to_index` does not convert, because the
   values can be dual numbers in gradient based runs. Use that one there.
 """
-function setParametersKeepTypes(selected_models, parameter_to_index, parameter_values)
+function setTypedParameters(selected_models, parameter_to_index, parameter_values)
     return map(selected_models) do model
         model_index = parameter_to_index[nameof(typeof(model))]
         isempty(model_index) && return model
