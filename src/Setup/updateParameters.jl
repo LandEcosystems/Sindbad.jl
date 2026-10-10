@@ -19,7 +19,8 @@ Reverts scaling of parameters using a specified scaling strategy.
     - `::ScaleNone`: Type indicating no scaling should be applied (parameters remain unchanged)
 
 # Returns
-Returns the unscaled/actual parameter vector in original units.
+Returns the unscaled/actual parameter vector in original units. The input vector is
+not changed, so the vector of an optimizer can be passed as it is.
 """
 function backScaleParameters end
 
@@ -35,8 +36,7 @@ end
 function backScaleParameters(parameter_vector_scaled, parameter_table, ::ScaleBounds)
     ub = parameter_table.upper  # upper bounds
     lb = parameter_table.lower   # lower bounds
-    parameter_vector_scaled .= lb .+ (ub .- lb) .* parameter_vector_scaled
-    return parameter_vector_scaled
+    return lb .+ (ub .- lb) .* parameter_vector_scaled
 end
 
 """
