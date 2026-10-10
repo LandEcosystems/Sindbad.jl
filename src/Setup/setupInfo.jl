@@ -604,6 +604,7 @@ function setupInfo(info::NamedTuple)
     if hasproperty(info.settings, :forcing)
         data_settings = set_namedtuple_field(data_settings, (:forcing, setDefaultForcingBounds(info.settings.forcing, info.temp.helpers.numbers.num_type)))
     end
+    data_settings = set_namedtuple_field(data_settings, (:parameters, getParameterInput(info)))
     if (info.settings.experiment.flags.run_optimization || info.settings.experiment.flags.calc_cost) && hasproperty(info.settings.optimization, :algorithm_optimization)
         # @info "  setupInfo: setting ParameterOptimization and Observation info..."
         info = setOptimization(info)
@@ -620,7 +621,13 @@ function setupInfo(info::NamedTuple)
     end
 
     if !isnothing(info.settings.experiment.exe_rules.longtuple_size)
-        selected_approach_forward = to_longtuple(info.temp.models.forward, info.settings.experiment.exe_rules.longtuple_size)
+        longtuple_size = info.settings.experiment.exe_rules.longtuple_size
+        # Julia does not unroll `map` over a tuple of 32 or more elements, so it is not
+        # inferred and allocates. Every chunk of a long tuple must be shorter than that.
+        if longtuple_size >= 32
+            @warn "experiment.exe_rules.longtuple_size is $(longtuple_size). With 32 or more models in a chunk, setting parameters on the models is not type stable and allocates on every call, which slows down optimizations. Use a value from 16 to 31."
+        end
+        selected_approach_forward = to_longtuple(info.temp.models.forward, longtuple_size)
         info = @set info.temp.models.forward = selected_approach_forward
     end
 

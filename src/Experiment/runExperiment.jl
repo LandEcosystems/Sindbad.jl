@@ -167,6 +167,7 @@ function runExperiment(info::NamedTuple, forcing::NamedTuple, ::DoRunOptimizatio
         optim_file_prefix = joinpath(info.output.dirs.optimization, info.experiment.basics.name * "_" * info.experiment.basics.domain)
         print_info(runExperiment, @__FILE__, @__LINE__, "saving optimized parameters to file: $(optim_file_prefix)_model_parameters_optimized.csv")
         CSV.write(optim_file_prefix * "_model_parameters_optimized.csv", optim_params)
+        saveParameterCubes(info, optim_params, forcing.helpers)
         run_output = optim_params
     end
     set_log_level()

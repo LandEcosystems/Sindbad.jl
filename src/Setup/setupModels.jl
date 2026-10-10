@@ -178,7 +178,9 @@ function setSpinupAndForwardModels(info::NamedTuple)
             print_info(setSpinupAndForwardModels, @__FILE__, @__LINE__, "---using input parameters from model_structure.parameter_table in replace_info", n_m=20)
 
             input_parameter_table = info.settings.model_structure.parameter_table
-        elseif hasproperty(info[:settings], :parameters) && !isempty(info.settings.parameters)
+        elseif hasproperty(info[:settings], :parameters) && info.settings.parameters isa Table && !isempty(info.settings.parameters)
+            # only a csv input is a Table. A json or zarr/nc input sets the parameters
+            # per location, which are loaded in getForcing and applied in prepTEM.
             print_info(setSpinupAndForwardModels, @__FILE__, @__LINE__, "     ---using input parameters from settings.parameters passed from CSV input file", n_m=20)
             input_parameter_table = info.settings.parameters
         end

@@ -297,6 +297,101 @@ function getSpaceLand(loc_land, space_spinup, store_spinup_mode)
     end)
 end
 
+
+"""
+    checkOutputLayers(output_vars, depth_info, loc_land)
+
+Checks that every output variable has as many layers in the settings as the variable
+has in land, and throws an error otherwise.
+
+# Arguments:
+- `output_vars`: the field and subfield pairs of the output variables
+- `depth_info`: the number of layers and the name of the depth dimension of each output
+  variable, from the `model_output.variables` settings
+- `loc_land`: the land of one location after a model run of one time step
+
+# Notes:
+- It runs once during setup, so it adds no cost to the time loop. Without it, an output
+  with more layers than the variable keeps unused layers of NaN, and one with fewer
+  layers fails during the run.
+- Only numbers and arrays in land are checked.
+"""
+function checkOutputLayers(output_vars, depth_info, loc_land)
+    foreach(output_vars, depth_info) do var_pair, d_info
+        land_value = getproperty(getproperty(loc_land, first(var_pair)), last(var_pair))
+        (land_value isa Number || land_value isa AbstractArray) || return nothing
+        n_land = length(land_value)
+        n_land == first(d_info) || throwOutputLayerError(var_pair, first(d_info), n_land, last(d_info))
+        return nothing
+    end
+    return nothing
+end
+
+"""
+    throwOutputLayerError(var_pair, n_out, n_land, dim_name="")
+
+Throws the error for an output variable whose number of layers in the settings differs
+from the number of layers of the variable in land.
+"""
+@noinline function throwOutputLayerError(var_pair, n_out, n_land, dim_name="")
+    dim_text = isempty(string(dim_name)) ? "" : " (depth dimension `$(dim_name)`)"
+    error("The output `$(first(var_pair)).$(last(var_pair))` has $(n_out) layer(s) in the settings$(dim_text), but land has $(n_land). Set its depth dimension in `model_output.variables` of the experiment settings to one with $(n_land) layer(s).")
+end
+
+
+"""
+    getLocationModels(selected_models, forcing, space_ind)
+
+Returns the models of every location, with the parameters per location from the
+parameters input applied.
+
+# Arguments:
+- `selected_models`: a tuple of all models selected in the given model structure
+- `forcing`: a forcing NamedTuple, whose `parameters` field holds the parameters per
+  location from `getParameters`, or `nothing`
+- `space_ind`: the spatial indices of the locations to run
+
+# Returns:
+- A NamedTuple with:
+  - `space_selected_models`: a vector with one tuple of models per location. Without
+    parameters per location, every element is `selected_models`. Otherwise the
+    parameters of each element are set to the values at that location.
+  - `parameters`: `nothing` without parameters per location. Otherwise a NamedTuple
+    with the `parameter_table` of what was applied, for reference. It is the table of
+    `forcing.parameters` with `initial` and `optimized` set to the mean over the
+    locations, and with their `min` and `max`.
+
+# Notes:
+- The values are used as they are, because `getParameters` already converted their
+  units, replaced NaN and clamped them to their bounds.
+- All elements have the same concrete type, see `setTypedParameters`.
+"""
+function getLocationModels(selected_models, forcing, space_ind)
+    forcing_parameters = get(forcing, :parameters, nothing)
+    if isnothing(forcing_parameters)
+        return (; space_selected_models=[[selected_models for _ ∈ 1:length(space_ind)]...], parameters=nothing)
+    end
+    print_info(getLocationModels, @__FILE__, @__LINE__, "setting the parameters of the models of each location", n_f=6)
+    input_table = forcing_parameters.parameter_table
+    parameter_to_index = getParameterIndices(selected_models, input_table)
+    space_values = map([space_ind...]) do loc_ind
+        map(p_data -> p_data[loc_ind...], collect(forcing_parameters.data))
+    end
+    space_selected_models = map(space_values) do loc_values
+        setTypedParameters(selected_models, parameter_to_index, loc_values)
+    end
+
+    p_indices = eachindex(input_table.name_full)
+    p_mean = [sum(v[p_i] for v ∈ space_values) / length(space_values) for p_i ∈ p_indices]
+    p_min = [minimum(v[p_i] for v ∈ space_values) for p_i ∈ p_indices]
+    p_max = [maximum(v[p_i] for v ∈ space_values) for p_i ∈ p_indices]
+    parameter_table = Table(input_table; initial=p_mean, optimized=copy(p_mean), min=p_min, max=p_max)
+    foreach(p_indices) do p_i
+        print_info(nothing, @__FILE__, @__LINE__, "→→→    `$(input_table.name_full[p_i])`: mean $(p_mean[p_i]), min $(p_min[p_i]), max $(p_max[p_i])", n_m=8)
+    end
+    return (; space_selected_models, parameters=(; parameter_table))
+end
+
 """
     helpPrepTEM(selected_models, info, forcing::NamedTuple, output::NamedTuple, ::PreAlloc)
 
@@ -466,6 +561,7 @@ function helpPrepTEM(selected_models, info, forcing::NamedTuple, output::NamedTu
     ## run the model for one time step
     print_info(helpPrepTEM, @__FILE__, @__LINE__, "model run for one location and time step", n_f=6)
     loc_forcing_t, loc_land = runTEMOne(selected_models, space_forcing[1], land_init, tem_info, space_spinup[1].sequence)
+    checkOutputLayers(info.output.variables, info.output.depth_info, loc_land)
 
     addErrorCatcher(loc_land, info.helpers.run.debug_model)
     plotActualCarbonFlows(info, loc_land)
@@ -482,11 +578,11 @@ function helpPrepTEM(selected_models, info, forcing::NamedTuple, output::NamedTu
 
     space_land = getSpaceLand(loc_land, space_spinup, info.helpers.run.store_spinup)
 
-    space_selected_models = [[selected_models for _ ∈ 1:length(space_ind)]...]
+    space_selected_models, parameters = getLocationModels(selected_models, forcing, space_ind)
 
     forcing_nt_array = nothing
 
-    run_helpers = (; space_selected_models, space_forcing, space_ind, space_spinup, loc_forcing_t, output_array, space_output, space_land, loc_land, output_dims, output_vars, restart, space_restart, tem_info)
+    run_helpers = (; space_selected_models, space_forcing, space_ind, space_spinup, loc_forcing_t, output_array, space_output, space_land, loc_land, output_dims, output_vars, restart, space_restart, tem_info, parameters)
     return run_helpers
 end
 
@@ -527,11 +623,11 @@ function helpPrepTEM(selected_models, info, forcing::NamedTuple, output::NamedTu
 
     space_land = getSpaceLand(loc_land, space_spinup, info.helpers.run.store_spinup)
 
-    space_selected_models = [[selected_models for _ ∈ 1:length(space_ind)]...]
+    space_selected_models, parameters = getLocationModels(selected_models, forcing, space_ind)
 
     forcing_nt_array = nothing
 
-    run_helpers = (; space_selected_models, space_forcing, space_ind, space_spinup, loc_forcing_t, output_array, space_output, space_land, loc_land, output_dims, output_vars=info.output.variables, restart, space_restart, tem_info)
+    run_helpers = (; space_selected_models, space_forcing, space_ind, space_spinup, loc_forcing_t, output_array, space_output, space_land, loc_land, output_dims, output_vars=info.output.variables, restart, space_restart, tem_info, parameters)
     return run_helpers
 end
 
@@ -561,6 +657,7 @@ function helpPrepTEM(selected_models, info, forcing::NamedTuple, output::NamedTu
     ## run the model for one time step
     print_info(helpPrepTEM, @__FILE__, @__LINE__, "model run for one location and time step", n_f=6)
     loc_forcing_t, loc_land = runTEMOne(selected_models, space_forcing[1], land_init, tem_info, space_spinup[1].sequence)
+    checkOutputLayers(info.output.variables, info.output.depth_info, loc_land)
 
     addErrorCatcher(loc_land, info.helpers.run.debug_model)
     plotActualCarbonFlows(info, loc_land)
@@ -569,11 +666,11 @@ function helpPrepTEM(selected_models, info, forcing::NamedTuple, output::NamedTu
         getLocData(output_array, lsi)
     end
 
-    space_selected_models = [[selected_models for _ ∈ 1:length(space_ind)]...]
+    space_selected_models, parameters = getLocationModels(selected_models, forcing, space_ind)
 
     forcing_nt_array = nothing
 
-    run_helpers = (; space_selected_models, space_forcing, space_ind, space_spinup, loc_forcing_t, space_output, loc_land, output_vars=output.variables, tem_info)
+    run_helpers = (; space_selected_models, space_forcing, space_ind, space_spinup, loc_forcing_t, space_output, loc_land, output_vars=output.variables, tem_info, parameters)
 
     return run_helpers
 end
@@ -626,16 +723,17 @@ function helpPrepTEM(selected_models, info, forcing::NamedTuple, output::NamedTu
     loc_forcing = getLocData(forcing_nt_array, space_ind[1])
     loc_spinup = getLocSpinup(loc_forcing, tem_info)
     loc_forcing_t, loc_land = runTEMOne(selected_models, loc_forcing, land_init, tem_info, loc_spinup.sequence)
+    checkOutputLayers(info.output.variables, info.output.depth_info, loc_land)
     addErrorCatcher(loc_land, info.helpers.run.debug_model)
     plotActualCarbonFlows(info, loc_land)
 
     output_vars = output.variables
     output_dims = output.dims
 
-    space_selected_models = [[selected_models for _ ∈ 1:length(space_ind)]...]
+    space_selected_models, parameters = getLocationModels(selected_models, forcing, space_ind)
 
     land_time_series = nothing
-    run_helpers = (; loc_forcing, loc_forcing_t, loc_spinup, loc_land, land_time_series, space_selected_models, space_ind, output_dims, output_vars, tem_info)
+    run_helpers = (; loc_forcing, loc_forcing_t, loc_spinup, loc_land, land_time_series, space_selected_models, space_ind, output_dims, output_vars, tem_info, parameters)
     return run_helpers
 end
 

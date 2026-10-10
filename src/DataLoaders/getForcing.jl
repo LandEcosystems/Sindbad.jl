@@ -98,12 +98,13 @@ Creates a NamedTuple containing forcing data and metadata.
   - `variables`: The names of the forcing variables.
   - `f_types`: The types of the forcing data (e.g., `ForcingWithTime` or `ForcingWithoutTime`).
   - `helpers`: Helper information for the forcing data.
+  - `parameters`: The parameters per location from `getParameters`, or `nothing`.
 
 # Notes:
 - Processes the input cubes to determine their types and dimensions.
 - Helper information is generated using `collectForcingHelpers`.
 """
-function createForcingNamedTuple(incubes, f_sizes, f_dimensions, info)
+function createForcingNamedTuple(incubes, f_sizes, f_dimensions, info; parameters=nothing)
     print_info(getForcing, @__FILE__, @__LINE__, "processing forcing helpers...")
     @debug "     ::dimensions::"
     indims = getDataDims.(incubes, Ref(Symbol.(info.experiment.data_settings.forcing.data_dimension.space)))
@@ -124,7 +125,8 @@ function createForcingNamedTuple(incubes, f_sizes, f_dimensions, info)
         dims=indims,
         variables=forcing_vars,
         f_types = f_types,
-        helpers=f_helpers)
+        helpers=f_helpers,
+        parameters=parameters)
     return forcing
 end
 
@@ -169,6 +171,8 @@ Reads forcing data from the `data_path` specified in the experiment configuratio
   - `variables`: The names of the forcing variables.
   - `f_types`: The types of the forcing data (e.g., `ForcingWithTime` or `ForcingWithoutTime`).
   - `helpers`: Helper information for the forcing data.
+  - `parameters`: The parameters per location set by a json or zarr/nc `parameters`
+    input, or `nothing`. They are kept apart from `data`, see `getParameters`.
 
 # Notes:
 - Reads forcing data from the specified data path and processes it using the SINDBAD framework.
@@ -219,5 +223,6 @@ function getForcing(info::NamedTuple)
         end
         incube
     end
-    return createForcingNamedTuple(incubes, f_sizes, f_dimension, info)
+    parameters = getParameters(info, f_dimension)
+    return createForcingNamedTuple(incubes, f_sizes, f_dimension, info; parameters=parameters)
 end
