@@ -42,8 +42,8 @@ end
 
 """
     runTEM(forcing::NamedTuple, info::NamedTuple)
-    runTEM(selected_models::Tuple, forcing::NamedTuple, loc_spinup, loc_forcing_t, loc_land::NamedTuple, tem_info::NamedTuple)
-    runTEM(selected_models::Tuple, loc_forcing::NamedTuple, loc_spinup, loc_forcing_t, land_time_series, loc_land::NamedTuple, tem_info::NamedTuple)
+    runTEM(selected_models, forcing::NamedTuple, loc_spinup, loc_forcing_t, loc_land::NamedTuple, tem_info::NamedTuple)
+    runTEM(selected_models, loc_forcing::NamedTuple, loc_spinup, loc_forcing_t, land_time_series, loc_land::NamedTuple, tem_info::NamedTuple)
 
 Runs the SINDBAD Terrestrial Ecosystem Model (TEM) for a single location, with or without spinup, based on the provided configurations. The two main variants are the ones with and without the preallocated land time series. The shorthand version with two input arguments calls the one without preallocated land time series.
 
@@ -91,12 +91,12 @@ function runTEM(forcing::NamedTuple, info::NamedTuple)
 end
 
 
-function runTEM(selected_models::Tuple, forcing::NamedTuple, loc_spinup, loc_forcing_t, loc_land::NamedTuple, tem_info::NamedTuple)
+function runTEM(selected_models, forcing::NamedTuple, loc_spinup, loc_forcing_t, loc_land::NamedTuple, tem_info::NamedTuple)
     land_time_series = coreTEM(selected_models, forcing, loc_spinup, loc_forcing_t, loc_land, tem_info, tem_info.run.spinup_TEM)
     return LandWrapper(land_time_series)
 end
 
-function runTEM(selected_models::Tuple, loc_forcing::NamedTuple, loc_spinup, loc_forcing_t, land_time_series, loc_land::NamedTuple, tem_info::NamedTuple)
+function runTEM(selected_models, loc_forcing::NamedTuple, loc_spinup, loc_forcing_t, land_time_series, loc_land::NamedTuple, tem_info::NamedTuple)
     coreTEM(selected_models, loc_forcing, loc_spinup, loc_forcing_t, land_time_series, loc_land, tem_info, tem_info.run.spinup_TEM)
     return LandWrapper(land_time_series)
 end

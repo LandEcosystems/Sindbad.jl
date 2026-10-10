@@ -49,7 +49,7 @@ end
 Parallelizes the SINDBAD Terrestrial Ecosystem Model (TEM) across multiple locations using the specified parallelization backend.
 
 # Arguments:
-- `space_selected_models`: A vector of tuple of all models selected in the given model structure that vary per location.
+- `space_selected_models`: A vector with the tuple or long tuple of the selected models of each location, from `prepTEM`. Without parameters per location, all elements are the same models.
 - `space_forcing`: A collection of forcing NamedTuples for multiple locations, replicated to avoid data races during parallel execution.
 - `space_spinup`: A collection of spinup NamedTuples for multiple locations, each with the `sequence` of that location and the `forcing` derived from it, replicated to avoid data races during parallel execution.
 - `loc_forcing_t`: A forcing NamedTuple for a single location and a single time step.
@@ -79,33 +79,17 @@ Parallelizes the SINDBAD Terrestrial Ecosystem Model (TEM) across multiple locat
 julia> using Sindbad
 
 julia> # Parallelize TEM using threads
-julia> # parallelizeTEM!(selected_models, space_forcing, space_spinup, loc_forcing_t, space_output, space_restart, space_land, tem_info, ThreadsParallelization())
+julia> # parallelizeTEM!(space_selected_models, space_forcing, space_spinup, loc_forcing_t, space_output, space_restart, space_land, tem_info, ThreadsParallelization())
 
 julia> # Parallelize TEM using qbmap
-julia> # parallelizeTEM!(selected_models, space_forcing, space_spinup, loc_forcing_t, space_output, space_restart, space_land, tem_info, QbmapParallelization())
+julia> # parallelizeTEM!(space_selected_models, space_forcing, space_spinup, loc_forcing_t, space_output, space_restart, space_land, tem_info, QbmapParallelization())
 ```
 """
 function parallelizeTEM! end
 
-function parallelizeTEM!(space_selected_models::Tuple, space_forcing, space_spinup, loc_forcing_t, space_output, space_restart, space_land, tem_info, ::ThreadsParallelization)
-    Threads.@threads for space_index ∈ eachindex(space_forcing)
-        coreTEM!(space_selected_models, space_forcing[space_index], space_spinup[space_index], loc_forcing_t, space_output[space_index], space_restart[space_index], space_land[space_index], tem_info)
-    end
-    return nothing
-end
-
 function parallelizeTEM!(space_selected_models::Vector, space_forcing, space_spinup, loc_forcing_t, space_output, space_restart, space_land, tem_info, ::ThreadsParallelization)
     Threads.@threads for space_index ∈ eachindex(space_forcing)
         coreTEM!(space_selected_models[space_index], space_forcing[space_index], space_spinup[space_index], loc_forcing_t, space_output[space_index], space_restart[space_index], space_land[space_index], tem_info)
-    end
-    return nothing
-end
-
-function parallelizeTEM!(space_selected_models::Tuple, space_forcing, space_spinup, loc_forcing_t, space_output, space_restart, space_land, tem_info, ::QbmapParallelization)
-    space_index = 1
-    qbmap(space_forcing) do _
-        coreTEM!(space_selected_models, space_forcing[space_index], space_spinup[space_index], loc_forcing_t, space_output[space_index], space_restart[space_index], space_land[space_index], tem_info)
-        space_index += 1
     end
     return nothing
 end
@@ -122,8 +106,8 @@ end
 """
     runTEM!(selected_models, forcing::NamedTuple, info::NamedTuple)
     runTEM!(forcing::NamedTuple, info::NamedTuple)
-    runTEM!(selected_models, space_forcing, space_spinup, loc_forcing_t, space_output, space_land, tem_info::NamedTuple)
-    runTEM!(selected_models, space_forcing, space_spinup, loc_forcing_t, space_output, space_restart, space_land, tem_info::NamedTuple)
+    runTEM!(space_selected_models, space_forcing, space_spinup, loc_forcing_t, space_output, space_land, tem_info::NamedTuple)
+    runTEM!(space_selected_models, space_forcing, space_spinup, loc_forcing_t, space_output, space_restart, space_land, tem_info::NamedTuple)
 
 Runs the SINDBAD Terrestrial Ecosystem Model (TEM) for all locations and time steps using preallocated arrays as the model data backend. This function supports multiple configurations for efficient execution.
 
@@ -138,7 +122,7 @@ Runs the SINDBAD Terrestrial Ecosystem Model (TEM) for all locations and time st
     - `info::NamedTuple`: A SINDBAD NamedTuple containing all information needed for setup and execution of an experiment.
 
 3. **For the third variant**:
-    - `selected_models`: A tuple of all models selected in the given model structure.
+    - `space_selected_models`: A vector with the tuple or long tuple of the selected models of each location, from `prepTEM`.
     - `space_forcing`: A collection of forcing NamedTuples for multiple locations, replicated to avoid data races during parallel execution.
     - `space_spinup`: A collection of spinup NamedTuples for multiple locations, each with the `sequence` of that location and the `forcing` derived from it, replicated to avoid data races during parallel execution.
     - `loc_forcing_t`: A forcing NamedTuple for a single location and a single time step.

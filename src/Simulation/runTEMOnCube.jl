@@ -31,7 +31,7 @@ end
 
 
 """
-    TEMYax(map_cubes; loc_land::NamedTuple, tem::NamedTuple, selected_models::Tuple, forcing_vars::AbstractArray)
+    TEMYax(map_cubes; loc_land::NamedTuple, tem::NamedTuple, selected_models, forcing_vars::AbstractArray)
 
 
 
@@ -45,7 +45,7 @@ end
   `nothing` when there are none. The values of the location then set the parameters of
   `selected_models` before the run.
 """
-function TEMYax(map_cubes...;selected_models::Tuple, forcing_vars, loc_land::NamedTuple, output_vars, tem::NamedTuple, clean_data, restart_vars=(), parameter_to_index=nothing)
+function TEMYax(map_cubes...;selected_models, forcing_vars, loc_land::NamedTuple, output_vars, tem::NamedTuple, clean_data, restart_vars=(), parameter_to_index=nothing)
     # Make NaN check here instead of AllNaN filters
     
 
@@ -118,7 +118,7 @@ function fillRestartYax(restarts, land, restart_vars)
 end
 
 """
-    runTEMYax(forcing::NamedTuple, output::NamedTuple, tem::NamedTuple, selected_models::Tuple; max_cache = 1.0e9)
+    runTEMYax(forcing::NamedTuple, output::NamedTuple, tem::NamedTuple, selected_models; max_cache = 1.0e9)
 
 
 
@@ -134,7 +134,7 @@ end
   spinup, the `restart_vars` written to it, and the `spinup_mode` of the step that saved
   the restart
 """
-function runTEMYax(selected_models::Tuple, forcing::NamedTuple, info::NamedTuple)
+function runTEMYax(selected_models, forcing::NamedTuple, info::NamedTuple)
     # forcing/input information
     incubes = forcing.data;
     indims = forcing.dims;
@@ -231,9 +231,9 @@ function dropPaddedDimsYax(cube, padded_names)
 end
 
 """
-    psTEMYax(in_pixel_cube...; selected_models::Tuple, param_to_index, forcing_vars, loc_land::NamedTuple, output_vars, tem::NamedTuple, clean_data)
+    psTEMYax(in_pixel_cube...; selected_models, param_to_index, forcing_vars, loc_land::NamedTuple, output_vars, tem::NamedTuple, clean_data)
 """
-function psTEMYax(in_pixel_cube...; selected_models::Tuple, param_to_index, forcing_vars, loc_land::NamedTuple,
+function psTEMYax(in_pixel_cube...; selected_models, param_to_index, forcing_vars, loc_land::NamedTuple,
     output_vars, tem::NamedTuple, clean_data)
 
     outputs, inputs = unpackYaxForward(in_pixel_cube[1:end-1]; output_vars, forcing_vars)
@@ -258,10 +258,10 @@ end
 
 
 """
-    runTEMYaxParameters(selected_models::Tuple, forcing::NamedTuple, in_cube_params, tbl_params, info::NamedTuple)
+    runTEMYaxParameters(selected_models, forcing::NamedTuple, in_cube_params, tbl_params, info::NamedTuple)
 
 """
-function runTEMYaxParameters(selected_models::Tuple, forcing::NamedTuple, in_cube_params, tbl_params, info::NamedTuple)
+function runTEMYaxParameters(selected_models, forcing::NamedTuple, in_cube_params, tbl_params, info::NamedTuple)
 
     # forcing/input information
     in_cubes_forcing = forcing.data
