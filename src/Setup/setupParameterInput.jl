@@ -143,25 +143,34 @@ end
 
 
 """
-    setTypedParameters(selected_models, parameter_to_index, parameter_values)
+    setTypedParameters(selected_models, parameter_to_index::NamedTuple, parameter_values)
+    setTypedParameters(selected_models, parameter_indices_per_model, parameter_values)
 
-Returns the models with the parameters in `parameter_to_index` set from
-`parameter_values`.
+Returns the models with their parameters set from `parameter_values`, keeping the
+type of each field.
 
 # Arguments:
 - `selected_models`: a tuple or long tuple of models
 - `parameter_to_index`: a NamedTuple of model approach names, each with a NamedTuple of
   parameter names and their index in `parameter_values`, e.g., from
-  `getParameterIndices`
+  `getParameterIndices`. The model of each entry is found by its name.
+- `parameter_indices_per_model`: the same indices with one element per model in the
+  order of `selected_models`, from `getParameterIndicesPerModel`. A tuple for a tuple
+  of models, and a long tuple with the same chunks for a long tuple of models. Model
+  k is paired with element k, so no model is looked up by name.
 - `parameter_values`: the values of the parameters
 
 # Notes:
 - Each value is converted to the type of the field it replaces, so the models keep
   their concrete types. This keeps a vector of models for all locations type stable.
+- The method with `parameter_to_index` suits a call made once at setup. Use the one
+  with `parameter_indices_per_model` when the models are updated many times, as in
+  the cost function of an optimization. It does not allocate for models without
+  parameters to set and is inferred for a long tuple of models.
 - `updateModelParameters` with a `parameter_to_index` does not convert, because the
   values can be dual numbers in gradient based runs. Use that one there.
 """
-function setTypedParameters(selected_models, parameter_to_index, parameter_values)
+function setTypedParameters(selected_models, parameter_to_index::NamedTuple, parameter_values)
     return map(selected_models) do model
         model_index = parameter_to_index[nameof(typeof(model))]
         isempty(model_index) && return model
@@ -171,6 +180,25 @@ function setTypedParameters(selected_models, parameter_to_index, parameter_value
         end
         ConstructionBase.setproperties(model, NamedTuple{p_keys}(new_values))
     end
+end
+
+function setTypedParameters(selected_models::Tuple, parameter_indices_per_model::Tuple, parameter_values)
+    return map((model, model_indices) -> setTypedModelParameters(model, model_indices, parameter_values), selected_models, parameter_indices_per_model)
+end
+
+function setTypedParameters(selected_models::LongTuple{N}, parameter_indices_per_model::LongTuple{N}, parameter_values) where {N}
+    return LongTuple{N}(map((models, model_indices) -> setTypedParameters(models, model_indices, parameter_values), selected_models.data, parameter_indices_per_model.data))
+end
+
+# A model without parameters to set is returned as it is.
+setTypedModelParameters(model, ::Nothing, parameter_values) = model
+
+# The old values are read as a subset of the fields with known names, so the new
+# values and the rebuilt model are inferred.
+function setTypedModelParameters(model, model_indices::NamedTuple{p_keys}, parameter_values) where {p_keys}
+    old_values = NamedTuple{p_keys}(ConstructionBase.getproperties(model))
+    new_values = map((old_value, p_index) -> convertParameterValue(old_value, parameter_values[p_index]), old_values, model_indices)
+    return ConstructionBase.setproperties(model, new_values)
 end
 
 convertParameterValue(old_value::T, value) where {T<:Integer} = round(T, value)

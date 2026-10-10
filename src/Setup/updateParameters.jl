@@ -1,6 +1,9 @@
 
 export backScaleParameters
 export checkParameterBounds
+export getParameterIndicesPerModel
+export ParameterUpdater
+export prepParameterUpdater
 export scaleParameters
 export updateModelParameters
 export updateModels
@@ -211,7 +214,6 @@ Updates the parameters of SINDBAD models based on the provided parameter vector 
 - The function supports multiple input formats for `selected_models` (e.g., `LongTuple`, `NamedTuple`) and adapts accordingly.
 - If `parameter_table` is provided, the function uses it to find and update the relevant parameters for each model.
 - The `parameter_to_index` variant allows for a more direct mapping of parameters to models, bypassing the need for a parameter table.
-- The generated function variant (`::Val{p_vals}`) is used for compile-time optimization of parameter updates.
 
 # Examples:
 1. **Using `parameter_table` and `selected_models`:**
@@ -228,7 +230,6 @@ updated_models = updateModelParameters(parameter_to_index, selected_models, para
 - The function iterates over the models in `selected_models` and updates their parameters based on the provided `parameter_vector`.
 - For each model, it checks if the parameter belongs to the model's approach (using `parameter_table.model_approach`) and updates the corresponding value.
 - The `parameter_to_index` variant uses a mapping to directly replace parameter values in the models.
-- The generated (with @generated) function variant (`::Val{p_vals}`) creates a compile-time optimized update process for specific parameters and models.
 """
 function updateModelParameters end
 
@@ -273,18 +274,90 @@ function updateModelParameters(parameter_to_index::NamedTuple, selected_models, 
 end
 
 """
+    ParameterUpdater(parameter_table, parameter_indices_per_model)
+
+Holds what `updateModels` needs to set the parameters of a fixed model structure many
+times, as in the cost function of an optimization. Build it once with
+`prepParameterUpdater`.
+
+# Fields:
+- `parameter_table`: the table of the parameters, used to back scale the parameter
+  vector
+- `parameter_indices_per_model`: the index of each parameter in the parameter vector,
+  with one element per model in model order, see `getParameterIndicesPerModel`
+"""
+struct ParameterUpdater{T,I}
+    parameter_table::T
+    parameter_indices_per_model::I
+end
+
+"""
+    getParameterIndicesPerModel(parameter_to_index::NamedTuple, selected_models)
+
+Returns the indices of `parameter_to_index` with one element per model in the order
+of `selected_models`.
+
+# Arguments:
+- `parameter_to_index`: a NamedTuple of model approach names, each with a NamedTuple of
+  parameter names and their index in the parameter vector, from `getParameterIndices`
+- `selected_models`: a tuple or long tuple of models
+
+# Returns:
+- A tuple for a tuple of models, or a long tuple with the same chunks for a long tuple
+  of models. Element k is `nothing` when model k has no parameter in
+  `parameter_to_index`, and otherwise the NamedTuple of its parameter names and
+  their indices, e.g., `(εmax = 6,)`.
+
+# Notes:
+- `parameter_to_index` is keyed by model name. Here the same indices are keyed by
+  model position, so `setTypedParameters` pairs model k with element k and looks up
+  no model by name.
+"""
+function getParameterIndicesPerModel(parameter_to_index::NamedTuple, selected_models)
+    return map(selected_models) do model
+        model_indices = get(parameter_to_index, nameof(typeof(model)), (;))
+        isempty(model_indices) ? nothing : model_indices
+    end
+end
+
+"""
+    prepParameterUpdater(parameter_table, selected_models)
+
+Returns a `ParameterUpdater` for `selected_models` and the parameters in
+`parameter_table`, to pass to `updateModels` as the `parameter_updater`.
+
+# Arguments:
+- `parameter_table`: the table of the parameters to set
+- `selected_models`: a tuple or long tuple of models, or a vector of them with one
+  element per location. All elements of a vector have the same model structure, so
+  the first one is used.
+"""
+function prepParameterUpdater(parameter_table, selected_models)
+    parameter_to_index = getParameterIndices(selected_models, parameter_table)
+    return ParameterUpdater(parameter_table, getParameterIndicesPerModel(parameter_to_index, selected_models))
+end
+
+prepParameterUpdater(parameter_table, space_selected_models::AbstractVector) = prepParameterUpdater(parameter_table, first(space_selected_models))
+
+"""
     updateModels(parameter_vector, parameter_updater, parameter_scaling_type, selected_models)
 
 Updates the parameters of selected models using the provided parameter vector.
 
 # Arguments
 - `parameter_vector`: Vector containing the new parameter values
-- `parameter_updater`: Function or object that defines how parameters should be updated
+- `parameter_updater`: the parameters to update and where they are in the models. One of:
+    - a `ParameterUpdater` from `prepParameterUpdater`. Use this one when the models
+      are updated many times, as in an optimization.
+    - the parameter table, from which the indices are found on every call
+    - a `parameter_to_index` NamedTuple, which does not convert the value types, for
+      gradient based runs
 - `parameter_scaling_type`: Specifies the type of scaling to be applied to parameters
-- `selected_models`: Collection of models whose parameters need to be updated
+- `selected_models`: Collection of models whose parameters need to be updated, or a
+  vector of them with one element per location
 
 # Returns
-Updated models with new parameter values
+Updated models with new parameter values. `parameter_vector` is not changed.
 """
 function updateModels(parameter_vector, parameter_updater, parameter_scaling_type, selected_models)
     parameter_vector = backScaleParameters(parameter_vector, parameter_updater, parameter_scaling_type)
@@ -300,5 +373,17 @@ function updateModels(parameter_vector, parameter_updater, parameter_scaling_typ
     parameter_to_index = parameter_updater isa Table ? getParameterIndices(first(space_selected_models), parameter_updater) : parameter_updater
     return map(space_selected_models) do selected_models
         setTypedParameters(selected_models, parameter_to_index, parameter_vector)
+    end
+end
+
+function updateModels(parameter_vector, parameter_updater::ParameterUpdater, parameter_scaling_type, selected_models)
+    parameter_vector = backScaleParameters(parameter_vector, parameter_updater.parameter_table, parameter_scaling_type)
+    return setTypedParameters(selected_models, parameter_updater.parameter_indices_per_model, parameter_vector)
+end
+
+function updateModels(parameter_vector, parameter_updater::ParameterUpdater, parameter_scaling_type, space_selected_models::AbstractVector)
+    parameter_vector = backScaleParameters(parameter_vector, parameter_updater.parameter_table, parameter_scaling_type)
+    return map(space_selected_models) do selected_models
+        setTypedParameters(selected_models, parameter_updater.parameter_indices_per_model, parameter_vector)
     end
 end
