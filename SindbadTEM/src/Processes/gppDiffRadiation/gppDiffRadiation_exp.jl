@@ -67,6 +67,8 @@ function compute(params::gppDiffRadiation_exp, forcing, land, helpers)
     return land
 end
 
+purpose(::Type{gppDiffRadiation_exp}) = "Cloudiness scalar (radiation diffusion) on GPP potential as a power function of the cloudiness index, CI^μ."
+
 @doc """
 cloudiness scalar [radiation diffusion] on gpp_potential based on exp
 
