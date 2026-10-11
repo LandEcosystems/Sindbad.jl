@@ -29,8 +29,8 @@ function compute(params::cFlow_GSIMP, forcing, land, helpers)
     has_root_to_reserve = any(c_giver[f] ∈ zix_cVegRoot && c_taker[f] ∈ zix_cVegReserve for f ∈ eachindex(c_giver, c_taker))
     has_reserve_to_leaf = any(c_giver[f] ∈ zix_cVegReserve && c_taker[f] ∈ zix_cVegLeaf for f ∈ eachindex(c_giver, c_taker))
     has_reserve_to_root = any(c_giver[f] ∈ zix_cVegReserve && c_taker[f] ∈ zix_cVegRoot for f ∈ eachindex(c_giver, c_taker))
-    leaf_to_reserve = has_leaf_to_reserve ? leaf_root_to_reserve : zero(leaf_root_to_reserve)
-    root_to_reserve = has_root_to_reserve ? leaf_root_to_reserve : zero(leaf_root_to_reserve)
+    leaf_to_reserve = has_leaf_to_reserve ? leaf_to_reserve : zero(leaf_to_reserve)
+    root_to_reserve = has_root_to_reserve ? root_to_reserve : zero(root_to_reserve)
     reserve_to_leaf = has_reserve_to_leaf ? reserve_to_leaf : zero(reserve_to_leaf)
     reserve_to_root = has_reserve_to_root ? reserve_to_root : zero(reserve_to_root)
     
@@ -81,7 +81,7 @@ function compute(params::cFlow_GSIMP, forcing, land, helpers)
     end
     for flow ∈ edgesBetween(c_giver, c_taker, zix_cVegReserve, zix_cLit)
         giver = c_giver[flow]
-        c_flow_A_vec = repElem(c_flow_A_vec, safe_divide(at_least_zero(c_eco_k[giver] - Re2L_i - Re2R_i), c_eco_k[giver]), flow)
+        c_flow_A_vec = repElem(c_flow_A_vec, safe_divide(at_least_zero(c_eco_k[giver] - reserve_to_leaf - reserve_to_root), c_eco_k[giver]), flow)
     end
 
     ## pack land variables
