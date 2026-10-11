@@ -68,6 +68,7 @@ module Setup
    include("setupPools.jl")
    include("updateParameters.jl")
    include("setupParameters.jl")
+   include("setupParameterInput.jl")
    include("setupModels.jl")
    include("setupOutput.jl")
    include("setupParameterOptimization.jl")

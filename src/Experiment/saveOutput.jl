@@ -1,5 +1,6 @@
 export saveOutCubes
 export saveRestartCubes
+export saveParameterCubes
 
 
 """
@@ -202,4 +203,91 @@ function getRestartDataset(info, restart, restart_metadata)
         DataLoaders.YAXArray(var_dims, collect(data_out), getVariableInfo(getVarFull(var_pair), t_step))
     end
     return DataLoaders.YAXArrays.Dataset(; zip(variable_names, all_yax)..., properties=restart_metadata)
+end
+
+
+"""
+    saveParameterCubes(info, parameter_table, forcing_helpers)
+
+Saves the parameters of an optimization run as a parameter file with one variable
+per parameter, and writes its `params.json` next to it.
+
+# Arguments:
+- `info`: a SINDBAD NamedTuple with all information needed for setup and execution of an experiment
+- `parameter_table`: the table of the optimized parameters, whose `optimized` column is saved
+- `forcing_helpers`: the forcing helpers, which give the spatial dimensions and coordinates
+
+# Returns:
+- A NamedTuple with the `data_path` of the parameter file and the `json_path`.
+
+# Notes:
+- The file is in the optimization output directory, next to the csv of the optimized
+  parameters. Its name is `params_` followed by the base name of the output files, in
+  the output format, for example `params_<experiment>_<domain>.zarr`. The json has the
+  same name with a `.json` extension.
+- Each variable is named `<model>__<parameter>`, see `parameterVariableName`, and has the
+  spatial dimensions of the forcing without time. A spatial dimension whose coordinates
+  are not numbers, e.g., `site`, has the index `1:n` as coordinate, and the site names
+  are in the `site_name` variable, see `getParameterFileDims`.
+- The optimization gives one value for the whole domain, so every location has the
+  same value.
+- The attributes of each variable are the columns of the parameter table, see
+  `parameterVariableAttributes`. The values are in the units of this run, given by the
+  `units` and `timescale_run` attributes.
+- The file and its json can be given as the `parameters` config file of another
+  experiment to set the parameters per location. Single-site files can be concatenated
+  along the site dimension first.
+"""
+function saveParameterCubes(info, parameter_table, forcing_helpers)
+    data_path = getParameterFilePath(info)
+    space_dims = Symbol.(forcing_helpers.dimensions.space)
+    axes_values = Dict(Symbol(first(f_axis)) => last(f_axis) for f_axis ∈ forcing_helpers.axes)
+    yax_dims, name_cubes = DataLoaders.getParameterFileDims(space_dims, axes_values)
+    space_sizes = Tuple(forcing_helpers.sizes[s_dim] for s_dim ∈ space_dims)
+
+    variable_attributes = Pair{String,Any}[]
+    all_yax = Pair{Symbol,Any}[]
+    for p_index ∈ eachindex(parameter_table.name)
+        p_value = parameter_table.optimized[p_index]
+        if !(p_value isa Number)
+            @warn "The parameter `$(parameter_table.name_full[p_index])` is not a scalar and is not saved to the parameter file."
+            continue
+        end
+        variable_name = parameterVariableName(parameter_table.model[p_index], parameter_table.name[p_index])
+        attributes = parameterVariableAttributes(parameter_table, p_index)
+        p_data = fill(p_value, space_sizes...)
+        push!(all_yax, Symbol(variable_name) => DataLoaders.YAXArray(yax_dims, p_data, Dict{String,Any}(attributes)))
+        push!(variable_attributes, variable_name => attributes)
+    end
+
+    param_metadata = copy(info.output.file_info.global_metadata)
+    param_metadata["parameter_source"] = "optimization"
+    param_metadata["experiment_name"] = info.experiment.basics.name
+    param_metadata["experiment_domain"] = info.experiment.basics.domain
+    param_metadata["temporal_resolution"] = info.experiment.basics.temporal_resolution
+    params_ds = DataLoaders.YAXArrays.Dataset(; all_yax..., name_cubes..., properties=param_metadata)
+    print_info(saveParameterCubes, @__FILE__, @__LINE__, "saving the optimized parameters to the parameter file `$(data_path)`", n_m=4)
+    DataLoaders.saveParameterDataset(params_ds, data_path)
+
+    json_path = first(splitext(rstrip(data_path, '/'))) * ".json"
+    writeParameterInputJson(json_path, abspath(data_path), variable_attributes)
+    print_info(nothing, @__FILE__, @__LINE__, "saved the parameters input of the parameter file to `$(json_path)`", n_m=4)
+    return (; data_path, json_path)
+end
+
+"""
+    getParameterFilePath(info)
+
+Returns the path of the parameter file. It is in the optimization output directory, next
+to the csv of the optimized parameters, and its name is the base name of the output
+files with `params_` added in front.
+
+# Notes:
+- Without an optimization output directory, e.g., in a run that does not optimize, the
+  file is in the data output directory.
+"""
+function getParameterFilePath(info)
+    file_prefix = info.output.file_info.file_prefix
+    param_dir = hasproperty(info.output.dirs, :optimization) ? info.output.dirs.optimization : dirname(file_prefix)
+    return joinpath(param_dir, "params_" * basename(file_prefix)) * ".$(info.output.format)"
 end
