@@ -17,14 +17,14 @@ aggregate the data based on the order of aggregation.
 function aggregateData end
 
 function aggregateData(dat, cost_option, ::TimeSpace)
-    dat = do_time_sampling(dat, cost_option.temporal_aggr, cost_option.temporal_aggr_type)
+    dat = time_resample(dat, cost_option.temporal_aggr)
     dat = doSpatialAggregation(dat, cost_option, cost_option.spatial_data_aggr)
     return dat
 end
 
 function aggregateData(dat, cost_option, ::SpaceTime)
     dat = doSpatialAggregation(dat, cost_option, cost_option.spatial_data_aggr)
-    dat = do_time_sampling(dat, cost_option.temporal_aggr, cost_option.temporal_aggr_type)
+    dat = time_resample(dat, cost_option.temporal_aggr)
     return dat
 end
 

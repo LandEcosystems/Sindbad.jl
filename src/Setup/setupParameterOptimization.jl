@@ -63,6 +63,31 @@ function getAggrFunc(func_name::String)
 end
 
 """
+    getCostTimeResampler(name, dates_helpers, aggr_func)
+
+Build the time resampler of one observational constraint, once, so that it can be
+applied to the model output and the observations at every cost evaluation.
+
+# Arguments:
+- `name`: the `temporal_data_aggr` setting, such as `"day"`, `"hour_anomaly"`,
+  `"day_MSC"` or a period spec such as `"8-day_msc"` or `"month_iav"`
+- `dates_helpers`: a NamedTuple with the `range` and `timestep` of the experiment
+- `aggr_func`: the function applied to every time group, such as `mean` or `nansum`
+
+# Returns:
+- a `TimeResampler` from TimeSamplers.jl
+
+# Notes:
+- The first sampler is skipped when its bins have the length of the model
+  timestep, because the data is then already at that resolution.
+"""
+function getCostTimeResampler(name, dates_helpers, aggr_func)
+    method = get_TimeSampler(String(name))
+    skip_sampling = time_sampling_period(method) == dates_helpers.timestep
+    return TimeResampler(dates_helpers.range, method; sampler_func=aggr_func, skip_sampling=skip_sampling)
+end
+
+"""
     getCostOptions(optim_info::NamedTuple, vars_info, tem_variables, number_helpers, dates_helpers)
 
 Sets up cost optimization options based on the provided parameters.
@@ -90,7 +115,6 @@ julia> # cost_options = getCostOptions(optim_info, vars_info, tem_variables, num
 """
 function getCostOptions(optim_info::NamedTuple, vars_info, tem_variables, number_helpers, dates_helpers)
     varlist = Symbol.(optim_info.observational_constraints)
-    agg_type = []
     time_aggrs = []
     aggr_funcs = []
     all_costs = map(varlist) do v
@@ -116,12 +140,6 @@ function getCostOptions(optim_info::NamedTuple, vars_info, tem_variables, number
             end
             push!(prop_array, sel_value)
             if prop == :temporal_data_aggr
-                t_a = sel_value
-                to_push_type = TimeNoDiff()
-                if endswith(lowercase(t_a), "_anomaly") || endswith(lowercase(t_a), "_iav")
-                    to_push_type = TimeDiff()
-                end
-                push!(agg_type, to_push_type)
                 push!(time_aggrs, sel_value)
             end
             if prop == :aggr_func
@@ -146,26 +164,16 @@ function getCostOptions(optim_info::NamedTuple, vars_info, tem_variables, number
     #     cost_option = Accessors.@set cost_option.mod_ind = new_mod_ind
     # end
 
-    agg_indices = []
-    for (i, _aggr) in enumerate(time_aggrs)
-        aggr_func = getAggrFunc(aggr_funcs[i])
-        _aggr_name = string(_aggr)
-        # Matching native resolution requires no sampler (including n-unit steps).
-        aggInd = if _aggr_name == dates_helpers.temporal_resolution
-            [nothing]
-        else
-            create_TimeSampler(dates_helpers.range, to_uppercase_first(_aggr, "Time"), aggr_func)
-        end
-        push!(agg_indices, aggInd)
+    time_resamplers = map(enumerate(time_aggrs)) do (i, _aggr)
+        getCostTimeResampler(_aggr, dates_helpers, getAggrFunc(aggr_funcs[i]))
     end
     push!(all_options, obs_ind)
     push!(all_options, obs_sn)
     push!(all_options, mod_ind)
     push!(all_options, mod_field)
     push!(all_options, mod_subfield)
-    push!(all_options, agg_indices)
-    push!(all_options, agg_type)
-    all_props = [:variable, props_to_keep..., :obs_ind, :obs_sn, :mod_ind, :mod_field, :mod_subfield, :temporal_aggr, :temporal_aggr_type]
+    push!(all_options, time_resamplers)
+    all_props = [:variable, props_to_keep..., :obs_ind, :obs_sn, :mod_ind, :mod_field, :mod_subfield, :temporal_aggr]
     return (; Pair.(all_props, all_options)...)
 end
 
