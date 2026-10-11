@@ -320,6 +320,13 @@ EtaScaleAHCWD
 
 ----
 
+### EtaScaleH
+```@docs
+EtaScaleH
+```
+
+----
+
 ### EvolutionaryCMAES
 ```@docs
 EvolutionaryCMAES
@@ -617,13 +624,6 @@ ModelArrayType
 ### ModelArrayView
 ```@docs
 ModelArrayView
-```
-
-----
-
-### NlsolveFixedpointTrustregionCEco
-```@docs
-NlsolveFixedpointTrustregionCEco
 ```
 
 ----
@@ -957,6 +957,27 @@ SelSpinupModels
 
 ----
 
+### SequenceDefault
+```@docs
+SequenceDefault
+```
+
+----
+
+### SequenceList
+```@docs
+SequenceList
+```
+
+----
+
+### SequenceWithAge
+```@docs
+SequenceWithAge
+```
+
+----
+
 ### SimulationTypes
 ```@docs
 SimulationTypes
@@ -1048,9 +1069,23 @@ SpatialSubsetter
 
 ----
 
+### SpinupInput
+```@docs
+SpinupInput
+```
+
+----
+
 ### SpinupMode
 ```@docs
 SpinupMode
+```
+
+----
+
+### SpinupSequence
+```@docs
+SpinupSequence
 ```
 
 ----

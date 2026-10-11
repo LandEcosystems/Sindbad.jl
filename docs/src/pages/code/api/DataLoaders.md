@@ -61,10 +61,13 @@ function cleanData(_data, _data_fill, _data_info, ::Val{T}) where {T}
     _data = applyUnitConversion(_data, _data_info.source_to_sindbad_unit,
         _data_info.additive_unit_conversion)
     bounds = _data_info.bounds
-    if !isnothing(bounds)
+    # no bounds, given as null or an empty list, means no clamping
+    if !isnothing(bounds) && !isempty(bounds)
         _data = clamp(_data, first(bounds), last(bounds))
     end
-    return T(_data)
+    # the assertion keeps the cleaned data concretely typed when the bounds are an
+    # untyped empty list, for which the type of the clamp cannot be inferred
+    return T(_data)::T
 end
 ```
 
@@ -210,7 +213,8 @@ function getForcing(info::NamedTuple)
         end
         incube
     end
-    return createForcingNamedTuple(incubes, f_sizes, f_dimension, info)
+    parameters = getParameters(info, f_dimension)
+    return createForcingNamedTuple(incubes, f_sizes, f_dimension, info; parameters=parameters)
 end
 ```
 
@@ -363,6 +367,83 @@ end
 
 ----
 
+### getParameterFileDims
+```@docs
+getParameterFileDims
+```
+
+:::details Code
+
+```julia
+function getParameterFileDims(space_dims, axes_values)
+    name_cubes = Pair{Symbol,Any}[]
+    dims = map(Tuple(space_dims)) do s_dim
+        coord = collect(axes_values[s_dim])
+        eltype(coord) <: Number && return DD.Dim{s_dim}(coord)
+        index_dim = DD.Dim{s_dim}(collect(1:length(coord)))
+        push!(name_cubes, Symbol(string(s_dim) * "_name") => YAXArray((index_dim,), string.(coord)))
+        index_dim
+    end
+    return dims, name_cubes
+end
+```
+
+:::
+
+
+----
+
+### getParameters
+```@docs
+getParameters
+```
+
+:::details Code
+
+```julia
+function getParameters(info::NamedTuple, forcing_axes)
+    parameter_input = get(info.experiment.data_settings, :parameters, nothing)
+    isnothing(parameter_input) && return nothing
+    print_info(getParameters, @__FILE__, @__LINE__, "getting parameters per location from the parameters input...", n_m=1)
+    if isnothing(forcing_axes)
+        error("A json or zarr/nc parameters input needs a forcing with a spatiotemporal variable to set the locations of the parameters.")
+    end
+    space_dims = Symbol.(info.experiment.data_settings.forcing.data_dimension.space)
+    num_type = info.helpers.numbers.num_type
+    axes_values = Dict(Symbol(first(f_axis)) => last(f_axis) for f_axis ∈ forcing_axes)
+    forcing_space_dims = Tuple(DD.Dim{s_dim}(axes_values[s_dim]) for s_dim ∈ space_dims)
+    open_files = Dict{String,Any}()
+    var_names, var_sources = listParameterVariables(parameter_input, open_files)
+
+    table_rows = []
+    data = map(var_names, var_sources) do var_name, var_source
+        dataset = openParameterFile!(open_files, var_source.data_path)
+        attributes = readVariableAttributes(dataset, var_source.source_variable, var_source.data_path)
+        p_row = resolveParameterVariable(var_name, var_source, parameter_input, attributes, info)
+        yax = selectForcingLocations(dataset[var_source.source_variable], forcing_axes, space_dims, var_name, dataset)
+        p_values = cleanParameterValues(Array(yax), p_row, num_type)
+        push!(table_rows, (; p_row..., n_nan=p_values.n_nan, n_clamped=p_values.n_clamped))
+        print_info(nothing, @__FILE__, @__LINE__, "`$(var_name)` = `$(p_row.name_full)` ($(p_row.units)) from `$(var_source.source_variable)` in `$(var_source.data_path)` * $(p_row.unit_factor)", n_m=4)
+        # kept as a cube on the spatial dimensions and coordinates of the forcing, so a
+        # lazy run can map over it together with the forcing
+        YAXArray(forcing_space_dims, p_values.data)
+    end
+
+    parameter_table = Table([table_rows...])
+    full_names = parameter_table.name_full
+    duplicates = unique(filter(n -> count(==(n), full_names) > 1, full_names))
+    if !isempty(duplicates)
+        error("The parameters input sets $(duplicates) more than once. Keep one variable per parameter.")
+    end
+    return (; variables=Tuple(var_names), data=Tuple(data), parameter_table=parameter_table)
+end
+```
+
+:::
+
+
+----
+
 ### getSpatialSubset
 ```@docs
 getSpatialSubset
@@ -381,6 +462,7 @@ function getSpatialSubset(ss, v)
             ss_r = getproperty(ss, ssn)
             if !isnothing(ss_r)
                 ss_range = collect(ss_r)
+                checkSubsetValues(v, ssn, ss_range)
                 ss_typeName = Symbol("Space" * string(ssn))
                 v = spatialSubset(v, ss_range, getfield(Types, ss_typeName)())
             end
@@ -418,6 +500,28 @@ end
 
 ----
 
+### saveParameterDataset
+```@docs
+saveParameterDataset
+```
+
+:::details Code
+
+```julia
+function saveParameterDataset(params_ds, data_path)
+    disk_ds = YAXArrays.savedataset(params_ds, path=data_path, overwrite=true, skeleton=true)
+    for (var_name, cube) ∈ params_ds.cubes
+        disk_ds.cubes[var_name].data[:] = Array(cube.data)
+    end
+    return data_path
+end
+```
+
+:::
+
+
+----
+
 ### subsetAndProcessYax
 ```@docs
 subsetAndProcessYax
@@ -439,7 +543,9 @@ function subsetAndProcessYax(yax, forcing_mask, tar_dims, _data_info, info, ::Va
     end
     if hasproperty(yax, Symbol(forcing_data_settings.data_dimension.time))
         init_date = DateTime(info.helpers.dates.date_begin)
-        last_date = DateTime(info.helpers.dates.date_end)
+        # date_end covers its whole timestep, so data stamped within the last period
+        # such as a daily value at 11:00 UTC is kept and matches the dates range.
+        last_date = DateTime(info.helpers.dates.date_end) + info.helpers.dates.timestep - Millisecond(1)
         yax = yax[time=(init_date .. last_date)]
     end
 
@@ -449,7 +555,7 @@ function subsetAndProcessYax(yax, forcing_mask, tar_dims, _data_info, info, ::Va
 
     #todo mean of the data instead of zero or nan
     # do a proper check on input type for forcing and if is not lazy do the cleanup
-    if info.experiment.exe_rules.land_output_type == "array"
+    if info.helpers.run.run_lazy isa DoNotRunLazy
         vfill = 0.0
         if fill_nan
             vfill = NaN
