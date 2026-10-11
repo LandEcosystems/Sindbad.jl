@@ -134,7 +134,7 @@ be one of the 18 `β_<name>` field names for `getproperty(β_PFTs, veg_type_name
  - 1.1 on 27.11.2019 [skoirala | @dr-ko]: changed to handle any number of soil layers
  - 1.2 on 10.02.2020 [ttraut]: modyfying variable name to match the new SINDBAD version
  - 2.0 on 10.09.2026 [skoirala]: the 12 β_PFT0..β_PFT11 fields (keyed to raw
-   MODIS PFT/Bonan codes 0-11) replaced by 18 β_<name> fields keyed to the
+   MODIS PFT/Bonan codes 0-11) replaced by 18 `β_<name>` fields keyed to the
    canonical PFT vocabulary (PFTCatalog_SINDBAD_PFT), looked up by name instead
    of `Int(PFT) + 1`
  - 3.0 on 10.09.2026 [skoirala]: looked up by `land.states.veg_type_name` instead of

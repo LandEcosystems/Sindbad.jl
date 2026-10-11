@@ -413,8 +413,8 @@ end
 Parses a temporal resolution string into an integer count and a base unit string.
 
 Accepts either a bare unit (e.g. "day", "hour") or an n-unit string of the form
-"<positive integer>-<unit>" (e.g. "6-hour", "2-day", "3-month"). A bare unit is
-equivalent to "1-<unit>".
+`"<positive integer>-<unit>"` (e.g. `"6-hour"`, `"2-day"`, `"3-month"`). A bare unit is
+equivalent to `"1-<unit>"`.
 
 # Arguments:
 - `resolution`: a temporal resolution string, e.g. "day", "6-hour", "3-month"
