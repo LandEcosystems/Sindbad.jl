@@ -322,7 +322,8 @@ Build the temporal aggregator of a spinup forcing set, reusing an already built 
 same forcing name has been seen before.
 
 # Arguments:
-- `forcing_name`: The name of the spinup forcing set, e.g. `"day_MSC"`.
+- `forcing_name`: The name of the spinup forcing set, such as `"day_MSC"`, `"all_years"` or a
+  period spec such as `"8-day_msc"`.
 - `helpers_dates`: A NamedTuple containing date-related helpers.
 - `aggregator_cache`: A Dict in which aggregators built so far are kept, keyed by forcing name.
 
@@ -330,6 +331,11 @@ same forcing name has been seen before.
 - A tuple of the aggregator, its flattened indices, the number of timesteps, and the sampler type.
 
 # Notes:
+- The name is resolved with `get_TimeSampler`, and `time_sampling_type` decides how the forcing
+  is derived. `TimeIndexed` methods such as `first_year` select timesteps, and the aggregator
+  is `nothing`. `TimeNoDiff` methods such as `day_MSC` resample the forcing with a
+  `TimeResampler`.
+- Anomalies are rejected, since they are not a forcing.
 - The aggregator depends only on the forcing name and the experiment date range, both of which
   are the same for every location. Caching it keeps the per-location cost of building a
   sequence to choosing the repeats and the spinup modes.
@@ -337,17 +343,20 @@ same forcing name has been seen before.
 function getSpinupAggregator(forcing_name, helpers_dates, aggregator_cache)
     forcing_key = Symbol(forcing_name)
     haskey(aggregator_cache, forcing_key) && return aggregator_cache[forcing_key]
-    forcing_str = String(forcing_name)
-    skip_sampling = startswith(forcing_str, helpers_dates.temporal_resolution)
-    aggregator = create_TimeSampler(helpers_dates.range, to_uppercase_first(forcing_str, "Time"), mean, skip_sampling)
-    aggregator_indices = [_ind for _ind in vcat(aggregator[1].indices...)]
-    aggregator_type = TimeNoDiff()
-    n_timesteps = length(aggregator[1].indices)
-    if occursin("_year", forcing_str)
-        aggregator_type = TimeIndexed()
+    method = get_TimeSampler(String(forcing_name))
+    aggregator_type = time_sampling_type(method)
+    if aggregator_type isa TimeIndexed
+        aggregator = nothing
+        aggregator_indices = [_ind for _ind in vcat(create_TimeSampler(helpers_dates.range, method)[1].indices...)]
         n_timesteps = length(aggregator_indices)
+    elseif aggregator_type isa TimeNoDiff
+        aggregator = TimeResampler(helpers_dates.range, method; sampler_func=mean)
+        aggregator_indices = [_ind for _ind in vcat(first(aggregator.samplers).indices...)]
+        n_timesteps = length(time_resample_dates(aggregator))
+    else
+        error("spinup forcing \"$(forcing_name)\" gives $(nameof(typeof(method))), which is an anomaly and cannot be used as spinup forcing. Use a selection such as \"all_years\" or a resampling such as \"day_MSC\".")
     end
-    built = (Vector{TimeSample}(aggregator), aggregator_indices, n_timesteps, aggregator_type)
+    built = (aggregator, aggregator_indices, n_timesteps, aggregator_type)
     aggregator_cache[forcing_key] = built
     return built
 end
