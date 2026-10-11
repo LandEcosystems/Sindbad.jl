@@ -166,3 +166,4 @@ end
 include("MachineLearning/test_gradientSite.jl")
 
 include("siteSoilLayers.jl")
+include("MachineLearning/test_predictParameters.jl")
