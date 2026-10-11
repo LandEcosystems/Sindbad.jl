@@ -172,9 +172,13 @@ This section configures observational constraints and cost combination methods.
 
 ::: info Temporal Aggregation
 
-The `temporal_data_aggr` field uses temporal sampling methods from [TimeSamplers.jl](https://landecosystems.github.io/TimeSamplers.jl). Common values include:
-- `"day"`, `"month"`, `"year"` for basic time aggregation
-- See [TimeSamplers.jl documentation](https://landecosystems.github.io/TimeSamplers.jl) for the complete list of available temporal sampling methods
+The `temporal_data_aggr` field uses temporal sampling methods from [TimeSamplers.jl](https://landecosystems.github.io/TimeSamplers.jl). The model output and, with `aggr_obs`, the observations are resampled with it before the cost is computed. Values include:
+- `"day"`, `"month"`, `"year"` for aggregation to calendar bins
+- `"day_anomaly"`, `"month_anomaly"`, `"hour_anomaly"` for values minus the mean over the whole run
+- `"day_MSC"`, `"month_MSC"` for the mean seasonal cycle, and `"day_iav"`, `"month_iav"` for values minus their seasonal cycle
+- period specs with any count and unit, such as `"6-hour"`, `"8-day"`, `"3-month"`, `"8-day_msc"`, `"8-day_iav"`, or `"3-hour_msc_day"` for a mean daily cycle of 3 hour bins
+
+A period spec has the form `<n>-<unit>[_<kind>[_<cycle>]]`. The kind is `anomaly`, `msc`, `msc_anomaly` or `iav`, and the cycle defaults to a year. Anomaly and IAV settings subtract their reference automatically. When the bins have the length of the model timestep, the data is used as it is. `aggr_func` is applied to every time bin. See the [TimeSamplers.jl documentation](https://landecosystems.github.io/TimeSamplers.jl) for all methods and the exact rules.
 
 :::
 
