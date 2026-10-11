@@ -95,7 +95,7 @@ typedApproach(::Type{T}) where {T <: LandEcosystem} = getTypedModel(nameof(T), t
 # `@inferred`'s own failure message prints the *entire* return type on both sides -- for a
 # process's `land`, that's every field of every process's namespace, often thousands of
 # characters, with the one field that actually diverges buried somewhere in the middle (see
-# cCycleDisturbance_cFlow/cCycleDisturbance_WROASTED for real examples). This walks the concrete
+# cCycleDisturbance_cFlow for a real example). This walks the concrete
 # result type and the inferred type together, field by field (NamedTuple) / element by element
 # (Tuple), and returns only the first path where they actually diverge -- `nothing` if they don't.
 function firstUnstablePath(concrete::Type, inferred::Type, path::Vector{Any}=Any[])

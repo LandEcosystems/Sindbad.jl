@@ -972,12 +972,6 @@ cCycleBase_GSI_PlantForm
 ```
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cCycleBase/cCycleBase_GSI_PlantForm.jl)
 
-== cCycleBase_GSI_PlantForm_LargeKReserve
-```@docs
-cCycleBase_GSI_PlantForm_LargeKReserve
-```
-[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cCycleBase/cCycleBase_GSI_PlantForm_LargeKReserve.jl)
-
 == cCycleBase_simple
 ```@docs
 cCycleBase_simple
@@ -1027,34 +1021,6 @@ cCycleDisturbance
 :::details cCycleDisturbance approaches
 
 :::tabs
-
-== cCycleDisturbance_WROASTED
-```@docs
-cCycleDisturbance_WROASTED
-```
-
-**Calculated using:**
-
-```julia
-Inputs: :forcing => :f_dist_intensity, :cCycleDisturbance => :zix_veg_all, :cCycleDisturbance => :c_lose_to_zix_vec, :pools => :cEco, :constants => :c_giver, :constants => :c_taker, :states => :c_remain, :models => :c_model
-Outputs: :pools => :cEco
-```
-
-[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cCycleDisturbance/cCycleDisturbance_WROASTED.jl)
-
-== cCycleDisturbance_WROASTEDMortality
-```@docs
-cCycleDisturbance_WROASTEDMortality
-```
-
-**Calculated using:**
-
-```julia
-Inputs: :diagnostics => :c_fVegDieOff, :diagnostics => :c_Veg_Mortality, :diagnostics => :c_Fire_Flux, :diagnostics => :c_fire_fba, :diagnostics => :c_Fire_cci, :diagnostics => :c_Fire_k, :pools => :cEco, :fluxes => :cFireTotal, :states => :c_remain, :constants => :c_giver, :constants => :c_taker, :constants => :z_zero, :constants => :o_one, :models => :c_model
-Outputs: :pools => :cEco, :fluxes => :cFireTotal, :diagnostics => :c_Veg_Mortality, :diagnostics => :c_Fire_Flux
-```
-
-[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cCycleDisturbance/cCycleDisturbance_WROASTEDMortality.jl)
 
 == cCycleDisturbance_cFlow
 ```@docs
