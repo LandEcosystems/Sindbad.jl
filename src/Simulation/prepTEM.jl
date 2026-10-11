@@ -281,19 +281,29 @@ function getSpaceSpinup(space_forcing, tem_info)
 end
 
 """
-    getSpaceLand(loc_land, space_spinup, store_spinup_mode)
+    getSpaceLand(space_selected_models, space_forcing, space_spinup, land_init, tem_info)
 
-Replicate the land NT of the first location for every location, sizing each spinup log to the
-number of repeats of that location's own sequence.
+Builds the initial land NT of every location from the models and the forcing of that
+location, with a spinup log sized to the number of repeats of its own sequence.
 
 # Arguments:
-- `loc_land`: the SINDBAD land NT of the first location, used as the template
+- `space_selected_models`: a collection of the models of each location, from
+  `getLocationModels`
+- `space_forcing`: a collection of forcing NTs, one per location
 - `space_spinup`: a collection of spinup NTs, one per location
-- `store_spinup_mode`: a type dispatch that determines whether the spinup log is stored
+- `land_init`: the initial land NT before any model is run
+- `tem_info`: helper NT with necessary objects for model run and type consistencies
+
+# Notes:
+- Each land comes from `runTEMOne` for its own location. `coreTEM!` runs only the
+  precompute step, so the variables set in the define step, e.g., soil properties
+  from static forcing or values from parameters per location, would otherwise be
+  those of the first location everywhere.
 """
-function getSpaceLand(loc_land, space_spinup, store_spinup_mode)
-    return Tuple(map(space_spinup) do loc_spinup
-        addSpinupLog(deepcopy(loc_land), loc_spinup.sequence, store_spinup_mode)
+function getSpaceLand(space_selected_models, space_forcing, space_spinup, land_init, tem_info)
+    return Tuple(map(space_selected_models, space_forcing, space_spinup) do loc_models, loc_forcing, loc_spinup
+        # runTEMOne adds the spinup log for the sequence of this location
+        last(runTEMOne(loc_models, loc_forcing, deepcopy(land_init), tem_info, loc_spinup.sequence))
     end)
 end
 
@@ -576,9 +586,10 @@ function helpPrepTEM(selected_models, info, forcing::NamedTuple, output::NamedTu
 
     restart, space_restart, tem_info = prepRestart(info, forcing.helpers, loc_land, space_ind, space_spinup, tem_info)
 
-    space_land = getSpaceLand(loc_land, space_spinup, info.helpers.run.store_spinup)
-
     space_selected_models, parameters = getLocationModels(selected_models, forcing, space_ind)
+
+    # the land of each location is built from its own models and forcing
+    space_land = getSpaceLand(space_selected_models, space_forcing, space_spinup, land_init, tem_info)
 
     forcing_nt_array = nothing
 
@@ -621,9 +632,10 @@ function helpPrepTEM(selected_models, info, forcing::NamedTuple, output::NamedTu
 
     restart, space_restart, tem_info = prepRestart(info, forcing.helpers, loc_land, space_ind, space_spinup, tem_info)
 
-    space_land = getSpaceLand(loc_land, space_spinup, info.helpers.run.store_spinup)
-
     space_selected_models, parameters = getLocationModels(selected_models, forcing, space_ind)
+
+    # the land of each location is built from its own models and forcing
+    space_land = getSpaceLand(space_selected_models, space_forcing, space_spinup, land_init, tem_info)
 
     forcing_nt_array = nothing
 
