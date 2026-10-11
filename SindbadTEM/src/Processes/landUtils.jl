@@ -214,23 +214,29 @@ function getZix(dat::SVector, zixhelpersPool)
 end
 
 """
-    getVectorOfType(source_vector, output_length)
-    getVectorOfType(source_vector, output_length, fill_value)
-    getVectorOfType(source_vector::StaticArray, output_length, fill_value)
+    getVectorOfType(source_vector, n, fill_value=zero)
 
-Return a vector of `output_length` elements shaped like `source_vector`: its element
-type and its container kind, filled with `fill_value(eltype(source_vector))`.
-`output_length` need not match `length(source_vector)`: at carbon-cycle call sites,
-`source_vector` is typically `cEco` (one entry per pool) while the result has one
-entry per carbon flow.
+Return a vector of `n` elements of the same kind as `source_vector`: its element type,
+and static when `source_vector` is static. Every element is
+`fill_value(eltype(source_vector))`. Only the type of `source_vector` is used, so `n`
+need not match its length.
+
+At the carbon-cycle call sites the type comes from the pools and the length from the
+flows, as in `getVectorOfType(cEco, length(c_taker), one)`, which gives one value per
+carbon flow.
+
+The methods are inlined so that a length known when compiling the caller, such as
+`length(c_taker)` for a tuple `c_taker`, also fixes the length of a static result. The
+result type is then concrete, which a static vector built from a run-time `Int` is not.
 
 # Arguments
-- `source_vector`: the vector whose element type and container kind to copy
-- `output_length`: length of the returned vector
+- `source_vector`: the vector whose element type and container kind to follow, usually
+  `cEco`
+- `n`: length of the returned vector
 - `fill_value`: `zero` or `one`, the function rather than a number. Defaults to `zero`
 
 # Returns
-- A vector of `output_length` elements, static when `source_vector` is static
+- A vector of `n` elements, an `SVector` when `source_vector` is static
 
 # Examples
 ```jldoctest
@@ -247,27 +253,30 @@ julia> getVectorOfType([1.0, 2.0, 3.0], 2, one)
 """
 function getVectorOfType end
 
-function getVectorOfType(source_vector, output_length)
-    return getVectorOfType(source_vector, output_length, zero)
+@inline getVectorOfType(source_vector, n::Integer) = getVectorOfType(source_vector, n, zero)
+
+@inline function getVectorOfType(source_vector, n::Integer, fill_value)
+    return fill(fill_value(eltype(source_vector)), n)
 end
 
-function getVectorOfType(source_vector, output_length, fill_value)
-    return fill(fill_value(eltype(source_vector)), output_length)
+@inline function getVectorOfType(source_vector::StaticArray, n::Integer, fill_value)
+    T = eltype(source_vector)
+    v = fill_value(T)
+    return SVector{n,T}(ntuple(_ -> v, Val(n)))
 end
 
-function getVectorOfType(source_vector::StaticArray, output_length, fill_value)
-    return SVector{output_length}(fill(fill_value(eltype(source_vector)), output_length))
-end
-
-function getQPEqual(c_flow_QP_vec, c_flow_order, c_giver, c_taker, zix_of_source)
+function getQPEqual(c_flow_QP_vec, c_flow_order, c_giver, c_taker, zix_of_source, zix_cVeg)
+    # Only the flows leaving `zix_of_source` are set. Each giver splits its carbon
+    # equally over its flows into non-vegetation pools, and flows into vegetation
+    # pools keep their partition of one.
     for fO ∈ c_flow_order
-        c_taker[fO] ∈ zix_of_source && continue
+        c_giver[fO] ∈ zix_of_source || continue
+        c_taker[fO] ∈ zix_cVeg && continue
         give_r = c_giver[fO]
-        take_r = c_taker[fO]
 
         n_out = oftype(c_flow_QP_vec[fO],
             count(
-                fO_i -> c_giver[fO_i] == give_r && !(c_taker[fO_i] ∈ zix_of_source),
+                fO_i -> c_giver[fO_i] == give_r && !(c_taker[fO_i] ∈ zix_cVeg),
                 c_flow_order,
             )
         )

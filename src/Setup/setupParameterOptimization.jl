@@ -150,11 +150,12 @@ function getCostOptions(optim_info::NamedTuple, vars_info, tem_variables, number
     for (i, _aggr) in enumerate(time_aggrs)
         aggr_func = getAggrFunc(aggr_funcs[i])
         _aggr_name = string(_aggr)
-        skip_sampling = false
-        if startswith(_aggr_name, dates_helpers.temporal_resolution)
-            skip_sampling = true
+        # Matching native resolution requires no sampler (including n-unit steps).
+        aggInd = if _aggr_name == dates_helpers.temporal_resolution
+            [nothing]
+        else
+            create_TimeSampler(dates_helpers.range, to_uppercase_first(_aggr, "Time"), aggr_func)
         end
-        aggInd = create_TimeSampler(dates_helpers.range, to_uppercase_first(_aggr, "Time"), aggr_func, skip_sampling)
         push!(agg_indices, aggInd)
     end
     push!(all_options, obs_ind)
@@ -314,18 +315,34 @@ function setAlgorithmOptions(info, which_algorithm)
     algo_options = (;)
     algo_method = nothing
     if !isnothing(optim_algorithm)
-        if endswith(optim_algorithm, ".json")
-            options_path = optim_algorithm
-            if !isabspath(options_path)
-                options_path = joinpath(info.temp.experiment.dirs.settings, options_path)
+        if optim_algorithm isa AbstractString
+            if endswith(optim_algorithm, ".json")
+                options_path = optim_algorithm
+                if !isabspath(options_path)
+                    options_path = joinpath(info.temp.experiment.dirs.settings, options_path)
+                end
+                options = parsefile(options_path; dicttype=DataStructures.OrderedDict)
+                options = dict_to_namedtuple(options)
+                algo_method = options.package * "_" * options.method
+                algo_method = getTypeInstanceForNamedOptions(algo_method)
+                algo_options = options.options
+            else
+                algo_method = getTypeInstanceForNamedOptions(optim_algorithm)
             end
-            options = parsefile(options_path; dicttype=DataStructures.OrderedDict)
-            options = dict_to_namedtuple(options)
-            algo_method = options.package * "_" * options.method
-            algo_method = getTypeInstanceForNamedOptions(algo_method)
-            algo_options = options.options
+        elseif optim_algorithm isa Union{NamedTuple, AbstractDict}
+            algorithm_config = optim_algorithm isa NamedTuple ? optim_algorithm : dict_to_namedtuple(optim_algorithm)
+            method = algorithm_config.method
+            algo_method = method isa AbstractString ? getTypeInstanceForNamedOptions(method) : method
+            options = get(algorithm_config, :options, (;))
+            if options isa NamedTuple
+                algo_options = options
+            elseif options isa AbstractDict
+                algo_options = dict_to_namedtuple(options)
+            else
+                throw(ArgumentError("algorithm options must be a NamedTuple or dictionary, got $(typeof(options))"))
+            end
         else
-            algo_method = getTypeInstanceForNamedOptions(optim_algorithm)
+            throw(ArgumentError("algorithm configuration must be a string, NamedTuple, dictionary, or nothing; got $(typeof(optim_algorithm))"))
         end
     else
         if which_algorithm == :algorithm_sensitivity_analysis
@@ -412,5 +429,4 @@ function setOptimization(info::NamedTuple)
     info = (; info..., optimization = optimization_info)
     return info
 end
-
 

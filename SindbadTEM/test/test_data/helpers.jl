@@ -5,7 +5,9 @@ using SindbadTEM
 using Dates
 
 tmp_helpers = (;
-    dates = NamedTuple(),
+    dates = (;
+    temporal_resolution = "day"
+),
     run = (;
     catch_model_errors = DoCatchModelErrors()
 ),

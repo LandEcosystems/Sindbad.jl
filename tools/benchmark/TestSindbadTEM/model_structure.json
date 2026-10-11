@@ -49,8 +49,29 @@
     "cMicrobialEfficiency": {
       "approach": "sum"
     },
+    "cMicrobialEfficiencycLit": {
+      "approach": "texture"
+    },
+    "cMicrobialEfficiencycMic": {
+      "approach": "texture"
+    },
+    "cMicrobialEfficiencycSoil": {
+      "approach": "texture"
+    },
     "cQualityPartition": {
       "approach": "equal"
+    },
+    "cQualityPartitioncVeg": {
+      "approach": "constant"
+    },
+    "cQualityPartitioncLit": {
+      "approach": "constant"
+    },
+    "cQualityPartitioncMic": {
+      "approach": "texture"
+    },
+    "cQualityPartitioncSoil": {
+      "approach": "texture"
     },
     "cCropHarvestIntensity": {
       "approach": "none"
@@ -97,6 +118,15 @@
     "cFlow": {
       "approach": "GSI"
     },
+    "cFlowStress": {
+      "approach": "GSI"
+    },
+    "cFlowLitterfall": {
+      "approach": "GSI"
+    },
+    "cFlowReserves": {
+      "approach": "GSI"
+    },
     "cTau": {
       "approach": "mult"
     },
@@ -114,6 +144,9 @@
     },
     "cBiomass": {
       "approach": "treeGrass"
+    },
+    "deriveVariables": {
+      "approach": "simple"
     },
     "drainage": {
       "approach": "dos"
@@ -165,6 +198,9 @@
     },
     "groundWSoilWInteraction": {
       "approach": "VanDijk2010"
+    },
+    "groundWSurfaceWInteraction": {
+      "approach": "fracGroundW"
     },
     "LAI": {
       "approach": "cVegLeaf"
@@ -237,6 +273,12 @@
     },
     "snowMelt": {
       "approach": "TairRn"
+    },
+    "sublimation": {
+      "approach": "GLEAM"
+    },
+    "interception": {
+      "approach": "fAPAR"
     },
     "soilProperties": {
       "approach": "Saxton2006"

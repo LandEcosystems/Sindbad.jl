@@ -58,6 +58,10 @@ module SindbadTEM
    @reexport using CodeTracking
    @reexport using DataStructures: DataStructures
    @reexport using StaticArraysCore: StaticArray, SVector, MArray, SizedArray
+   # StaticArraysCore only defines the types. The array methods on them, such as size
+   # and getindex, live in StaticArrays, so it has to be loaded here and not left to
+   # whichever other package happens to load it.
+   import StaticArrays
    @reexport using Accessors: @set
    @reexport using StatsBase
    @reexport using InteractiveUtils

@@ -13,6 +13,12 @@ function define(params::wCycle_combined, forcing, land, helpers)
     return land
 end
 
+# kept out of compute so that the message formatting does not bloat the hot function
+@noinline function printSmallNegativeTWS(TWS, tolerance)
+    print_info(nothing, @__FILE__, @__LINE__, "Numerically small negative TWS ($(TWS)) smaller than tolerance ($(tolerance)) were replaced with absolute value of the storage", n_m=4)
+    return nothing
+end
+
 function compute(params::wCycle_combined, forcing, land, helpers)
     ## unpack variables
     @unpack_nt begin
@@ -29,7 +35,7 @@ function compute(params::wCycle_combined, forcing, land, helpers)
     # reset soil moisture changes to zero
     if minimum(TWS) < z_zero
         if abs(minimum(TWS)) < tolerance
-            @error "Numerically small negative TWS ($(TWS)) smaller than tolerance ($(tolerance)) were replaced with absolute value of the storage"
+            printSmallNegativeTWS(TWS, tolerance)
             # @assert(false, "Numerically small negative TWS ($(TWS)) smaller than tolerance ($(tolerance)) were replaced with absolute value of the storage") 
             TWS = abs.(TWS)
         else

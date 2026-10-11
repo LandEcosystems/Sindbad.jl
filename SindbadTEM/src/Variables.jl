@@ -1162,6 +1162,13 @@ sindbad_tem_variables = orD{Symbol,orD{Symbol,String}}(
         :land_field => "properties",
         :description => "the depth to the bottom of each soil layer"
     ),
+    :properties__idx_soilW_end => orD(
+        :standard_name => "idx_soilW_end",
+        :long_name => "index_of_bottom_active_soil_layer",
+        :units => "number",
+        :land_field => "properties",
+        :description => "index of the deepest soil layer with non-zero thickness, which exchanges water with groundwater"
+    ),
     :properties__k_fc => orD(
         :standard_name => "k_fc",
         :long_name => "k_field_capacity",
@@ -1273,6 +1280,13 @@ sindbad_tem_variables = orD{Symbol,orD{Symbol,String}}(
         :units => "number",
         :land_field => "properties",
         :description => "beta parameter of soil per layer"
+    ),
+    :properties__soil_depth => orD(
+        :standard_name => "soil_depth",
+        :long_name => "soil_depth",
+        :units => "mm",
+        :land_field => "properties",
+        :description => "total soil depth of the location as the sum of soil layer thicknesses"
     ),
     :properties__soil_layer_thickness => orD(
         :standard_name => "soil_layer_thickness",

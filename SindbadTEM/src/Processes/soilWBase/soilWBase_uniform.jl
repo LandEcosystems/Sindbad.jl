@@ -32,11 +32,15 @@ function define(params::soilWBase_uniform, forcing, land, helpers)
     θ_wp = zero(soilW)
     soil_α = zero(soilW)
     soil_β = zero(soilW)
+    cumulative_soil_depths = cumsum(soil_layer_thickness)
+    soil_depth = sum(soil_layer_thickness)
+    idx_soilW_end = lastindex(soilW)
 
     # get the plant available water capacity
 
     @pack_nt begin
-        (k_fc, k_sat, k_wp, soil_layer_thickness, w_awc, w_fc, w_sat, w_wp, ∑w_awc, ∑w_fc, ∑w_sat, ∑w_wp, soil_α, soil_β, θ_fc, θ_sat, θ_wp, ψ_fc, ψ_sat, ψ_wp) ⇒ land.properties
+        (idx_soilW_end, soil_depth) ⇒ land.properties
+        (cumulative_soil_depths, k_fc, k_sat, k_wp, soil_layer_thickness, w_awc, w_fc, w_sat, w_wp, ∑w_awc, ∑w_fc, ∑w_sat, ∑w_wp, soil_α, soil_β, θ_fc, θ_sat, θ_wp, ψ_fc, ψ_sat, ψ_wp) ⇒ land.properties
     end
     return land
 end
@@ -75,6 +79,10 @@ function precompute(params::soilWBase_uniform, forcing, land, helpers)
         # @rep_elem soilW_sl ⇒ (soilW, sl)
     end
 
+    # depth of the bottom of each layer and total soil depth
+    cumulative_soil_depths = cumsum(soil_layer_thickness)
+    soil_depth = sum(soil_layer_thickness)
+
     # get the plant available water capacity
     w_awc = w_fc - w_wp
 
@@ -85,7 +93,8 @@ function precompute(params::soilWBase_uniform, forcing, land, helpers)
     ∑w_awc = sum(w_awc)
 
     @pack_nt begin
-        (k_fc, k_sat, k_wp, soil_layer_thickness, w_awc, w_fc, w_sat, w_wp, ∑w_awc, ∑w_fc, ∑w_sat, ∑w_wp, soil_α, soil_β, θ_fc, θ_sat, θ_wp, ψ_fc, ψ_sat, ψ_wp) ⇒ land.properties
+        soil_depth ⇒ land.properties
+        (cumulative_soil_depths, k_fc, k_sat, k_wp, soil_layer_thickness, w_awc, w_fc, w_sat, w_wp, ∑w_awc, ∑w_fc, ∑w_sat, ∑w_wp, soil_α, soil_β, θ_fc, θ_sat, θ_wp, ψ_fc, ψ_sat, ψ_wp) ⇒ land.properties
         soilW ⇒ land.pools
     end
     return land

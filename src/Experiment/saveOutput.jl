@@ -1,4 +1,6 @@
 export saveOutCubes
+export saveRestartCubes
+export saveParameterCubes
 
 
 """
@@ -110,4 +112,182 @@ end
 
 function saveOutCubes(info, out_cubes, output_dims, output_vars)
     saveOutCubes(info.output.file_info.file_prefix, info.output.file_info.global_metadata, out_cubes, output_dims, output_vars, info.output.format, info.experiment.basics.temporal_resolution, info.helpers.run.save_single_file)
+end
+
+
+"""
+    saveRestartCubes(info, restart)
+
+Saves the pools of a forward run after the spinup step whose `save_restart` is true to
+the restart file. That is the last step unless the settings mark another one.
+
+# Arguments:
+- `info`: a SINDBAD NamedTuple with all information needed for setup and execution of an experiment
+- `restart`: the restart data of the run, which is either:
+    - a NamedTuple with the `variables`, `dims` and `data` arrays of an eager run (`run_helpers.restart`)
+    - a NamedTuple with the restart `Dataset` and `variables` of a lazy run (`runTEMYax`)
+
+# Notes:
+- The file is `restart_` followed by the base name of the output files, in the output
+  format, for example `restart_<experiment>_<domain>.zarr`.
+- It is always one file with all variables, whatever `save_single_file` is set to.
+- The variables have no time dimension. A variable with more than one layer has a
+  layer dimension followed by the spatial dimensions, and all other variables have the
+  spatial dimensions only. The spinup runs before the simulation period, so the
+  `restart_date` global attribute is the start date of the simulation. The
+  `spinup_sequence_method` global attribute is the name of the spinup sequence method,
+  e.g., `sequence_list` or `sequence_with_age`, and `spinup_mode` is the spinup mode of
+  the step that saved the restart, e.g., `SelSpinupModels`.
+- Each variable is named after its subfield in `land.pools`, so the file can be added
+  to the forcing for the `SpinupInput` spinup mode.
+"""
+function saveRestartCubes(info, restart)
+    data_path = getRestartFilePath(info)
+    restart_metadata = getRestartMetadata(info, restart)
+    restart_ds = getRestartDataset(info, restart, restart_metadata)
+    print_info(nothing, @__FILE__, @__LINE__, "saving pools after the spinup step with save_restart to `$(data_path)`", n_m=4)
+    DataLoaders.YAXArrays.savedataset(restart_ds, path=data_path, overwrite=true)
+    return nothing
+end
+
+"""
+    getRestartFilePath(info)
+
+Returns the path of the restart file, which is the output file prefix with `restart_`
+added in front of its base name.
+"""
+function getRestartFilePath(info)
+    file_prefix = info.output.file_info.file_prefix
+    return joinpath(dirname(file_prefix), "restart_" * basename(file_prefix)) * ".$(info.output.format)"
+end
+
+"""
+    getRestartMetadata(info, restart)
+
+Returns the global metadata of the output files with the date of the restart state, the
+spinup sequence method and the spinup mode of the step that saved the restart added.
+
+# Notes:
+- The method is written with its name in the settings, e.g., `sequence_with_age` for
+  `SequenceWithAge`.
+- The spinup mode is the name of its type, e.g., `SelSpinupModels` or `SpinupInput`.
+"""
+function getRestartMetadata(info, restart)
+    restart_metadata = copy(info.output.file_info.global_metadata)
+    restart_metadata["restart_date"] = string(info.helpers.dates.date_begin)
+    method_name = string(nameof(typeof(info.spinup.method)))
+    restart_metadata["spinup_sequence_method"] = lowercase(replace(method_name, r"(?<!^)([A-Z])" => s"_\1"))
+    restart_metadata["spinup_mode"] = restart.spinup_mode
+    return restart_metadata
+end
+
+"""
+    getRestartDataset(info, restart, restart_metadata)
+
+Builds the `Dataset` of the restart file from the restart data of an eager or a lazy run.
+"""
+function getRestartDataset(info, restart, restart_metadata)
+    if hasproperty(restart, :dataset)
+        restart_ds = restart.dataset
+        return DataLoaders.YAXArrays.Dataset(; restart_ds.cubes..., properties=restart_metadata)
+    end
+    t_step = info.experiment.basics.temporal_resolution
+    variable_names = last.(restart.variables)
+    all_yax = map(restart.variables, restart.dims, restart.data) do var_pair, var_dims, var_data
+        # drop the leading time dimension of size 1, and the layer dimension when the
+        # variable has a single layer
+        data_out = selectdim(var_data, 1, 1)
+        if size(data_out, 1) == 1
+            data_out = selectdim(data_out, 1, 1)
+        end
+        DataLoaders.YAXArray(var_dims, collect(data_out), getVariableInfo(getVarFull(var_pair), t_step))
+    end
+    return DataLoaders.YAXArrays.Dataset(; zip(variable_names, all_yax)..., properties=restart_metadata)
+end
+
+
+"""
+    saveParameterCubes(info, parameter_table, forcing_helpers)
+
+Saves the parameters of an optimization run as a parameter file with one variable
+per parameter, and writes its `params.json` next to it.
+
+# Arguments:
+- `info`: a SINDBAD NamedTuple with all information needed for setup and execution of an experiment
+- `parameter_table`: the table of the optimized parameters, whose `optimized` column is saved
+- `forcing_helpers`: the forcing helpers, which give the spatial dimensions and coordinates
+
+# Returns:
+- A NamedTuple with the `data_path` of the parameter file and the `json_path`.
+
+# Notes:
+- The file is in the optimization output directory, next to the csv of the optimized
+  parameters. Its name is `params_` followed by the base name of the output files, in
+  the output format, for example `params_<experiment>_<domain>.zarr`. The json has the
+  same name with a `.json` extension.
+- Each variable is named `<model>__<parameter>`, see `parameterVariableName`, and has the
+  spatial dimensions of the forcing without time. A spatial dimension whose coordinates
+  are not numbers, e.g., `site`, has the index `1:n` as coordinate, and the site names
+  are in the `site_name` variable, see `getParameterFileDims`.
+- The optimization gives one value for the whole domain, so every location has the
+  same value.
+- The attributes of each variable are the columns of the parameter table, see
+  `parameterVariableAttributes`. The values are in the units of this run, given by the
+  `units` and `timescale_run` attributes.
+- The file and its json can be given as the `parameters` config file of another
+  experiment to set the parameters per location. Single-site files can be concatenated
+  along the site dimension first.
+"""
+function saveParameterCubes(info, parameter_table, forcing_helpers)
+    data_path = getParameterFilePath(info)
+    space_dims = Symbol.(forcing_helpers.dimensions.space)
+    axes_values = Dict(Symbol(first(f_axis)) => last(f_axis) for f_axis ∈ forcing_helpers.axes)
+    yax_dims, name_cubes = DataLoaders.getParameterFileDims(space_dims, axes_values)
+    space_sizes = Tuple(forcing_helpers.sizes[s_dim] for s_dim ∈ space_dims)
+
+    variable_attributes = Pair{String,Any}[]
+    all_yax = Pair{Symbol,Any}[]
+    for p_index ∈ eachindex(parameter_table.name)
+        p_value = parameter_table.optimized[p_index]
+        if !(p_value isa Number)
+            @warn "The parameter `$(parameter_table.name_full[p_index])` is not a scalar and is not saved to the parameter file."
+            continue
+        end
+        variable_name = parameterVariableName(parameter_table.model[p_index], parameter_table.name[p_index])
+        attributes = parameterVariableAttributes(parameter_table, p_index)
+        p_data = fill(p_value, space_sizes...)
+        push!(all_yax, Symbol(variable_name) => DataLoaders.YAXArray(yax_dims, p_data, Dict{String,Any}(attributes)))
+        push!(variable_attributes, variable_name => attributes)
+    end
+
+    param_metadata = copy(info.output.file_info.global_metadata)
+    param_metadata["parameter_source"] = "optimization"
+    param_metadata["experiment_name"] = info.experiment.basics.name
+    param_metadata["experiment_domain"] = info.experiment.basics.domain
+    param_metadata["temporal_resolution"] = info.experiment.basics.temporal_resolution
+    params_ds = DataLoaders.YAXArrays.Dataset(; all_yax..., name_cubes..., properties=param_metadata)
+    print_info(saveParameterCubes, @__FILE__, @__LINE__, "saving the optimized parameters to the parameter file `$(data_path)`", n_m=4)
+    DataLoaders.saveParameterDataset(params_ds, data_path)
+
+    json_path = first(splitext(rstrip(data_path, '/'))) * ".json"
+    writeParameterInputJson(json_path, abspath(data_path), variable_attributes)
+    print_info(nothing, @__FILE__, @__LINE__, "saved the parameters input of the parameter file to `$(json_path)`", n_m=4)
+    return (; data_path, json_path)
+end
+
+"""
+    getParameterFilePath(info)
+
+Returns the path of the parameter file. It is in the optimization output directory, next
+to the csv of the optimized parameters, and its name is the base name of the output
+files with `params_` added in front.
+
+# Notes:
+- Without an optimization output directory, e.g., in a run that does not optimize, the
+  file is in the data output directory.
+"""
+function getParameterFilePath(info)
+    file_prefix = info.output.file_info.file_prefix
+    param_dir = hasproperty(info.output.dirs, :optimization) ? info.output.dirs.optimization : dirname(file_prefix)
+    return joinpath(param_dir, "params_" * basename(file_prefix)) * ".$(info.output.format)"
 end

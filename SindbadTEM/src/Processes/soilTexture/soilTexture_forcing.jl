@@ -5,12 +5,16 @@ struct soilTexture_forcing <: soilTexture end
 function define(params::soilTexture_forcing, forcing, land, helpers)
     ## unpack forcing
     @unpack_nt soilW ⇐ land.pools
-
+    @unpack_nt (f_clay, f_orgm, f_sand, f_silt) ⇐ forcing
     ## precomputations/check
     st_clay = zero(soilW)
     st_orgm = zero(soilW)
     st_sand = zero(soilW)
     st_silt = zero(soilW)
+
+    if length(f_clay) != length(st_clay)
+        print_info(nothing, @__FILE__, @__LINE__, "soilTexture_forcing: the number of soil layers in forcing data does not match the layers in model_structure.json. Using mean of input over the soil layers.", n_m=4)
+    end
 
     ## pack land variables
     @pack_nt (st_clay, st_orgm, st_sand, st_silt) ⇒ land.properties
@@ -24,7 +28,6 @@ function precompute(params::soilTexture_forcing, forcing, land, helpers)
     @unpack_nt (st_clay, st_orgm, st_sand, st_silt) ⇐ land.properties
 
     if length(f_clay) != length(st_clay)
-        @debug "soilTexture_forcing: the number of soil layers in forcing data does not match the layers in model_structure.json. Using mean of input over the soil layers."
         for sl ∈ eachindex(st_clay)
             @rep_elem mean(f_clay) ⇒ (st_clay, sl)
             @rep_elem mean(f_sand) ⇒ (st_sand, sl)

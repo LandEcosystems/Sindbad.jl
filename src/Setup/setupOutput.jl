@@ -1,5 +1,7 @@
 export getDepthDimensionSizeName
 export getDepthInfoAndVariables
+export getLandVarDepthInfo
+export getRestartVars
 export setModelOutput
 export setModelOutputLandAll
 export updateVariablesToStore
@@ -361,7 +363,32 @@ Retrieves all model variables from `land` and overwrites the output information 
 """
 function setModelOutputLandAll(info, land)
     output_vars = getAllLandVars(land)
-    depth_info = map(output_vars) do v_full_pair
+    depth_info = getLandVarDepthInfo(info, land, output_vars)
+    info = @set info.output.variables = output_vars
+    info = @set info.output.depth_info = depth_info
+    return info
+end
+
+
+"""
+    getLandVarDepthInfo(info, land, var_pairs)
+
+Gets the size and name of the depth dimension of each variable in `var_pairs`.
+
+# Arguments:
+- `info`: A NamedTuple containing experiment configuration and helper information.
+- `land`: A core SINDBAD NamedTuple containing variables for a given time step.
+- `var_pairs`: A tuple of field and subfield pairs of variables in `land`.
+
+# Returns:
+- A tuple with one `(dim_size, dim_name)` entry per variable.
+
+# Notes:
+- A variable that is already an output variable keeps the depth information set in
+  the output settings. Any other variable takes its size from its value in `land`.
+"""
+function getLandVarDepthInfo(info, land, var_pairs)
+    depth_info = map(var_pairs) do v_full_pair
         v_index = findfirst(x -> first(x) === first(v_full_pair) && last(x) === last(v_full_pair), info.output.variables)
         dim_name = nothing
         dim_size = nothing
@@ -386,9 +413,51 @@ function setModelOutputLandAll(info, land)
         end
         dim_size, dim_name
     end
-    info = @set info.output.variables = output_vars
-    info = @set info.output.depth_info = depth_info
-    return info
+    return depth_info
+end
+
+
+"""
+    getRestartVars(info, land)
+
+Collects the pools that are written to the restart file.
+
+# Arguments:
+- `info`: A SINDBAD NamedTuple with the pool helpers of the model structure.
+- `land`: A core SINDBAD NamedTuple containing all variables for a given time step.
+
+# Returns:
+- A tuple of `(:pools, name)` pairs, one for each main pool, such as `cEco` and `TWS`.
+  For a main pool that is not in `land.pools`, its component pools that are in
+  `land.pools` are written instead.
+
+# Notes:
+- Only the main pools are saved when they exist, because each holds all of its
+  component pools. The `SpinupInput` spinup mode fills the component pools from the main
+  pools.
+- A warning is shown for a pool group without a main pool, because its pools are then
+  missing from the restart file.
+"""
+function getRestartVars(info, land)
+    pool_helpers = info.helpers.pools
+    main_pools = keys(pool_helpers.vals.self)
+    for (group, group_info) ∈ pairs(info.pool_structure)
+        combine = hasproperty(group_info, :combine) ? group_info.combine : nothing
+        if isnothing(combine) || isempty(string(combine)) || Symbol(combine) ∉ main_pools
+            @warn "The pool group `$(group)` has no main pool, so its pools are not written to the restart file and cannot be set by `SpinupInput`."
+        end
+    end
+    restart_vars = []
+    for main ∈ main_pools
+        if hasproperty(land.pools, main)
+            push!(restart_vars, (:pools, main))
+        else
+            components = [c for c ∈ pool_helpers.all_components[main] if hasproperty(land.pools, c)]
+            print_info(getRestartVars, @__FILE__, @__LINE__, "the main pool `$(main)` is not in land.pools, so its components $(components) are written to the restart file instead")
+            append!(restart_vars, [(:pools, c) for c ∈ components])
+        end
+    end
+    return Tuple(restart_vars)
 end
 
 """

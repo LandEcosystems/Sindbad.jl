@@ -1,7 +1,7 @@
 export cDieBack_ImplicitResprout
 
 #! format: off
-@bounds @describe @units @timescale @with_kw struct cDieBack_ImplicitResprout{T1} <: cCycleDisturbance
+@bounds @describe @units @timescale @with_kw struct cDieBack_ImplicitResprout{T1} <: cDieBack
     frac_reserve_survival::T1 = 1.0 | (0.0, 1.0) | "fraction of the reserve carbon pools that survives upon a disturbance" | "" | ""
 end
 #! format: on
@@ -26,12 +26,14 @@ function compute(params::cDieBack_ImplicitResprout, forcing, land, helpers)
 
     ## unpack land variables
     @unpack_nt begin
-        (c_giver, c_taker, c_flow_QP_vec, zix_cHeterotrophic, zix_cVeg) ⇐ land.cCycleBase
+        (c_flow_order, c_giver, c_taker) ⇐ land.cCycleBase
         cEco ⇐ land.pools
         c_remain ⇐ land.states
         c_model ⇐ land.models
-        (c_disturbance_mortality, c_disturbance_flow, c_disturbance_efflux) ⇐ land.diagnostics
+        z_zero ⇐ land.constants
+        (c_flow_QP_vec, c_disturbance_mortality, c_disturbance_flow, c_disturbance_efflux) ⇐ land.diagnostics
     end
+    zix_cVeg = helpers.pools.zix.cVeg
     if f_dist_intensity > z_zero
         for fO ∈ c_flow_order
             c_giver[fO] ∈ zix_cVeg || continue

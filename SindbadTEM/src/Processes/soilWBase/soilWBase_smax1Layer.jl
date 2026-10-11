@@ -18,16 +18,19 @@ function define(params::soilWBase_smax1Layer, forcing, land, helpers)
     soil_layer_thickness = helpers.pools.layer_thickness.soilW
     # check if the number of soil layers and number of elements in soil thickness arrays are the same & are equal to 1 
     if n_soilW != 1
-        @warn "soilWBase_smax1Layer needs exactly 1 soil layer in model_structure.json, but model has $n_soilW layers. This approach will just update the first layer of soil water properties. Please check your model structure."
+        print_info(nothing, @__FILE__, @__LINE__, "soilWBase_smax1Layer needs exactly 1 soil layer in model_structure.json, but model has $n_soilW layers. This approach will just update the first layer of soil water properties. Please check your model structure.", n_m=4)
     end
 
     ## Instantiate variables
     w_sat = zero(soilW)
     w_fc = zero(soilW)
     w_wp = zero(soilW)
+    idx_soilW_end = lastindex(soilW)
+    cumulative_soil_depths = cumsum(soil_layer_thickness)
+    soil_depth = sum(soil_layer_thickness)
 
     ## pack land variables
-    @pack_nt (soil_layer_thickness, w_sat, w_fc, w_wp) ⇒ land.properties
+    @pack_nt (cumulative_soil_depths, idx_soilW_end, soil_depth, soil_layer_thickness, w_sat, w_fc, w_wp) ⇒ land.properties
     return land
 end
 
