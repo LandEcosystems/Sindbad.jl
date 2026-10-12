@@ -87,13 +87,12 @@ getData
 function getData end
 
 function getData(model_output::LandWrapper, observations, cost_option)
-    obs_ind = cost_option.obs_ind
     mod_field = cost_option.mod_field
     mod_subfield = cost_option.mod_subfield
     ŷField = getproperty(model_output, mod_field)
     ŷ = getproperty(ŷField, mod_subfield)
-    y = observations[obs_ind]
-    yσ = observations[obs_ind+1]
+    y = cost_option.obs_y
+    yσ = cost_option.obs_yσ
     if size(ŷ, 2) == 1
         ŷ = getModelOutputView(ŷ)
         y = y[:]
@@ -105,13 +104,12 @@ function getData(model_output::LandWrapper, observations, cost_option)
 end
 
 function getData(model_output::LandWrapper, observations, cost_option)
-    obs_ind = cost_option.obs_ind
     mod_field = cost_option.mod_field
     mod_subfield = cost_option.mod_subfield
     ŷField = getproperty(model_output, mod_field)
     ŷ = getproperty(ŷField, mod_subfield)
-    y = observations[obs_ind]
-    yσ = observations[obs_ind+1]
+    y = cost_option.obs_y
+    yσ = cost_option.obs_yσ
     if size(ŷ, 2) == 1
         ŷ = getModelOutputView(ŷ)
         y = y[:]
@@ -123,7 +121,6 @@ function getData(model_output::LandWrapper, observations, cost_option)
 end
 
 function getData(model_output::NamedTuple, observations, cost_option)
-    obs_ind = cost_option.obs_ind
     mod_field = cost_option.mod_field
     mod_subfield = cost_option.mod_subfield
     ŷ = model_output
@@ -132,8 +129,8 @@ function getData(model_output::NamedTuple, observations, cost_option)
         sf_name = Symbol(String(mod_field) * "__" * String(mod_subfield))
     end
     ŷ = getproperty(model_output, sf_name)
-    y = observations[obs_ind]
-    yσ = observations[obs_ind+1]
+    y = cost_option.obs_y
+    yσ = cost_option.obs_yσ
     if size(ŷ, 2) == 1
         ŷ = getModelOutputView(ŷ)
     end
@@ -144,13 +141,12 @@ function getData(model_output::NamedTuple, observations, cost_option)
 end
 
 function getData(model_output::AbstractArray, observations, cost_option)
-    obs_ind = cost_option.obs_ind
     ŷ = model_output[cost_option.mod_ind]
     if size(ŷ, 2) == 1
         ŷ = getModelOutputView(ŷ)
     end
-    y = observations[obs_ind]
-    yσ = observations[obs_ind+1]
+    y = cost_option.obs_y
+    yσ = cost_option.obs_yσ
     y, yσ, ŷ = getHarmonizedData(y, yσ, ŷ, cost_option)
     return (y, yσ, ŷ)
 end
@@ -492,6 +488,64 @@ function mapCleanData(_data, _data_qc, _data_fill, bounds_qc, _data_info, ::Val{
     vT = Val{T}()
     _data = map(data_point -> cleanData(data_point, _data_fill, _data_info, vT), _data)
     return _data
+end
+```
+
+:::
+
+
+----
+
+### prepCostOptions
+```@docs
+prepCostOptions
+```
+
+:::details Code
+
+```julia
+function prepCostOptions end
+
+
+function prepCostOptions(observations, cost_options)
+    return prepCostOptions(observations, cost_options, CostModelObs())
+end
+
+function prepCostOptions(observations, cost_options)
+    return prepCostOptions(observations, cost_options, CostModelObs())
+end
+
+function prepCostOptions(observations, cost_options, ::CostModelObsPriors)
+    return prepCostOptions(observations, cost_options, CostModelObs())
+end
+
+function prepCostOptions(observations, cost_options, ::CostModelObs)
+    obs_masks = []
+    obs_ys = []
+    obs_yσs = []
+    valids = []
+    is_valid = []
+    for cost_option in Table(cost_options)
+        y = observations[cost_option.obs_ind]
+        yσ = observations[cost_option.obs_ind+1]
+        obs_mask = Array(.!is_invalid_number.(y .* yσ))
+        y, yσ = aggregateObsData(y, yσ, obs_mask, cost_option, cost_option.aggr_obs)
+        idxs = Array(.!is_invalid_number.(y .* yσ))
+        push!(is_valid, sum(idxs) >= cost_option.min_data_points)
+        push!(obs_masks, obs_mask)
+        push!(obs_ys, y)
+        push!(obs_yσs, yσ)
+        push!(valids, idxs)
+    end
+    cost_options = set_namedtuple_field(cost_options, (:obs_mask, obs_masks))
+    cost_options = set_namedtuple_field(cost_options, (:obs_y, obs_ys))
+    cost_options = set_namedtuple_field(cost_options, (:obs_yσ, obs_yσs))
+    cost_options = set_namedtuple_field(cost_options, (:valids, valids))
+    cost_options = set_namedtuple_field(cost_options, (:is_valid, is_valid))
+    cost_options = drop_namedtuple_fields(cost_options, (:min_data_points, :temporal_data_aggr, :aggr_func,))
+    cost_option_table = Table(cost_options)
+    cost_options_table_filtered = filter(row -> row.is_valid === true , cost_option_table)
+    return cost_options_table_filtered
 end
 ```
 

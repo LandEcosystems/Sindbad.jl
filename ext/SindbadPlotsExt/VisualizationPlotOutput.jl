@@ -125,7 +125,9 @@ function _plotOutputVsObsForVariable!(info, obs_array, var_row, def_dat, lossMet
     def_var = def_var_TMP[tspan]
     valids = valids[tspan]
 
-    xdata = [info.helpers.dates.range[tspan]...]
+    # the data is at the resolution of the cost, so the labels of the resampled time
+    # steps are used instead of the dates of the model time steps
+    xdata = [time_resample_dates(var_row.temporal_aggr)[tspan]...]
 
     metr_def = metric(lossMetric, def_var[valids], obs_var[valids], obs_σ[valids])
     has_opt = !isnothing(opt_dat)
