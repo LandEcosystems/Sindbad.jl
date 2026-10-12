@@ -120,8 +120,7 @@ purpose(::Type{SpinupTypes}) = "Abstract type for model spinup related functions
 
 # ------------------------- spinup mode ------------------------------------------------------------
 export SpinupMode
-export AllForwardModels
-export SelSpinupModels
+export LoopTEM
 export SpinupInput
 export EtaScaleA0H
 export EtaScaleA0HCWD
@@ -141,9 +140,6 @@ export SSPSSRootfind
 
 abstract type SpinupMode <: SpinupTypes end
 purpose(::Type{SpinupMode}) = "Abstract type for model spinup modes in SINDBAD"
-
-struct AllForwardModels <: SpinupMode end
-purpose(::Type{AllForwardModels}) = "Use all forward models for spinup"
 
 struct EtaScaleA0H <: SpinupMode end
 purpose(::Type{EtaScaleA0H}) = "scale carbon pools using diagnostic scalars for ηH and c_remain"
@@ -179,8 +175,8 @@ purpose(::Type{ODEDP5}) = "use the DP5 method from DifferentialEquations.jl for 
 struct ODETsit5 <: SpinupMode end
 purpose(::Type{ODETsit5}) = "use the Tsit5 method from DifferentialEquations.jl for solving ODEs"
 
-struct SelSpinupModels <: SpinupMode end
-purpose(::Type{SelSpinupModels}) = "run only the models selected for spinup in the model structure"
+struct LoopTEM <: SpinupMode end
+purpose(::Type{LoopTEM}) = "run the TEM over the spinup forcing with the models of the step"
 
 struct SpinupInput <: SpinupMode end
 purpose(::Type{SpinupInput}) = "replace the pools with the forcing variables of the same name, e.g., the main pools of a restart file, and fill their component pools"
@@ -247,7 +243,7 @@ purpose(::Type{SequenceWithAge}) = "build the spinup sequence from the disturban
 export SpinupStep
 export SpinupStepWithAggregator
 
-struct SpinupStepWithAggregator{F,M<:SpinupMode,A,T<:TimeSamplerMethod} <: SpinupTypes
+struct SpinupStepWithAggregator{F,M<:SpinupMode,A,T<:TimeSamplerMethod,I} <: SpinupTypes
     forcing::Symbol
     n_repeat::Int
     n_timesteps::Int
@@ -257,14 +253,17 @@ struct SpinupStepWithAggregator{F,M<:SpinupMode,A,T<:TimeSamplerMethod} <: Spinu
     aggregator::A
     aggregator_type::T
     save_restart::Bool
+    model_indices::I
 end
 
 # The forcing name is carried as the type parameter `F` as well as in the field, so that
 # looking the sequence's forcing up in the spinup forcing NamedTuple resolves at compile time.
 # `save_restart` marks the step after which the pools are stored for the restart file.
 # The aggregator is a TimeResampler for resampled forcing and nothing for selected timesteps.
-function SpinupStepWithAggregator(forcing::Symbol, n_repeat, n_timesteps, spinup_mode::M, options, aggregator_indices, aggregator::A, aggregator_type::T, save_restart=false) where {M<:SpinupMode,A,T<:TimeSamplerMethod}
-    return SpinupStepWithAggregator{forcing,M,A,T}(forcing, n_repeat, n_timesteps, spinup_mode, options, aggregator_indices, aggregator, aggregator_type, save_restart)
+# `model_indices` is a Val of the indices of the models run in the step, or nothing
+# for all of them.
+function SpinupStepWithAggregator(forcing::Symbol, n_repeat, n_timesteps, spinup_mode::M, options, aggregator_indices, aggregator::A, aggregator_type::T, save_restart=false, model_indices::I=nothing) where {M<:SpinupMode,A,T<:TimeSamplerMethod,I}
+    return SpinupStepWithAggregator{forcing,M,A,T,I}(forcing, n_repeat, n_timesteps, spinup_mode, options, aggregator_indices, aggregator, aggregator_type, save_restart, model_indices)
 end
 purpose(::Type{SpinupStepWithAggregator}) = "Spinup sequence with time aggregation for corresponding forcingtime series"
 

@@ -363,7 +363,7 @@ end
 
 """
     getSpinupSequenceWithTypes(seqq, helpers_dates)
-    getSpinupSequenceWithTypes(seqq, helpers_dates, aggregator_cache)
+    getSpinupSequenceWithTypes(seqq, helpers_dates, aggregator_cache, spinup_models=nothing)
 
 Processes the spinup sequence and assigns types for temporal aggregators for spinup forcing.
 
@@ -371,6 +371,8 @@ Processes the spinup sequence and assigns types for temporal aggregators for spi
 - `seqq`: The spinup sequence from the experiment configuration.
 - `helpers_dates`: A NamedTuple containing date-related helpers.
 - `aggregator_cache`: A Dict of already built aggregators, shared across the locations of a run.
+- `spinup_models`: The model names and default spinup indices from
+  `getSpinupModelsInfo`.
 
 # Returns:
 - A processed spinup sequence with forcing types for temporal aggregators.
@@ -379,14 +381,24 @@ function getSpinupSequenceWithTypes end
 
 getSpinupSequenceWithTypes(seqq, helpers_dates) = getSpinupSequenceWithTypes(seqq, helpers_dates, Dict{Symbol,Any}())
 
-function getSpinupSequenceWithTypes(seqq, helpers_dates, aggregator_cache)
+function getSpinupSequenceWithTypes(seqq, helpers_dates, aggregator_cache, spinup_models=nothing)
     seqq_typed = []
     save_restart_flags = getSaveRestartFlags(seqq)
     for (seq, save_restart) in zip(seqq, save_restart_flags)
-        aggregator, aggregator_indices, n_timesteps, aggregator_type = getSpinupAggregator(seq["forcing"], helpers_dates, aggregator_cache)
-        spinup_mode = getTypeInstanceForNamedOptions(seq["spinup_mode"])
+        mode_name, default_models = getSpinupModeName(seq["spinup_mode"])
+        spinup_mode = getTypeInstanceForNamedOptions(mode_name)
+        forcing_name = haskey(seq, "forcing") ? seq["forcing"] : nothing
+        if isnothing(forcing_name)
+            spinup_mode isa LoopTEM && error("The spinup step with `spinup_mode` $(seq["spinup_mode"]) has no forcing. A loop_TEM step runs the models over the forcing, so set its `forcing`, e.g., \"day_MSC\".")
+            forcing = :none
+            aggregator, aggregator_indices, n_timesteps, aggregator_type = nothing, Int[], 1, TimeIndexed()
+        else
+            forcing = Symbol(forcing_name)
+            aggregator, aggregator_indices, n_timesteps, aggregator_type = getSpinupAggregator(forcing_name, helpers_dates, aggregator_cache)
+        end
         optns = haskey(seq, "options") ? seq["options"] : (;)
-        sst = SpinupStepWithAggregator(Symbol(seq["forcing"]), seq["n_repeat"], n_timesteps, spinup_mode, optns, aggregator_indices, aggregator, aggregator_type, save_restart);
+        model_indices = getSpinupModelsIndex(seq, default_models, spinup_models)
+        sst = SpinupStepWithAggregator(forcing, seq["n_repeat"], n_timesteps, spinup_mode, optns, aggregator_indices, aggregator, aggregator_type, save_restart, model_indices);
         push!(seqq_typed, sst)
     end
     return seqq_typed
@@ -503,8 +515,90 @@ function setSpinupInfo(info)
     exp_settings = info.settings.experiment
     spinup_sequence = getSpinupSequenceSetting(exp_settings)
     infospin = getSpinupSequenceConfig(spinup_sequence)
+    infospin = (; infospin..., models=getSpinupModelsInfo(info.temp.models))
     info = set_namedtuple_subfield(info, :temp, (:spinup, infospin))
     return info
+end
+
+"""
+    getSpinupModelsInfo(models_info)
+
+Collects what is needed to choose the models of every spinup step.
+
+# Arguments:
+- `models_info`: the models NT in `info.temp`, after `setSpinupAndForwardModels`
+
+# Returns:
+- a NT with the `names` of the selected models in their order and the `default` indices
+  of the models with `use_in_spinup` set to true
+"""
+function getSpinupModelsInfo(models_info)
+    names = hasproperty(models_info, :selected_models) ? Tuple(Symbol.(models_info.selected_models.model)) : ()
+    default = hasproperty(models_info, :is_spinup) ? Tuple(models_info.is_spinup) : Tuple(eachindex(names))
+    return (; names=names, default=default)
+end
+
+"""
+    getSpinupModelsIndex(seq, default_models, spinup_models)
+
+Returns the indices of the selected models that are run in one spinup step.
+
+# Arguments:
+- `seq`: one step of the spinup sequence, as given in the settings
+- `default_models`: the `models` setting used when the step has no `models` field
+- `spinup_models`: the `names` and `default` indices from `getSpinupModelsInfo`, or
+  nothing when they are not known
+
+# Returns:
+- a `Val` of the tuple of model indices, or nothing when all the selected models are run
+
+# Notes:
+- The `models` field of a step is "forward" for all models, "spinup" for the models
+  with `use_in_spinup` set to true, null for no models, or a list of model names.
+"""
+function getSpinupModelsIndex(seq, default_models, spinup_models)
+    setting = haskey(seq, "models") ? seq["models"] : default_models
+    isnothing(setting) && return Val(())
+    setting == "forward" && return nothing
+    isnothing(spinup_models) && setting == "spinup" && return nothing
+    isnothing(spinup_models) && error("The spinup step has `models` set to $(setting), but the models of the model structure are not known.")
+    names = spinup_models.names
+    if setting == "spinup"
+        index = collect(spinup_models.default)
+    elseif setting isa AbstractVector
+        index = sort(unique([getSpinupModelIndex(model, names) for model in setting]))
+    else
+        error("The spinup step has `models` set to $(setting). Use \"forward\", \"spinup\", null, or a list of model names.")
+    end
+    index == collect(eachindex(names)) && return nothing
+    return Val(Tuple(index))
+end
+
+"""
+    getSpinupModeName(mode_name)
+
+Returns the name of the spinup mode of a step and the models it runs by default.
+
+# Arguments:
+- `mode_name`: the `spinup_mode` of a step, as given in the settings
+
+# Returns:
+- a tuple of the spinup mode name and the default `models` setting of the step
+
+# Notes:
+- The older `sel_spinup_models` and `all_forward_models` are read as `loop_TEM`.
+"""
+function getSpinupModeName(mode_name)
+    mode_name = String(mode_name)
+    mode_name == "sel_spinup_models" && return ("loop_TEM", "spinup")
+    mode_name == "all_forward_models" && return ("loop_TEM", "forward")
+    return (mode_name, "forward")
+end
+
+function getSpinupModelIndex(model, names)
+    index = findfirst(==(Symbol(model)), names)
+    isnothing(index) && error("The spinup step has the model $(model) in `models`, but it is not in the model structure. The models are $(names).")
+    return index
 end
 
 """

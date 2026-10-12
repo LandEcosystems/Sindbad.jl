@@ -140,7 +140,7 @@ $(methods_of(SpinupMode))
 # Examples:
 1. **Running spinup with selected models**:
 ```julia
-land = spinup(spinup_models, spinup_forcing, loc_forcing_t, land, tem_info, n_timesteps, SelSpinupModels())
+land = spinup(spinup_models, spinup_forcing, loc_forcing_t, land, tem_info, n_timesteps, LoopTEM())
 ```
 
 2. **Running spinup with ODE solver (Tsit5)**:
@@ -177,13 +177,8 @@ function spinup(::Any, ::Any, ::Any, land, ::Any, ::Any, x::SpinupMode)
     return land
 end
 
-function spinup(spinup_models, spinup_forcing, loc_forcing_t, land, tem_info, n_timesteps, ::SelSpinupModels)
+function spinup(spinup_models, spinup_forcing, loc_forcing_t, land, tem_info, n_timesteps, ::LoopTEM)
     land = timeLoopTEMSpinup(spinup_models, spinup_forcing, loc_forcing_t, land, tem_info, n_timesteps)
-    return land
-end
-
-function spinup(all_models, spinup_forcing, loc_forcing_t, land, tem_info, n_timesteps, ::AllForwardModels)
-    land = timeLoopTEMSpinup(all_models, spinup_forcing, loc_forcing_t, land, tem_info, n_timesteps)
     return land
 end
 
@@ -423,17 +418,19 @@ end
 end
 
 """
-    sequenceForcing(spinup_forcings::NamedTuple, forc_name::Symbol)
+    sequenceForcing(spinup_forcings::NamedTuple, spin_seq::SpinupStepWithAggregator)
 
 Processes and sequences forcing data for spinup simulations.
 
 # Arguments
 - `spinup_forcings::NamedTuple`: A named tuple containing the forcing data for different spinup sequence
-- `forc_name::Symbol`: Symbol indicating the name of the forcing data set to be extracted from the NT for the given sequence
+- `spin_seq`: the spinup step
 """
-function sequenceForcing(spinup_forcings::NamedTuple, forc_name::Symbol)
-    return spinup_forcings[forc_name]::NamedTuple
-end
+function sequenceForcing end
+
+sequenceForcing(spinup_forcings::NamedTuple, ::SpinupStepWithAggregator{F}) where {F} = getfield(spinup_forcings, F)
+
+sequenceForcing(::NamedTuple, ::SpinupStepWithAggregator{:none}) = (;)
 
 """
     setSpinupLog(land, log_index, spinup_log_mode)
@@ -614,10 +611,45 @@ runSpinupSequences(::Tuple{}, selected_models, spinup_forcings, loc_forcing_t, l
 function runSpinupSequences(spin_seqs::Tuple, selected_models, spinup_forcings, loc_forcing_t, land, tem_info, log_index, loc_restart=nothing)
     spin_seq = first(spin_seqs)
     n_repeat = spin_seq.n_repeat
-    sel_forcing = sequenceForcing(spinup_forcings, spin_seq.forcing)
-    land = spinupSequence(selected_models, sel_forcing, loc_forcing_t, land, tem_info, spin_seq.n_timesteps, log_index, n_repeat, spin_seq.spinup_mode)
+    sel_forcing = sequenceForcing(spinup_forcings, spin_seq)
+    spinup_models = getSpinupModels(selected_models, spin_seq.model_indices)
+    land = spinupSequence(spinup_models, sel_forcing, loc_forcing_t, land, tem_info, spin_seq.n_timesteps, log_index, n_repeat, spin_seq.spinup_mode)
     spin_seq.save_restart && setRestart!(loc_restart, land, tem_info)
     return runSpinupSequences(Base.tail(spin_seqs), selected_models, spinup_forcings, loc_forcing_t, land, tem_info, log_index + n_repeat, loc_restart)
+end
+
+"""
+    getSpinupModels(selected_models, model_indices)
+
+Picks the models that are run in one spinup step out of the selected models.
+
+# Arguments:
+- `selected_models`: a tuple or LongTuple of all models selected in the given model structure
+- `model_indices`: a `Val` of the tuple of model indices of the step, or nothing to
+  run all the selected models
+
+# Returns:
+- the models of the step, as the same kind of tuple as `selected_models`
+
+# Notes:
+- The models are picked at every run, because the selected models carry the
+  parameters, which change in an optimization.
+"""
+function getSpinupModels end
+
+getSpinupModels(selected_models, ::Nothing) = selected_models
+
+@generated function getSpinupModels(selected_models::Tuple, ::Val{I}) where {I}
+    return Expr(:tuple, (:(selected_models[$i]) for i in I)...)
+end
+
+@generated function getSpinupModels(selected_models::LongTuple{N}, ::Val{I}) where {N,I}
+    models = [:(selected_models.data[$((i - 1) ÷ N + 1)][$((i - 1) % N + 1)]) for i in I]
+    # foldl_longtuple needs at least one chunk, so no models give an empty tuple
+    isempty(models) && return :(())
+    n_split = min(N, length(models))
+    chunks = [Expr(:tuple, models[k:min(k + n_split - 1, end)]...) for k in 1:n_split:length(models)]
+    return :(LongTuple{$n_split}($(Expr(:tuple, chunks...))))
 end
 
 function spinupTEM(selected_models, loc_spinup, loc_forcing_t, land, tem_info, ::DoNotSpinupTEM, loc_restart=nothing)

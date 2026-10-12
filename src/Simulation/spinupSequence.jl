@@ -38,11 +38,11 @@ function getSpinupSequence end
 function getSpinupSequence(::SequenceDefault, spinup_config, _, helpers_dates, aggregator_cache)
     options = spinup_config.options
     steps = prepSequenceDefault(; nrepeat_base=options.n_repeat_base, forcing_msc=options.forcing_msc)
-    return Tuple(getSpinupSequenceWithTypes(steps, helpers_dates, aggregator_cache))
+    return Tuple(getSpinupSequenceWithTypes(steps, helpers_dates, aggregator_cache, get(spinup_config, :models, nothing)))
 end
 
 function getSpinupSequence(::SequenceList, spinup_config, _, helpers_dates, aggregator_cache)
-    return Tuple(getSpinupSequenceWithTypes(spinup_config.options.steps, helpers_dates, aggregator_cache))
+    return Tuple(getSpinupSequenceWithTypes(spinup_config.options.steps, helpers_dates, aggregator_cache, get(spinup_config, :models, nothing)))
 end
 
 function getSpinupSequence(::SequenceWithAge, spinup_config, loc_forcing, helpers_dates, aggregator_cache)
@@ -52,7 +52,7 @@ function getSpinupSequence(::SequenceWithAge, spinup_config, loc_forcing, helper
         nrepeat_base=options.n_repeat_base,
         year_start=year(first(helpers_dates.range)),
         forcing_msc=options.forcing_msc)
-    return Tuple(getSpinupSequenceWithTypes(steps, helpers_dates, aggregator_cache))
+    return Tuple(getSpinupSequenceWithTypes(steps, helpers_dates, aggregator_cache, get(spinup_config, :models, nothing)))
 end
 
 
@@ -70,9 +70,9 @@ mean seasonal cycle, bracketed on either side by a single run over all years.
 """
 function prepSequenceDefault(; nrepeat_base=200, forcing_msc="day_MSC")
     return [
-        Dict("spinup_mode" => "sel_spinup_models", "forcing" => "all_years", "n_repeat" => 1),
-        Dict("spinup_mode" => "sel_spinup_models", "forcing" => forcing_msc, "n_repeat" => nrepeat_base),
-        Dict("spinup_mode" => "sel_spinup_models", "forcing" => "all_years", "n_repeat" => 1),
+        Dict("spinup_mode" => "loop_TEM", "models" => "spinup", "forcing" => "all_years", "n_repeat" => 1),
+        Dict("spinup_mode" => "loop_TEM", "models" => "spinup", "forcing" => forcing_msc, "n_repeat" => nrepeat_base),
+        Dict("spinup_mode" => "loop_TEM", "models" => "spinup", "forcing" => "all_years", "n_repeat" => 1),
     ]
 end
 
@@ -119,16 +119,16 @@ its disturbance and the start of the experiment.
 function prepSequenceWithAge(year_disturbance; nrepeat_base=200, year_start = 1979, forcing_msc = "day_MSC")
     nrepeat_age = nrepeatYearsAge(year_disturbance; year_start)
     sequence = [
-        Dict("spinup_mode" => "sel_spinup_models", "forcing" => "all_years", "n_repeat" => 1),
-        Dict("spinup_mode" => "sel_spinup_models", "forcing" => forcing_msc, "n_repeat" => nrepeat_base),
-        Dict("spinup_mode" => "eta_scale_H", "forcing" => forcing_msc, "n_repeat" => 1, "save_restart" => true),
+        Dict("spinup_mode" => "loop_TEM", "models" => "spinup", "forcing" => "all_years", "n_repeat" => 1),
+        Dict("spinup_mode" => "loop_TEM", "models" => "spinup", "forcing" => forcing_msc, "n_repeat" => nrepeat_base),
+        Dict("spinup_mode" => "eta_scale_H", "forcing" => nothing, "models" => nothing, "n_repeat" => 1, "save_restart" => true),
     ]
     if nrepeat_age >= 0
         sequence = [
-            Dict("spinup_mode" => "sel_spinup_models", "forcing" => "all_years", "n_repeat" => 1),
-            Dict("spinup_mode" => "sel_spinup_models", "forcing" => forcing_msc, "n_repeat" => nrepeat_base),
-            Dict("spinup_mode" => "eta_scale_A0H", "forcing" => forcing_msc, "n_repeat" => 1, "save_restart" => true),
-            Dict("spinup_mode" => "sel_spinup_models", "forcing" => forcing_msc, "n_repeat" => nrepeat_age),
+            Dict("spinup_mode" => "loop_TEM", "models" => "spinup", "forcing" => "all_years", "n_repeat" => 1),
+            Dict("spinup_mode" => "loop_TEM", "models" => "spinup", "forcing" => forcing_msc, "n_repeat" => nrepeat_base),
+            Dict("spinup_mode" => "eta_scale_A0H", "forcing" => nothing, "models" => nothing, "n_repeat" => 1, "save_restart" => true),
+            Dict("spinup_mode" => "loop_TEM", "models" => "spinup", "forcing" => forcing_msc, "n_repeat" => nrepeat_age),
         ]
     end
     return sequence

@@ -498,7 +498,7 @@ end
     getSaveRestartSpinupMode(info)
 
 Returns the name of the spinup mode type of the spinup step that saves the restart,
-e.g., `SelSpinupModels` or `SpinupInput`.
+e.g., `LoopTEM` or `SpinupInput`.
 
 # Arguments:
 - `sequences`: the spinup sequence of every location
@@ -531,7 +531,8 @@ function getSaveRestartSpinupMode(info)
     end
     isempty(steps) && return "none"
     save_step = steps[findfirst(Setup.getSaveRestartFlags(steps))]
-    return string(nameof(typeof(getTypeInstanceForNamedOptions(save_step["spinup_mode"]))))
+    mode_name, _ = Setup.getSpinupModeName(save_step["spinup_mode"])
+    return string(nameof(typeof(getTypeInstanceForNamedOptions(mode_name))))
 end
 
 """

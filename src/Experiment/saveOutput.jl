@@ -137,7 +137,7 @@ the restart file. That is the last step unless the settings mark another one.
   `restart_date` global attribute is the start date of the simulation. The
   `spinup_sequence_method` global attribute is the name of the spinup sequence method,
   e.g., `sequence_list` or `sequence_with_age`, and `spinup_mode` is the spinup mode of
-  the step that saved the restart, e.g., `SelSpinupModels`.
+  the step that saved the restart, e.g., `LoopTEM`.
 - Each variable is named after its subfield in `land.pools`, so the file can be added
   to the forcing for the `SpinupInput` spinup mode.
 """
@@ -170,7 +170,7 @@ spinup sequence method and the spinup mode of the step that saved the restart ad
 # Notes:
 - The method is written with its name in the settings, e.g., `sequence_with_age` for
   `SequenceWithAge`.
-- The spinup mode is the name of its type, e.g., `SelSpinupModels` or `SpinupInput`.
+- The spinup mode is the name of its type, e.g., `LoopTEM` or `SpinupInput`.
 """
 function getRestartMetadata(info, restart)
     restart_metadata = copy(info.output.file_info.global_metadata)
