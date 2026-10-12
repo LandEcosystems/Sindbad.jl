@@ -38,6 +38,8 @@ ready to use in the same way `getForcing` does for the forcing.
   the `timescale_run` of the input, the same way `setInputParameters` converts a csv.
 - NaN values are replaced by the `default`, and values outside `[lower, upper]` are
   clamped. Both are counted and reported once per parameter.
+- In a lazy run, the values are not read, converted or checked, see `getParameterValues`.
+  They must already be in the units of the run and within bounds.
 """
 function getParameters(info::NamedTuple, forcing_axes)
     parameter_input = get(info.experiment.data_settings, :parameters, nothing)
@@ -59,7 +61,7 @@ function getParameters(info::NamedTuple, forcing_axes)
         attributes = readVariableAttributes(dataset, var_source.source_variable, var_source.data_path)
         p_row = resolveParameterVariable(var_name, var_source, parameter_input, attributes, info)
         yax = selectForcingLocations(dataset[var_source.source_variable], forcing_axes, space_dims, var_name, dataset)
-        p_values = cleanParameterValues(Array(yax), p_row, num_type)
+        p_values = getParameterValues(yax, p_row, num_type, info.helpers.run.run_lazy)
         push!(table_rows, (; p_row..., n_nan=p_values.n_nan, n_clamped=p_values.n_clamped))
         print_info(nothing, @__FILE__, @__LINE__, "`$(var_name)` = `$(p_row.name_full)` ($(p_row.units)) from `$(var_source.source_variable)` in `$(var_source.data_path)` * $(p_row.unit_factor)", n_m=4)
         # kept as a cube on the spatial dimensions and coordinates of the forcing, so a
@@ -342,6 +344,37 @@ function getParameterFileDims(space_dims, axes_values)
         index_dim
     end
     return dims, name_cubes
+end
+
+
+"""
+    getParameterValues(yax, p_row, num_type, run_lazy)
+
+Returns the values of one parameter variable at the locations of the forcing, and the
+counts of the replaced values.
+
+# Arguments:
+- `yax`: the parameter variable at the locations of the forcing, from `selectForcingLocations`
+- `p_row`: the resolved settings of the variable, from `resolveParameterVariable`
+- `num_type`: the number type of the run
+- `run_lazy`: `DoRunLazy()` or `DoNotRunLazy()`
+
+# Notes:
+- `DoNotRunLazy`: the values are read and made ready to use with `cleanParameterValues`.
+- `DoRunLazy`: the values are not read, so they stay on disk and are read per location
+  in `runTEMYax`. They must already be in the units of the run and within bounds, as they
+  are neither converted nor checked. A variable that needs a unit conversion is refused,
+  and `n_nan` and `n_clamped` are `missing`.
+"""
+function getParameterValues end
+
+getParameterValues(yax, p_row, num_type, ::DoNotRunLazy) = cleanParameterValues(Array(yax), p_row, num_type)
+
+function getParameterValues(yax, p_row, num_type, ::DoRunLazy)
+    if !isone(p_row.unit_factor)
+        error("The parameter `$(p_row.name_full)` has `timescale_run` `$(p_row.timescale_run)`, which needs a unit conversion by $(p_row.unit_factor). A lazy run uses the values as they are, so they must already be in the units of the run.")
+    end
+    return (; data=yax.data, n_nan=missing, n_clamped=missing)
 end
 
 

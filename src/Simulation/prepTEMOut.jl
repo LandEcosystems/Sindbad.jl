@@ -1,6 +1,7 @@
 
 export getOutDims
 export getOutDimsArrays
+export getRestartDims
 export getRestartDimsArrays
 export prepTEMOut
 export setupOptiOutput
@@ -293,6 +294,44 @@ end
 
 
 """
+    getRestartDims(info, forcing_helpers, loc_land)
+
+Prepares the variables and dimensions of the restart file, which holds the main pools
+after the spinup step with `save_restart`, without allocating its arrays.
+
+# Arguments:
+- `info`: A SINDBAD NamedTuple containing all information needed for setup and execution of an experiment.
+- `forcing_helpers`: A NamedTuple with information on forcing sizes and dimensions.
+- `loc_land`: The land of one location after a model run of one time step.
+
+# Returns:
+- A NamedTuple with:
+  - `variables`: the field and subfield pairs from `getRestartVars`.
+  - `dims_pairs`: the dimension pairs of each variable without the time dimension.
+    A layer dimension is only included for variables with more than one layer.
+  - `dims`: the `Dim` objects built from `dims_pairs`, used for saving.
+  - `depth_info`: the number of layers and the depth dimension name of each variable.
+
+# Notes:
+- A lazy run (`runTEMYax`) only needs these, since `xmap` creates the restart cubes.
+"""
+function getRestartDims(info, forcing_helpers, loc_land)
+    restart_vars = getRestartVars(info, loc_land)
+    # the dimension names follow the output settings, but the sizes always come from
+    # land so that every layer of a variable is stored
+    depth_info = map(restart_vars, getLandVarDepthInfo(info, loc_land, restart_vars)) do var_pair, d_info
+        length(getproperty(getproperty(loc_land, first(var_pair)), last(var_pair))), last(d_info)
+    end
+    restart_info = (; variables=restart_vars, depth_info=depth_info)
+    dims_pairs = getOutDimsPairs(restart_info, forcing_helpers; with_time=false)
+    restart_dims = map(dims_pairs) do dim_pairs
+        Tuple(YAXArrays.Dim{first(_dim)}(last(_dim)) for _dim in dim_pairs)
+    end
+    return (; variables=restart_vars, dims_pairs=dims_pairs, dims=restart_dims, depth_info=depth_info)
+end
+
+
+"""
     getRestartDimsArrays(info, forcing_helpers, loc_land)
 
 Prepares the variables, dimensions and arrays of the restart file, which holds the main
@@ -316,23 +355,13 @@ pools after the spinup step with `save_restart`.
   `setOutputForTimeStep!` work on them the same way as on the output arrays.
 """
 function getRestartDimsArrays(info, forcing_helpers, loc_land)
-    restart_vars = getRestartVars(info, loc_land)
-    # the dimension names follow the output settings, but the sizes always come from
-    # land so that every layer of a variable is stored
-    depth_info = map(restart_vars, getLandVarDepthInfo(info, loc_land, restart_vars)) do var_pair, d_info
-        length(getproperty(getproperty(loc_land, first(var_pair)), last(var_pair))), last(d_info)
-    end
-    restart_info = (; variables=restart_vars, depth_info=depth_info)
-    dims_pairs = getOutDimsPairs(restart_info, forcing_helpers; with_time=false)
-    restart_dims = map(dims_pairs) do dim_pairs
-        Tuple(YAXArrays.Dim{first(_dim)}(last(_dim)) for _dim in dim_pairs)
-    end
+    restart = getRestartDims(info, forcing_helpers, loc_land)
     num_type = info.helpers.numbers.num_type
     space_sizes = Base.tail(values(forcing_helpers.sizes))
-    restart_array = map(depth_info) do d_info
+    restart_array = map(restart.depth_info) do d_info
         fill(num_type(NaN), 1, first(d_info), space_sizes...)
     end
-    return (; variables=restart_vars, dims_pairs=dims_pairs, dims=restart_dims, data=[restart_array...])
+    return (; variables=restart.variables, dims_pairs=restart.dims_pairs, dims=restart.dims, data=[restart_array...])
 end
 
 

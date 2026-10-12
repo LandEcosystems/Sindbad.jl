@@ -417,7 +417,7 @@ function getParameters(info::NamedTuple, forcing_axes)
         attributes = readVariableAttributes(dataset, var_source.source_variable, var_source.data_path)
         p_row = resolveParameterVariable(var_name, var_source, parameter_input, attributes, info)
         yax = selectForcingLocations(dataset[var_source.source_variable], forcing_axes, space_dims, var_name, dataset)
-        p_values = cleanParameterValues(Array(yax), p_row, num_type)
+        p_values = getParameterValues(yax, p_row, num_type, info.helpers.run.run_lazy)
         push!(table_rows, (; p_row..., n_nan=p_values.n_nan, n_clamped=p_values.n_clamped))
         print_info(nothing, @__FILE__, @__LINE__, "`$(var_name)` = `$(p_row.name_full)` ($(p_row.units)) from `$(var_source.source_variable)` in `$(var_source.data_path)` * $(p_row.unit_factor)", n_m=4)
         # kept as a cube on the spatial dimensions and coordinates of the forcing, so a

@@ -44,16 +44,19 @@ end
 - `parameter_to_index`: the index of each parameter per location in the models, or
   `nothing` when there are none. The values of the location then set the parameters of
   `selected_models` before the run.
+
+# Notes:
+- With `filter_nan_pixels`, a location whose forcing is all NaN is not run, and its
+  outputs and restart are NaN. See `isNanPixelYax`.
 """
 function TEMYax(map_cubes...;selected_models, forcing_vars, loc_land::NamedTuple, output_vars, tem::NamedTuple, clean_data, restart_vars=(), parameter_to_index=nothing)
-    # Make NaN check here instead of AllNaN filters
-    
-
     outputs, inputs, restarts, parameter_inputs = unpackYaxForward(map_cubes; output_vars, forcing_vars, restart_vars)
+    if isNanPixelYax(inputs, tem.run.filter_nan_pixels)
+        foreach(xout -> fill!(xout, NaN), outputs)
+        foreach(xout -> fill!(xout, NaN), restarts)
+        return nothing
+    end
     selected_models = setLocationParametersYax(selected_models, parameter_to_index, parameter_inputs)
-    # What exactly should the NaN check be? 
-    # Do I check per variable, or for all variables together?
-    any(in_forcing -> any(v -> ismissing(v) || isnan(v), in_forcing), inputs)
 
     # ? apply clean_data fields to input data points
     _data_fill, _num_type, _forcing_data_info = clean_data
@@ -73,6 +76,27 @@ function TEMYax(map_cubes...;selected_models, forcing_vars, loc_land::NamedTuple
             i += 1
     end
 end
+
+"""
+    isNanPixelYax(inputs, filter_nan_pixels)
+
+Returns true when the location is to be skipped, i.e., with `DoFilterNanPixels` and a
+first forcing variable that is all NaN or missing at the location.
+
+# Arguments:
+- `inputs`: the forcing arrays of one location, before cleaning
+- `filter_nan_pixels`: `DoFilterNanPixels()` or `DoNotFilterNanPixels()`
+
+# Notes:
+- It is the check of `filterNanPixels` in a run that is not lazy, done for one location
+  inside `xmap` instead of for all locations before the run.
+"""
+function isNanPixelYax end
+
+isNanPixelYax(_, ::DoNotFilterNanPixels) = false
+
+isNanPixelYax(inputs, ::DoFilterNanPixels) = all(v -> ismissing(v) || isnan(v), first(inputs))
+
 
 """
     getForcingDataInfo(info, forcing_vars)
@@ -151,14 +175,18 @@ function runTEMYax(selected_models, forcing::NamedTuple, info::NamedTuple)
     _forcing_data_info = getForcingDataInfo(info, forcing.variables)
     #output = XOutput.(getproperty.(run_helpers.output_dims, :axisdesc))
     output = run_helpers.output_dims
-    # land_init already has every pool, so no model run is needed to find them
-    restart = getRestartDimsArrays(info, forcing.helpers, loc_land)
+    # land_init already has every pool, so no model run is needed to find them. Only the
+    # dimensions are needed, as xmap creates the restart cubes.
+    restart = getRestartDims(info, forcing.helpers, loc_land)
     restart_vars = restart.variables
     restart_output = getRestartOutDimsYax(info, restart.dims_pairs)
     all_output = (output..., restart_output...)
     # DiskArrayEngine needs all output cubes to have the same dimensions, so every cube
     # is padded with singleton versions of the dimensions of the other cubes.
     alloutdims = union(getproperty.(all_output, :outaxes)...)
+    # the output cubes keep the singleton dimensions of the other output cubes, but not
+    # those that only the restart cubes have
+    restart_only_dims = setdiff(DD.name.(alloutdims), DD.name.(union(getproperty.(output, :outaxes)...)))
     new_output = map(all_output) do out
         singleton_dims = setdiff(alloutdims, out.outaxes)
         newdims = (out.outaxes..., DD.rebuild.(singleton_dims, (1:1,))...) 
@@ -182,7 +210,8 @@ function runTEMYax(selected_models, forcing::NamedTuple, info::NamedTuple)
     outcubes = outcubes isa YAXArray ? (outcubes,) : outcubes
     n_out = length(output)
     varnames = getUniqueVarNames(info.output.variables)
-    output_ds = Dataset(;zip(varnames, outcubes[1:n_out])...)
+    output_cubes = map(o_cube -> dropPaddedDimsYax(o_cube, restart_only_dims), outcubes[1:n_out])
+    output_ds = Dataset(;zip(varnames, output_cubes)...)
     restart_cubes = map(restart_output, outcubes[(n_out+1):end]) do r_out, r_cube
         dropPaddedDimsYax(r_cube, setdiff(DD.name.(alloutdims), DD.name.(r_out.outaxes)))
     end

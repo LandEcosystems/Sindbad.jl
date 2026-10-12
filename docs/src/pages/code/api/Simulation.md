@@ -12,14 +12,13 @@ TEMYax
 
 ```julia
 function TEMYax(map_cubes...;selected_models, forcing_vars, loc_land::NamedTuple, output_vars, tem::NamedTuple, clean_data, restart_vars=(), parameter_to_index=nothing)
-    # Make NaN check here instead of AllNaN filters
-    
-
     outputs, inputs, restarts, parameter_inputs = unpackYaxForward(map_cubes; output_vars, forcing_vars, restart_vars)
+    if isNanPixelYax(inputs, tem.run.filter_nan_pixels)
+        foreach(xout -> fill!(xout, NaN), outputs)
+        foreach(xout -> fill!(xout, NaN), restarts)
+        return nothing
+    end
     selected_models = setLocationParametersYax(selected_models, parameter_to_index, parameter_inputs)
-    # What exactly should the NaN check be? 
-    # Do I check per variable, or for all variables together?
-    any(in_forcing -> any(v -> ismissing(v) || isnan(v), in_forcing), inputs)
 
     # ? apply clean_data fields to input data points
     _data_fill, _num_type, _forcing_data_info = clean_data
@@ -422,15 +421,15 @@ end
 
 ----
 
-### getRestartDimsArrays
+### getRestartDims
 ```@docs
-getRestartDimsArrays
+getRestartDims
 ```
 
 :::details Code
 
 ```julia
-function getRestartDimsArrays(info, forcing_helpers, loc_land)
+function getRestartDims(info, forcing_helpers, loc_land)
     restart_vars = getRestartVars(info, loc_land)
     # the dimension names follow the output settings, but the sizes always come from
     # land so that every layer of a variable is stored
@@ -442,12 +441,41 @@ function getRestartDimsArrays(info, forcing_helpers, loc_land)
     restart_dims = map(dims_pairs) do dim_pairs
         Tuple(YAXArrays.Dim{first(_dim)}(last(_dim)) for _dim in dim_pairs)
     end
+    return (; variables=restart_vars, dims_pairs=dims_pairs, dims=restart_dims, depth_info=depth_info)
+end
+
+function getRestartDimsArrays(info, forcing_helpers, loc_land)
+    restart = getRestartDims(info, forcing_helpers, loc_land)
     num_type = info.helpers.numbers.num_type
     space_sizes = Base.tail(values(forcing_helpers.sizes))
-    restart_array = map(depth_info) do d_info
+    restart_array = map(restart.depth_info) do d_info
         fill(num_type(NaN), 1, first(d_info), space_sizes...)
     end
-    return (; variables=restart_vars, dims_pairs=dims_pairs, dims=restart_dims, data=[restart_array...])
+    return (; variables=restart.variables, dims_pairs=restart.dims_pairs, dims=restart.dims, data=[restart_array...])
+end
+```
+
+:::
+
+
+----
+
+### getRestartDimsArrays
+```@docs
+getRestartDimsArrays
+```
+
+:::details Code
+
+```julia
+function getRestartDimsArrays(info, forcing_helpers, loc_land)
+    restart = getRestartDims(info, forcing_helpers, loc_land)
+    num_type = info.helpers.numbers.num_type
+    space_sizes = Base.tail(values(forcing_helpers.sizes))
+    restart_array = map(restart.depth_info) do d_info
+        fill(num_type(NaN), 1, first(d_info), space_sizes...)
+    end
+    return (; variables=restart.variables, dims_pairs=restart.dims_pairs, dims=restart.dims, data=[restart_array...])
 end
 ```
 
@@ -820,14 +848,18 @@ function runTEMYax(selected_models, forcing::NamedTuple, info::NamedTuple)
     _forcing_data_info = getForcingDataInfo(info, forcing.variables)
     #output = XOutput.(getproperty.(run_helpers.output_dims, :axisdesc))
     output = run_helpers.output_dims
-    # land_init already has every pool, so no model run is needed to find them
-    restart = getRestartDimsArrays(info, forcing.helpers, loc_land)
+    # land_init already has every pool, so no model run is needed to find them. Only the
+    # dimensions are needed, as xmap creates the restart cubes.
+    restart = getRestartDims(info, forcing.helpers, loc_land)
     restart_vars = restart.variables
     restart_output = getRestartOutDimsYax(info, restart.dims_pairs)
     all_output = (output..., restart_output...)
     # DiskArrayEngine needs all output cubes to have the same dimensions, so every cube
     # is padded with singleton versions of the dimensions of the other cubes.
     alloutdims = union(getproperty.(all_output, :outaxes)...)
+    # the output cubes keep the singleton dimensions of the other output cubes, but not
+    # those that only the restart cubes have
+    restart_only_dims = setdiff(DD.name.(alloutdims), DD.name.(union(getproperty.(output, :outaxes)...)))
     new_output = map(all_output) do out
         singleton_dims = setdiff(alloutdims, out.outaxes)
         newdims = (out.outaxes..., DD.rebuild.(singleton_dims, (1:1,))...) 
@@ -851,44 +883,13 @@ function runTEMYax(selected_models, forcing::NamedTuple, info::NamedTuple)
     outcubes = outcubes isa YAXArray ? (outcubes,) : outcubes
     n_out = length(output)
     varnames = getUniqueVarNames(info.output.variables)
-    output_ds = Dataset(;zip(varnames, outcubes[1:n_out])...)
+    output_cubes = map(o_cube -> dropPaddedDimsYax(o_cube, restart_only_dims), outcubes[1:n_out])
+    output_ds = Dataset(;zip(varnames, output_cubes)...)
     restart_cubes = map(restart_output, outcubes[(n_out+1):end]) do r_out, r_cube
         dropPaddedDimsYax(r_cube, setdiff(DD.name.(alloutdims), DD.name.(r_out.outaxes)))
     end
     restart_ds = Dataset(; zip(last.(restart_vars), restart_cubes)...)
     return (; output=output_ds, restart=restart_ds, restart_vars=restart_vars, spinup_mode=getSaveRestartSpinupMode(info))
-end
-
-function runTEMYaxParameters(selected_models, forcing::NamedTuple, in_cube_params, tbl_params, info::NamedTuple)
-
-    # forcing/input information
-    in_cubes_forcing = forcing.data
-    in_cubes_all = (in_cubes_forcing..., in_cube_params)
-    indims = forcing.dims
-    indims = (indims..., InDims((YAXArrays.ByName("parameter"),), Array, (AllNaN(),), missing))
-    param_to_index = getParameterIndices(selected_models, tbl_params)
-    # information for running model
-    run_helpers = prepTEM(forcing, info)
-    loc_land = deepcopy(run_helpers.loc_land)
-    _data_fill = 0.0f0
-    _num_type = Val{info.helpers.numbers.num_type}()
-    _forcing_data_info = getForcingDataInfo(info, forcing.variables)
-
-    outcubes = mapCube(psTEMYax,
-        (in_cubes_all...,);
-        selected_models=selected_models,
-        param_to_index=param_to_index,
-        forcing_vars=forcing.variables,
-        output_vars=run_helpers.output_vars,
-        loc_land=loc_land,
-        tem=run_helpers.tem_info,
-        clean_data=(; _data_fill, _num_type, _forcing_data_info),
-        indims=indims,
-        outdims=run_helpers.output_dims,
-        max_cache=info.experiment.exe_rules.yax_max_cache,
-        ispar=true,
-        )
-    return outcubes
 end
 ```
 
