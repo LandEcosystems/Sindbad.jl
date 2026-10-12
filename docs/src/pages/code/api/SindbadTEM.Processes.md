@@ -8,9 +8,9 @@ SindbadTEM.Processes
 ```@docs
 EVI
 ```
-:::details EVI approaches
+:::::details EVI approaches
 
-:::tabs
+::::tabs
 
 == EVI_constant
 ```@docs
@@ -33,7 +33,9 @@ Outputs: :states => :EVI
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/EVI/EVI_forcing.jl)
 
 
-:::
+::::
+
+:::::
 
 
 ----
@@ -43,9 +45,9 @@ Outputs: :states => :EVI
 ```@docs
 LAI
 ```
-:::details LAI approaches
+:::::details LAI approaches
 
-:::tabs
+::::tabs
 
 == LAI_cVegLeaf
 ```@docs
@@ -55,8 +57,8 @@ LAI_cVegLeaf
 **Calculated using:**
 
 ```julia
-Inputs: :pools => :cVegLeaf
-Outputs: :states => :LAI
+Inputs: :pools => :cEco
+Outputs: :states => :LAI, :diagnostics => :SLA
 ```
 
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/LAI/LAI_cVegLeaf.jl)
@@ -82,7 +84,9 @@ Outputs: :states => :LAI
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/LAI/LAI_forcing.jl)
 
 
-:::
+::::
+
+:::::
 
 
 ----
@@ -92,9 +96,9 @@ Outputs: :states => :LAI
 ```@docs
 NDVI
 ```
-:::details NDVI approaches
+:::::details NDVI approaches
 
-:::tabs
+::::tabs
 
 == NDVI_constant
 ```@docs
@@ -117,7 +121,9 @@ Outputs: :states => :NDVI
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/NDVI/NDVI_forcing.jl)
 
 
-:::
+::::
+
+:::::
 
 
 ----
@@ -127,9 +133,9 @@ Outputs: :states => :NDVI
 ```@docs
 NDWI
 ```
-:::details NDWI approaches
+:::::details NDWI approaches
 
-:::tabs
+::::tabs
 
 == NDWI_constant
 ```@docs
@@ -152,7 +158,9 @@ Outputs: :states => :NDWI
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/NDWI/NDWI_forcing.jl)
 
 
-:::
+::::
+
+:::::
 
 
 ----
@@ -162,9 +170,9 @@ Outputs: :states => :NDWI
 ```@docs
 NIRv
 ```
-:::details NIRv approaches
+:::::details NIRv approaches
 
-:::tabs
+::::tabs
 
 == NIRv_constant
 ```@docs
@@ -187,7 +195,9 @@ Outputs: :states => :NIRv
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/NIRv/NIRv_forcing.jl)
 
 
-:::
+::::
+
+:::::
 
 
 ----
@@ -197,9 +207,9 @@ Outputs: :states => :NIRv
 ```@docs
 PET
 ```
-:::details PET approaches
+:::::details PET approaches
 
-:::tabs
+::::tabs
 
 == PET_Lu2005
 ```@docs
@@ -244,28 +254,9 @@ Outputs: :fluxes => :PET
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/PET/PET_forcing.jl)
 
 
-:::
+::::
 
-
-----
-
-### PFT
-
-```@docs
-PFT
-```
-:::details PFT approaches
-
-:::tabs
-
-== PFT_constant
-```@docs
-PFT_constant
-```
-[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/PFT/PFT_constant.jl)
-
-
-:::
+:::::
 
 
 ----
@@ -275,9 +266,9 @@ PFT_constant
 ```@docs
 WUE
 ```
-:::details WUE approaches
+:::::details WUE approaches
 
-:::tabs
+::::tabs
 
 == WUE_Medlyn2011
 ```@docs
@@ -342,7 +333,9 @@ Outputs: :diagnostics => :WUENoCO2, :diagnostics => :WUE
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/WUE/WUE_expVPDDayCo2.jl)
 
 
-:::
+::::
+
+:::::
 
 
 ----
@@ -352,9 +345,9 @@ Outputs: :diagnostics => :WUENoCO2, :diagnostics => :WUE
 ```@docs
 ambientCO2
 ```
-:::details ambientCO2 approaches
+:::::details ambientCO2 approaches
 
-:::tabs
+::::tabs
 
 == ambientCO2_constant
 ```@docs
@@ -377,7 +370,9 @@ Outputs: :states => :ambient_CO2
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/ambientCO2/ambientCO2_forcing.jl)
 
 
-:::
+::::
+
+:::::
 
 
 ----
@@ -387,9 +382,9 @@ Outputs: :states => :ambient_CO2
 ```@docs
 autoRespiration
 ```
-:::details autoRespiration approaches
+:::::details autoRespiration approaches
 
-:::tabs
+::::tabs
 
 == autoRespiration_Thornley2000A
 ```@docs
@@ -399,7 +394,7 @@ autoRespiration_Thornley2000A
 **Calculated using:**
 
 ```julia
-Inputs: :diagnostics => :k_respiration_maintain, :diagnostics => :k_respiration_maintain_su, :fluxes => :c_eco_efflux, :fluxes => :auto_respiration_growth, :fluxes => :auto_respiration_maintain, :pools => :cEco, :pools => :cVeg, :fluxes => :gpp, :diagnostics => :C_to_N_cVeg, :diagnostics => :c_allocation, :diagnostics => :auto_respiration_f_airT
+Inputs: :diagnostics => :k_respiration_maintain, :diagnostics => :k_respiration_maintain_su, :fluxes => :c_eco_efflux, :fluxes => :auto_respiration_growth, :fluxes => :auto_respiration_maintain, :pools => :cEco, :pools => :cVeg, :fluxes => :gpp, :diagnostics => :CN_ratio_cVeg, :diagnostics => :c_allocation, :diagnostics => :auto_respiration_f_airT
 Outputs: :diagnostics => :k_respiration_maintain, :diagnostics => :k_respiration_maintain_su, :fluxes => :auto_respiration_growth, :fluxes => :auto_respiration_maintain, :fluxes => :c_eco_efflux
 ```
 
@@ -413,7 +408,7 @@ autoRespiration_Thornley2000B
 **Calculated using:**
 
 ```julia
-Inputs: :diagnostics => :k_respiration_maintain, :diagnostics => :k_respiration_maintain_su, :fluxes => :c_eco_efflux, :fluxes => :auto_respiration_growth, :fluxes => :auto_respiration_maintain, :pools => :cEco, :pools => :cVeg, :fluxes => :gpp, :diagnostics => :C_to_N_cVeg, :diagnostics => :auto_respiration_f_airT, :diagnostics => :c_allocation
+Inputs: :diagnostics => :k_respiration_maintain, :diagnostics => :k_respiration_maintain_su, :fluxes => :c_eco_efflux, :fluxes => :auto_respiration_growth, :fluxes => :auto_respiration_maintain, :pools => :cEco, :pools => :cVeg, :fluxes => :gpp, :diagnostics => :CN_ratio_cVeg, :diagnostics => :auto_respiration_f_airT, :diagnostics => :c_allocation
 Outputs: :diagnostics => :k_respiration_maintain, :diagnostics => :k_respiration_maintain_su, :fluxes => :auto_respiration_growth, :fluxes => :auto_respiration_maintain, :fluxes => :c_eco_efflux
 ```
 
@@ -427,7 +422,7 @@ autoRespiration_Thornley2000C
 **Calculated using:**
 
 ```julia
-Inputs: :diagnostics => :k_respiration_maintain, :diagnostics => :k_respiration_maintain_su, :diagnostics => :Fd, :fluxes => :c_eco_efflux, :fluxes => :auto_respiration_growth, :fluxes => :auto_respiration_maintain, :pools => :cEco, :pools => :cVeg, :fluxes => :gpp, :diagnostics => :C_to_N_cVeg, :diagnostics => :auto_respiration_f_airT, :diagnostics => :c_allocation, :constants => :z_zero, :constants => :o_one
+Inputs: :diagnostics => :k_respiration_maintain, :diagnostics => :k_respiration_maintain_su, :diagnostics => :Fd, :fluxes => :c_eco_efflux, :fluxes => :auto_respiration_growth, :fluxes => :auto_respiration_maintain, :pools => :cEco, :pools => :cVeg, :fluxes => :gpp, :diagnostics => :CN_ratio_cVeg, :diagnostics => :auto_respiration_f_airT, :diagnostics => :c_allocation, :properties => :lit_frac_metabolic, :constants => :z_zero, :constants => :o_one
 Outputs: :diagnostics => :k_respiration_maintain, :diagnostics => :k_respiration_maintain_su, :fluxes => :auto_respiration_growth, :fluxes => :auto_respiration_maintain, :fluxes => :c_eco_efflux
 ```
 
@@ -440,7 +435,9 @@ autoRespiration_none
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/autoRespiration/autoRespiration_none.jl)
 
 
-:::
+::::
+
+:::::
 
 
 ----
@@ -450,9 +447,9 @@ autoRespiration_none
 ```@docs
 autoRespirationAirT
 ```
-:::details autoRespirationAirT approaches
+:::::details autoRespirationAirT approaches
 
-:::tabs
+::::tabs
 
 == autoRespirationAirT_Q10
 ```@docs
@@ -475,7 +472,9 @@ autoRespirationAirT_none
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/autoRespirationAirT/autoRespirationAirT_none.jl)
 
 
-:::
+::::
+
+:::::
 
 
 ----
@@ -485,9 +484,9 @@ autoRespirationAirT_none
 ```@docs
 cAllocation
 ```
-:::details cAllocation approaches
+:::::details cAllocation approaches
 
-:::tabs
+::::tabs
 
 == cAllocation_Friedlingstein1999
 ```@docs
@@ -497,7 +496,7 @@ cAllocation_Friedlingstein1999
 **Calculated using:**
 
 ```julia
-Inputs: :states => :c_allocation, :cAllocation => :cVeg_names, :cAllocation => :cVeg_nzix, :cAllocation => :cVeg_zix, :cAllocation => :c_allocation_to_veg, :diagnostics => :c_allocation_f_W_N, :diagnostics => :c_allocation_f_LAI, :constants => :z_zero, :constants => :o_one
+Inputs: :diagnostics => :c_allocation, :cAllocation => :cVeg_nzix, :cAllocation => :cVeg_zix, :cAllocation => :c_allocation_to_veg, :diagnostics => :c_allocation_f_W_N, :diagnostics => :c_allocation_f_LAI, :constants => :z_zero, :constants => :o_one, :pools => :cVegRoot, :pools => :cVegWood, :pools => :cVegLeaf
 Outputs: :diagnostics => :c_allocation
 ```
 
@@ -511,7 +510,7 @@ cAllocation_GSI
 **Calculated using:**
 
 ```julia
-Inputs: :cAllocation => :cVeg_names, :cAllocation => :cVeg_zix, :cAllocation => :cVeg_nzix, :cAllocation => :c_allocation_to_veg, :diagnostics => :c_allocation, :diagnostics => :c_allocation_f_soilW, :diagnostics => :c_allocation_f_soilT, :constants => :t_two
+Inputs: :cAllocation => :cVeg_zix, :cAllocation => :cVeg_nzix, :cAllocation => :c_allocation_to_veg, :diagnostics => :c_allocation, :diagnostics => :c_allocation_f_soilW, :diagnostics => :c_allocation_f_soilT, :constants => :t_two
 Outputs: :diagnostics => :c_allocation
 ```
 
@@ -530,7 +529,9 @@ cAllocation_none
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cAllocation/cAllocation_none.jl)
 
 
-:::
+::::
+
+:::::
 
 
 ----
@@ -540,9 +541,9 @@ cAllocation_none
 ```@docs
 cAllocationLAI
 ```
-:::details cAllocationLAI approaches
+:::::details cAllocationLAI approaches
 
-:::tabs
+::::tabs
 
 == cAllocationLAI_Friedlingstein1999
 ```@docs
@@ -565,7 +566,9 @@ cAllocationLAI_none
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cAllocationLAI/cAllocationLAI_none.jl)
 
 
-:::
+::::
+
+:::::
 
 
 ----
@@ -575,9 +578,9 @@ cAllocationLAI_none
 ```@docs
 cAllocationNutrients
 ```
-:::details cAllocationNutrients approaches
+:::::details cAllocationNutrients approaches
 
-:::tabs
+::::tabs
 
 == cAllocationNutrients_Friedlingstein1999
 ```@docs
@@ -600,7 +603,9 @@ cAllocationNutrients_none
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cAllocationNutrients/cAllocationNutrients_none.jl)
 
 
-:::
+::::
+
+:::::
 
 
 ----
@@ -610,9 +615,9 @@ cAllocationNutrients_none
 ```@docs
 cAllocationRadiation
 ```
-:::details cAllocationRadiation approaches
+:::::details cAllocationRadiation approaches
 
-:::tabs
+::::tabs
 
 == cAllocationRadiation_GSI
 ```@docs
@@ -623,7 +628,7 @@ cAllocationRadiation_GSI
 
 ```julia
 Inputs: :forcing => :f_PAR, :diagnostics => :c_allocation_f_cloud_prev, :constants => :z_zero, :constants => :o_one
-Outputs: :diagnostics => :c_allocation_c_allocation_f_cloud, :diagnostics => :c_allocation_f_cloud_prev
+Outputs: :diagnostics => :c_allocation_f_cloud, :diagnostics => :c_allocation_f_cloud_prev
 ```
 
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cAllocationRadiation/cAllocationRadiation_GSI.jl)
@@ -663,7 +668,9 @@ cAllocationRadiation_none
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cAllocationRadiation/cAllocationRadiation_none.jl)
 
 
-:::
+::::
+
+:::::
 
 
 ----
@@ -673,9 +680,9 @@ cAllocationRadiation_none
 ```@docs
 cAllocationSoilT
 ```
-:::details cAllocationSoilT approaches
+:::::details cAllocationSoilT approaches
 
-:::tabs
+::::tabs
 
 == cAllocationSoilT_Friedlingstein1999
 ```@docs
@@ -685,7 +692,7 @@ cAllocationSoilT_Friedlingstein1999
 **Calculated using:**
 
 ```julia
-Inputs: :diagnostics => :c_allocation_f_soilT
+Inputs: :diagnostics => :c_eco_k_f_soilT
 Outputs: :diagnostics => :c_allocation_f_soilT
 ```
 
@@ -726,7 +733,9 @@ cAllocationSoilT_none
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cAllocationSoilT/cAllocationSoilT_none.jl)
 
 
-:::
+::::
+
+:::::
 
 
 ----
@@ -736,9 +745,9 @@ cAllocationSoilT_none
 ```@docs
 cAllocationSoilW
 ```
-:::details cAllocationSoilW approaches
+:::::details cAllocationSoilW approaches
 
-:::tabs
+::::tabs
 
 == cAllocationSoilW_Friedlingstein1999
 ```@docs
@@ -789,7 +798,9 @@ cAllocationSoilW_none
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cAllocationSoilW/cAllocationSoilW_none.jl)
 
 
-:::
+::::
+
+:::::
 
 
 ----
@@ -799,9 +810,9 @@ cAllocationSoilW_none
 ```@docs
 cAllocationTreeFraction
 ```
-:::details cAllocationTreeFraction approaches
+:::::details cAllocationTreeFraction approaches
 
-:::tabs
+::::tabs
 
 == cAllocationTreeFraction_Friedlingstein1999
 ```@docs
@@ -818,7 +829,9 @@ Outputs: :diagnostics => :c_allocation
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cAllocationTreeFraction/cAllocationTreeFraction_Friedlingstein1999.jl)
 
 
-:::
+::::
+
+:::::
 
 
 ----
@@ -828,9 +841,9 @@ Outputs: :diagnostics => :c_allocation
 ```@docs
 cBiomass
 ```
-:::details cBiomass approaches
+:::::details cBiomass approaches
 
-:::tabs
+::::tabs
 
 == cBiomass_simple
 ```@docs
@@ -840,7 +853,7 @@ cBiomass_simple
 **Calculated using:**
 
 ```julia
-Inputs: :pools => :cVegWood, :pools => :cVegLeaf
+Inputs: :pools => :cEco
 Outputs: :states => :aboveground_biomass
 ```
 
@@ -854,7 +867,7 @@ cBiomass_treeGrass
 **Calculated using:**
 
 ```julia
-Inputs: :pools => :cVegWood, :pools => :cVegLeaf, :states => :frac_tree
+Inputs: :pools => :cEco, :states => :frac_tree
 Outputs: :states => :aboveground_biomass
 ```
 
@@ -868,14 +881,170 @@ cBiomass_treeGrass_cVegReserveScaling
 **Calculated using:**
 
 ```julia
-Inputs: :pools => :cVegWood, :pools => :cVegLeaf, :pools => :cVegReserve, :pools => :cVegRoot, :states => :frac_tree
+Inputs: :pools => :cEco, :states => :frac_tree
 Outputs: :states => :aboveground_biomass
 ```
 
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cBiomass/cBiomass_treeGrass_cVegReserveScaling.jl)
 
 
-:::
+::::
+
+:::::
+
+
+----
+
+### cCropHarvest
+
+```@docs
+cCropHarvest
+```
+:::::details cCropHarvest approaches
+
+::::tabs
+
+== cCropHarvest_simple
+```@docs
+cCropHarvest_simple
+```
+
+**Calculated using:**
+
+```julia
+Inputs: :diagnostics => :c_Crop_Harvest_Product, :diagnostics => :c_Crop_Harvest_Mortality, :diagnostics => :frac_crop_harvest_intensity, :diagnostics => :frac_crop_harvest_efficiency, :diagnostics => :is_crop_harvested, :pools => :cEco, :states => :c_remain, :cCycleBase => :c_giver, :cCycleBase => :c_taker, :constants => :z_zero, :constants => :o_one, :models => :c_model, :diagnostics => :c_Crop_Harvest_Flow
+Outputs: :diagnostics => :c_Crop_Harvest_Product, :diagnostics => :c_Crop_Harvest_Mortality, :diagnostics => :c_Crop_Harvest_Flow, :diagnostics => :actual_crop_harvest_intensity, :diagnostics => :cCropProducts
+```
+
+[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cCropHarvest/cCropHarvest_simple.jl)
+
+
+::::
+
+:::::
+
+
+----
+
+### cCropHarvestEfficiency
+
+```@docs
+cCropHarvestEfficiency
+```
+:::::details cCropHarvestEfficiency approaches
+
+::::tabs
+
+== cCropHarvestEfficiency_constant
+```@docs
+cCropHarvestEfficiency_constant
+```
+[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cCropHarvestEfficiency/cCropHarvestEfficiency_constant.jl)
+
+== cCropHarvestEfficiency_forcing
+```@docs
+cCropHarvestEfficiency_forcing
+```
+
+**Calculated using:**
+
+```julia
+Inputs: :forcing => :f_crop_harvest_efficiency
+Outputs: :diagnostics => :frac_crop_harvest_efficiency
+```
+
+[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cCropHarvestEfficiency/cCropHarvestEfficiency_forcing.jl)
+
+== cCropHarvestEfficiency_none
+```@docs
+cCropHarvestEfficiency_none
+```
+[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cCropHarvestEfficiency/cCropHarvestEfficiency_none.jl)
+
+
+::::
+
+:::::
+
+
+----
+
+### cCropHarvestEvent
+
+```@docs
+cCropHarvestEvent
+```
+:::::details cCropHarvestEvent approaches
+
+::::tabs
+
+== cCropHarvestEvent_forcing
+```@docs
+cCropHarvestEvent_forcing
+```
+
+**Calculated using:**
+
+```julia
+Inputs: :forcing => :f_is_crop_harvested
+Outputs: :diagnostics => :is_crop_harvested
+```
+
+[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cCropHarvestEvent/cCropHarvestEvent_forcing.jl)
+
+== cCropHarvestEvent_none
+```@docs
+cCropHarvestEvent_none
+```
+[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cCropHarvestEvent/cCropHarvestEvent_none.jl)
+
+
+::::
+
+:::::
+
+
+----
+
+### cCropHarvestIntensity
+
+```@docs
+cCropHarvestIntensity
+```
+:::::details cCropHarvestIntensity approaches
+
+::::tabs
+
+== cCropHarvestIntensity_constant
+```@docs
+cCropHarvestIntensity_constant
+```
+[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cCropHarvestIntensity/cCropHarvestIntensity_constant.jl)
+
+== cCropHarvestIntensity_forcing
+```@docs
+cCropHarvestIntensity_forcing
+```
+
+**Calculated using:**
+
+```julia
+Inputs: :forcing => :f_crop_harvest_intensity
+Outputs: :diagnostics => :frac_crop_harvest_intensity
+```
+
+[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cCropHarvestIntensity/cCropHarvestIntensity_forcing.jl)
+
+== cCropHarvestIntensity_none
+```@docs
+cCropHarvestIntensity_none
+```
+[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cCropHarvestIntensity/cCropHarvestIntensity_none.jl)
+
+
+::::
+
+:::::
 
 
 ----
@@ -885,37 +1054,9 @@ Outputs: :states => :aboveground_biomass
 ```@docs
 cCycle
 ```
-:::details cCycle approaches
+:::::details cCycle approaches
 
-:::tabs
-
-== cCycle_CASA
-```@docs
-cCycle_CASA
-```
-
-**Calculated using:**
-
-```julia
-Inputs: :cCycle => :c_eco_efflux, :cCycle => :c_eco_influx, :cCycle => :c_eco_flow, :fluxes => :c_eco_efflux, :fluxes => :c_eco_flow, :fluxes => :c_eco_influx, :fluxes => :c_eco_out, :fluxes => :c_eco_npp, :pools => :cEco, :pools => :cVeg, :fluxes => :gpp, :diagnostics => :c_eco_k, :diagnostics => :c_allocation, :cFlow => :p_E_vec, :cFlow => :p_F_vec, :cFlow => :p_giver, :cFlow => :p_taker, :constants => :c_flow_order, :diagnostics => :c_eco_τ
-Outputs: :fluxes => :nee, :fluxes => :c_eco_npp, :fluxes => :auto_respiration, :fluxes => :eco_respiration, :fluxes => :hetero_respiration, :states => :c_eco_efflux, :states => :c_eco_flow, :states => :c_eco_influx, :states => :c_eco_out, :states => :c_eco_npp
-```
-
-[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cCycle/cCycle_CASA.jl)
-
-== cCycle_GSI
-```@docs
-cCycle_GSI
-```
-
-**Calculated using:**
-
-```julia
-Inputs: :diagnostics => :c_allocation, :diagnostics => :c_eco_k, :diagnostics => :c_flow_A_vec, :fluxes => :c_eco_efflux, :fluxes => :c_eco_flow, :fluxes => :c_eco_influx, :fluxes => :c_eco_out, :fluxes => :c_eco_npp, :fluxes => :zero_c_eco_flow, :fluxes => :zero_c_eco_influx, :pools => :cEco, :pools => :cVeg, :pools => :ΔcEco, :states => :cEco_prev, :fluxes => :gpp, :constants => :c_flow_order, :constants => :c_giver, :constants => :c_taker, :models => :c_model
-Outputs: :pools => :cEco, :fluxes => :nee, :fluxes => :npp, :fluxes => :auto_respiration, :fluxes => :eco_respiration, :fluxes => :hetero_respiration, :fluxes => :c_eco_efflux, :fluxes => :c_eco_flow, :fluxes => :c_eco_influx, :fluxes => :c_eco_out, :fluxes => :c_eco_npp, :states => :cEco_prev, :pools => :ΔcEco
-```
-
-[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cCycle/cCycle_GSI.jl)
+::::tabs
 
 == cCycle_simple
 ```@docs
@@ -925,14 +1066,16 @@ cCycle_simple
 **Calculated using:**
 
 ```julia
-Inputs: :cCycle => :zixVeg, :fluxes => :c_eco_efflux, :fluxes => :c_eco_flow, :fluxes => :c_eco_influx, :fluxes => :c_eco_out, :fluxes => :c_eco_npp, :fluxes => :zero_c_eco_flow, :fluxes => :zero_c_eco_influx, :states => :cEco_prev, :pools => :cEco, :diagnostics => :c_flow_A_vec, :diagnostics => :c_eco_k, :pools => :ΔcEco, :fluxes => :gpp, :constants => :c_giver, :constants => :c_taker, :constants => :c_flow_order, :constants => :z_zero, :constants => :o_one
-Outputs: :pools => :cEco, :fluxes => :nee, :fluxes => :npp, :fluxes => :auto_respiration, :fluxes => :eco_respiration, :fluxes => :hetero_respiration, :fluxes => :c_eco_efflux, :fluxes => :c_eco_flow, :fluxes => :c_eco_influx, :fluxes => :c_eco_out, :fluxes => :c_eco_npp, :states => :cEco_prev, :pools => :ΔcEco
+Inputs: :diagnostics => :c_allocation, :diagnostics => :c_eco_k, :diagnostics => :c_flow_A_vec, :diagnostics => :c_flow_ME_vec, :diagnostics => :c_flow_QP_vec, :fluxes => :c_eco_efflux, :fluxes => :c_eco_flow, :fluxes => :c_eco_influx, :fluxes => :c_eco_out, :fluxes => :c_eco_npp, :fluxes => :zero_c_eco_flow, :fluxes => :zero_c_eco_influx, :pools => :cEco, :pools => :cVeg, :pools => :ΔcEco, :states => :cEco_prev, :fluxes => :gpp, :cCycleBase => :c_flow_order, :cCycleBase => :c_giver, :cCycleBase => :c_taker, :models => :c_model, :cCycleBase => :zix_cNonVeg, :cCycleBase => :zix_cNatural, :cCycleBase => :zix_cHeterotrophic, :cCycleBase => :zix_cProducts
+Outputs: :pools => :cEco, :fluxes => :nee, :fluxes => :npp, :fluxes => :auto_respiration, :fluxes => :eco_respiration, :fluxes => :hetero_respiration, :fluxes => :product_respiration, :fluxes => :nbp, :fluxes => :c_eco_efflux, :fluxes => :c_eco_flow, :fluxes => :c_eco_influx, :fluxes => :c_eco_out, :fluxes => :c_eco_npp, :states => :cEco_prev, :pools => :ΔcEco
 ```
 
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cCycle/cCycle_simple.jl)
 
 
-:::
+::::
+
+:::::
 
 
 ----
@@ -942,22 +1085,14 @@ Outputs: :pools => :cEco, :fluxes => :nee, :fluxes => :npp, :fluxes => :auto_res
 ```@docs
 cCycleBase
 ```
-:::details cCycleBase approaches
+:::::details cCycleBase approaches
 
-:::tabs
+::::tabs
 
 == cCycleBase_CASA
 ```@docs
 cCycleBase_CASA
 ```
-
-**Calculated using:**
-
-```julia
-Inputs: :diagnostics => :C_to_N_cVeg, :constants => :o_one
-Outputs: :diagnostics => :c_eco_k_base
-```
-
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cCycleBase/cCycleBase_CASA.jl)
 
 == cCycleBase_GSI
@@ -966,28 +1101,16 @@ cCycleBase_GSI
 ```
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cCycleBase/cCycleBase_GSI.jl)
 
-== cCycleBase_GSI_PlantForm
+== cCycleBase_MGMT
 ```@docs
-cCycleBase_GSI_PlantForm
+cCycleBase_MGMT
 ```
-[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cCycleBase/cCycleBase_GSI_PlantForm.jl)
-
-== cCycleBase_simple
-```@docs
-cCycleBase_simple
-```
-
-**Calculated using:**
-
-```julia
-Inputs: :diagnostics => :C_to_N_cVeg, :constants => :o_one
-Outputs: :diagnostics => :C_to_N_cVeg, :diagnostics => :c_eco_k_base, :diagnostics => :c_flow_A_array
-```
-
-[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cCycleBase/cCycleBase_simple.jl)
+[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cCycleBase/cCycleBase_MGMT.jl)
 
 
-:::
+::::
+
+:::::
 
 
 ----
@@ -997,9 +1120,9 @@ Outputs: :diagnostics => :C_to_N_cVeg, :diagnostics => :c_eco_k_base, :diagnosti
 ```@docs
 cCycleConsistency
 ```
-:::details cCycleConsistency approaches
+:::::details cCycleConsistency approaches
 
-:::tabs
+::::tabs
 
 == cCycleConsistency_simple
 ```@docs
@@ -1008,7 +1131,9 @@ cCycleConsistency_simple
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cCycleConsistency/cCycleConsistency_simple.jl)
 
 
-:::
+::::
+
+:::::
 
 
 ----
@@ -1018,26 +1143,117 @@ cCycleConsistency_simple
 ```@docs
 cCycleDisturbance
 ```
-:::details cCycleDisturbance approaches
+:::::details cCycleDisturbance approaches
 
-:::tabs
+::::tabs
 
-== cCycleDisturbance_cFlow
+== cCycleDisturbance_simple
 ```@docs
-cCycleDisturbance_cFlow
+cCycleDisturbance_simple
 ```
 
 **Calculated using:**
 
 ```julia
-Inputs: :forcing => :f_dist_intensity, :cCycleDisturbance => :zix_veg_all, :cCycleDisturbance => :c_lose_to_zix_vec, :pools => :cEco, :constants => :c_giver, :constants => :c_taker, :models => :c_model, :states => :c_remain
+Inputs: :pools => :cEco, :models => :c_model
 Outputs: :pools => :cEco
 ```
 
-[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cCycleDisturbance/cCycleDisturbance_cFlow.jl)
+[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cCycleDisturbance/cCycleDisturbance_simple.jl)
 
 
-:::
+::::
+
+:::::
+
+
+----
+
+### cCycleManagement
+
+```@docs
+cCycleManagement
+```
+:::::details cCycleManagement approaches
+
+::::tabs
+
+== cCycleManagement_none
+```@docs
+cCycleManagement_none
+```
+[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cCycleManagement/cCycleManagement_none.jl)
+
+== cCycleManagement_simple
+```@docs
+cCycleManagement_simple
+```
+
+**Calculated using:**
+
+```julia
+Inputs: :diagnostics => :c_Crop_Harvest_Product, :diagnostics => :c_Crop_Harvest_Mortality, :diagnostics => :c_Crop_Harvest_Flow, :diagnostics => :cCropProducts, :diagnostics => :c_Wood_Harvest_Product, :diagnostics => :c_Wood_Harvest_Mortality, :diagnostics => :c_Wood_Harvest_Flow, :diagnostics => :cWoodProducts, :pools => :cEco, :models => :c_model
+Outputs: :pools => :cEco
+```
+
+[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cCycleManagement/cCycleManagement_simple.jl)
+
+
+::::
+
+:::::
+
+
+----
+
+### cDieBack
+
+```@docs
+cDieBack
+```
+:::::details cDieBack approaches
+
+::::tabs
+
+== cDieBack_ImplicitResprout
+```@docs
+cDieBack_ImplicitResprout
+```
+
+**Calculated using:**
+
+```julia
+Inputs: :forcing => :f_dist_intensity, :cCycleBase => :c_flow_order, :cCycleBase => :c_giver, :cCycleBase => :c_taker, :pools => :cEco, :states => :c_remain, :models => :c_model, :constants => :z_zero, :diagnostics => :c_flow_QP_vec, :diagnostics => :c_disturbance_mortality, :diagnostics => :c_disturbance_flow, :diagnostics => :c_disturbance_efflux
+Outputs: :diagnostics => :c_disturbance_mortality, :diagnostics => :c_disturbance_flow, :diagnostics => :c_disturbance_efflux
+```
+
+[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cDieBack/cDieBack_ImplicitResprout.jl)
+
+
+::::
+
+:::::
+
+
+----
+
+### cFire
+
+```@docs
+cFire
+```
+:::::details cFire approaches
+
+::::tabs
+
+== SindbadTEM.Processes.cFire_simple
+```@docs
+SindbadTEM.Processes.cFire_simple
+```
+
+::::
+
+:::::
 
 
 ----
@@ -1047,9 +1263,9 @@ Outputs: :pools => :cEco
 ```@docs
 cFireBurnedArea
 ```
-:::details cFireBurnedArea approaches
+:::::details cFireBurnedArea approaches
 
-:::tabs
+::::tabs
 
 == cFireBurnedArea_forcing
 ```@docs
@@ -1072,7 +1288,9 @@ cFireBurnedArea_none
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cFireBurnedArea/cFireBurnedArea_none.jl)
 
 
-:::
+::::
+
+:::::
 
 
 ----
@@ -1082,9 +1300,9 @@ cFireBurnedArea_none
 ```@docs
 cFireCombustionCompleteness
 ```
-:::details cFireCombustionCompleteness approaches
+:::::details cFireCombustionCompleteness approaches
 
-:::tabs
+::::tabs
 
 == cFireCombustionCompleteness_none
 ```@docs
@@ -1100,14 +1318,16 @@ cFireCombustionCompleteness_vanDerWerf2006
 **Calculated using:**
 
 ```julia
-Inputs: :diagnostics => :c_fire_ccMin, :diagnostics => :c_fire_ccMax, :diagnostics => :c_Fire_cci, :diagnostics => :c_Fire_cc_fW, :diagnostics => :gpp_f_soilW, :pools => :soilW, :properties => :∑w_sat, :constants => :z_zero, :constants => :o_one
+Inputs: :diagnostics => :c_fire_ccMin, :diagnostics => :c_fire_ccMax, :diagnostics => :c_Fire_cci, :diagnostics => :c_Fire_cc_fW, :diagnostics => :c_fire_cc_weight, :diagnostics => :c_fire_aboveground_fraction, :diagnostics => :frac_exposed, :diagnostics => :peat, :diagnostics => :gpp_f_soilW, :pools => :soilW, :properties => :∑w_sat, :constants => :o_one, :cCycleBase => :zix_cHeterotrophic
 Outputs: :diagnostics => :c_Fire_cci, :diagnostics => :c_Fire_cc_fW
 ```
 
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cFireCombustionCompleteness/cFireCombustionCompleteness_vanDerWerf2006.jl)
 
 
-:::
+::::
+
+:::::
 
 
 ----
@@ -1117,9 +1337,9 @@ Outputs: :diagnostics => :c_Fire_cci, :diagnostics => :c_Fire_cc_fW
 ```@docs
 cFireMortality
 ```
-:::details cFireMortality approaches
+:::::details cFireMortality approaches
 
-:::tabs
+::::tabs
 
 == cFireMortality_none
 ```@docs
@@ -1135,14 +1355,16 @@ cFireMortality_vanDerWerf2004
 **Calculated using:**
 
 ```julia
-Inputs: :diagnostics => :c_Fire_k, :states => :frac_tree, :constants => :z_zero, :constants => :o_one
+Inputs: :diagnostics => :c_Fire_k, :states => :frac_tree, :constants => :z_zero, :constants => :o_one, :cFireMortality => :zix_root_leaf_reserve
 Outputs: :diagnostics => :c_Fire_k
 ```
 
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cFireMortality/cFireMortality_vanDerWerf2004.jl)
 
 
-:::
+::::
+
+:::::
 
 
 ----
@@ -1152,23 +1374,9 @@ Outputs: :diagnostics => :c_Fire_k
 ```@docs
 cFlow
 ```
-:::details cFlow approaches
+:::::details cFlow approaches
 
-:::tabs
-
-== cFlow_CASA
-```@docs
-cFlow_CASA
-```
-
-**Calculated using:**
-
-```julia
-Inputs: :cFlowVegProperties => :p_E_vec, :cFlowVegProperties => :p_F_vec, :diagnostics => :p_E_vec, :diagnostics => :p_F_vec, :diagnostics => :c_flow_E_array, :constants => :z_zero, :constants => :o_one
-Outputs: :constants => :c_flow_order, :cFlow => :c_flow_A_vec, :cFlow => :p_E_vec, :cFlow => :p_F_vec, :cFlow => :p_giver, :cFlow => :p_taker
-```
-
-[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cFlow/cFlow_CASA.jl)
+::::tabs
 
 == cFlow_GSI
 ```@docs
@@ -1178,104 +1386,609 @@ cFlow_GSI
 **Calculated using:**
 
 ```julia
-Inputs: :cFlow => :c_flow_A_vec_ind, :diagnostics => :c_allocation_f_soilW, :diagnostics => :c_allocation_f_soilT, :diagnostics => :c_allocation_f_cloud, :diagnostics => :eco_stressor_prev, :diagnostics => :slope_eco_stressor_prev, :diagnostics => :c_eco_k, :diagnostics => :c_flow_A_vec
-Outputs: :diagnostics => :leaf_to_reserve, :diagnostics => :leaf_to_reserve_frac, :diagnostics => :root_to_reserve, :diagnostics => :root_to_reserve_frac, :diagnostics => :reserve_to_leaf, :diagnostics => :reserve_to_leaf_frac, :diagnostics => :reserve_to_root, :diagnostics => :reserve_to_root_frac, :diagnostics => :eco_stressor, :diagnostics => :k_shedding_leaf, :diagnostics => :k_shedding_leaf_frac, :diagnostics => :k_shedding_root, :diagnostics => :k_shedding_root_frac, :diagnostics => :slope_eco_stressor, :diagnostics => :eco_stressor_prev, :diagnostics => :slope_eco_stressor_prev, :diagnostics => :c_eco_k, :diagnostics => :c_flow_A_vec
+Inputs: :cCycleBase => :c_giver, :cCycleBase => :c_taker, :diagnostics => :c_eco_k, :diagnostics => :c_flow_A_vec
+Outputs: :diagnostics => :c_flow_A_vec
 ```
 
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cFlow/cFlow_GSI.jl)
 
-== cFlow_none
+== cFlow_GSIMP
 ```@docs
-cFlow_none
-```
-[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cFlow/cFlow_none.jl)
-
-== cFlow_simple
-```@docs
-cFlow_simple
+cFlow_GSIMP
 ```
 
 **Calculated using:**
 
 ```julia
-Inputs: :diagnostics => :c_flow_A_array
-Outputs: :constants => :c_flow_order, :cFlow => :c_flow_A_vec, :cFlow => :p_giver, :cFlow => :p_taker
+Inputs: :cCycleBase => :c_giver, :cCycleBase => :c_taker, :diagnostics => :c_eco_k, :diagnostics => :c_flow_A_vec
+Outputs: :diagnostics => :c_flow_A_vec
 ```
 
-[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cFlow/cFlow_simple.jl)
+[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cFlow/cFlow_GSIMP.jl)
 
 
-:::
+::::
+
+:::::
 
 
 ----
 
-### cFlowSoilProperties
+### cFlowLitterfall
 
 ```@docs
-cFlowSoilProperties
+cFlowLitterfall
 ```
-:::details cFlowSoilProperties approaches
+:::::details cFlowLitterfall approaches
 
-:::tabs
+::::tabs
 
-== cFlowSoilProperties_CASA
+== cFlowLitterfall_CASA
 ```@docs
-cFlowSoilProperties_CASA
+cFlowLitterfall_CASA
 ```
 
 **Calculated using:**
 
 ```julia
-Inputs: :diagnostics => :p_E_vec, :properties => :st_clay, :properties => :st_silt
-Outputs: :diagnostics => :p_E_vec, :diagnostics => :p_F_vec
+Inputs: :states => :LAI, :states => :LAI13
 ```
 
-[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cFlowSoilProperties/cFlowSoilProperties_CASA.jl)
+[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cFlowLitterfall/cFlowLitterfall_CASA.jl)
 
-== cFlowSoilProperties_none
+== cFlowLitterfall_GSI
 ```@docs
-cFlowSoilProperties_none
+cFlowLitterfall_GSI
 ```
-[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cFlowSoilProperties/cFlowSoilProperties_none.jl)
+
+**Calculated using:**
+
+```julia
+Inputs: :diagnostics => :slope_eco_stressor
+Outputs: :diagnostics => :shedding_frac
+```
+
+[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cFlowLitterfall/cFlowLitterfall_GSI.jl)
+
+== cFlowLitterfall_none
+```@docs
+cFlowLitterfall_none
+```
+[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cFlowLitterfall/cFlowLitterfall_none.jl)
 
 
-:::
+::::
+
+:::::
 
 
 ----
 
-### cFlowVegProperties
+### cFlowReserves
 
 ```@docs
-cFlowVegProperties
+cFlowReserves
 ```
-:::details cFlowVegProperties approaches
+:::::details cFlowReserves approaches
 
-:::tabs
+::::tabs
 
-== cFlowVegProperties_CASA
+== cFlowReserves_GSI
 ```@docs
-cFlowVegProperties_CASA
+cFlowReserves_GSI
 ```
 
 **Calculated using:**
 
 ```julia
-Inputs: :cFlowVegProperties => :p_F_vec, :pools => :cEco
-Outputs: :cFlowVegProperties => :p_E_vec, :cFlowVegProperties => :p_F_vec
+Inputs: :diagnostics => :slope_eco_stressor
 ```
 
-[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cFlowVegProperties/cFlowVegProperties_CASA.jl)
+[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cFlowReserves/cFlowReserves_GSI.jl)
 
-== cFlowVegProperties_none
+== cFlowReserves_none
 ```@docs
-cFlowVegProperties_none
+cFlowReserves_none
 ```
-[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cFlowVegProperties/cFlowVegProperties_none.jl)
+[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cFlowReserves/cFlowReserves_none.jl)
 
 
-:::
+::::
+
+:::::
+
+
+----
+
+### cFlowStress
+
+```@docs
+cFlowStress
+```
+:::::details cFlowStress approaches
+
+::::tabs
+
+== cFlowStress_GSI
+```@docs
+cFlowStress_GSI
+```
+
+**Calculated using:**
+
+```julia
+Inputs: :forcing => :f_rg_pot, :diagnostics => :eco_stressor_prev, :diagnostics => :slope_eco_stressor_prev
+```
+
+[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cFlowStress/cFlowStress_GSI.jl)
+
+== cFlowStress_none
+```@docs
+cFlowStress_none
+```
+[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cFlowStress/cFlowStress_none.jl)
+
+
+::::
+
+:::::
+
+
+----
+
+### cForestryHarvest
+
+```@docs
+cForestryHarvest
+```
+:::::details cForestryHarvest approaches
+
+::::tabs
+
+== cForestryHarvest_simple
+```@docs
+cForestryHarvest_simple
+```
+
+**Calculated using:**
+
+```julia
+Inputs: :diagnostics => :c_Wood_Harvest_Product, :diagnostics => :c_Wood_Harvest_Mortality, :diagnostics => :frac_wood_harvest_intensity, :diagnostics => :frac_wood_harvest_efficiency, :diagnostics => :is_wood_harvested, :pools => :cEco, :states => :c_remain, :cCycleBase => :c_giver, :cCycleBase => :c_taker, :constants => :z_zero, :constants => :o_one, :models => :c_model, :diagnostics => :c_Wood_Harvest_Flow
+Outputs: :diagnostics => :c_Wood_Harvest_Product, :diagnostics => :c_Wood_Harvest_Mortality, :diagnostics => :c_Wood_Harvest_Flow, :diagnostics => :actual_wood_harvest_intensity, :diagnostics => :cWoodProducts
+```
+
+[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cForestryHarvest/cForestryHarvest_simple.jl)
+
+
+::::
+
+:::::
+
+
+----
+
+### cForestryHarvestEfficiency
+
+```@docs
+cForestryHarvestEfficiency
+```
+:::::details cForestryHarvestEfficiency approaches
+
+::::tabs
+
+== cForestryHarvestEfficiency_constant
+```@docs
+cForestryHarvestEfficiency_constant
+```
+[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cForestryHarvestEfficiency/cForestryHarvestEfficiency_constant.jl)
+
+== cForestryHarvestEfficiency_forcing
+```@docs
+cForestryHarvestEfficiency_forcing
+```
+
+**Calculated using:**
+
+```julia
+Inputs: :forcing => :f_wood_harvest_efficiency
+Outputs: :diagnostics => :frac_wood_harvest_efficiency
+```
+
+[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cForestryHarvestEfficiency/cForestryHarvestEfficiency_forcing.jl)
+
+== cForestryHarvestEfficiency_none
+```@docs
+cForestryHarvestEfficiency_none
+```
+[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cForestryHarvestEfficiency/cForestryHarvestEfficiency_none.jl)
+
+
+::::
+
+:::::
+
+
+----
+
+### cForestryHarvestEvent
+
+```@docs
+cForestryHarvestEvent
+```
+:::::details cForestryHarvestEvent approaches
+
+::::tabs
+
+== cForestryHarvestEvent_forcing
+```@docs
+cForestryHarvestEvent_forcing
+```
+
+**Calculated using:**
+
+```julia
+Inputs: :forcing => :f_is_wood_harvested
+Outputs: :diagnostics => :is_wood_harvested
+```
+
+[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cForestryHarvestEvent/cForestryHarvestEvent_forcing.jl)
+
+== cForestryHarvestEvent_none
+```@docs
+cForestryHarvestEvent_none
+```
+[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cForestryHarvestEvent/cForestryHarvestEvent_none.jl)
+
+
+::::
+
+:::::
+
+
+----
+
+### cForestryHarvestIntensity
+
+```@docs
+cForestryHarvestIntensity
+```
+:::::details cForestryHarvestIntensity approaches
+
+::::tabs
+
+== cForestryHarvestIntensity_constant
+```@docs
+cForestryHarvestIntensity_constant
+```
+[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cForestryHarvestIntensity/cForestryHarvestIntensity_constant.jl)
+
+== cForestryHarvestIntensity_forcing
+```@docs
+cForestryHarvestIntensity_forcing
+```
+
+**Calculated using:**
+
+```julia
+Inputs: :forcing => :f_wood_harvest_intensity
+Outputs: :diagnostics => :frac_wood_harvest_intensity
+```
+
+[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cForestryHarvestIntensity/cForestryHarvestIntensity_forcing.jl)
+
+== cForestryHarvestIntensity_none
+```@docs
+cForestryHarvestIntensity_none
+```
+[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cForestryHarvestIntensity/cForestryHarvestIntensity_none.jl)
+
+
+::::
+
+:::::
+
+
+----
+
+### cMicrobialEfficiency
+
+```@docs
+cMicrobialEfficiency
+```
+:::::details cMicrobialEfficiency approaches
+
+::::tabs
+
+== cMicrobialEfficiency_constant
+```@docs
+cMicrobialEfficiency_constant
+```
+[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cMicrobialEfficiency/cMicrobialEfficiency_constant.jl)
+
+== cMicrobialEfficiency_sum
+```@docs
+cMicrobialEfficiency_sum
+```
+[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cMicrobialEfficiency/cMicrobialEfficiency_sum.jl)
+
+
+::::
+
+:::::
+
+
+----
+
+### cMicrobialEfficiencycLit
+
+```@docs
+cMicrobialEfficiencycLit
+```
+:::::details cMicrobialEfficiencycLit approaches
+
+::::tabs
+
+== cMicrobialEfficiencycLit_constant
+```@docs
+cMicrobialEfficiencycLit_constant
+```
+[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cMicrobialEfficiencycLit/cMicrobialEfficiencycLit_constant.jl)
+
+== cMicrobialEfficiencycLit_none
+```@docs
+cMicrobialEfficiencycLit_none
+```
+[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cMicrobialEfficiencycLit/cMicrobialEfficiencycLit_none.jl)
+
+== cMicrobialEfficiencycLit_texture
+```@docs
+cMicrobialEfficiencycLit_texture
+```
+[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cMicrobialEfficiencycLit/cMicrobialEfficiencycLit_texture.jl)
+
+
+::::
+
+:::::
+
+
+----
+
+### cMicrobialEfficiencycMic
+
+```@docs
+cMicrobialEfficiencycMic
+```
+:::::details cMicrobialEfficiencycMic approaches
+
+::::tabs
+
+== cMicrobialEfficiencycMic_constant
+```@docs
+cMicrobialEfficiencycMic_constant
+```
+[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cMicrobialEfficiencycMic/cMicrobialEfficiencycMic_constant.jl)
+
+== cMicrobialEfficiencycMic_none
+```@docs
+cMicrobialEfficiencycMic_none
+```
+[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cMicrobialEfficiencycMic/cMicrobialEfficiencycMic_none.jl)
+
+== cMicrobialEfficiencycMic_texture
+```@docs
+cMicrobialEfficiencycMic_texture
+```
+[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cMicrobialEfficiencycMic/cMicrobialEfficiencycMic_texture.jl)
+
+
+::::
+
+:::::
+
+
+----
+
+### cMicrobialEfficiencycSoil
+
+```@docs
+cMicrobialEfficiencycSoil
+```
+:::::details cMicrobialEfficiencycSoil approaches
+
+::::tabs
+
+== cMicrobialEfficiencycSoil_constant
+```@docs
+cMicrobialEfficiencycSoil_constant
+```
+[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cMicrobialEfficiencycSoil/cMicrobialEfficiencycSoil_constant.jl)
+
+== cMicrobialEfficiencycSoil_none
+```@docs
+cMicrobialEfficiencycSoil_none
+```
+[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cMicrobialEfficiencycSoil/cMicrobialEfficiencycSoil_none.jl)
+
+== cMicrobialEfficiencycSoil_texture
+```@docs
+cMicrobialEfficiencycSoil_texture
+```
+[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cMicrobialEfficiencycSoil/cMicrobialEfficiencycSoil_texture.jl)
+
+
+::::
+
+:::::
+
+
+----
+
+### cQualityPartition
+
+```@docs
+cQualityPartition
+```
+:::::details cQualityPartition approaches
+
+::::tabs
+
+== cQualityPartition_equal
+```@docs
+cQualityPartition_equal
+```
+[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cQualityPartition/cQualityPartition_equal.jl)
+
+== cQualityPartition_mult
+```@docs
+cQualityPartition_mult
+```
+[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cQualityPartition/cQualityPartition_mult.jl)
+
+
+::::
+
+:::::
+
+
+----
+
+### cQualityPartitioncLit
+
+```@docs
+cQualityPartitioncLit
+```
+:::::details cQualityPartitioncLit approaches
+
+::::tabs
+
+== cQualityPartitioncLit_constant
+```@docs
+cQualityPartitioncLit_constant
+```
+[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cQualityPartitioncLit/cQualityPartitioncLit_constant.jl)
+
+== cQualityPartitioncLit_equal
+```@docs
+cQualityPartitioncLit_equal
+```
+[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cQualityPartitioncLit/cQualityPartitioncLit_equal.jl)
+
+== cQualityPartitioncLit_vegQualityTraits
+```@docs
+cQualityPartitioncLit_vegQualityTraits
+```
+[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cQualityPartitioncLit/cQualityPartitioncLit_vegQualityTraits.jl)
+
+
+::::
+
+:::::
+
+
+----
+
+### cQualityPartitioncMic
+
+```@docs
+cQualityPartitioncMic
+```
+:::::details cQualityPartitioncMic approaches
+
+::::tabs
+
+== cQualityPartitioncMic_constant
+```@docs
+cQualityPartitioncMic_constant
+```
+[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cQualityPartitioncMic/cQualityPartitioncMic_constant.jl)
+
+== cQualityPartitioncMic_equal
+```@docs
+cQualityPartitioncMic_equal
+```
+[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cQualityPartitioncMic/cQualityPartitioncMic_equal.jl)
+
+== cQualityPartitioncMic_texture
+```@docs
+cQualityPartitioncMic_texture
+```
+[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cQualityPartitioncMic/cQualityPartitioncMic_texture.jl)
+
+
+::::
+
+:::::
+
+
+----
+
+### cQualityPartitioncSoil
+
+```@docs
+cQualityPartitioncSoil
+```
+:::::details cQualityPartitioncSoil approaches
+
+::::tabs
+
+== cQualityPartitioncSoil_constant
+```@docs
+cQualityPartitioncSoil_constant
+```
+[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cQualityPartitioncSoil/cQualityPartitioncSoil_constant.jl)
+
+== cQualityPartitioncSoil_equal
+```@docs
+cQualityPartitioncSoil_equal
+```
+[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cQualityPartitioncSoil/cQualityPartitioncSoil_equal.jl)
+
+== cQualityPartitioncSoil_texture
+```@docs
+cQualityPartitioncSoil_texture
+```
+[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cQualityPartitioncSoil/cQualityPartitioncSoil_texture.jl)
+
+
+::::
+
+:::::
+
+
+----
+
+### cQualityPartitioncVeg
+
+```@docs
+cQualityPartitioncVeg
+```
+:::::details cQualityPartitioncVeg approaches
+
+::::tabs
+
+== cQualityPartitioncVeg_constant
+```@docs
+cQualityPartitioncVeg_constant
+```
+[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cQualityPartitioncVeg/cQualityPartitioncVeg_constant.jl)
+
+== cQualityPartitioncVeg_equal
+```@docs
+cQualityPartitioncVeg_equal
+```
+[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cQualityPartitioncVeg/cQualityPartitioncVeg_equal.jl)
+
+== cQualityPartitioncVeg_vegQualityTraits
+```@docs
+cQualityPartitioncVeg_vegQualityTraits
+```
+[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cQualityPartitioncVeg/cQualityPartitioncVeg_vegQualityTraits.jl)
+
+
+::::
+
+:::::
 
 
 ----
@@ -1285,9 +1998,9 @@ cFlowVegProperties_none
 ```@docs
 cTau
 ```
-:::details cTau approaches
+:::::details cTau approaches
 
-:::tabs
+::::tabs
 
 == cTau_mult
 ```@docs
@@ -1297,7 +2010,7 @@ cTau_mult
 **Calculated using:**
 
 ```julia
-Inputs: :diagnostics => :c_eco_k_f_veg_props, :diagnostics => :c_eco_k_f_soilW, :diagnostics => :c_eco_k_f_soilT, :diagnostics => :c_eco_k_f_soil_props, :diagnostics => :c_eco_k_f_LAI, :diagnostics => :c_eco_k_base, :diagnostics => :c_eco_k
+Inputs: :diagnostics => :c_eco_k_f_veg_props, :diagnostics => :c_eco_k_f_soilW, :diagnostics => :c_eco_k_f_soilT, :diagnostics => :c_eco_k_f_soil_props, :diagnostics => :c_eco_k_base, :diagnostics => :c_eco_k
 Outputs: :diagnostics => :c_eco_k
 ```
 
@@ -1310,42 +2023,9 @@ cTau_none
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cTau/cTau_none.jl)
 
 
-:::
+::::
 
-
-----
-
-### cTauLAI
-
-```@docs
-cTauLAI
-```
-:::details cTauLAI approaches
-
-:::tabs
-
-== cTauLAI_CASA
-```@docs
-cTauLAI_CASA
-```
-
-**Calculated using:**
-
-```julia
-Inputs: :diagnostics => :c_eco_k_f_LAI, :states => :LAI, :diagnostics => :c_eco_τ, :diagnostics => :c_eco_k
-Outputs: :diagnostics => :p_LAI13, :diagnostics => :p_cVegLeafZix, :diagnostics => :p_cVegRootZix, :diagnostics => :c_eco_k_f_LAI
-```
-
-[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cTauLAI/cTauLAI_CASA.jl)
-
-== cTauLAI_none
-```@docs
-cTauLAI_none
-```
-[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cTauLAI/cTauLAI_none.jl)
-
-
-:::
+:::::
 
 
 ----
@@ -1355,9 +2035,9 @@ cTauLAI_none
 ```@docs
 cTauSoilProperties
 ```
-:::details cTauSoilProperties approaches
+:::::details cTauSoilProperties approaches
 
-:::tabs
+::::tabs
 
 == cTauSoilProperties_CASA
 ```@docs
@@ -1380,7 +2060,9 @@ cTauSoilProperties_none
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cTauSoilProperties/cTauSoilProperties_none.jl)
 
 
-:::
+::::
+
+:::::
 
 
 ----
@@ -1390,9 +2072,9 @@ cTauSoilProperties_none
 ```@docs
 cTauSoilT
 ```
-:::details cTauSoilT approaches
+:::::details cTauSoilT approaches
 
-:::tabs
+::::tabs
 
 == cTauSoilT_Q10
 ```@docs
@@ -1415,7 +2097,9 @@ cTauSoilT_none
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cTauSoilT/cTauSoilT_none.jl)
 
 
-:::
+::::
+
+:::::
 
 
 ----
@@ -1425,9 +2109,9 @@ cTauSoilT_none
 ```@docs
 cTauSoilW
 ```
-:::details cTauSoilW approaches
+:::::details cTauSoilW approaches
 
-:::tabs
+::::tabs
 
 == cTauSoilW_CASA
 ```@docs
@@ -1437,8 +2121,8 @@ cTauSoilW_CASA
 **Calculated using:**
 
 ```julia
-Inputs: :diagnostics => :c_eco_k_f_soilW, :fluxes => :rain, :pools => :soilW_prev, :diagnostics => :fsoilW_prev, :fluxes => :PET, :constants => :z_zero, :constants => :o_one
-Outputs: :diagnostics => :fsoilW
+Inputs: :diagnostics => :c_eco_k_f_soilW, :diagnostics => :fsoilW_prev, :cTauSoilW => :soilW_prev, :cTauSoilW => :timesteps_per_month, :pools => :soilW, :fluxes => :rain, :fluxes => :PET, :constants => :z_zero, :constants => :o_one
+Outputs: :diagnostics => :c_eco_k_f_soilW, :diagnostics => :fsoilW, :diagnostics => :fsoilW_prev, :cTauSoilW => :soilW_prev
 ```
 
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cTauSoilW/cTauSoilW_CASA.jl)
@@ -1464,7 +2148,9 @@ cTauSoilW_none
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cTauSoilW/cTauSoilW_none.jl)
 
 
-:::
+::::
+
+:::::
 
 
 ----
@@ -1474,22 +2160,14 @@ cTauSoilW_none
 ```@docs
 cTauVegProperties
 ```
-:::details cTauVegProperties approaches
+:::::details cTauVegProperties approaches
 
-:::tabs
+::::tabs
 
 == cTauVegProperties_CASA
 ```@docs
 cTauVegProperties_CASA
 ```
-
-**Calculated using:**
-
-```julia
-Inputs: :properties => :PFT, :diagnostics => :c_eco_k_f_veg_props, :constants => :z_zero, :constants => :o_one
-Outputs: :diagnostics => :c_eco_τ, :properties => :C2LIGNIN, :properties => :LIGEFF, :properties => :LIGNIN, :properties => :LITC2N, :properties => :MTF, :properties => :SCLIGNIN, :diagnostics => :c_eco_k_f_veg_props
-```
-
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cTauVegProperties/cTauVegProperties_CASA.jl)
 
 == cTauVegProperties_none
@@ -1499,7 +2177,9 @@ cTauVegProperties_none
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cTauVegProperties/cTauVegProperties_none.jl)
 
 
-:::
+::::
+
+:::::
 
 
 ----
@@ -1509,9 +2189,9 @@ cTauVegProperties_none
 ```@docs
 cVegetationDieOff
 ```
-:::details cVegetationDieOff approaches
+:::::details cVegetationDieOff approaches
 
-:::tabs
+::::tabs
 
 == cVegetationDieOff_forcing
 ```@docs
@@ -1522,13 +2202,15 @@ cVegetationDieOff_forcing
 
 ```julia
 Inputs: :forcing => :f_dist_intensity
-Outputs: :diagnostics => :c_fVegDieOff
+Outputs: :diagnostics => :c_f_cVeg_dieOff
 ```
 
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cVegetationDieOff/cVegetationDieOff_forcing.jl)
 
 
-:::
+::::
+
+:::::
 
 
 ----
@@ -1538,9 +2220,9 @@ Outputs: :diagnostics => :c_fVegDieOff
 ```@docs
 capillaryFlow
 ```
-:::details capillaryFlow approaches
+:::::details capillaryFlow approaches
 
-:::tabs
+::::tabs
 
 == capillaryFlow_VanDijk2010
 ```@docs
@@ -1550,14 +2232,16 @@ capillaryFlow_VanDijk2010
 **Calculated using:**
 
 ```julia
-Inputs: :properties => :k_fc, :properties => :w_sat, :fluxes => :soil_capillary_flux, :pools => :soilW, :pools => :ΔsoilW, :constants => :z_zero, :constants => :o_one
+Inputs: :properties => :k_fc, :properties => :w_sat, :properties => :idx_soilW_end, :fluxes => :soil_capillary_flux, :pools => :soilW, :pools => :ΔsoilW, :constants => :z_zero, :constants => :o_one
 Outputs: :fluxes => :soil_capillary_flux, :pools => :ΔsoilW
 ```
 
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/capillaryFlow/capillaryFlow_VanDijk2010.jl)
 
 
-:::
+::::
+
+:::::
 
 
 ----
@@ -1567,9 +2251,9 @@ Outputs: :fluxes => :soil_capillary_flux, :pools => :ΔsoilW
 ```@docs
 constants
 ```
-:::details constants approaches
+:::::details constants approaches
 
-:::tabs
+::::tabs
 
 == constants_numbers
 ```@docs
@@ -1578,7 +2262,9 @@ constants_numbers
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/constants/constants_numbers.jl)
 
 
-:::
+::::
+
+:::::
 
 
 ----
@@ -1588,9 +2274,9 @@ constants_numbers
 ```@docs
 deriveVariables
 ```
-:::details deriveVariables approaches
+:::::details deriveVariables approaches
 
-:::tabs
+::::tabs
 
 == deriveVariables_simple
 ```@docs
@@ -1599,7 +2285,9 @@ deriveVariables_simple
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/deriveVariables/deriveVariables_simple.jl)
 
 
-:::
+::::
+
+:::::
 
 
 ----
@@ -1609,9 +2297,9 @@ deriveVariables_simple
 ```@docs
 drainage
 ```
-:::details drainage approaches
+:::::details drainage approaches
 
-:::tabs
+::::tabs
 
 == drainage_dos
 ```@docs
@@ -1621,7 +2309,7 @@ drainage_dos
 **Calculated using:**
 
 ```julia
-Inputs: :fluxes => :drainage, :properties => :w_sat, :properties => :soil_β, :properties => :w_fc, :pools => :soilW, :pools => :ΔsoilW, :constants => :z_zero, :constants => :o_one
+Inputs: :fluxes => :drainage, :properties => :w_sat, :properties => :soil_β, :properties => :w_fc, :properties => :idx_soilW_end, :pools => :soilW, :pools => :ΔsoilW, :constants => :z_zero, :constants => :o_one
 Outputs: :fluxes => :drainage, :pools => :ΔsoilW
 ```
 
@@ -1648,13 +2336,15 @@ drainage_wFC
 **Calculated using:**
 
 ```julia
-Inputs: :fluxes => :drainage, :properties => :p_nsoilLayers, :properties => :w_fc, :pools => :soilW, :pools => :ΔsoilW, :constants => :z_zero
+Inputs: :fluxes => :drainage, :properties => :w_fc, :properties => :w_sat, :pools => :soilW, :pools => :ΔsoilW, :constants => :z_zero
 ```
 
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/drainage/drainage_wFC.jl)
 
 
-:::
+::::
+
+:::::
 
 
 ----
@@ -1664,9 +2354,9 @@ Inputs: :fluxes => :drainage, :properties => :p_nsoilLayers, :properties => :w_f
 ```@docs
 evaporation
 ```
-:::details evaporation approaches
+:::::details evaporation approaches
 
-:::tabs
+::::tabs
 
 == evaporation_Snyder2000
 ```@docs
@@ -1718,7 +2408,7 @@ evaporation_fAPAR
 **Calculated using:**
 
 ```julia
-Inputs: :states => :fAPAR, :pools => :soilW, :pools => :ΔsoilW, :fluxes => :PET, :constants => :z_zero, :constants => :o_one
+Inputs: :states => :fAPAR, :pools => :soilW, :pools => :ΔsoilW, :fluxes => :PET, :constants => :z_zero, :constants => :o_one, :constants => :t_two
 Outputs: :fluxes => :PET_evaporation, :fluxes => :evaporation, :pools => :ΔsoilW
 ```
 
@@ -1745,7 +2435,9 @@ Outputs: :fluxes => :PET_evaporation, :fluxes => :evaporation, :pools => :Δsoil
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/evaporation/evaporation_vegFraction.jl)
 
 
-:::
+::::
+
+:::::
 
 
 ----
@@ -1755,9 +2447,9 @@ Outputs: :fluxes => :PET_evaporation, :fluxes => :evaporation, :pools => :Δsoil
 ```@docs
 evapotranspiration
 ```
-:::details evapotranspiration approaches
+:::::details evapotranspiration approaches
 
-:::tabs
+::::tabs
 
 == evapotranspiration_simple
 ```@docs
@@ -1788,7 +2480,9 @@ Outputs: :fluxes => :evapotranspiration
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/evapotranspiration/evapotranspiration_sum.jl)
 
 
-:::
+::::
+
+:::::
 
 
 ----
@@ -1798,9 +2492,9 @@ Outputs: :fluxes => :evapotranspiration
 ```@docs
 fAPAR
 ```
-:::details fAPAR approaches
+:::::details fAPAR approaches
 
-:::tabs
+::::tabs
 
 == fAPAR_EVI
 ```@docs
@@ -1830,6 +2524,20 @@ Outputs: :states => :fAPAR
 
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/fAPAR/fAPAR_LAI.jl)
 
+== fAPAR_LAIBareFrac
+```@docs
+fAPAR_LAIBareFrac
+```
+
+**Calculated using:**
+
+```julia
+Inputs: :states => :LAI, :states => :frac_vegetation
+Outputs: Symbol("states # TODO: now use fAPAR_bare as the output for the cost function!") => :fAPAR_bare, Symbol("states # TODO: now use fAPAR_bare as the output for the cost function!") => :fAPAR
+```
+
+[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/fAPAR/fAPAR_LAIBareFrac.jl)
+
 == fAPAR_cVegLeaf
 ```@docs
 fAPAR_cVegLeaf
@@ -1838,7 +2546,7 @@ fAPAR_cVegLeaf
 **Calculated using:**
 
 ```julia
-Inputs: :pools => :cVegLeaf
+Inputs: :pools => :cEco
 Outputs: :states => :fAPAR
 ```
 
@@ -1852,7 +2560,7 @@ fAPAR_cVegLeafBareFrac
 **Calculated using:**
 
 ```julia
-Inputs: :pools => :cVegLeaf, :states => :frac_vegetation
+Inputs: :pools => :cEco, :states => :frac_vegetation
 Outputs: Symbol("states # TODO: now use fAPAR_bare as the output for the cost function!") => :fAPAR_bare, Symbol("states # TODO: now use fAPAR_bare as the output for the cost function!") => :fAPAR
 ```
 
@@ -1893,7 +2601,40 @@ Outputs: :states => :fAPAR
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/fAPAR/fAPAR_vegFraction.jl)
 
 
-:::
+::::
+
+:::::
+
+
+----
+
+### frozenFraction
+
+```@docs
+frozenFraction
+```
+:::::details frozenFraction approaches
+
+::::tabs
+
+== frozenFraction_forcing
+```@docs
+frozenFraction_forcing
+```
+
+**Calculated using:**
+
+```julia
+Inputs: :forcing => :f_frac_frozen_soil
+Outputs: :states => :frac_frozen_soil
+```
+
+[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/frozenFraction/frozenFraction_forcing.jl)
+
+
+::::
+
+:::::
 
 
 ----
@@ -1903,9 +2644,9 @@ Outputs: :states => :fAPAR
 ```@docs
 getPools
 ```
-:::details getPools approaches
+:::::details getPools approaches
 
-:::tabs
+::::tabs
 
 == getPools_simple
 ```@docs
@@ -1922,7 +2663,9 @@ Outputs: :states => :WBP
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/getPools/getPools_simple.jl)
 
 
-:::
+::::
+
+:::::
 
 
 ----
@@ -1932,9 +2675,9 @@ Outputs: :states => :WBP
 ```@docs
 gpp
 ```
-:::details gpp approaches
+:::::details gpp approaches
 
-:::tabs
+::::tabs
 
 == gpp_coupled
 ```@docs
@@ -1999,7 +2742,9 @@ Outputs: :fluxes => :gpp
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/gpp/gpp_transpirationWUE.jl)
 
 
-:::
+::::
+
+:::::
 
 
 ----
@@ -2009,9 +2754,9 @@ Outputs: :fluxes => :gpp
 ```@docs
 gppAirT
 ```
-:::details gppAirT approaches
+:::::details gppAirT approaches
 
-:::tabs
+::::tabs
 
 == gppAirT_CASA
 ```@docs
@@ -2026,6 +2771,20 @@ Outputs: :diagnostics => :gpp_f_airT
 ```
 
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/gppAirT/gppAirT_CASA.jl)
+
+== gppAirT_De2025
+```@docs
+gppAirT_De2025
+```
+
+**Calculated using:**
+
+```julia
+Inputs: :forcing => :f_airT_day, :diagnostics => :Tf_prev, :constants => :t_two, :diagnostics => :gpp_f_airT
+Outputs: :diagnostics => :gpp_f_airT, :diagnostics => :Tf_prev
+```
+
+[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/gppAirT/gppAirT_De2025.jl)
 
 == gppAirT_GSI
 ```@docs
@@ -2091,7 +2850,7 @@ gppAirT_Wang2014
 **Calculated using:**
 
 ```julia
-Inputs: :forcing => :f_airT_day, :diagnostics => :z_zero, :diagnostics => :o_one
+Inputs: :forcing => :f_airT_day, :constants => :z_zero, :constants => :o_one
 Outputs: :diagnostics => :gpp_f_airT
 ```
 
@@ -2104,7 +2863,9 @@ gppAirT_none
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/gppAirT/gppAirT_none.jl)
 
 
-:::
+::::
+
+:::::
 
 
 ----
@@ -2114,9 +2875,9 @@ gppAirT_none
 ```@docs
 gppDemand
 ```
-:::details gppDemand approaches
+:::::details gppDemand approaches
 
-:::tabs
+::::tabs
 
 == gppDemand_min
 ```@docs
@@ -2126,7 +2887,7 @@ gppDemand_min
 **Calculated using:**
 
 ```julia
-Inputs: :states => :fAPAR, :diagnostics => :gpp_f_cloud, :diagnostics => :gpp_potential, :diagnostics => :gpp_f_light, :diagnostics => :gpp_climate_stressors, :diagnostics => :gpp_f_airT
+Inputs: :states => :fAPAR, :diagnostics => :gpp_f_cloud, :diagnostics => :gpp_potential, :diagnostics => :gpp_f_light, :diagnostics => :gpp_climate_stressors, :diagnostics => :gpp_f_airT, :diagnostics => :gpp_f_vpd
 Outputs: :diagnostics => :gpp_f_climate, :diagnostics => :gpp_demand
 ```
 
@@ -2153,7 +2914,9 @@ gppDemand_none
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/gppDemand/gppDemand_none.jl)
 
 
-:::
+::::
+
+:::::
 
 
 ----
@@ -2163,9 +2926,9 @@ gppDemand_none
 ```@docs
 gppDiffRadiation
 ```
-:::details gppDiffRadiation approaches
+:::::details gppDiffRadiation approaches
 
-:::tabs
+::::tabs
 
 == gppDiffRadiation_GSI
 ```@docs
@@ -2209,6 +2972,34 @@ Outputs: :diagnostics => :gpp_f_cloud, :gppDiffRadiation => :CI_min, :gppDiffRad
 
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/gppDiffRadiation/gppDiffRadiation_Wang2015.jl)
 
+== gppDiffRadiation_exp
+```@docs
+gppDiffRadiation_exp
+```
+
+**Calculated using:**
+
+```julia
+Inputs: :forcing => :f_rg, :forcing => :f_rg_pot, :gppDiffRadiation => :CI_min, :gppDiffRadiation => :CI_max, :constants => :z_zero
+Outputs: :diagnostics => :gpp_f_cloud, :gppDiffRadiation => :CI_min, :gppDiffRadiation => :CI_max
+```
+
+[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/gppDiffRadiation/gppDiffRadiation_exp.jl)
+
+== gppDiffRadiation_expCorrection
+```@docs
+gppDiffRadiation_expCorrection
+```
+
+**Calculated using:**
+
+```julia
+Inputs: :forcing => :f_rg, :forcing => :f_rg_pot, :gppDiffRadiation => :CI_min, :gppDiffRadiation => :CI_max, :constants => :z_zero
+Outputs: :diagnostics => :gpp_f_cloud, :gppDiffRadiation => :CI_min, :gppDiffRadiation => :CI_max
+```
+
+[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/gppDiffRadiation/gppDiffRadiation_expCorrection.jl)
+
 == gppDiffRadiation_none
 ```@docs
 gppDiffRadiation_none
@@ -2216,7 +3007,9 @@ gppDiffRadiation_none
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/gppDiffRadiation/gppDiffRadiation_none.jl)
 
 
-:::
+::::
+
+:::::
 
 
 ----
@@ -2226,9 +3019,9 @@ gppDiffRadiation_none
 ```@docs
 gppDirRadiation
 ```
-:::details gppDirRadiation approaches
+:::::details gppDirRadiation approaches
 
-:::tabs
+::::tabs
 
 == gppDirRadiation_Maekelae2008
 ```@docs
@@ -2251,7 +3044,9 @@ gppDirRadiation_none
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/gppDirRadiation/gppDirRadiation_none.jl)
 
 
-:::
+::::
+
+:::::
 
 
 ----
@@ -2261,9 +3056,9 @@ gppDirRadiation_none
 ```@docs
 gppPotential
 ```
-:::details gppPotential approaches
+:::::details gppPotential approaches
 
-:::tabs
+::::tabs
 
 == gppPotential_Monteith
 ```@docs
@@ -2280,7 +3075,9 @@ Outputs: :diagnostics => :gpp_potential
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/gppPotential/gppPotential_Monteith.jl)
 
 
-:::
+::::
+
+:::::
 
 
 ----
@@ -2290,9 +3087,9 @@ Outputs: :diagnostics => :gpp_potential
 ```@docs
 gppSoilW
 ```
-:::details gppSoilW approaches
+:::::details gppSoilW approaches
 
-:::tabs
+::::tabs
 
 == gppSoilW_CASA
 ```@docs
@@ -2321,6 +3118,20 @@ Outputs: :diagnostics => :gpp_f_soilW, :diagnostics => :gpp_f_soilW_prev
 ```
 
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/gppSoilW/gppSoilW_GSI.jl)
+
+== gppSoilW_Horn
+```@docs
+gppSoilW_Horn
+```
+
+**Calculated using:**
+
+```julia
+Inputs: :properties => :∑w_fc, :properties => :∑w_wp, :pools => :soilW, :diagnostics => :Wf_prev
+Outputs: :diagnostics => :gpp_f_soilW, :diagnostics => :Wf_prev
+```
+
+[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/gppSoilW/gppSoilW_Horn.jl)
 
 == gppSoilW_Keenan2009
 ```@docs
@@ -2357,7 +3168,9 @@ gppSoilW_none
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/gppSoilW/gppSoilW_none.jl)
 
 
-:::
+::::
+
+:::::
 
 
 ----
@@ -2367,9 +3180,9 @@ gppSoilW_none
 ```@docs
 gppVPD
 ```
-:::details gppVPD approaches
+:::::details gppVPD approaches
 
-:::tabs
+::::tabs
 
 == gppVPD_MOD17
 ```@docs
@@ -2408,7 +3221,7 @@ gppVPD_PRELES
 
 ```julia
 Inputs: :forcing => :f_VPD_day, :states => :ambient_CO2, :constants => :o_one
-Outputs: :diagnostics => :gpp_f_vpd
+Outputs: :diagnostics => :fVPD_VPD, :diagnostics => :gpp_f_vpd
 ```
 
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/gppVPD/gppVPD_PRELES.jl)
@@ -2434,7 +3247,9 @@ gppVPD_none
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/gppVPD/gppVPD_none.jl)
 
 
-:::
+::::
+
+:::::
 
 
 ----
@@ -2444,9 +3259,9 @@ gppVPD_none
 ```@docs
 groundWRecharge
 ```
-:::details groundWRecharge approaches
+:::::details groundWRecharge approaches
 
-:::tabs
+::::tabs
 
 == groundWRecharge_dos
 ```@docs
@@ -2456,7 +3271,7 @@ groundWRecharge_dos
 **Calculated using:**
 
 ```julia
-Inputs: :properties => :w_sat, :properties => :soil_β, :pools => :ΔsoilW, :pools => :soilW, :pools => :ΔgroundW, :pools => :groundW, :constants => :z_zero, :constants => :o_one
+Inputs: :properties => :idx_soilW_end, :properties => :w_sat, :properties => :soil_β, :pools => :ΔsoilW, :pools => :soilW, :pools => :ΔgroundW, :pools => :groundW, :constants => :z_zero, :constants => :o_one
 Outputs: :fluxes => :gw_recharge, :pools => :ΔsoilW, :pools => :ΔgroundW
 ```
 
@@ -2470,7 +3285,7 @@ groundWRecharge_fraction
 **Calculated using:**
 
 ```julia
-Inputs: :pools => :ΔsoilW, :pools => :soilW, :pools => :ΔgroundW, :pools => :groundW
+Inputs: :properties => :idx_soilW_end, :pools => :ΔsoilW, :pools => :soilW, :pools => :ΔgroundW, :pools => :groundW
 Outputs: :fluxes => :gw_recharge, :pools => :ΔsoilW, :pools => :ΔgroundW
 ```
 
@@ -2484,7 +3299,7 @@ groundWRecharge_kUnsat
 **Calculated using:**
 
 ```julia
-Inputs: :properties => :w_sat, :models => :unsat_k_model, :pools => :ΔsoilW, :pools => :soilW, :pools => :ΔgroundW, :pools => :groundW
+Inputs: :properties => :idx_soilW_end, :properties => :w_sat, :models => :unsat_k_model, :pools => :ΔsoilW, :pools => :soilW, :pools => :ΔgroundW, :pools => :groundW
 Outputs: :fluxes => :gw_recharge, :pools => :ΔsoilW, :pools => :ΔgroundW
 ```
 
@@ -2497,7 +3312,9 @@ groundWRecharge_none
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/groundWRecharge/groundWRecharge_none.jl)
 
 
-:::
+::::
+
+:::::
 
 
 ----
@@ -2507,9 +3324,9 @@ groundWRecharge_none
 ```@docs
 groundWSoilWInteraction
 ```
-:::details groundWSoilWInteraction approaches
+:::::details groundWSoilWInteraction approaches
 
-:::tabs
+::::tabs
 
 == groundWSoilWInteraction_VanDijk2010
 ```@docs
@@ -2519,7 +3336,7 @@ groundWSoilWInteraction_VanDijk2010
 **Calculated using:**
 
 ```julia
-Inputs: :properties => :k_fc, :properties => :k_sat, :properties => :w_sat, :pools => :ΔsoilW, :pools => :ΔgroundW, :pools => :groundW, :pools => :soilW, :models => :unsat_k_model, :constants => :z_zero, :constants => :o_one, :fluxes => :gw_recharge
+Inputs: :properties => :idx_soilW_end, :properties => :k_fc, :properties => :k_sat, :properties => :w_sat, :pools => :ΔsoilW, :pools => :ΔgroundW, :pools => :groundW, :pools => :soilW, :models => :unsat_k_model, :constants => :z_zero, :constants => :o_one, :fluxes => :gw_recharge
 Outputs: :fluxes => :gw_capillary_flux, :fluxes => :gw_recharge, :pools => :ΔsoilW, :pools => :ΔgroundW
 ```
 
@@ -2533,7 +3350,7 @@ groundWSoilWInteraction_gradient
 **Calculated using:**
 
 ```julia
-Inputs: :properties => :w_sat, :pools => :ΔsoilW, :pools => :soilW, :pools => :ΔgroundW, :pools => :groundW, :constants => :n_groundW, :constants => :z_zero, :fluxes => :gw_recharge
+Inputs: :properties => :idx_soilW_end, :properties => :w_sat, :pools => :ΔsoilW, :pools => :soilW, :pools => :ΔgroundW, :pools => :groundW, :constants => :z_zero, :fluxes => :gw_recharge
 Outputs: :fluxes => :gw_capillary_flux, :fluxes => :gw_recharge, :pools => :ΔsoilW, :pools => :ΔgroundW
 ```
 
@@ -2547,7 +3364,7 @@ groundWSoilWInteraction_gradientNeg
 **Calculated using:**
 
 ```julia
-Inputs: :properties => :w_sat, :pools => :ΔsoilW, :pools => :soilW, :pools => :ΔgroundW, :pools => :groundW, :constants => :n_groundW, :constants => :z_zero, :fluxes => :gw_recharge
+Inputs: :properties => :idx_soilW_end, :properties => :w_sat, :pools => :ΔsoilW, :pools => :soilW, :pools => :ΔgroundW, :pools => :groundW, :constants => :z_zero, :fluxes => :gw_recharge
 Outputs: :fluxes => :gw_capillary_flux, :fluxes => :gw_recharge, :pools => :ΔsoilW, :pools => :ΔgroundW
 ```
 
@@ -2560,7 +3377,9 @@ groundWSoilWInteraction_none
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/groundWSoilWInteraction/groundWSoilWInteraction_none.jl)
 
 
-:::
+::::
+
+:::::
 
 
 ----
@@ -2570,9 +3389,9 @@ groundWSoilWInteraction_none
 ```@docs
 groundWSurfaceWInteraction
 ```
-:::details groundWSurfaceWInteraction approaches
+:::::details groundWSurfaceWInteraction approaches
 
-:::tabs
+::::tabs
 
 == groundWSurfaceWInteraction_fracGradient
 ```@docs
@@ -2582,7 +3401,7 @@ groundWSurfaceWInteraction_fracGradient
 **Calculated using:**
 
 ```julia
-Inputs: :pools => :ΔsurfaceW, :pools => :ΔgroundW, :pools => :groundW, :pools => :surfaceW, :constants => :n_surfaceW, :constants => :n_groundW
+Inputs: :pools => :ΔsurfaceW, :pools => :ΔgroundW, :pools => :groundW, :pools => :surfaceW
 Outputs: :fluxes => :gw_to_suw_flux, :pools => :ΔsurfaceW, :pools => :ΔgroundW
 ```
 
@@ -2596,14 +3415,16 @@ groundWSurfaceWInteraction_fracGroundW
 **Calculated using:**
 
 ```julia
-Inputs: :pools => :groundW, :pools => :surfaceW, :pools => :ΔsurfaceW, :pools => :ΔgroundW, :constants => :n_surfaceW, :constants => :n_groundW
+Inputs: :pools => :groundW, :pools => :surfaceW, :pools => :ΔsurfaceW, :pools => :ΔgroundW
 Outputs: :fluxes => :gw_to_suw_flux, :pools => :ΔsurfaceW, :pools => :ΔgroundW
 ```
 
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/groundWSurfaceWInteraction/groundWSurfaceWInteraction_fracGroundW.jl)
 
 
-:::
+::::
+
+:::::
 
 
 ----
@@ -2613,9 +3434,9 @@ Outputs: :fluxes => :gw_to_suw_flux, :pools => :ΔsurfaceW, :pools => :ΔgroundW
 ```@docs
 interception
 ```
-:::details interception approaches
+:::::details interception approaches
 
-:::tabs
+::::tabs
 
 == interception_Miralles2010
 ```@docs
@@ -2625,7 +3446,7 @@ interception_Miralles2010
 **Calculated using:**
 
 ```julia
-Inputs: :states => :WBP, :states => :fAPAR, :fluxes => :rain, :states => :rainInt
+Inputs: :states => :WBP, :states => :fAPAR, :fluxes => :rain, :states => :rain_int
 Outputs: :fluxes => :interception, :states => :WBP
 ```
 
@@ -2666,7 +3487,9 @@ Outputs: :fluxes => :interception, :states => :WBP
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/interception/interception_vegFraction.jl)
 
 
-:::
+::::
+
+:::::
 
 
 ----
@@ -2676,9 +3499,9 @@ Outputs: :fluxes => :interception, :states => :WBP
 ```@docs
 percolation
 ```
-:::details percolation approaches
+:::::details percolation approaches
 
-:::tabs
+::::tabs
 
 == percolation_WBP
 ```@docs
@@ -2709,34 +3532,9 @@ Outputs: :pools => :ΔsoilW
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/percolation/percolation_rain.jl)
 
 
-:::
+::::
 
-
-----
-
-### plantForm
-
-```@docs
-plantForm
-```
-:::details plantForm approaches
-
-:::tabs
-
-== plantForm_PFT
-```@docs
-plantForm_PFT
-```
-[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/plantForm/plantForm_PFT.jl)
-
-== plantForm_fixed
-```@docs
-plantForm_fixed
-```
-[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/plantForm/plantForm_fixed.jl)
-
-
-:::
+:::::
 
 
 ----
@@ -2746,9 +3544,9 @@ plantForm_fixed
 ```@docs
 rainIntensity
 ```
-:::details rainIntensity approaches
+:::::details rainIntensity approaches
 
-:::tabs
+::::tabs
 
 == rainIntensity_forcing
 ```@docs
@@ -2779,7 +3577,9 @@ Outputs: :states => :rain_int
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/rainIntensity/rainIntensity_simple.jl)
 
 
-:::
+::::
+
+:::::
 
 
 ----
@@ -2789,9 +3589,9 @@ Outputs: :states => :rain_int
 ```@docs
 rainSnow
 ```
-:::details rainSnow approaches
+:::::details rainSnow approaches
 
-:::tabs
+::::tabs
 
 == rainSnow_Tair
 ```@docs
@@ -2836,7 +3636,9 @@ Outputs: :fluxes => :precip, :fluxes => :rain
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/rainSnow/rainSnow_rain.jl)
 
 
-:::
+::::
+
+:::::
 
 
 ----
@@ -2846,9 +3648,9 @@ Outputs: :fluxes => :precip, :fluxes => :rain
 ```@docs
 rootMaximumDepth
 ```
-:::details rootMaximumDepth approaches
+:::::details rootMaximumDepth approaches
 
-:::tabs
+::::tabs
 
 == rootMaximumDepth_fracSoilD
 ```@docs
@@ -2857,7 +3659,9 @@ rootMaximumDepth_fracSoilD
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/rootMaximumDepth/rootMaximumDepth_fracSoilD.jl)
 
 
-:::
+::::
+
+:::::
 
 
 ----
@@ -2867,9 +3671,9 @@ rootMaximumDepth_fracSoilD
 ```@docs
 rootWaterEfficiency
 ```
-:::details rootWaterEfficiency approaches
+:::::details rootWaterEfficiency approaches
 
-:::tabs
+::::tabs
 
 == rootWaterEfficiency_constant
 ```@docs
@@ -2885,7 +3689,7 @@ rootWaterEfficiency_expCvegRoot
 **Calculated using:**
 
 ```julia
-Inputs: :rootWaterEfficiency => :root_over, :diagnostics => :root_water_efficiency, :pools => :cVegRoot, :pools => :soilW
+Inputs: :rootWaterEfficiency => :root_over, :diagnostics => :root_water_efficiency, :pools => :cEco, :pools => :soilW
 Outputs: :diagnostics => :root_water_efficiency
 ```
 
@@ -2934,7 +3738,9 @@ Outputs: :diagnostics => :root_water_efficiency
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/rootWaterEfficiency/rootWaterEfficiency_k2fvegFraction.jl)
 
 
-:::
+::::
+
+:::::
 
 
 ----
@@ -2944,9 +3750,9 @@ Outputs: :diagnostics => :root_water_efficiency
 ```@docs
 rootWaterUptake
 ```
-:::details rootWaterUptake approaches
+:::::details rootWaterUptake approaches
 
-:::tabs
+::::tabs
 
 == rootWaterUptake_proportion
 ```@docs
@@ -2970,14 +3776,16 @@ rootWaterUptake_topBottom
 **Calculated using:**
 
 ```julia
-Inputs: :states => :PAW, :pools => :soilW, :states => :ΔsoilW, :states => :root_water_uptake, :fluxes => :transpiration, :constants => :z_zero
+Inputs: :states => :PAW, :pools => :soilW, :pools => :ΔsoilW, :fluxes => :root_water_uptake, :fluxes => :transpiration, :constants => :z_zero
 Outputs: :fluxes => :root_water_uptake, :pools => :ΔsoilW
 ```
 
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/rootWaterUptake/rootWaterUptake_topBottom.jl)
 
 
-:::
+::::
+
+:::::
 
 
 ----
@@ -2987,9 +3795,9 @@ Outputs: :fluxes => :root_water_uptake, :pools => :ΔsoilW
 ```@docs
 runoff
 ```
-:::details runoff approaches
+:::::details runoff approaches
 
-:::tabs
+::::tabs
 
 == runoff_simple
 ```@docs
@@ -3020,7 +3828,9 @@ Outputs: :fluxes => :runoff
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/runoff/runoff_sum.jl)
 
 
-:::
+::::
+
+:::::
 
 
 ----
@@ -3030,9 +3840,9 @@ Outputs: :fluxes => :runoff
 ```@docs
 runoffBase
 ```
-:::details runoffBase approaches
+:::::details runoffBase approaches
 
-:::tabs
+::::tabs
 
 == runoffBase_Zhang2008
 ```@docs
@@ -3055,7 +3865,9 @@ runoffBase_none
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/runoffBase/runoffBase_none.jl)
 
 
-:::
+::::
+
+:::::
 
 
 ----
@@ -3065,9 +3877,9 @@ runoffBase_none
 ```@docs
 runoffInfiltrationExcess
 ```
-:::details runoffInfiltrationExcess approaches
+:::::details runoffInfiltrationExcess approaches
 
-:::tabs
+::::tabs
 
 == runoffInfiltrationExcess_Jung
 ```@docs
@@ -3077,7 +3889,7 @@ runoffInfiltrationExcess_Jung
 **Calculated using:**
 
 ```julia
-Inputs: :states => :WBP, :states => :fAPAR, :properties => :k_sat, :fluxes => :rain, :states => :rainInt, :constants => :z_zero, :constants => :o_one
+Inputs: :states => :WBP, :states => :fAPAR, :properties => :k_sat, :fluxes => :rain, :states => :rain_int, :constants => :z_zero, :constants => :o_one
 Outputs: :fluxes => :inf_excess_runoff, :states => :WBP
 ```
 
@@ -3104,7 +3916,9 @@ runoffInfiltrationExcess_none
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/runoffInfiltrationExcess/runoffInfiltrationExcess_none.jl)
 
 
-:::
+::::
+
+:::::
 
 
 ----
@@ -3114,9 +3928,9 @@ runoffInfiltrationExcess_none
 ```@docs
 runoffInterflow
 ```
-:::details runoffInterflow approaches
+:::::details runoffInterflow approaches
 
-:::tabs
+::::tabs
 
 == runoffInterflow_none
 ```@docs
@@ -3139,7 +3953,9 @@ Outputs: :fluxes => :interflow_runoff, :states => :WBP
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/runoffInterflow/runoffInterflow_residual.jl)
 
 
-:::
+::::
+
+:::::
 
 
 ----
@@ -3149,9 +3965,9 @@ Outputs: :fluxes => :interflow_runoff, :states => :WBP
 ```@docs
 runoffOverland
 ```
-:::details runoffOverland approaches
+:::::details runoffOverland approaches
 
-:::tabs
+::::tabs
 
 == runoffOverland_Inf
 ```@docs
@@ -3202,7 +4018,9 @@ runoffOverland_none
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/runoffOverland/runoffOverland_none.jl)
 
 
-:::
+::::
+
+:::::
 
 
 ----
@@ -3212,9 +4030,9 @@ runoffOverland_none
 ```@docs
 runoffSaturationExcess
 ```
-:::details runoffSaturationExcess approaches
+:::::details runoffSaturationExcess approaches
 
-:::tabs
+::::tabs
 
 == runoffSaturationExcess_Bergstroem1992
 ```@docs
@@ -3266,7 +4084,7 @@ runoffSaturationExcess_Bergstroem1992VegFractionFroSoil
 **Calculated using:**
 
 ```julia
-Inputs: :forcing => :frac_frozen_soil, :states => :WBP, :states => :frac_vegetation, :properties => :w_sat, :pools => :soilW, :pools => :ΔsoilW, :constants => :z_zero, :constants => :o_one
+Inputs: :states => :frac_frozen_soil, :states => :WBP, :states => :frac_vegetation, :properties => :w_sat, :pools => :soilW, :pools => :ΔsoilW, :constants => :z_zero, :constants => :o_one
 Outputs: :fluxes => :sat_excess_runoff, :runoffSaturationExcess => :frac_frozen, :runoffSaturationExcess => :β_veg, :states => :WBP
 ```
 
@@ -3280,8 +4098,8 @@ runoffSaturationExcess_Bergstroem1992VegFractionPFT
 **Calculated using:**
 
 ```julia
-Inputs: :forcing => :PFT, :states => :WBP, :states => :frac_vegetation, :runoffSaturationExcess => :β_veg, :properties => :w_sat, :pools => :soilW, :pools => :ΔsoilW
-Outputs: :fluxes => :sat_excess_runoff, :states => :WBP
+Inputs: :states => :WBP, :states => :frac_vegetation, :runoffSaturationExcess => :β_veg_max, :properties => :w_sat, :pools => :soilW, :pools => :ΔsoilW
+Outputs: :fluxes => :sat_excess_runoff, :runoffSaturationExcess => :β_veg, :states => :WBP
 ```
 
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/runoffSaturationExcess/runoffSaturationExcess_Bergstroem1992VegFractionPFT.jl)
@@ -3321,7 +4139,9 @@ Outputs: :fluxes => :sat_excess_runoff, :states => :WBP
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/runoffSaturationExcess/runoffSaturationExcess_satFraction.jl)
 
 
-:::
+::::
+
+:::::
 
 
 ----
@@ -3331,9 +4151,9 @@ Outputs: :fluxes => :sat_excess_runoff, :states => :WBP
 ```@docs
 runoffSurface
 ```
-:::details runoffSurface approaches
+:::::details runoffSurface approaches
 
-:::tabs
+::::tabs
 
 == runoffSurface_Orth2013
 ```@docs
@@ -3357,8 +4177,8 @@ runoffSurface_Trautmann2018
 **Calculated using:**
 
 ```julia
-Inputs: :surface_runoff => :z, :surface_runoff => :Rdelay, :fluxes => :rain, :fluxes => :snow, :pools => :snowW, :pools => :snowW_prev, :pools => :soilW, :pools => :soilW_prev, :pools => :surfaceW, :fluxes => :evaporation, :fluxes => :overland_runoff, :fluxes => :sublimation
-Outputs: :fluxes => :surface_runoff, :surface_runoff => :Rdelay, :surface_runoff => :dSurf
+Inputs: :runoffSurface => :z, :runoffSurface => :Rdelay, :fluxes => :rain, :fluxes => :snow, :pools => :snowW, :pools => :snowW_prev, :pools => :soilW, :pools => :soilW_prev, :pools => :surfaceW, :fluxes => :evaporation, :fluxes => :overland_runoff, :fluxes => :sublimation
+Outputs: :fluxes => :surface_runoff, :runoffSurface => :Rdelay, :runoffSurface => :dSurf
 ```
 
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/runoffSurface/runoffSurface_Trautmann2018.jl)
@@ -3399,7 +4219,7 @@ runoffSurface_directIndirectFroSoil
 **Calculated using:**
 
 ```julia
-Inputs: :runoffSaturationExcess => :frac_frozen, :pools => :surfaceW, :pools => :ΔsurfaceW, :fluxes => :overland_runoff, :constants => :z_zero, :constants => :o_one
+Inputs: :states => :frac_frozen_soil, :pools => :surfaceW, :pools => :ΔsurfaceW, :fluxes => :overland_runoff, :constants => :z_zero, :constants => :o_one
 Outputs: :fluxes => :surface_runoff, :fluxes => :surface_runoff_direct, :fluxes => :surface_runoff_indirect, :fluxes => :suw_recharge, :pools => :ΔsurfaceW
 ```
 
@@ -3413,7 +4233,7 @@ runoffSurface_indirect
 **Calculated using:**
 
 ```julia
-Inputs: :pools => :surfaceW, :fluxes => :overland_runoff
+Inputs: :pools => :surfaceW, :pools => :ΔsurfaceW, :fluxes => :overland_runoff
 Outputs: :fluxes => :surface_runoff, :fluxes => :suw_recharge, :pools => :ΔsurfaceW
 ```
 
@@ -3426,7 +4246,9 @@ runoffSurface_none
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/runoffSurface/runoffSurface_none.jl)
 
 
-:::
+::::
+
+:::::
 
 
 ----
@@ -3436,9 +4258,9 @@ runoffSurface_none
 ```@docs
 saturatedFraction
 ```
-:::details saturatedFraction approaches
+:::::details saturatedFraction approaches
 
-:::tabs
+::::tabs
 
 == saturatedFraction_none
 ```@docs
@@ -3447,7 +4269,9 @@ saturatedFraction_none
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/saturatedFraction/saturatedFraction_none.jl)
 
 
-:::
+::::
+
+:::::
 
 
 ----
@@ -3457,9 +4281,9 @@ saturatedFraction_none
 ```@docs
 snowFraction
 ```
-:::details snowFraction approaches
+:::::details snowFraction approaches
 
-:::tabs
+::::tabs
 
 == snowFraction_HTESSEL
 ```@docs
@@ -3496,7 +4320,9 @@ snowFraction_none
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/snowFraction/snowFraction_none.jl)
 
 
-:::
+::::
+
+:::::
 
 
 ----
@@ -3506,9 +4332,9 @@ snowFraction_none
 ```@docs
 snowMelt
 ```
-:::details snowMelt approaches
+:::::details snowMelt approaches
 
-:::tabs
+::::tabs
 
 == snowMelt_Tair
 ```@docs
@@ -3539,7 +4365,9 @@ Outputs: :fluxes => :snow_melt, :fluxes => :potential_snow_melt, :states => :WBP
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/snowMelt/snowMelt_TairRn.jl)
 
 
-:::
+::::
+
+:::::
 
 
 ----
@@ -3549,9 +4377,9 @@ Outputs: :fluxes => :snow_melt, :fluxes => :potential_snow_melt, :states => :WBP
 ```@docs
 soilProperties
 ```
-:::details soilProperties approaches
+:::::details soilProperties approaches
 
-:::tabs
+::::tabs
 
 == soilProperties_Saxton1986
 ```@docs
@@ -3566,7 +4394,9 @@ soilProperties_Saxton2006
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/soilProperties/soilProperties_Saxton2006.jl)
 
 
-:::
+::::
+
+:::::
 
 
 ----
@@ -3576,9 +4406,9 @@ soilProperties_Saxton2006
 ```@docs
 soilTexture
 ```
-:::details soilTexture approaches
+:::::details soilTexture approaches
 
-:::tabs
+::::tabs
 
 == soilTexture_constant
 ```@docs
@@ -3593,7 +4423,9 @@ soilTexture_forcing
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/soilTexture/soilTexture_forcing.jl)
 
 
-:::
+::::
+
+:::::
 
 
 ----
@@ -3603,9 +4435,9 @@ soilTexture_forcing
 ```@docs
 soilWBase
 ```
-:::details soilWBase approaches
+:::::details soilWBase approaches
 
-:::tabs
+::::tabs
 
 == soilWBase_smax1Layer
 ```@docs
@@ -3649,6 +4481,12 @@ Outputs: :properties => :w_sat, :properties => :w_fc, :properties => :w_wp, :soi
 
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/soilWBase/soilWBase_smax2fRD4.jl)
 
+== soilWBase_soilDepth
+```@docs
+soilWBase_soilDepth
+```
+[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/soilWBase/soilWBase_soilDepth.jl)
+
 == soilWBase_uniform
 ```@docs
 soilWBase_uniform
@@ -3656,7 +4494,9 @@ soilWBase_uniform
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/soilWBase/soilWBase_uniform.jl)
 
 
-:::
+::::
+
+:::::
 
 
 ----
@@ -3666,9 +4506,9 @@ soilWBase_uniform
 ```@docs
 sublimation
 ```
-:::details sublimation approaches
+:::::details sublimation approaches
 
-:::tabs
+::::tabs
 
 == sublimation_GLEAM
 ```@docs
@@ -3691,7 +4531,9 @@ sublimation_none
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/sublimation/sublimation_none.jl)
 
 
-:::
+::::
+
+:::::
 
 
 ----
@@ -3701,9 +4543,9 @@ sublimation_none
 ```@docs
 transpiration
 ```
-:::details transpiration approaches
+:::::details transpiration approaches
 
-:::tabs
+::::tabs
 
 == transpiration_coupled
 ```@docs
@@ -3740,7 +4582,9 @@ transpiration_none
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/transpiration/transpiration_none.jl)
 
 
-:::
+::::
+
+:::::
 
 
 ----
@@ -3750,9 +4594,9 @@ transpiration_none
 ```@docs
 transpirationDemand
 ```
-:::details transpirationDemand approaches
+:::::details transpirationDemand approaches
 
-:::tabs
+::::tabs
 
 == transpirationDemand_CASA
 ```@docs
@@ -3811,7 +4655,9 @@ Outputs: :diagnostics => :transpiration_demand
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/transpirationDemand/transpirationDemand_PETvegFraction.jl)
 
 
-:::
+::::
+
+:::::
 
 
 ----
@@ -3821,9 +4667,9 @@ Outputs: :diagnostics => :transpiration_demand
 ```@docs
 transpirationSupply
 ```
-:::details transpirationSupply approaches
+:::::details transpirationSupply approaches
 
-:::tabs
+::::tabs
 
 == transpirationSupply_CASA
 ```@docs
@@ -3882,7 +4728,9 @@ Outputs: :diagnostics => :transpiration_supply
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/transpirationSupply/transpirationSupply_wAWCvegFraction.jl)
 
 
-:::
+::::
+
+:::::
 
 
 ----
@@ -3892,9 +4740,9 @@ Outputs: :diagnostics => :transpiration_supply
 ```@docs
 treeFraction
 ```
-:::details treeFraction approaches
+:::::details treeFraction approaches
 
-:::tabs
+::::tabs
 
 == treeFraction_constant
 ```@docs
@@ -3917,7 +4765,9 @@ Outputs: :states => :frac_tree
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/treeFraction/treeFraction_forcing.jl)
 
 
-:::
+::::
+
+:::::
 
 
 ----
@@ -3927,9 +4777,9 @@ Outputs: :states => :frac_tree
 ```@docs
 vegAvailableWater
 ```
-:::details vegAvailableWater approaches
+:::::details vegAvailableWater approaches
 
-:::tabs
+::::tabs
 
 == vegAvailableWater_rootWaterEfficiency
 ```@docs
@@ -3960,7 +4810,105 @@ Outputs: :states => :PAW, :states => :soilW_stress
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/vegAvailableWater/vegAvailableWater_sigmoid.jl)
 
 
-:::
+::::
+
+:::::
+
+
+----
+
+### vegClass
+
+```@docs
+vegClass
+```
+:::::details vegClass approaches
+
+::::tabs
+
+== vegClass_MODIS_BGC
+```@docs
+vegClass_MODIS_BGC
+```
+[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/vegClass/vegClass_MODIS_BGC.jl)
+
+== vegClass_MODIS_IGBP
+```@docs
+vegClass_MODIS_IGBP
+```
+[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/vegClass/vegClass_MODIS_IGBP.jl)
+
+== vegClass_MODIS_IGBP_PlantForm
+```@docs
+vegClass_MODIS_IGBP_PlantForm
+```
+[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/vegClass/vegClass_MODIS_IGBP_PlantForm.jl)
+
+== vegClass_MODIS_LAI
+```@docs
+vegClass_MODIS_LAI
+```
+[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/vegClass/vegClass_MODIS_LAI.jl)
+
+== vegClass_MODIS_PFT
+```@docs
+vegClass_MODIS_PFT
+```
+[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/vegClass/vegClass_MODIS_PFT.jl)
+
+== vegClass_MODIS_UMD
+```@docs
+vegClass_MODIS_UMD
+```
+[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/vegClass/vegClass_MODIS_UMD.jl)
+
+== vegClass_SINDBAD
+```@docs
+vegClass_SINDBAD
+```
+[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/vegClass/vegClass_SINDBAD.jl)
+
+
+::::
+
+:::::
+
+
+----
+
+### vegDynamics
+
+```@docs
+vegDynamics
+```
+:::::details vegDynamics approaches
+
+::::tabs
+
+== vegDynamics_constant
+```@docs
+vegDynamics_constant
+```
+[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/vegDynamics/vegDynamics_constant.jl)
+
+== vegDynamics_forcing
+```@docs
+vegDynamics_forcing
+```
+
+**Calculated using:**
+
+```julia
+Inputs: :forcing => :f_pft
+Outputs: :states => :veg_type
+```
+
+[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/vegDynamics/vegDynamics_forcing.jl)
+
+
+::::
+
+:::::
 
 
 ----
@@ -3970,9 +4918,9 @@ Outputs: :states => :PAW, :states => :soilW_stress
 ```@docs
 vegFraction
 ```
-:::details vegFraction approaches
+:::::details vegFraction approaches
 
-:::tabs
+::::tabs
 
 == vegFraction_constant
 ```@docs
@@ -4065,7 +5013,44 @@ Outputs: :states => :frac_vegetation
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/vegFraction/vegFraction_scaledfAPAR.jl)
 
 
-:::
+::::
+
+:::::
+
+
+----
+
+### vegQualityTraits
+
+```@docs
+vegQualityTraits
+```
+:::::details vegQualityTraits approaches
+
+::::tabs
+
+== vegQualityTraits_constant
+```@docs
+vegQualityTraits_constant
+```
+[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/vegQualityTraits/vegQualityTraits_constant.jl)
+
+== vegQualityTraits_none
+```@docs
+vegQualityTraits_none
+```
+[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/vegQualityTraits/vegQualityTraits_none.jl)
+
+== vegQualityTraits_vegType
+```@docs
+vegQualityTraits_vegType
+```
+[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/vegQualityTraits/vegQualityTraits_vegType.jl)
+
+
+::::
+
+:::::
 
 
 ----
@@ -4075,9 +5060,9 @@ Outputs: :states => :frac_vegetation
 ```@docs
 wCycle
 ```
-:::details wCycle approaches
+:::::details wCycle approaches
 
-:::tabs
+::::tabs
 
 == wCycle_combined
 ```@docs
@@ -4122,7 +5107,9 @@ Outputs: :pools => :soilW, :pools => :ΔsoilW, :states => :total_water, :states 
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/wCycle/wCycle_simple.jl)
 
 
-:::
+::::
+
+:::::
 
 
 ----
@@ -4132,9 +5119,9 @@ Outputs: :pools => :soilW, :pools => :ΔsoilW, :states => :total_water, :states 
 ```@docs
 wCycleBase
 ```
-:::details wCycleBase approaches
+:::::details wCycleBase approaches
 
-:::tabs
+::::tabs
 
 == wCycleBase_simple
 ```@docs
@@ -4143,7 +5130,9 @@ wCycleBase_simple
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/wCycleBase/wCycleBase_simple.jl)
 
 
-:::
+::::
+
+:::::
 
 
 ----
@@ -4153,9 +5142,9 @@ wCycleBase_simple
 ```@docs
 waterBalance
 ```
-:::details waterBalance approaches
+:::::details waterBalance approaches
 
-:::tabs
+::::tabs
 
 == waterBalance_simple
 ```@docs
@@ -4172,7 +5161,9 @@ Outputs: :diagnostics => :water_balance
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/waterBalance/waterBalance_simple.jl)
 
 
-:::
+::::
+
+:::::
 
 
 ----
