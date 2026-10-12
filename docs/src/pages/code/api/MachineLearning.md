@@ -84,6 +84,24 @@ end
 
 ----
 
+### assembleFeatures
+```@docs
+assembleFeatures
+```
+
+:::details Code
+
+```julia
+function assembleFeatures(args...; kwargs...)
+    error("`assembleFeatures` is not available. This function is implemented in `ext/SindbadFluxExt/MachineLearningParameters.jl` and requires `using Flux` to be loaded.")
+end
+```
+
+:::
+
+
+----
+
 ### denseNN
 ```@docs
 denseNN
@@ -261,7 +279,7 @@ function getInnerArgs(idx, grads_lib,
     loc_forcing = space_forcing[site_location]
     loc_obs = space_observations[site_location]
     loc_output = space_output[site_location]
-    loc_spinup_forcing = space_spinup[site_location]
+    loc_spinup = space_spinup[site_location]
     loc_cost_option = cost_options[site_location]
 
     return (;
@@ -269,7 +287,7 @@ function getInnerArgs(idx, grads_lib,
         inner_args = (
             selected_models,
             loc_forcing,
-            loc_spinup_forcing,
+            loc_spinup,
             loc_forcing_t,
             getCacheFromOutput(loc_output, grads_lib),
             deepcopy(loc_land),
@@ -309,10 +327,10 @@ function getLossForSites(gradient_lib, loss_function::F, loss_array_sites, loss_
                 loc_forcing = space_forcing[site_location]
                 loc_obs = space_observations[site_location]
                 loc_output = space_output[site_location]
-                loc_spinup_forcing = space_spinup[site_location]
+                loc_spinup = space_spinup[site_location]
                 loc_cost_option = cost_options[site_location]
 
-                gg, gg_split, loss_indices = loss_function(loc_params, gradient_lib, models, loc_forcing, loc_spinup_forcing,
+                gg, gg_split, loss_indices = loss_function(loc_params, gradient_lib, models, loc_forcing, loc_spinup,
                     loc_forcing_t, loc_output, deepcopy(loc_land), tem_info, parameter_to_index, parameter_scaling_type, loc_obs, loc_cost_option, constraint_method;
                     optim_mode=false)
                 loss_array_sites[idx, epoch_number] = gg
@@ -346,11 +364,11 @@ function getLossFunctionHandles(info, run_helpers, sites)
         loc_forcing = run_helpers.space_forcing[site_location]
         loc_obs = run_helpers.space_observation[site_location]
         loc_output = getCacheFromOutput(run_helpers.space_output[site_location], info.hybrid.ml_gradient.method)
-        loc_spinup_forcing = run_helpers.space_spinup[site_location]
+        loc_spinup = run_helpers.space_spinup[site_location]
         loc_cost_option = prepCostOptions(loc_obs, info.optimization.cost_options)
-        loss_tmp(x) = loss(x, info.models.forward, parameter_to_index, info.optimization.run_options.parameter_scaling, loc_forcing, loc_spinup_forcing, run_helpers.loc_forcing_t, loc_output, deepcopy(run_helpers.loc_land), run_helpers.tem_info, loc_obs, loc_cost_option, info.optimization.run_options.multi_constraint_method, info.hybrid.ml_gradient.method, info.hybrid.ml_training.options.loss_function)
+        loss_tmp(x) = loss(x, info.models.forward, parameter_to_index, info.optimization.run_options.parameter_scaling, loc_forcing, loc_spinup, run_helpers.loc_forcing_t, loc_output, deepcopy(run_helpers.loc_land), run_helpers.tem_info, loc_obs, loc_cost_option, info.optimization.run_options.multi_constraint_method, info.hybrid.ml_gradient.method, info.hybrid.ml_training.options.loss_function)
 
-        loss_vector_tmp(x) = lossComponents(x, info.models.forward, parameter_to_index, info.optimization.run_options.parameter_scaling, loc_forcing, loc_spinup_forcing, run_helpers.loc_forcing_t, loc_output, deepcopy(run_helpers.loc_land), run_helpers.tem_info, loc_obs, loc_cost_option, info.optimization.run_options.multi_constraint_method, info.hybrid.ml_gradient.method, info.hybrid.ml_training.options.loss_function)
+        loss_vector_tmp(x) = lossComponents(x, info.models.forward, parameter_to_index, info.optimization.run_options.parameter_scaling, loc_forcing, loc_spinup, run_helpers.loc_forcing_t, loc_output, deepcopy(run_helpers.loc_land), run_helpers.tem_info, loc_obs, loc_cost_option, info.optimization.run_options.multi_constraint_method, info.hybrid.ml_gradient.method, info.hybrid.ml_training.options.loss_function)
 
         push!(loss_functions, loss_tmp)
         push!(loss_component_functions, loss_vector_tmp)
@@ -566,10 +584,10 @@ function gradsNaNCheck!(grads_batch, _params_batch, sites_batch, parameter_table
                 site_name_tmp = sites_batch[si]
                 p_vec_tmp = _params_batch(site=site_name_tmp)
                 parameter_values =  Pair(parameter_table.name[p_index_tmp], (p_vec_tmp[p_index_tmp], parameter_table.lower[p_index_tmp], parameter_table.upper[p_index_tmp]))
-                @info "site: $site_name_tmp, parameter: $parameter_values"
+                # @info "site: $site_name_tmp, parameter: $parameter_values"
             end
         end
-        @warn "NaNs in grads, replacing all by 0.0f0"
+        println("NaNs in grads, replacing all by 0.0f0")
         replace!(grads_batch, NaN => eltype(grads_batch)(replace_value))
     end
 end
@@ -712,13 +730,13 @@ loss
 :::details Code
 
 ```julia
-function lossVector(params, models, parameter_to_index, parameter_scaling_type, loc_forcing, loc_spinup_forcing, loc_forcing_t, loc_output, land_init, tem_info, loc_obs, cost_options, constraint_method, gradient_lib,::LossModelObsMachineLearning)
+function lossVector(params, models, parameter_to_index, parameter_scaling_type, loc_forcing, loc_spinup, loc_forcing_t, loc_output, land_init, tem_info, loc_obs, cost_options, constraint_method, gradient_lib,::LossModelObsMachineLearning)
     loc_output_from_cache = getOutputFromCache(loc_output, params, gradient_lib)
     models = updateModels(params, parameter_to_index, parameter_scaling_type, models)
     coreTEM!(
         models,
         loc_forcing,
-        loc_spinup_forcing,
+        loc_spinup,
         loc_forcing_t,
         loc_output_from_cache,
         land_init,
@@ -728,14 +746,14 @@ function lossVector(params, models, parameter_to_index, parameter_scaling_type, 
     return loss_vector, loss_indices
 end
 
-function loss(params, models, parameter_to_index, parameter_scaling_type, loc_forcing, loc_spinup_forcing, loc_forcing_t, loc_output, land_init, tem_info, loc_obs, cost_options, constraint_method, gradient_lib,loss_type::LossModelObsMachineLearning)
-    loss_vector, _ = lossVector(params, models,parameter_to_index, parameter_scaling_type, loc_forcing, loc_spinup_forcing, loc_forcing_t, loc_output, land_init, tem_info, loc_obs, cost_options, constraint_method, gradient_lib, loss_type)
+function loss(params, models, parameter_to_index, parameter_scaling_type, loc_forcing, loc_spinup, loc_forcing_t, loc_output, land_init, tem_info, loc_obs, cost_options, constraint_method, gradient_lib,loss_type::LossModelObsMachineLearning)
+    loss_vector, _ = lossVector(params, models,parameter_to_index, parameter_scaling_type, loc_forcing, loc_spinup, loc_forcing_t, loc_output, land_init, tem_info, loc_obs, cost_options, constraint_method, gradient_lib, loss_type)
     t_loss = combineMetric(loss_vector, constraint_method)
     return t_loss
 end
 
-function lossComponents(params, models, parameter_to_index, parameter_scaling_type, loc_forcing, loc_spinup_forcing, loc_forcing_t, loc_output, land_init, tem_info, loc_obs, cost_options, constraint_method, gradient_lib,loss_type::LossModelObsMachineLearning)
-    loss_vector, loss_indices = lossVector(params, models,parameter_to_index, parameter_scaling_type, loc_forcing, loc_spinup_forcing, loc_forcing_t, loc_output, land_init, tem_info, loc_obs, cost_options, constraint_method, gradient_lib, loss_type)
+function lossComponents(params, models, parameter_to_index, parameter_scaling_type, loc_forcing, loc_spinup, loc_forcing_t, loc_output, land_init, tem_info, loc_obs, cost_options, constraint_method, gradient_lib,loss_type::LossModelObsMachineLearning)
+    loss_vector, loss_indices = lossVector(params, models,parameter_to_index, parameter_scaling_type, loc_forcing, loc_spinup, loc_forcing_t, loc_output, land_init, tem_info, loc_obs, cost_options, constraint_method, gradient_lib, loss_type)
     t_loss = combineMetric(loss_vector, constraint_method)
     return t_loss, loss_vector, loss_indices
 end
@@ -754,8 +772,8 @@ lossComponents
 :::details Code
 
 ```julia
-function lossComponents(params, models, parameter_to_index, parameter_scaling_type, loc_forcing, loc_spinup_forcing, loc_forcing_t, loc_output, land_init, tem_info, loc_obs, cost_options, constraint_method, gradient_lib,loss_type::LossModelObsMachineLearning)
-    loss_vector, loss_indices = lossVector(params, models,parameter_to_index, parameter_scaling_type, loc_forcing, loc_spinup_forcing, loc_forcing_t, loc_output, land_init, tem_info, loc_obs, cost_options, constraint_method, gradient_lib, loss_type)
+function lossComponents(params, models, parameter_to_index, parameter_scaling_type, loc_forcing, loc_spinup, loc_forcing_t, loc_output, land_init, tem_info, loc_obs, cost_options, constraint_method, gradient_lib,loss_type::LossModelObsMachineLearning)
+    loss_vector, loss_indices = lossVector(params, models,parameter_to_index, parameter_scaling_type, loc_forcing, loc_spinup, loc_forcing_t, loc_output, land_init, tem_info, loc_obs, cost_options, constraint_method, gradient_lib, loss_type)
     t_loss = combineMetric(loss_vector, constraint_method)
     return t_loss, loss_vector, loss_indices
 end
@@ -774,13 +792,13 @@ lossSite
 :::details Code
 
 ```julia
-function lossSite(new_params, gradient_lib, models, loc_forcing, loc_spinup_forcing, 
+function lossSite(new_params, gradient_lib, models, loc_forcing, loc_spinup, 
     loc_forcing_t, loc_output, land_init, tem_info, parameter_to_index, parameter_scaling_type,
     loc_obs, cost_options, constraint_method; optim_mode=true)
 
     out_data = getOutputFromCache(loc_output, new_params, gradient_lib)
     new_models = updateModels(new_params, parameter_to_index, parameter_scaling_type, models)
-    return getLoss(new_models, loc_forcing, loc_spinup_forcing, loc_forcing_t, out_data, land_init, tem_info, loc_obs, cost_options, constraint_method; optim_mode)
+    return getLoss(new_models, loc_forcing, loc_spinup, loc_forcing_t, out_data, land_init, tem_info, loc_obs, cost_options, constraint_method; optim_mode)
 end
 ```
 
@@ -797,13 +815,13 @@ lossVector
 :::details Code
 
 ```julia
-function lossVector(params, models, parameter_to_index, parameter_scaling_type, loc_forcing, loc_spinup_forcing, loc_forcing_t, loc_output, land_init, tem_info, loc_obs, cost_options, constraint_method, gradient_lib,::LossModelObsMachineLearning)
+function lossVector(params, models, parameter_to_index, parameter_scaling_type, loc_forcing, loc_spinup, loc_forcing_t, loc_output, land_init, tem_info, loc_obs, cost_options, constraint_method, gradient_lib,::LossModelObsMachineLearning)
     loc_output_from_cache = getOutputFromCache(loc_output, params, gradient_lib)
     models = updateModels(params, parameter_to_index, parameter_scaling_type, models)
     coreTEM!(
         models,
         loc_forcing,
-        loc_spinup_forcing,
+        loc_spinup,
         loc_forcing_t,
         loc_output_from_cache,
         land_init,
@@ -925,6 +943,46 @@ partitionBatches
 ```julia
 function partitionBatches(n; batch_size=32)
     return partition(1:n, batch_size)
+end
+```
+
+:::
+
+
+----
+
+### predictParameters
+```@docs
+predictParameters
+```
+
+:::details Code
+
+```julia
+function predictParametersPixel!(args...; kwargs...)
+    error("`predictParametersPixel!` is not available. This function is implemented in `ext/SindbadFluxExt/MachineLearningParameters.jl` and requires `using Flux` to be loaded.")
+end
+
+function predictParameters(args...; kwargs...)
+    error("`predictParameters` is not available. This function is implemented in `ext/SindbadFluxExt/MachineLearningParameters.jl` and requires `using Flux` to be loaded.")
+end
+```
+
+:::
+
+
+----
+
+### predictParametersPixel!
+```@docs
+predictParametersPixel!
+```
+
+:::details Code
+
+```julia
+function predictParametersPixel!(args...; kwargs...)
+    error("`predictParametersPixel!` is not available. This function is implemented in `ext/SindbadFluxExt/MachineLearningParameters.jl` and requires `using Flux` to be loaded.")
 end
 ```
 
@@ -1164,7 +1222,7 @@ function trainML(hybrid_helpers, ::MixedGradient)
             x_feat_batch = xfeatures(; site=sites_batch)
             new_params, pullback_func = getPullback(pullback_method, flat, re, x_feat_batch)
             scaled_params_batch = getParamsAct(new_params, parameter_table)
-            @debug "  Epoch $(epoch): training on batch with $(length(sites_batch)) sites, scaled_params: minimum=$(minimum(scaled_params_batch)), maximum=$(maximum(scaled_params_batch))"
+            # @debug "  Epoch $(epoch): training on batch with $(length(sites_batch)) sites, scaled_params: minimum=$(minimum(scaled_params_batch)), maximum=$(maximum(scaled_params_batch))"
 
             gradientBatch!(gradient_options.method, grads_batch, gradient_options.options, loss_functions, scaled_params_batch, sites_batch; showprog=false)
 

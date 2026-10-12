@@ -247,7 +247,9 @@ Retrieves a type instance for a named option based on its string or symbol repre
 - If the input is a `Symbol`, it is converted to a `String` before processing.
 - The function capitalizes the first letter of each word in the option name and removes underscores to match the type naming convention.
 - This is used for type-based dispatch in SINDBAD's configuration and execution.
-- The type for temporal aggregation is set using `get_TimeSampler` in `Utils`. It uses a similar approach and prefixes `Time` to type.
+- Temporal aggregation settings are resolved by `get_TimeSampler` from TimeSamplers.jl instead.
+  It accepts the same snake case names, which it prefixes with `Time`, and also period specs
+  such as `"8-day_msc"`.
 
 # Examples
 ```jldoctest

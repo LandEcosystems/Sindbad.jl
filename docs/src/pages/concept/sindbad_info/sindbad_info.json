@@ -62,8 +62,7 @@
             { "name": "mod_ind", "value": 1 },
             { "name": "mod_field", "value": 1 },
             { "name": "mod_subfield", "value": 1 },
-            { "name": "temporal_aggr", "value": 1 },
-            { "name": "temporal_aggr_type", "value": 1 }
+            { "name": "temporal_aggr", "value": 1 }
           ]
         },
         { "name": "parameter_table", "value": 1 }

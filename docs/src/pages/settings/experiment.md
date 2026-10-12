@@ -207,3 +207,14 @@ The pools for the restart file are saved after the step with `"save_restart": tr
 ]
 ```
 :::
+
+::: info Spinup forcing
+
+The `forcing` of a sequence block is resolved with TimeSamplers.jl:
+- `"all_years"`, `"first_year"`, `"random_year"` and `"shuffle_years"` select timesteps of the forcing, which then runs at the model timestep.
+- `"day_MSC"`, `"month_MSC"` and period specs such as `"hour_msc"` or `"8-day_msc"` average the forcing into a mean seasonal cycle. Each value of the cycle is one spinup timestep.
+- Anomalies are not allowed as spinup forcing.
+
+The forcing is averaged for every variable, and the models run with their parameters at the model timestep. When the bins are longer than the model timestep, for example `"day_MSC"` on an hourly model, each spinup timestep therefore covers a whole bin with parameters and forcing amounts per model timestep. For a spinup at the model timestep, use the cycle at that resolution, such as `"hour_msc"` for an hourly model.
+
+:::

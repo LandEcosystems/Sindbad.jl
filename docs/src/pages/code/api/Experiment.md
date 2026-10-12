@@ -45,7 +45,7 @@ function runExperiment(info::NamedTuple, forcing::NamedTuple, ::DoCalcCost)
     observations = getObservation(info, forcing.helpers)
     obs_array = [Array(_o) for _o in observations.data]; # TODO: necessary now for performance because view of keyedarray is slow
     print_info(runExperiment, @__FILE__, @__LINE__, "do forward run...")
-    forward_output = runForward(forcing, info, DoNotRunLazy())
+    forward_output = runForward(forcing, info, DoNotRunLazy()).output
     print_info(runExperiment, @__FILE__, @__LINE__, "calculate cost...")
     cost_options = prepCostOptions(obs_array, info.optimization.cost_options)
     loss_vector = metricVector(forward_output, obs_array, cost_options)
@@ -62,7 +62,7 @@ function runExperiment(info::NamedTuple, forcing::NamedTuple, ::DoCalcCost)
     observations = getObservation(info, forcing.helpers)
     obs_array = [Array(_o) for _o in observations.data]; # TODO: necessary now for performance because view of keyedarray is slow
     print_info(runExperiment, @__FILE__, @__LINE__, "do forward run...")
-    forward_output = runForward(forcing, info, DoNotRunLazy())
+    forward_output = runForward(forcing, info, DoNotRunLazy()).output
     print_info(runExperiment, @__FILE__, @__LINE__, "calculate cost...")
     cost_options = prepCostOptions(obs_array, info.optimization.cost_options)
     loss_vector = metricVector(forward_output, obs_array, cost_options)
@@ -76,7 +76,7 @@ end
 function runExperiment(info::NamedTuple, forcing::NamedTuple, ::Union{DoRunForward, DoNotRunOptimization})
     run_output = runForward(forcing, info, info.helpers.run.run_lazy)
     set_log_level()
-    return (; forcing, info, output=run_output)
+    return (; forcing, info, output=run_output.output, restart=run_output.restart)
 end
 
 function runExperiment(info::NamedTuple, forcing::NamedTuple, ::DoRunOptimization)
@@ -93,6 +93,7 @@ function runExperiment(info::NamedTuple, forcing::NamedTuple, ::DoRunOptimizatio
         optim_file_prefix = joinpath(info.output.dirs.optimization, info.experiment.basics.name * "_" * info.experiment.basics.domain)
         print_info(runExperiment, @__FILE__, @__LINE__, "saving optimized parameters to file: $(optim_file_prefix)_model_parameters_optimized.csv")
         CSV.write(optim_file_prefix * "_model_parameters_optimized.csv", optim_params)
+        saveParameterCubes(info, optim_params, forcing.helpers)
         run_output = optim_params
     end
     set_log_level()
@@ -116,6 +117,7 @@ function runExperimentForward(sindbad_experiment::String; replace_info=Dict(), l
     run_output = runExperiment(info, forcing, info.helpers.run.run_forward)
     output_dims = getOutDims(info, forcing.helpers)
     saveOutCubes(info, values(run_output.output), output_dims, info.output.variables)
+    saveRestartCubes(info, run_output.restart)
     set_log_level()
     return run_output
 end
@@ -130,14 +132,16 @@ function runExperimentForwardParams(params_vector::Vector, sindbad_experiment::S
 
     default_models = info.models.forward;
 
-    default_output = runForward(default_models, forcing, info, DoNotRunLazy())
+    default_output = runForward(default_models, forcing, info, DoNotRunLazy()).output
 
     parameter_table = info.optimization.parameter_table;
     optimized_models = updateModelParameters(parameter_table, default_models, params_vector)
-    optimized_output = runForward(optimized_models, forcing, info, DoNotRunLazy())
+    optimized_run = runForward(optimized_models, forcing, info, DoNotRunLazy())
+    optimized_output = optimized_run.output
 
     output_dims = getOutDims(info, forcing.helpers)
     saveOutCubes(info, values(optimized_output), output_dims, info.output.variables)
+    saveRestartCubes(info, optimized_run.restart)
 
     forward_output = (; optimized=optimized_output, default=default_output)
     set_log_level()
@@ -153,10 +157,11 @@ function runExperimentFullOutput(sindbad_experiment::String; replace_info=Dict()
     info = @set info.helpers.run.land_output_type = PreAllocArrayAll()
     run_helpers = prepTEM(info.models.forward, forcing, info)
     info = @set info.output.variables = run_helpers.output_vars
-    runTEM!(run_helpers.space_selected_models, run_helpers.space_forcing, run_helpers.space_spinup, run_helpers.loc_forcing_t, run_helpers.space_output, run_helpers.space_land, run_helpers.tem_info)
+    runTEM!(run_helpers.space_selected_models, run_helpers.space_forcing, run_helpers.space_spinup, run_helpers.loc_forcing_t, run_helpers.space_output, run_helpers.space_restart, run_helpers.space_land, run_helpers.tem_info)
     output_dims = run_helpers.output_dims
     run_output = run_helpers.output_array
     saveOutCubes(info, run_output, output_dims, run_helpers.output_vars)
+    saveRestartCubes(info, run_helpers.restart)
     set_log_level()
     return (; forcing, info, output=(; Pair.(getUniqueVarNames(run_helpers.output_vars), run_output)...))
 end
@@ -170,10 +175,12 @@ function runExperimentOpti(sindbad_experiment::String; replace_info=Dict(), log_
     opti_output = runExperiment(info, forcing, info.helpers.run.run_optimization)
     set_log_level(:info)
     fp_output = runExperimentForwardParams(opti_output.parameters.optimized, sindbad_experiment; replace_info=replace_info)
+    print_info_separator()
     cost_options = prepCostOptions(opti_output.observation, info.optimization.cost_options)
     loss_vector = metricVector(fp_output.output.optimized, opti_output.observation, cost_options)
     loss_vector_def = metricVector(fp_output.output.default, opti_output.observation, cost_options)
     loss_table = Table((; variable=cost_options.variable, metric=cost_options.cost_metric, loss_opt=loss_vector, loss_def=loss_vector_def))
+    println("Total loss:: optimized: $(sum(loss_vector)), default: $(sum(loss_vector_def))")
     display(loss_table)
     parameters_nt = convertParametersToNamedTuple(opti_output.parameters, :model, :name)
     return (; forcing, cost_options, run_helpers, info=fp_output.info, loss=loss_table, observation=opti_output.observation, output=fp_output.output, parameters=opti_output.parameters, parameters_nt=parameters_nt)
@@ -252,6 +259,7 @@ function runExperimentForward(sindbad_experiment::String; replace_info=Dict(), l
     run_output = runExperiment(info, forcing, info.helpers.run.run_forward)
     output_dims = getOutDims(info, forcing.helpers)
     saveOutCubes(info, values(run_output.output), output_dims, info.output.variables)
+    saveRestartCubes(info, run_output.restart)
     set_log_level()
     return run_output
 end
@@ -266,14 +274,16 @@ function runExperimentForwardParams(params_vector::Vector, sindbad_experiment::S
 
     default_models = info.models.forward;
 
-    default_output = runForward(default_models, forcing, info, DoNotRunLazy())
+    default_output = runForward(default_models, forcing, info, DoNotRunLazy()).output
 
     parameter_table = info.optimization.parameter_table;
     optimized_models = updateModelParameters(parameter_table, default_models, params_vector)
-    optimized_output = runForward(optimized_models, forcing, info, DoNotRunLazy())
+    optimized_run = runForward(optimized_models, forcing, info, DoNotRunLazy())
+    optimized_output = optimized_run.output
 
     output_dims = getOutDims(info, forcing.helpers)
     saveOutCubes(info, values(optimized_output), output_dims, info.output.variables)
+    saveRestartCubes(info, optimized_run.restart)
 
     forward_output = (; optimized=optimized_output, default=default_output)
     set_log_level()
@@ -304,14 +314,16 @@ function runExperimentForwardParams(params_vector::Vector, sindbad_experiment::S
 
     default_models = info.models.forward;
 
-    default_output = runForward(default_models, forcing, info, DoNotRunLazy())
+    default_output = runForward(default_models, forcing, info, DoNotRunLazy()).output
 
     parameter_table = info.optimization.parameter_table;
     optimized_models = updateModelParameters(parameter_table, default_models, params_vector)
-    optimized_output = runForward(optimized_models, forcing, info, DoNotRunLazy())
+    optimized_run = runForward(optimized_models, forcing, info, DoNotRunLazy())
+    optimized_output = optimized_run.output
 
     output_dims = getOutDims(info, forcing.helpers)
     saveOutCubes(info, values(optimized_output), output_dims, info.output.variables)
+    saveRestartCubes(info, optimized_run.restart)
 
     forward_output = (; optimized=optimized_output, default=default_output)
     set_log_level()
@@ -341,10 +353,11 @@ function runExperimentFullOutput(sindbad_experiment::String; replace_info=Dict()
     info = @set info.helpers.run.land_output_type = PreAllocArrayAll()
     run_helpers = prepTEM(info.models.forward, forcing, info)
     info = @set info.output.variables = run_helpers.output_vars
-    runTEM!(run_helpers.space_selected_models, run_helpers.space_forcing, run_helpers.space_spinup, run_helpers.loc_forcing_t, run_helpers.space_output, run_helpers.space_land, run_helpers.tem_info)
+    runTEM!(run_helpers.space_selected_models, run_helpers.space_forcing, run_helpers.space_spinup, run_helpers.loc_forcing_t, run_helpers.space_output, run_helpers.space_restart, run_helpers.space_land, run_helpers.tem_info)
     output_dims = run_helpers.output_dims
     run_output = run_helpers.output_array
     saveOutCubes(info, run_output, output_dims, run_helpers.output_vars)
+    saveRestartCubes(info, run_helpers.restart)
     set_log_level()
     return (; forcing, info, output=(; Pair.(getUniqueVarNames(run_helpers.output_vars), run_output)...))
 end
@@ -372,10 +385,12 @@ function runExperimentOpti(sindbad_experiment::String; replace_info=Dict(), log_
     opti_output = runExperiment(info, forcing, info.helpers.run.run_optimization)
     set_log_level(:info)
     fp_output = runExperimentForwardParams(opti_output.parameters.optimized, sindbad_experiment; replace_info=replace_info)
+    print_info_separator()
     cost_options = prepCostOptions(opti_output.observation, info.optimization.cost_options)
     loss_vector = metricVector(fp_output.output.optimized, opti_output.observation, cost_options)
     loss_vector_def = metricVector(fp_output.output.default, opti_output.observation, cost_options)
     loss_table = Table((; variable=cost_options.variable, metric=cost_options.cost_metric, loss_opt=loss_vector, loss_def=loss_vector_def))
+    println("Total loss:: optimized: $(sum(loss_vector)), default: $(sum(loss_vector_def))")
     display(loss_table)
     parameters_nt = convertParametersToNamedTuple(opti_output.parameters, :model, :name)
     return (; forcing, cost_options, run_helpers, info=fp_output.info, loss=loss_table, observation=opti_output.observation, output=fp_output.output, parameters=opti_output.parameters, parameters_nt=parameters_nt)
@@ -481,6 +496,80 @@ end
 
 function saveOutCubes(info, out_cubes, output_dims, output_vars)
     saveOutCubes(info.output.file_info.file_prefix, info.output.file_info.global_metadata, out_cubes, output_dims, output_vars, info.output.format, info.experiment.basics.temporal_resolution, info.helpers.run.save_single_file)
+end
+```
+
+:::
+
+
+----
+
+### saveParameterCubes
+```@docs
+saveParameterCubes
+```
+
+:::details Code
+
+```julia
+function saveParameterCubes(info, parameter_table, forcing_helpers)
+    data_path = getParameterFilePath(info)
+    space_dims = Symbol.(forcing_helpers.dimensions.space)
+    axes_values = Dict(Symbol(first(f_axis)) => last(f_axis) for f_axis ∈ forcing_helpers.axes)
+    yax_dims, name_cubes = DataLoaders.getParameterFileDims(space_dims, axes_values)
+    space_sizes = Tuple(forcing_helpers.sizes[s_dim] for s_dim ∈ space_dims)
+
+    variable_attributes = Pair{String,Any}[]
+    all_yax = Pair{Symbol,Any}[]
+    for p_index ∈ eachindex(parameter_table.name)
+        p_value = parameter_table.optimized[p_index]
+        if !(p_value isa Number)
+            @warn "The parameter `$(parameter_table.name_full[p_index])` is not a scalar and is not saved to the parameter file."
+            continue
+        end
+        variable_name = parameterVariableName(parameter_table.model[p_index], parameter_table.name[p_index])
+        attributes = parameterVariableAttributes(parameter_table, p_index)
+        p_data = fill(p_value, space_sizes...)
+        push!(all_yax, Symbol(variable_name) => DataLoaders.YAXArray(yax_dims, p_data, Dict{String,Any}(attributes)))
+        push!(variable_attributes, variable_name => attributes)
+    end
+
+    param_metadata = copy(info.output.file_info.global_metadata)
+    param_metadata["parameter_source"] = "optimization"
+    param_metadata["experiment_name"] = info.experiment.basics.name
+    param_metadata["experiment_domain"] = info.experiment.basics.domain
+    param_metadata["temporal_resolution"] = info.experiment.basics.temporal_resolution
+    params_ds = DataLoaders.YAXArrays.Dataset(; all_yax..., name_cubes..., properties=param_metadata)
+    print_info(saveParameterCubes, @__FILE__, @__LINE__, "saving the optimized parameters to the parameter file `$(data_path)`", n_m=4)
+    DataLoaders.saveParameterDataset(params_ds, data_path)
+
+    json_path = first(splitext(rstrip(data_path, '/'))) * ".json"
+    writeParameterInputJson(json_path, abspath(data_path), variable_attributes)
+    print_info(nothing, @__FILE__, @__LINE__, "saved the parameters input of the parameter file to `$(json_path)`", n_m=4)
+    return (; data_path, json_path)
+end
+```
+
+:::
+
+
+----
+
+### saveRestartCubes
+```@docs
+saveRestartCubes
+```
+
+:::details Code
+
+```julia
+function saveRestartCubes(info, restart)
+    data_path = getRestartFilePath(info)
+    restart_metadata = getRestartMetadata(info, restart)
+    restart_ds = getRestartDataset(info, restart, restart_metadata)
+    print_info(nothing, @__FILE__, @__LINE__, "saving pools after the spinup step with save_restart to `$(data_path)`", n_m=4)
+    DataLoaders.YAXArrays.savedataset(restart_ds, path=data_path, overwrite=true)
+    return nothing
 end
 ```
 

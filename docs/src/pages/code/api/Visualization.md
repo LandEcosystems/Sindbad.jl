@@ -35,6 +35,48 @@ end
 
 ----
 
+### plotCarbonFlows
+```@docs
+plotCarbonFlows
+```
+
+:::details Code
+
+```julia
+    function plotCarbonFlows(approach=nothing; kwargs...)
+        suffix = isnothing(get(kwargs, :land, nothing)) ? "default" : "actual"
+        file_path = "tmp_carbon_flow_matrix_$(_approachName(approach, kwargs))_$(suffix).pdf"
+        return plotCarbonFlows(approach, file_path; kwargs...)
+    end
+
+    function plotCarbonFlows(approach, file_path; kwargs...)
+        backend = VisualizationPlots()
+        return plotCarbonFlows(approach, file_path, _resolvedBackend(plotCarbonFlows, backend, approach, file_path); kwargs...)
+    end
+
+    function plotCarbonFlows(info::NamedTuple, approach=nothing; kwargs...)
+        backend = info.helpers.run.visualization_backend
+        suffix = isnothing(get(kwargs, :land, nothing)) ? "default" : "actual"
+        approach_name = _approachName(approach, kwargs)
+        file_path = joinpath(info.output.dirs.figure,
+            "carbon_flow_matrix_$(info.experiment.basics.id)_$(approach_name)_$(suffix).pdf")
+        # an explicit pool_configuration in kwargs (rare) wins over info's, since it
+        # comes later in this merge
+        kwargs = (; pool_configuration=_experimentPoolConfiguration(info), kwargs...)
+        return plotCarbonFlows(approach, file_path, _resolvedBackend(plotCarbonFlows, backend, approach, file_path); kwargs...)
+    end
+
+    function plotCarbonFlows(approach, file_path, ::VisualizationTypes; kwargs...)
+        print_info(plotCarbonFlows, @__FILE__, @__LINE__, _visualizationFallbackMessage(plotCarbonFlows, VisualizationPlots()), n_f=4)
+        return nothing
+    end
+```
+
+:::
+
+
+----
+
 ### plotIOModelStructure
 ```@docs
 plotIOModelStructure
