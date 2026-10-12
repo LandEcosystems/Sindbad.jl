@@ -63,6 +63,9 @@ jobs:
         shell: julia --project=examples/scripts {0}
         run: |
           import Pkg
+          # Use the in-repo SindbadTEM, not the registered release, which can lag behind it.
+          # Paths are relative to the working directory, the checkout root.
+          Pkg.develop(path="SindbadTEM")
           Pkg.instantiate()
           # `include` resolves relative paths against the calling file's directory, not the
           # process's working directory -- and the calling "file" here is this run block's own
