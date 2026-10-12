@@ -14,6 +14,7 @@ Streamline the ingestion and preprocessing of input data for SINDBAD experiments
 - `AxisKeys`: Labeled multidimensional arrays (`KeyedArray`).
 - `DimensionalData`: Dimension-aware indexing/slicing.
 - `FillArrays`: Efficient filled-array representations.
+- `Interpolations`: Interpolation methods passed to `YAXArrays.xresample` when forcing is remapped to a target resolution.
 - `YAXArrays`, `YAXArrayBase`: Multidimensional array/cube abstractions used for IO and spatial data. `YAXArrays.open_dataset` reads both netcdf and zarr sources uniformly.
 - `NetCDF`, `Zarr`: not called directly for I/O; merely having them loaded activates YAXArrayBase's `NetCDFExt`/`ZarrExt` backends that `open_dataset` dispatches to. `NetCDF` is also used directly by some example scripts via `DataLoaders.NetCDF.open`.
 
@@ -46,6 +47,7 @@ module DataLoaders
    using Dates
    using DimensionalData
    using DimensionalData: DimensionalData as DD
+   using Interpolations: Interpolations
    using NetCDF
    using YAXArrayBase
    using YAXArrays: YAXArrays, Cube, YAXArray
