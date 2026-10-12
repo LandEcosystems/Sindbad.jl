@@ -33,7 +33,8 @@ function compute(params::cFlowStress_GSI, forcing, land, helpers)
     @unpack_cFlowStress_GSI params
     ## unpack land variables
     @unpack_nt begin
-        (c_allocation_f_soilW, c_allocation_f_soilT, c_allocation_f_cloud, 
+        f_rg_pot ⇐ forcing
+        (c_allocation_f_soilW, c_allocation_f_soilT, c_allocation_f_cloud,
             eco_stressor_prev, slope_eco_stressor_prev)  ⇐ land.diagnostics
     end
     # Compute sigmoid functions
@@ -46,15 +47,24 @@ function compute(params::cFlowStress_GSI, forcing, land, helpers)
     #   high stressor (close to 1) means actually low stress
     #   low stressor (close to 0) means actually high stress
     # this is counterintuitive, but it is how the GSI formulation works
-    eco_stressor = c_allocation_f_soilW * c_allocation_f_soilT * c_allocation_f_cloud
+    # A completely dark time step carries no light signal, so the stressor and the
+    # smoothing memory are held as they are and the slope is zero. They are updated
+    # whenever there is any potential radiation, which at daily scale is every day
+    # except polar night.
+    if f_rg_pot > zero(f_rg_pot)
+        eco_stressor = c_allocation_f_soilW * c_allocation_f_soilT * c_allocation_f_cloud
 
-    # get the smoothened stressor based on contribution of previous steps using ARMA-like formulation
-    slope_eco_stressor_now = eco_stressor - eco_stressor_prev
-    slope_eco_stressor = (one(f_τ) - f_τ) * slope_eco_stressor_prev + f_τ * slope_eco_stressor_now
+        # get the smoothened stressor based on contribution of previous steps using ARMA-like formulation
+        slope_eco_stressor_now = eco_stressor - eco_stressor_prev
+        slope_eco_stressor = (one(f_τ) - f_τ) * slope_eco_stressor_prev + f_τ * slope_eco_stressor_now
 
-    # store them for next time
-    eco_stressor_prev = eco_stressor
-    slope_eco_stressor_prev = slope_eco_stressor
+        # store them for next time
+        eco_stressor_prev = eco_stressor
+        slope_eco_stressor_prev = slope_eco_stressor
+    else
+        eco_stressor = eco_stressor_prev
+        slope_eco_stressor = zero(slope_eco_stressor_prev)
+    end
 
     ## pack land variables
     @pack_nt begin
@@ -93,6 +103,7 @@ or silently mismatching the wrong edge.
  - 1.1 on 05.02.2021 [skoirala | @dr-ko]: changes with stressors & smoothing as well as handling the activation of leaf/root to reserve | reserve to leaf/root switches. Adjustment of total flow rates [cTau] of relevant pools
  - 1.1 on 05.02.2021 [skoirala | @dr-ko]: move code from dyna. Add table etc.
  - 1.2 on 10.09.2026 [skoirala]: edge selection generalized from exact `c_flow_named_edges.<giver>_to_<taker>` name lookups (which errored on any pool structure without a literal edge of that exact name, e.g. CASA's absent cVegReserve or its split cLitLeafFast/cLitLeafSlow in place of cLitFast) to `edgesBetween`, a giver/taker pool-membership match
+ - 1.3 on 11.10.2026 [skoirala]: stressor and its smoothing memory are held, and the slope set to zero, during completely dark time steps (`f_rg_pot` of zero)
 
 *Created by*
  - ncarvalhais, sbesnard, skoirala

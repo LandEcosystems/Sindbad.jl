@@ -21,6 +21,7 @@ function compute(params::LAI_cVegLeaf, forcing, land, helpers)
 
     ## pack land variables
     @pack_nt LAI ⇒ land.states
+    @pack_nt SLA ⇒ land.diagnostics
     return land
 end
 

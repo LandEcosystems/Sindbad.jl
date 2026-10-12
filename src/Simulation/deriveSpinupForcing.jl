@@ -109,11 +109,11 @@ aggregate the forcing variable with time where an aggregation/collection is need
 
 # Arguments:
 - `v`: a forcing variable
-- `aggregator`: a time aggregator object needed to time aggregate the data 
-- `ag_type::TimeNoDiff`: a type dispatch to indicate that the variable has to be aggregated in time
+- `aggregator`: a `TimeResampler` that was built once for the spinup forcing name
+- `::TimeNoDiff`: a type dispatch to indicate that the variable has to be aggregated in time
 """
-function timeAggregateForcingV(v, _, aggregator, ag_type::TimeNoDiff)
-    vt=do_time_sampling(v, aggregator, ag_type)
+function timeAggregateForcingV(v, _, aggregator, ::TimeNoDiff)
+    vt = time_resample(v, aggregator)
     vt[:]
 end
 

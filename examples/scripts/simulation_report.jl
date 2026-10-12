@@ -3,6 +3,7 @@ using CMAEvolutionStrategy
 using Dates
 using Statistics
 using Printf
+using YAXArrays
 
 # Runs every {LUE,WROASTED} x {pixel,spatial} x {forward,optimization} combination against
 # examples/setups/ on the current OS/Julia version, and writes a CSV of wall time, memory
@@ -21,6 +22,12 @@ using Printf
 site_index = 1
 n_sites = 16 # spatial mode uses sites 1:n_sites, not all 205, to keep test runs fast
 
+# `forcing.subset.site` selects sites by name, not by position, so the positions above
+# are looked up in the `site` dimension of the shared example data that both setups'
+# forcing.json point at.
+forcing_data_path = "https://s3.bgc-jena.mpg.de:9000/sindbad/synthetic_data_examples.zarr"
+site_names = collect(YAXArrays.open_dataset(forcing_data_path).axes[:site].val)
+
 setups = split(get(ENV, "SIMULATION_SETUPS", "LUE,WROASTED"), ",")
 modes = Symbol.(split(get(ENV, "SIMULATION_MODES", "pixel,spatial"), ","))
 kinds = (:forward, :optimization)
@@ -29,7 +36,7 @@ os_name = get(ENV, "RUNNER_OS", Sys.iswindows() ? "Windows" : Sys.isapple() ? "m
 @info "julia threads" Threads.nthreads()
 
 function buildReplaceInfo(mode, kind, output_path)
-    subset_site = mode == :pixel ? [site_index] : collect(1:n_sites)
+    subset_site = mode == :pixel ? site_names[[site_index]] : site_names[1:n_sites]
     replace_info = Dict{String,Any}(
         "forcing.subset.site" => subset_site,
         "experiment.model_output.path" => output_path, # root; SINDBAD creates its own output_<domain>_<name> subfolder inside

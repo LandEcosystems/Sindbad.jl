@@ -50,40 +50,31 @@ cost
 function cost end
 
 function cost(parameter_vector, _, selected_models, space_forcing, space_spinup, loc_forcing_t, output_array, space_output, space_land, tem_info, observations, parameter_updater, cost_options, multi_constraint_method, parameter_scaling_type, ::CostModelObs)
-    @debug parameter_vector
     updated_models = updateModels(parameter_vector, parameter_updater, parameter_scaling_type, selected_models)
     runTEM!(updated_models, space_forcing, space_spinup, loc_forcing_t, space_output, space_land, tem_info)
     cost_vector = metricVector(output_array, observations, cost_options)
     cost_metric = combineMetric(cost_vector, multi_constraint_method)
-    @debug cost_vector, cost_metric
     return cost_metric
 end
 
 function cost(parameter_vector, _, selected_models, space_forcing, space_spinup, loc_forcing_t, output_array, space_output, space_land, tem_info, observations, parameter_updater, cost_options, multi_constraint_method, parameter_scaling_type, ::CostModelObs)
-    @debug parameter_vector
     updated_models = updateModels(parameter_vector, parameter_updater, parameter_scaling_type, selected_models)
     runTEM!(updated_models, space_forcing, space_spinup, loc_forcing_t, space_output, space_land, tem_info)
     cost_vector = metricVector(output_array, observations, cost_options)
     cost_metric = combineMetric(cost_vector, multi_constraint_method)
-    @debug cost_vector, cost_metric
     return cost_metric
 end
 
 function cost(parameter_matrix, _, selected_models, space_forcing, space_spinup, loc_forcing_t, output_array, space_output, space_land, tem_info, observations, parameter_updater, cost_options, multi_constraint_method, parameter_scaling_type, cost_out::Vector, ::CostModelObsMT)
-    @debug "parameter_matrix:: ", size(parameter_matrix)
     parameter_set_size = size(parameter_matrix, 2)
-    done_params=1
     Threads.@threads for parameter_index in eachindex(1:parameter_set_size)
         idx = Threads.threadid()
         parameter_vector = parameter_matrix[:, parameter_index]
-        @debug parameter_vector
         updated_models = updateModels(parameter_vector, parameter_updater, parameter_scaling_type, selected_models)
         coreTEM!(updated_models, space_forcing, space_spinup, loc_forcing_t, space_output[idx], space_land, tem_info)
         cost_vector = metricVector(space_output[idx], observations, cost_options)
         cost_metric = combineMetric(cost_vector, multi_constraint_method)
         cost_out[parameter_index] = cost_metric
-        @debug "Parameter column:: ", idx, round(100 * done_params/parameter_set_size,digits=2), parameter_set_size, cost_metric, cost_vector
-        done_params += 1
     end
     return cost_out
 end
@@ -93,7 +84,6 @@ function cost(parameter_vector, default_values, selected_models, space_forcing, 
     cost_prior = metric(MSE(), parameter_vector, parameter_vector, default_values)
     cost_metric = cost(parameter_vector, default_values, selected_models, space_forcing, space_spinup, loc_forcing_t, output_array, space_output, space_land, tem_info, observations, parameter_updater, cost_options, multi_constraint_method, parameter_scaling_type, CostModelObs())
     cost_metric = cost_metric + cost_prior
-    @debug cost_vector, cost_metric
     return cost_metric
 end
 
@@ -109,7 +99,6 @@ function costLand(parameter_vector::AbstractArray, selected_models, forcing, spi
     land_wrapper_timeseries = runTEM(updated_models, forcing, spinup_forcing, loc_forcing_t, land_timeseries, land_init, tem_info)
     cost_vector = metricVector(land_wrapper_timeseries, observations, cost_options)
     cost_metric = combineMetric(cost_vector, multi_constraint_method)
-    @debug cost_vector, cost_metric
     return cost_metric
 end
 
@@ -118,7 +107,6 @@ function costLand(parameter_vector::AbstractArray, selected_models, forcing, spi
     land_wrapper_timeseries = runTEM(updated_models, forcing, spinup_forcing, loc_forcing_t, land_timeseries, land_init, tem_info)
     cost_vector = metricVector(land_wrapper_timeseries, observations, cost_options)
     cost_metric = combineMetric(cost_vector, multi_constraint_method)
-    @debug cost_vector, cost_metric
     return cost_metric
 end
 
@@ -127,7 +115,6 @@ function costLand(parameter_vector::AbstractArray, selected_models, forcing, spi
     land_wrapper_timeseries = runTEM(updated_models, forcing, spinup_forcing, loc_forcing_t, land_init, tem_info)
     cost_vector = metricVector(land_wrapper_timeseries, observations, cost_options)
     cost_metric = combineMetric(cost_vector, multi_constraint_method)
-    @debug cost_vector, cost_metric
     return cost_metric
 end
 ```
@@ -152,7 +139,6 @@ function costLand(parameter_vector::AbstractArray, selected_models, forcing, spi
     land_wrapper_timeseries = runTEM(updated_models, forcing, spinup_forcing, loc_forcing_t, land_timeseries, land_init, tem_info)
     cost_vector = metricVector(land_wrapper_timeseries, observations, cost_options)
     cost_metric = combineMetric(cost_vector, multi_constraint_method)
-    @debug cost_vector, cost_metric
     return cost_metric
 end
 
@@ -161,7 +147,6 @@ function costLand(parameter_vector::AbstractArray, selected_models, forcing, spi
     land_wrapper_timeseries = runTEM(updated_models, forcing, spinup_forcing, loc_forcing_t, land_timeseries, land_init, tem_info)
     cost_vector = metricVector(land_wrapper_timeseries, observations, cost_options)
     cost_metric = combineMetric(cost_vector, multi_constraint_method)
-    @debug cost_vector, cost_metric
     return cost_metric
 end
 
@@ -170,7 +155,6 @@ function costLand(parameter_vector::AbstractArray, selected_models, forcing, spi
     land_wrapper_timeseries = runTEM(updated_models, forcing, spinup_forcing, loc_forcing_t, land_init, tem_info)
     cost_vector = metricVector(land_wrapper_timeseries, observations, cost_options)
     cost_metric = combineMetric(cost_vector, multi_constraint_method)
-    @debug cost_vector, cost_metric
     return cost_metric
 end
 ```
@@ -279,7 +263,6 @@ function getDataWithoutNaN(y, yσ, ŷ, idxs)
 end
 
 function getDataWithoutNaN(y, yσ, ŷ)
-    @debug sum(is_invalid_number.(y)), sum(is_invalid_number.(yσ)), sum(is_invalid_number.(ŷ))
     idxs = (.!isnan.(y .* yσ .* ŷ)) # TODO this has to be run because LandWrapper produces a vector. So, dispatch with the inefficient versions without idxs argument
     return y[idxs], yσ[idxs], ŷ[idxs]
 end
@@ -344,57 +327,45 @@ function metricVector end
 
 function metricVector(model_output, observations, cost_options)
     loss_vector = map(cost_options) do cost_option
-        @debug "***cost for $(cost_option.variable)***"
         lossMetric = cost_option.cost_metric
         (y, yσ, ŷ) = getData(model_output, observations, cost_option)
         (y, yσ, ŷ) = getDataWithoutNaN(y, yσ, ŷ, cost_option.valids)
-        @debug "size y, yσ, ŷ", size(y), size(yσ), size(ŷ)
         # (y, yσ, ŷ) = getDataWithoutNaN(y, yσ, ŷ, cost_option.valids)
         metr = metric(lossMetric, ŷ, y, yσ) * cost_option.cost_weight
         if isnan(metr)
             metr = oftype(metr, 1e19)
         end
-        @debug "$(cost_option.variable) => $(nameof(typeof(lossMetric))): $(metr)"
         metr
     end
-    @debug "\n-------------------\n"
     return loss_vector
 end
 
 function metricVector(model_output, observations, cost_options)
     loss_vector = map(cost_options) do cost_option
-        @debug "***cost for $(cost_option.variable)***"
         lossMetric = cost_option.cost_metric
         (y, yσ, ŷ) = getData(model_output, observations, cost_option)
         (y, yσ, ŷ) = getDataWithoutNaN(y, yσ, ŷ, cost_option.valids)
-        @debug "size y, yσ, ŷ", size(y), size(yσ), size(ŷ)
         # (y, yσ, ŷ) = getDataWithoutNaN(y, yσ, ŷ, cost_option.valids)
         metr = metric(lossMetric, ŷ, y, yσ) * cost_option.cost_weight
         if isnan(metr)
             metr = oftype(metr, 1e19)
         end
-        @debug "$(cost_option.variable) => $(nameof(typeof(lossMetric))): $(metr)"
         metr
     end
-    @debug "\n-------------------\n"
     return loss_vector
 end
 
 function metricVector(model_output::LandWrapper, observations, cost_options)
     loss_vector = map(cost_options) do cost_option
-        @debug "$(cost_option.variable)"
         lossMetric = cost_option.cost_metric
         (y, yσ, ŷ) = getData(model_output, observations, cost_option)
-        @debug "size y, yσ, ŷ", size(y), size(yσ), size(ŷ), size(idxs)
         (y, yσ, ŷ) = getDataWithoutNaN(y, yσ, ŷ) ## cannot use the valids because LandWrapper produces vector
         metr = metric(lossMetric, ŷ, y, yσ) * cost_option.cost_weight
         if isnan(metr)
             metr = oftype(metr, 1e19)
         end
-        @debug "$(cost_option.variable) => $(nameof(typeof(lossMetric))): $(metr)"
         metr
     end
-    @debug "\n-------------------\n"
     return loss_vector
 end
 ```
@@ -552,7 +523,7 @@ function  prepOpti(forcing, observations, info, ::CostModelObsMT; algorithm_info
     
     space_index = 1 # the parallelization of cost computation only runs in single pixel runs
 
-    cost_function = x -> cost(x, opti_helpers.default_values, info.models.forward, run_helpers.space_forcing[space_index], run_helpers.space_spinup[space_index], run_helpers.loc_forcing_t, run_helpers.output_array, run_helpers.space_output_mt, deepcopy(run_helpers.space_land[space_index]), run_helpers.tem_info, observations, opti_helpers.parameter_table, opti_helpers.cost_options, info.optimization.run_options.multi_constraint_method, info.optimization.run_options.parameter_scaling, cost_vector, info.optimization.run_options.cost_method)
+    cost_function = x -> cost(x, opti_helpers.default_values, getCostModels(run_helpers, space_index), run_helpers.space_forcing[space_index], run_helpers.space_spinup[space_index], run_helpers.loc_forcing_t, run_helpers.output_array, run_helpers.space_output_mt, deepcopy(run_helpers.space_land[space_index]), run_helpers.tem_info, observations, opti_helpers.parameter_updater, opti_helpers.cost_options, info.optimization.run_options.multi_constraint_method, info.optimization.run_options.parameter_scaling, cost_vector, info.optimization.run_options.cost_method)
 
     opti_helpers = (; opti_helpers..., cost_function=cost_function, cost_vector=cost_vector)
     return opti_helpers
@@ -562,7 +533,7 @@ function  prepOpti(forcing, observations, info, ::CostModelObsLandTS)
     opti_helpers = prepOpti(forcing, observations, info, CostModelObs())
     run_helpers = opti_helpers.run_helpers
 
-    cost_function = x -> costLand(x, info.models.forward, run_helpers.loc_forcing, run_helpers.loc_spinup_forcing, run_helpers.loc_forcing_t, run_helpers.land_time_series, run_helpers.loc_land, run_helpers.tem_info, observations, opti_helpers.parameter_table, opti_helpers.cost_options, info.optimization.run_options.multi_constraint_method, info.optimization.run_options.parameter_scaling)
+    cost_function = x -> costLand(x, getCostModels(run_helpers, 1), run_helpers.loc_forcing, run_helpers.loc_spinup, run_helpers.loc_forcing_t, run_helpers.land_time_series, run_helpers.loc_land, run_helpers.tem_info, observations, opti_helpers.parameter_updater, opti_helpers.cost_options, info.optimization.run_options.multi_constraint_method, info.optimization.run_options.parameter_scaling)
 
     opti_helpers = (; opti_helpers..., cost_function=cost_function)
     
@@ -572,7 +543,8 @@ end
 function  prepOpti(forcing, observations, info, cost_method::CostModelObs)
     run_helpers = prepTEM(forcing, info)
 
-    parameter_helpers = prepParameters(info.optimization.parameter_table, info.optimization.run_options.parameter_scaling)
+    opti_parameter_table = setInitialFromParameterInput(info.optimization.parameter_table, get(run_helpers, :parameters, nothing))
+    parameter_helpers = prepParameters(opti_parameter_table, info.optimization.run_options.parameter_scaling)
     
     parameter_table = parameter_helpers.parameter_table
     default_values = parameter_helpers.default_values
@@ -581,9 +553,13 @@ function  prepOpti(forcing, observations, info, cost_method::CostModelObs)
 
     cost_options = prepCostOptions(observations, info.optimization.cost_options, cost_method)
 
-    cost_function = x -> cost(x, default_values, info.models.forward, run_helpers.space_forcing, run_helpers.space_spinup, run_helpers.loc_forcing_t, run_helpers.output_array, run_helpers.space_output, deepcopy(run_helpers.space_land), run_helpers.tem_info, observations, parameter_table, cost_options, info.optimization.run_options.multi_constraint_method, info.optimization.run_options.parameter_scaling, cost_method)
+    # the indices of the parameters in the models are found once here, not in every cost
+    # evaluation
+    parameter_updater = prepParameterUpdater(parameter_table, getCostModels(run_helpers))
 
-    opti_helpers = (; parameter_table=parameter_table, cost_function=cost_function, cost_options=cost_options, default_values=default_values, lower_bounds=lower_bounds, upper_bounds=upper_bounds, run_helpers=run_helpers)
+    cost_function = x -> cost(x, default_values, getCostModels(run_helpers), run_helpers.space_forcing, run_helpers.space_spinup, run_helpers.loc_forcing_t, run_helpers.output_array, run_helpers.space_output, deepcopy(run_helpers.space_land), run_helpers.tem_info, observations, parameter_updater, cost_options, info.optimization.run_options.multi_constraint_method, info.optimization.run_options.parameter_scaling, cost_method)
+
+    opti_helpers = (; parameter_table=parameter_table, parameter_updater=parameter_updater, cost_function=cost_function, cost_options=cost_options, default_values=default_values, lower_bounds=lower_bounds, upper_bounds=upper_bounds, run_helpers=run_helpers)
     
     return opti_helpers
 end

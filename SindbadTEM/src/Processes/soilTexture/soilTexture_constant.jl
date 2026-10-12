@@ -14,7 +14,6 @@ function define(params::soilTexture_constant, forcing, land, helpers)
     @unpack_nt soilW ⇐ land.pools
 
     ## set parameter variables
-    @debug "soilTexture_constant: distributing the constant texture properties over the soil layers." | ""
     st_clay = zero(soilW)
     st_orgm = zero(soilW)
     st_sand = zero(soilW)
@@ -41,7 +40,7 @@ function precompute(params::soilTexture_constant, forcing, land, helpers)
     return land
 end
 
-purpose(::Type{soilTexture_constant}) = "Sets soil texture properties as constant values."
+purpose(::Type{soilTexture_constant}) = "Sets soil texture properties as constant values over all soil layers."
 
 @doc """
 

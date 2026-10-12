@@ -1,11 +1,11 @@
 name = "Sindbad"
 uuid = "36c3e672-7dee-4606-99b5-7e5d8d85a313"
 license = "EUPL-1.2"
+version = "0.4.0"
 authors = ["SINDBAD Contributors <sindbad@bgc-jena.mpg.de>"]
 description = "Strategies to Integrate Data and Biogeochemical Models (SINDBAD) Model–Data Integration framework for Terrestrial Ecosystem Models"
 readme = "README.md"
 repository = "https://github.com/LandEcosystems/Sindbad.jl.git"
-version = "0.3.0"
 
 [deps]
 AxisKeys = "94b1ba4f-4ee9-5380-92f1-94cde586c3c5"
@@ -57,6 +57,9 @@ PreallocationTools = "d236fae5-4411-538c-8e31-a6e3d9e00b46"
 QuasiMonteCarlo = "8a4e6c94-4038-4cdc-81c3-7e6ffdb2a71b"
 Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
 
+[sources]
+SindbadTEM = {path = "SindbadTEM"}
+
 [extensions]
 SindbadCMAEvolutionStrategyExt = "CMAEvolutionStrategy"
 SindbadDifferentialEquationsExt = "DifferentialEquations"
@@ -103,11 +106,11 @@ Plots = "1"
 PreallocationTools = "1.1.2"
 ProgressMeter = "1"
 QuasiMonteCarlo = "0.3"
-SindbadTEM = "0.1.5"
+SindbadTEM = "0.2"
 StableRNGs = "1"
 StatsBase = "0.34"
 ThreadPools = "2"
-TimeSamplers = "0.1.0"
+TimeSamplers = "0.2"
 YAXArrayBase = "0.7"
 YAXArrays = "0.7"
 Zarr = "0.9, 0.10"

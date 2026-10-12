@@ -22,7 +22,7 @@ function precompute(params::cQualityPartitioncSoil_equal, forcing, land, helpers
         c_flow_QP_f_cSoil ⇐ land.diagnostics
     end
 
-    c_flow_QP_f_cSoil = getQPEqual(c_flow_QP_f_cSoil, c_flow_order, c_giver, c_taker, helpers.pools.zix.cSoil)
+    c_flow_QP_f_cSoil = getQPEqual(c_flow_QP_f_cSoil, c_flow_order, c_giver, c_taker, helpers.pools.zix.cSoil, helpers.pools.zix.cVeg)
 
     @pack_nt c_flow_QP_f_cSoil ⇒ land.diagnostics
     return land

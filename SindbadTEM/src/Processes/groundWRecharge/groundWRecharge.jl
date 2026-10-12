@@ -17,7 +17,7 @@ function update(params::groundWRecharge, forcing, land, helpers)
     ## unpack variables
     @unpack_nt begin
         (soilW, groundW) ⇐ land.pools
-        (ΔsoilW, ΔgroundW) ⇐ land.states
+        (ΔsoilW, ΔgroundW) ⇐ land.pools
     end
 
     ## update storage pools

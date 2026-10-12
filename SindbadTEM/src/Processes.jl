@@ -247,6 +247,9 @@ module Processes
     ```
     """
     function includeApproaches(modl, dir)
+        # track the file listing of the directory, so that adding or removing an
+        # approach file triggers recompilation of the package
+        include_dependency(dir)
         include.(filter(contains("$(nameof(modl))_"), readdir(dir; join=true)))
         return
     end
