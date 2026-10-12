@@ -36,7 +36,6 @@ function precompute(params::cFireCombustionCompleteness_vanDerWerf2006, forcing,
     @unpack_nt begin
         cEco ⇐ land.pools
         soilW ⇐ land.pools
-        gpp_f_soilW ⇐ land.diagnostics
         (fire_cc_table, fire_aboveground_fraction_table) ⇐ land.diagnostics
         zix ⇐ helpers.pools
         zix_cHeterotrophic ⇐ land.cCycleBase
@@ -61,7 +60,7 @@ function precompute(params::cFireCombustionCompleteness_vanDerWerf2006, forcing,
         @rep_elem soilW_nor ⇒ (c_Fire_cc_fW, izix)
     end
     for zixVeg in zix.cVeg
-        @rep_elem gpp_f_soilW ⇒ (c_Fire_cc_fW, zixVeg)
+        @rep_elem o_one ⇒ (c_Fire_cc_fW, zixVeg)
     end
 
     peat_porosity = zero(w_sat[1])
