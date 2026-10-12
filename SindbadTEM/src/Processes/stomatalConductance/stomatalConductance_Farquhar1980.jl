@@ -1,6 +1,6 @@
-export Conductance_Farquhar1980
+export stomatalConductance_Farquhar1980
 
-@bounds @describe @units @timescale @with_kw struct Conductance_Farquhar1980{
+@bounds @describe @units @timescale @with_kw struct stomatalConductance_Farquhar1980{
     T1, T2, T3, T4, T5, T6, T7, T8, T9,
     T10, T11, T12, T13, T14, T15, T16, T17
 } <: stomatalConductance
@@ -99,9 +99,9 @@ export Conductance_Farquhar1980
 end
 
 
-function compute(params::Conductance_Farquhar1980, forcing, land, helpers)
+function compute(params::stomatalConductance_Farquhar1980, forcing, land, helpers)
 
-    @unpack_Conductance_Farquhar1980 params
+    @unpack_stomatalConductance_Farquhar1980 params
 
     # ============================================================
     # Unpack inputs
@@ -531,13 +531,13 @@ function compute(params::Conductance_Farquhar1980, forcing, land, helpers)
 end
 
 
-purpose(::Type{Conductance_Farquhar1980}) =
+purpose(::Type{stomatalConductance_Farquhar1980}) =
     "Stressed canopy conductance following JSBACH C3 (Knorr 1997)."
 
 
 @doc """
 
-$(getModelDocString(Conductance_Farquhar1980))
+$(getModelDocString(stomatalConductance_Farquhar1980))
 
 ---
 
@@ -557,4 +557,4 @@ $(getModelDocString(Conductance_Farquhar1980))
 
 """
 
-Conductance_Farquhar1980
+stomatalConductance_Farquhar1980
