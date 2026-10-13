@@ -9,10 +9,10 @@ function precompute(params::cQualityPartition_equal, forcing, land, helpers)
         c_flow_QP_vec ⇐ land.diagnostics
     end
 
-    c_flow_QP_vec = getQPEqual(c_flow_QP_vec, c_flow_order, c_giver, c_taker, helpers.pools.zix.cVeg)
-    c_flow_QP_vec = getQPEqual(c_flow_QP_vec, c_flow_order, c_giver, c_taker, helpers.pools.zix.cLit)
-    c_flow_QP_vec = getQPEqual(c_flow_QP_vec, c_flow_order, c_giver, c_taker, helpers.pools.zix.cSoil)
-    c_flow_QP_vec = getQPEqual(c_flow_QP_vec, c_flow_order, c_giver, c_taker, helpers.pools.zix.cMic)
+    c_flow_QP_vec = getQPEqual(c_flow_QP_vec, c_flow_order, c_giver, c_taker, helpers.pools.zix.cVeg, helpers.pools.zix.cVeg)
+    c_flow_QP_vec = getQPEqual(c_flow_QP_vec, c_flow_order, c_giver, c_taker, helpers.pools.zix.cLit, helpers.pools.zix.cVeg)
+    c_flow_QP_vec = getQPEqual(c_flow_QP_vec, c_flow_order, c_giver, c_taker, helpers.pools.zix.cSoil, helpers.pools.zix.cVeg)
+    c_flow_QP_vec = getQPEqual(c_flow_QP_vec, c_flow_order, c_giver, c_taker, helpers.pools.zix.cMic, helpers.pools.zix.cVeg)
 
     @pack_nt c_flow_QP_vec ⇒ land.diagnostics
 	return land

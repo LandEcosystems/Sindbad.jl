@@ -53,6 +53,8 @@ end
     end
 end
 
+include(joinpath(@__DIR__, "testTimeSampling.jl"))
+
 @testset "SindbadTEM model run (via Sindbad)" begin
     # Reuse SindbadTEM's lightweight mock inputs to validate that core TEM process models
     # are runnable when users only `using Sindbad`.
@@ -131,3 +133,4 @@ end
 end
 
 include("MachineLearning/test_gradientSite.jl")
+include("MachineLearning/test_predictParameters.jl")

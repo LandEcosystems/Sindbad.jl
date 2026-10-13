@@ -419,7 +419,7 @@ Variables are grouped by `land_field` into Fluxes / Pools / States / Diagnostics
 
 ## States
 
-:::details Show table (14)
+:::details Show table (15)
 
 | standard_name | units | description | long_name | Key |
 |---|---|---|---|---|
@@ -437,16 +437,17 @@ Variables are grouped by `land_field` into Fluxes / Pools / States / Diagnostics
 | `frac_vegetation` | `fraction` | fractional coverage of grid with vegetation | `fractional_vegetation_cover` | `states__frac_vegetation` |
 | `total_water` | `mm` | sum of water storage across all components | `total_water` | `states__total_water` |
 | `total_water_prev` | `mm` | sum of water storage across all components in previous time step | `total_water_previous` | `states__total_water_prev` |
+| `veg_type_name` | `class` | vegetation type class of the pixel, the single source of vegetation type for downstream processes | `vegetation_type` | `states__veg_type_name` |
 
 :::
 
 ## Diagnostics
 
-:::details Show table (55)
+:::details Show table (63)
 
 | standard_name | units | description | long_name | Key |
 |---|---|---|---|---|
-| `C_to_N_cVeg` | `ratio` | carbon to nitrogen ratio in the vegetation pools | `carbon_to_nitrogen_ratio` | `diagnostics__C_to_N_cVeg` |
+| `CN_ratio_cVeg` | `ratio` | carbon to nitrogen ratio in the vegetation pools | `carbon_to_nitrogen_ratio` | `diagnostics__CN_ratio_cVeg` |
 | `WUE` | `gC/mmH2O` | water use efficiency of the ecosystem | `ecosystem_water_use_efficiency` | `diagnostics__WUE` |
 | `WUENoCO2` | `gC/mmH2O` | water use efficiency of the ecosystem without CO2 effect | `ecosystem_water_use_efficiency_without_co2_effect` | `diagnostics__WUENoCO2` |
 | `auto_respiration_f_airT` | `scalar` | effect of air temperature on autotrophic respiration. 0: no decomposition, >1 increase in decomposition rate | `air_temperature_effect_autotrophic_respiration` | `diagnostics__auto_respiration_f_airT` |
@@ -467,6 +468,14 @@ Variables are grouped by `land_field` into Fluxes / Pools / States / Diagnostics
 | `c_flow_A_array` | `fraction` | an array indicating the flow direction and connections across different pools, with elements larger than 0 indicating flow from column pool to row pool | `carbon_flow_array` | `diagnostics__c_flow_A_array` |
 | `c_flow_A_vec` | `fraction` | fraction of the carbon loss fron a (giver) pool that flows to a (taker) pool | `carbon_flow_vector` | `diagnostics__c_flow_A_vec` |
 | `c_flow_E_array` | `fraction` | an array containing the efficiency of each flow in the c_flow_A_array | `carbon_flow_efficiency_array` | `diagnostics__c_flow_E_array` |
+| `c_flow_ME_f_cLit` | `fraction` | litter pool control of the microbial carbon-transfer efficiency, per active carbon transfer; sets the efficiency of the transfers leaving the litter pools, and is one on every other transfer | `litter_pool_effect_microbial_efficiency` | `diagnostics__c_flow_ME_f_cLit` |
+| `c_flow_ME_f_cMic` | `fraction` | microbial pool control of the microbial carbon-transfer efficiency, per active carbon transfer; sets the efficiency of the transfers leaving the microbial pools, where the soil texture response acts, and is one on every other transfer | `microbial_pool_effect_microbial_efficiency` | `diagnostics__c_flow_ME_f_cMic` |
+| `c_flow_ME_f_cSoil` | `fraction` | soil pool control of the microbial carbon-transfer efficiency, per active carbon transfer; sets the efficiency of the transfers leaving the soil carbon pools, and is one on every other transfer | `soil_pool_effect_microbial_efficiency` | `diagnostics__c_flow_ME_f_cSoil` |
+| `c_flow_ME_vec` | `fraction` | fraction of the carbon leaving a (giver) pool along each of its outgoing transfers that is retained by the (taker) pool rather than respired; allocated as one per flow by cCycleBase and filled in by cMicrobialEfficiency | `microbial_efficiency_vector` | `diagnostics__c_flow_ME_vec` |
+| `c_flow_QP_f_lignin` | `fraction` | lignin control of the carbon-quality partition, per active carbon transfer; splits structural and woody litter decomposition between the slow soil pool and the microbial pools, and is one on every other flow | `lignin_effect_carbon_quality_partition` | `diagnostics__c_flow_QP_f_lignin` |
+| `c_flow_QP_f_metabolic_fraction` | `fraction` | metabolic litter fraction control of the carbon-quality partition, per active carbon transfer; splits leaf and fine-root litterfall between the metabolic and structural litter pools, and is one on every other flow | `metabolic_fraction_effect_carbon_quality_partition` | `diagnostics__c_flow_QP_f_metabolic_fraction` |
+| `c_flow_QP_f_soil_props` | `fraction` | soil property control of the carbon-quality partition, per active carbon transfer; splits slow-soil and soil-microbial decomposition between old soil carbon and the remaining pathway, and is one on every other flow | `soil_property_effect_carbon_quality_partition` | `diagnostics__c_flow_QP_f_soil_props` |
+| `c_flow_QP_vec` | `fraction` | fraction of the carbon loss from a (giver) pool that is routed along each of its outgoing transfers by carbon quality; allocated as one per flow by cCycleBase and filled in by cQualityPartition | `carbon_quality_partition_vector` | `diagnostics__c_flow_QP_vec` |
 | `eco_stressor` | `fraction` | ecosystem stress on carbon flow | `carbon_flow_ecosystem_stressor` | `diagnostics__eco_stressor` |
 | `eco_stressor_prev` | `fraction` | ecosystem stress on carbon flow in the previous time step | `carbon_flow_ecosystem_stressor_previous_timestep` | `diagnostics__eco_stressor_prev` |
 | `gpp_climate_stressors` | `fraction` | a collection of all gpp climate stressors including light, temperature, radiation, and vpd | `climate_effect_per_factor_gpp` | `diagnostics__gpp_climate_stressors` |
@@ -506,7 +515,7 @@ Variables are grouped by `land_field` into Fluxes / Pools / States / Diagnostics
 
 ## Others
 
-:::details Show table (78)
+:::details Show table (84)
 
 **`callocation`** (4)
 
@@ -529,6 +538,16 @@ Variables are grouped by `land_field` into Fluxes / Pools / States / Diagnostics
 |---|---|---|---|---|
 | `zixVeg` | `integer` | a vector of indices for vegetation pools within the array of carbon pools in cEco | `index_veg_pools` | `cCycle__zixVeg` |
 
+**`ccyclebase`** (5)
+
+| standard_name | units | description | long_name | Key |
+|---|---|---|---|---|
+| `c_flow_order` | `number` | order of pooling while calculating the carbon flow | `carbon_flow_order` | `cCycleBase__c_flow_order` |
+| `c_giver` | `number` | index of the source carbon pool for a given flow | `carbon_giver_pool` | `cCycleBase__c_giver` |
+| `c_taker` | `number` | index of the receiving carbon pool for a given flow | `carbon_taker_pool` | `cCycleBase__c_taker` |
+| `flow_edges` | `` | flow_order => (giver_name => taker_name) pair for each carbon flow, in flow-vector order -- informational only, for inspecting land.cCycleBase; no process matches flows by this | `carbon_flow_edges` | `cCycleBase__flow_edges` |
+| `pool_names` | `` | cEco_index => pool_name pair for each carbon pool -- informational only, for inspecting land.cCycleBase; no process matches pools by this | `carbon_pool_names` | `cCycleBase__pool_names` |
+
 **`ccycleconsistency`** (4)
 
 | standard_name | units | description | long_name | Key |
@@ -545,21 +564,17 @@ Variables are grouped by `land_field` into Fluxes / Pools / States / Diagnostics
 | `c_lose_to_zix_vec` | `` |  | `index_carbon_loss_to_pool` | `cCycleDisturbance__c_lose_to_zix_vec` |
 | `zix_veg_all` | `` |  | `index_all_veg_pools` | `cCycleDisturbance__zix_veg_all` |
 
-**`cflow`** (3)
+**`cflow`** (2)
 
 | standard_name | units | description | long_name | Key |
 |---|---|---|---|---|
 | `aSrc` | `string` | name of the source pool for the carbon flow | `carbon_source_pool_name` | `cFlow__aSrc` |
 | `aTrg` | `string` | name of the target pool for carbon flow | `carbon_target_pool_name` | `cFlow__aTrg` |
-| `c_flow_A_vec_ind` | `number` | indices of flow from giver to taker for carbon flow vector | `index_carbon_flow_vector` | `cFlow__c_flow_A_vec_ind` |
 
-**`constants`** (12)
+**`constants`** (9)
 
 | standard_name | units | description | long_name | Key |
 |---|---|---|---|---|
-| `c_flow_order` | `number` | order of pooling while calculating the carbon flow | `carbon_flow_order` | `constants__c_flow_order` |
-| `c_giver` | `number` | index of the source carbon pool for a given flow | `carbon_giver_pool` | `constants__c_giver` |
-| `c_taker` | `number` | index of the source carbon pool for a given flow | `carbon_taker_pool` | `constants__c_taker` |
 | `n_TWS` | `number` | total number of water pools | `num_layers_TWS` | `constants__n_TWS` |
 | `n_groundW` | `number` | total number of layers in groundwater pool | `num_layers_groundW` | `constants__n_groundW` |
 | `n_snowW` | `number` | total number of layers in snow pool | `num_layers_snowW` | `constants__n_snowW` |
@@ -603,19 +618,24 @@ Variables are grouped by `land_field` into Fluxes / Pools / States / Diagnostics
 |---|---|---|---|---|
 | `percolation` | `mm/time` | amount of moisture percolating to the top soil layer | `soil_water_percolation` | `fluxes__percolation` |
 
-**`properties`** (42)
+**`properties`** (47)
 
 | standard_name | units | description | long_name | Key |
 |---|---|---|---|---|
-| `LIGEFF` | `fraction` |  | `LIGEFF` | `properties__LIGEFF` |
-| `LIGNIN` | `fraction` |  | `LIGNIN` | `properties__LIGNIN` |
-| `LITC2N` | `fraction` |  | `LITC2N` | `properties__LITC2N` |
-| `MTF` | `fraction` |  | `MTF` | `properties__MTF` |
-| `SCLIGNIN` | `fraction` |  | `SCLIGNIN` | `properties__SCLIGNIN` |
 | `cumulative_soil_depths` | `mm` | the depth to the bottom of each soil layer | `cumulative_soil_depth` | `properties__cumulative_soil_depths` |
+| `idx_soilW_end` | `number` | index of the deepest soil layer with non-zero thickness, which exchanges water with groundwater | `index_of_bottom_active_soil_layer` | `properties__idx_soilW_end` |
 | `k_fc` | `mm/time` | hydraulic conductivity of soil at field capacity per layer | `k_field_capacity` | `properties__k_fc` |
 | `k_sat` | `mm/time` | hydraulic conductivity of soil at saturation per layer | `k_saturated` | `properties__k_sat` |
 | `k_wp` | `mm/time` | hydraulic conductivity of soil at wilting point per layer | `k_wilting_point` | `properties__k_wp` |
+| `lit_CN_ratio` | `gC/gN` | carbon-to-nitrogen ratio of litter | `litter_carbon_to_nitrogen_ratio` | `properties__lit_CN_ratio` |
+| `lit_frac_C_lignin` | `fraction` | carbon fraction of lignin | `litter_carbon_fraction_of_lignin` | `properties__lit_frac_C_lignin` |
+| `lit_frac_lignin` | `fraction` | fraction of litter that is lignin | `litter_lignin_fraction` | `properties__lit_frac_lignin` |
+| `lit_frac_lignin_struct` | `fraction` | lignin as a fraction of structural litter carbon, which controls how structural litter decomposition is split between the slow soil pool and the microbial pools | `litter_structural_lignin_fraction` | `properties__lit_frac_lignin_struct` |
+| `lit_frac_lignin_wood` | `fraction` | lignin fraction of woody litter, which controls the partitioning of woody and coarse-root litter decomposition | `woody_lit_lignin_fraction` | `properties__lit_frac_lignin_wood` |
+| `lit_frac_metabolic` | `fraction` | fraction of leaf and fine-root litterfall routed to the metabolic litter pools; the complement goes to the structural pools | `metabolic_lit_fraction` | `properties__lit_frac_metabolic` |
+| `lit_k_f_lignin` | `fraction` | multiplicative effect of lignin content on the decomposition rate of the structural litter pools; one means no effect | `k_lignin_effect` | `properties__lit_k_f_lignin` |
+| `lit_nonsol_to_sol_lignin` | `fraction` | scalar converting nonsoluble to soluble lignin | `nonsoluble_to_soluble_lignin` | `properties__lit_nonsol_to_sol_lignin` |
+| `soil_depth` | `mm` | total soil depth of the location as the sum of soil layer thicknesses | `soil_depth` | `properties__soil_depth` |
 | `soil_layer_thickness` | `mm` | thickness of each soil layer | `soil_thickness_per_layer` | `properties__soil_layer_thickness` |
 | `soil_α` | `number` | alpha parameter of soil per layer | `soil_α` | `properties__soil_α` |
 | `soil_β` | `number` | beta parameter of soil per layer | `soil_β` | `properties__soil_β` |

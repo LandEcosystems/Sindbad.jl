@@ -56,14 +56,11 @@
       "diagnostics.gpp_f_vpd": null
     }
   },
-  "model_spinup": {
-    "restart_file": null,
-    "sequence": [
-      {
-        "forcing": "first_year",
-        "n_repeat": 200,
-        "spinup_mode": "all_forward_models"
-      }
-    ]
-  }
+  "spinup_sequence": [
+    {
+      "forcing": "first_year",
+      "n_repeat": 200,
+      "spinup_mode": "all_forward_models"
+    }
+  ]
 }

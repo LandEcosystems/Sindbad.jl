@@ -22,7 +22,7 @@ function precompute(params::cQualityPartitioncLit_equal, forcing, land, helpers)
         c_flow_QP_f_cLit ⇐ land.diagnostics
     end
 
-    c_flow_QP_f_cLit = getQPEqual(c_flow_QP_f_cLit, c_flow_order, c_giver, c_taker, helpers.pools.zix.cLit)
+    c_flow_QP_f_cLit = getQPEqual(c_flow_QP_f_cLit, c_flow_order, c_giver, c_taker, helpers.pools.zix.cLit, helpers.pools.zix.cVeg)
 
     @pack_nt c_flow_QP_f_cLit ⇒ land.diagnostics
     return land

@@ -1,7 +1,6 @@
 export getConstraintNames
 export getCostOptions
 export setOptimization
-export prepCostOptions
 
 """
     checkOptimizedParametersInModels(info::NamedTuple, parameter_table)
@@ -63,6 +62,31 @@ function getAggrFunc(func_name::String)
 end
 
 """
+    getCostTimeResampler(name, dates_helpers, aggr_func)
+
+Build the time resampler of one observational constraint, once, so that it can be
+applied to the model output and the observations at every cost evaluation.
+
+# Arguments:
+- `name`: the `temporal_data_aggr` setting, such as `"day"`, `"hour_anomaly"`,
+  `"day_MSC"` or a period spec such as `"8-day_msc"` or `"month_iav"`
+- `dates_helpers`: a NamedTuple with the `range` and `timestep` of the experiment
+- `aggr_func`: the function applied to every time group, such as `mean` or `nansum`
+
+# Returns:
+- a `TimeResampler` from TimeSamplers.jl
+
+# Notes:
+- The first sampler is skipped when its bins have the length of the model
+  timestep, because the data is then already at that resolution.
+"""
+function getCostTimeResampler(name, dates_helpers, aggr_func)
+    method = get_TimeSampler(String(name))
+    skip_sampling = time_sampling_period(method) == dates_helpers.timestep
+    return TimeResampler(dates_helpers.range, method; sampler_func=aggr_func, skip_sampling=skip_sampling)
+end
+
+"""
     getCostOptions(optim_info::NamedTuple, vars_info, tem_variables, number_helpers, dates_helpers)
 
 Sets up cost optimization options based on the provided parameters.
@@ -90,7 +114,6 @@ julia> # cost_options = getCostOptions(optim_info, vars_info, tem_variables, num
 """
 function getCostOptions(optim_info::NamedTuple, vars_info, tem_variables, number_helpers, dates_helpers)
     varlist = Symbol.(optim_info.observational_constraints)
-    agg_type = []
     time_aggrs = []
     aggr_funcs = []
     all_costs = map(varlist) do v
@@ -116,12 +139,6 @@ function getCostOptions(optim_info::NamedTuple, vars_info, tem_variables, number
             end
             push!(prop_array, sel_value)
             if prop == :temporal_data_aggr
-                t_a = sel_value
-                to_push_type = TimeNoDiff()
-                if endswith(lowercase(t_a), "_anomaly") || endswith(lowercase(t_a), "_iav")
-                    to_push_type = TimeDiff()
-                end
-                push!(agg_type, to_push_type)
                 push!(time_aggrs, sel_value)
             end
             if prop == :aggr_func
@@ -146,25 +163,16 @@ function getCostOptions(optim_info::NamedTuple, vars_info, tem_variables, number
     #     cost_option = Accessors.@set cost_option.mod_ind = new_mod_ind
     # end
 
-    agg_indices = []
-    for (i, _aggr) in enumerate(time_aggrs)
-        aggr_func = getAggrFunc(aggr_funcs[i])
-        _aggr_name = string(_aggr)
-        skip_sampling = false
-        if startswith(_aggr_name, dates_helpers.temporal_resolution)
-            skip_sampling = true
-        end
-        aggInd = create_TimeSampler(dates_helpers.range, to_uppercase_first(_aggr, "Time"), aggr_func, skip_sampling)
-        push!(agg_indices, aggInd)
+    time_resamplers = map(enumerate(time_aggrs)) do (i, _aggr)
+        getCostTimeResampler(_aggr, dates_helpers, getAggrFunc(aggr_funcs[i]))
     end
     push!(all_options, obs_ind)
     push!(all_options, obs_sn)
     push!(all_options, mod_ind)
     push!(all_options, mod_field)
     push!(all_options, mod_subfield)
-    push!(all_options, agg_indices)
-    push!(all_options, agg_type)
-    all_props = [:variable, props_to_keep..., :obs_ind, :obs_sn, :mod_ind, :mod_field, :mod_subfield, :temporal_aggr, :temporal_aggr_type]
+    push!(all_options, time_resamplers)
+    all_props = [:variable, props_to_keep..., :obs_ind, :obs_sn, :mod_ind, :mod_field, :mod_subfield, :temporal_aggr]
     return (; Pair.(all_props, all_options)...)
 end
 
@@ -223,80 +231,6 @@ end
 
 
 """
-    prepCostOptions(observations, cost_options, ::CostMethod)
-
-Prepares cost options for optimization by filtering variables with insufficient data points and setting up the required configurations.
-
-# Arguments:
-- `observations`: A NamedTuple or a vector of arrays containing observation data, uncertainties, and masks used for calculating performance metrics or loss.
-- `cost_options`: A table listing each observation constraint and its configuration for calculating the loss or performance metric.
-- `::CostMethod`: A type indicating the cost function method. 
-
-# Returns:
-- A filtered table of `cost_options` containing only valid variables with sufficient data points.
-
-# cost methods:
-$(methods_of(CostMethod))
-
----
-# Extended help
-
-# Examples
-```jldoctest
-julia> using Sindbad
-
-julia> # Prepare cost options for optimization
-julia> # filtered_cost_options = prepCostOptions(observations, cost_options, CostModelObs())
-```
-
-# Notes:
-- The function iterates through the observation variables and checks if the number of valid data points meets the minimum threshold specified in `cost_options.min_data_points`.
-- Variables with insufficient data points are excluded from the returned `cost_options`.
-- The function modifies the `cost_options` table by adding:
-  - `valids`: Indices of valid data points for each variable.
-  - `is_valid`: A boolean flag indicating whether the variable meets the minimum data point requirement.
-- Unnecessary fields such as `min_data_points`, `temporal_data_aggr`, and `aggr_func` are removed from the final `cost_options`.
-"""
-function prepCostOptions end
-
-
-function prepCostOptions(observations, cost_options)
-    return prepCostOptions(observations, cost_options, CostModelObs())
-end
-
-function prepCostOptions(observations, cost_options, ::CostModelObsPriors)
-    return prepCostOptions(observations, cost_options, CostModelObs())
-end
-
-function prepCostOptions(observations, cost_options, ::CostModelObs)
-    valids=[]
-    is_valid = []
-    vars = cost_options.variable
-    obs_inds = cost_options.obs_ind
-    min_data_points = cost_options.min_data_points
-    for vi in eachindex(vars)
-        obs_ind_start = obs_inds[vi]
-        min_point = min_data_points[vi]
-        y = observations[obs_ind_start]
-        yσ = observations[obs_ind_start+1]
-        idxs = Array(.!is_invalid_number.(y .* yσ))
-        total_point = sum(idxs)
-        if total_point < min_point
-            push!(is_valid, false)
-        else
-            push!(is_valid, true)
-        end
-        push!(valids, idxs)
-    end
-    cost_options = set_namedtuple_field(cost_options, (:valids, valids))
-    cost_options = set_namedtuple_field(cost_options, (:is_valid, is_valid))
-    cost_options = drop_namedtuple_fields(cost_options, (:min_data_points, :temporal_data_aggr, :aggr_func,))
-    cost_option_table = Table(cost_options)
-    cost_options_table_filtered = filter(row -> row.is_valid === true , cost_option_table)
-    return cost_options_table_filtered
-end
-
-"""
     setAlgorithmOptions(info::NamedTuple, which_algorithm)
 Set up algorithm-specific options for optimization.
 # Arguments:
@@ -314,18 +248,34 @@ function setAlgorithmOptions(info, which_algorithm)
     algo_options = (;)
     algo_method = nothing
     if !isnothing(optim_algorithm)
-        if endswith(optim_algorithm, ".json")
-            options_path = optim_algorithm
-            if !isabspath(options_path)
-                options_path = joinpath(info.temp.experiment.dirs.settings, options_path)
+        if optim_algorithm isa AbstractString
+            if endswith(optim_algorithm, ".json")
+                options_path = optim_algorithm
+                if !isabspath(options_path)
+                    options_path = joinpath(info.temp.experiment.dirs.settings, options_path)
+                end
+                options = parsefile(options_path; dicttype=DataStructures.OrderedDict)
+                options = dict_to_namedtuple(options)
+                algo_method = options.package * "_" * options.method
+                algo_method = getTypeInstanceForNamedOptions(algo_method)
+                algo_options = options.options
+            else
+                algo_method = getTypeInstanceForNamedOptions(optim_algorithm)
             end
-            options = parsefile(options_path; dicttype=DataStructures.OrderedDict)
-            options = dict_to_namedtuple(options)
-            algo_method = options.package * "_" * options.method
-            algo_method = getTypeInstanceForNamedOptions(algo_method)
-            algo_options = options.options
+        elseif optim_algorithm isa Union{NamedTuple, AbstractDict}
+            algorithm_config = optim_algorithm isa NamedTuple ? optim_algorithm : dict_to_namedtuple(optim_algorithm)
+            method = algorithm_config.method
+            algo_method = method isa AbstractString ? getTypeInstanceForNamedOptions(method) : method
+            options = get(algorithm_config, :options, (;))
+            if options isa NamedTuple
+                algo_options = options
+            elseif options isa AbstractDict
+                algo_options = dict_to_namedtuple(options)
+            else
+                throw(ArgumentError("algorithm options must be a NamedTuple or dictionary, got $(typeof(options))"))
+            end
         else
-            algo_method = getTypeInstanceForNamedOptions(optim_algorithm)
+            throw(ArgumentError("algorithm configuration must be a string, NamedTuple, dictionary, or nothing; got $(typeof(optim_algorithm))"))
         end
     else
         if which_algorithm == :algorithm_sensitivity_analysis
@@ -412,5 +362,4 @@ function setOptimization(info::NamedTuple)
     info = (; info..., optimization = optimization_info)
     return info
 end
-
 

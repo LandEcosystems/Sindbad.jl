@@ -253,6 +253,9 @@ end
 
 Reads the experiment configuration files (JSON or CSV) and returns a dictionary.
 
+The `parameters` config file can also be a zarr or netCDF parameter file. It is
+then stored as a parameter input with only its `data_path`, see `getParameterInput`.
+
 # Arguments:
 - `info_exp::AbstractDict`: The experiment configuration dictionary.
 - `base_path::String`: The base path for resolving relative file paths.
@@ -274,6 +277,11 @@ function readConfiguration(info_exp::AbstractDict, base_path::String)
             prm = CSV.File(config_path)
             tmp = Table(prm)
             info[k] = tmp
+        elseif k == "parameters" && isParameterFile(v)
+            # a parameter file given directly uses all its variables, and their
+            # settings are read from the attributes in getParameters
+            default_map = DataStructures.OrderedDict{String,Any}("data_path" => config_path)
+            info[k] = DataStructures.OrderedDict{String,Any}("default_parameter_map" => default_map, "variables" => DataStructures.OrderedDict{String,Any}())
         end
     end
 
@@ -291,6 +299,15 @@ function readConfiguration(info_exp::AbstractDict, base_path::String)
     info["experiment"] = info_exp["experiment"]
     return info
 end
+
+
+"""
+    isParameterFile(path)
+
+Returns true when `path` is a zarr or netCDF file, which can be given directly as the
+`parameters` config file to set the parameters per location.
+"""
+isParameterFile(path) = any(ext -> endswith(rstrip(path, '/'), ext), (".zarr", ".nc"))
 
 
 """

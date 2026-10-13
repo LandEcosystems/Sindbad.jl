@@ -11,17 +11,14 @@ end
 function define(params::rootWaterEfficiency_expCvegRoot, forcing, land, helpers)
     @unpack_rootWaterEfficiency_expCvegRoot params
     @unpack_nt begin
-        soil_layer_thickness ⇐ land.properties
         soilW ⇐ land.pools
     end
     ## Instantiate variables
     root_water_efficiency = one.(soilW)
-    cumulative_soil_depths = cumsum(soil_layer_thickness)
     root_over = one.(soilW)
     ## pack land variables
     @pack_nt begin
         root_over ⇒ land.rootWaterEfficiency
-        cumulative_soil_depths ⇒ land.properties
         root_water_efficiency ⇒ land.diagnostics
     end
     return land

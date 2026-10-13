@@ -5,7 +5,7 @@
     "space": ["site"]
   },
   "subset": {
-    "site": [1]
+    "site": ["AR-SLu"]
   },
   "default_forcing": {
     "additive_unit_conversion": false,
@@ -311,6 +311,15 @@
       "standard_name": "Maximum rooting depth",
       "sindbad_unit": "mm",
       "source_to_sindbad_unit": 10.0,
+      "source_unit": "mm",
+      "source_variable": "f_pft",
+      "space_time_type": "spatial"
+    },
+    "f_soil_depth": {
+      "bounds": [100.0, 2000.0],
+      "standard_name": "soil depth",
+      "sindbad_unit": "mm",
+      "source_to_sindbad_unit": 100.0,
       "source_unit": "mm",
       "source_variable": "f_pft",
       "space_time_type": "spatial"

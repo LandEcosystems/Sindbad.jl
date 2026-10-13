@@ -84,10 +84,13 @@ function cleanData(_data, _data_fill, _data_info, ::Val{T}) where {T}
     _data = applyUnitConversion(_data, _data_info.source_to_sindbad_unit,
         _data_info.additive_unit_conversion)
     bounds = _data_info.bounds
-    if !isnothing(bounds)
+    # no bounds, given as null or an empty list, means no clamping
+    if !isnothing(bounds) && !isempty(bounds)
         _data = clamp(_data, first(bounds), last(bounds))
     end
-    return T(_data)
+    # the assertion keeps the cleaned data concretely typed when the bounds are an
+    # untyped empty list, for which the type of the clamp cannot be inferred
+    return T(_data)::T
 end
 
 
@@ -347,10 +350,13 @@ function subsetAndProcessYax(yax, forcing_mask, tar_dims, _data_info, info, ::Va
         @debug "         -> permuting dimensions to $(tar_dims)..."
         yax = permutedims(yax, permutes)
     end
-    if hasproperty(yax, Symbol(forcing_data_settings.data_dimension.time))
+    time_name = Symbol(forcing_data_settings.data_dimension.time)
+    if hasproperty(yax, time_name)
         init_date = DateTime(info.helpers.dates.date_begin)
-        last_date = DateTime(info.helpers.dates.date_end)
-        yax = yax[time=(init_date .. last_date)]
+        # date_end covers its whole timestep, so data stamped within the last period
+        # such as a daily value at 11:00 UTC is kept and matches the dates range.
+        last_date = DateTime(info.helpers.dates.date_end) + info.helpers.dates.timestep - Millisecond(1)
+        yax = getindex(yax; (time_name => init_date .. last_date,)...)
     end
 
     if hasproperty(forcing_data_settings, :subset)

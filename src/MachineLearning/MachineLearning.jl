@@ -58,7 +58,8 @@ module MachineLearning
     using ..DataLoaders: AllNaN
     using ..DataLoaders: yaxCubeToKeyedArray, Cube, At
     using ..Setup: updateModels, getParameterIndices
-    using ..Simulation: coreTEM!, prepTEM, prepCostOptions
+    using ..Simulation: coreTEM!, prepTEM
+    using ..DataLoaders: prepCostOptions
     using ..ParameterOptimization: metricVector, combineMetric
 
 
@@ -76,5 +77,6 @@ module MachineLearning
     include("vegClasses.jl")
     include("mlModels.jl")
     include("loadCovariates.jl")
+    include("mlParameters.jl")
 
 end

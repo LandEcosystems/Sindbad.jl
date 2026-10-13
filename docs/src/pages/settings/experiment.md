@@ -176,37 +176,45 @@ Variables follow the `field.subfield` convention of the `land` structure.
 
 :::
 
-### Model Spinup
+### Spinup Sequence
 
-The `model_spinup` section configures model initialization procedures.
+The `spinup_sequence` entry configures the model spinup. It is either a list of spinup steps run in order, or a sequence method with its options, e.g. `{"method": "sequence_with_age", "options": {...}}`. When it is missing or null, the default sequence is used.
+
+The pools for the restart file are saved after the step with `"save_restart": true`. A step without the field is false. When no step is true, the last step saves the restart, and more than one true step is an error.
 
 :::tabs
 
 == Explanation
 ```json
-"model_spinup": {
-    "restart_file": "Path to restart file (null for no restart)",
-    "sequence": [
-      {
-        "forcing": "Forcing data source for sequence block",
-        "n_repeat": "Number of sequence repetitions",
-        "spinup_mode": "Models or methods to use in block"
-      }
-    ]
-}
+"spinup_sequence": [
+  {
+    "forcing": "Forcing data source for sequence block",
+    "n_repeat": "Number of sequence repetitions",
+    "spinup_mode": "Models or methods to use in block",
+    "save_restart": "Optional. true to save the pools for the restart file after this step"
+  }
+]
 ```
 
 == Example
 ```json
-"model_spinup": {
-    "restart_file": null,
-    "sequence": [
-      {
-        "forcing": "first_year",
-        "n_repeat": 200,
-        "spinup_mode": "all_forward_models"
-      }
-    ]
-}
+"spinup_sequence": [
+  {
+    "forcing": "first_year",
+    "n_repeat": 200,
+    "spinup_mode": "all_forward_models"
+  }
+]
 ```
+:::
+
+::: info Spinup forcing
+
+The `forcing` of a sequence block is resolved with TimeSamplers.jl:
+- `"all_years"`, `"first_year"`, `"random_year"` and `"shuffle_years"` select timesteps of the forcing, which then runs at the model timestep.
+- `"day_MSC"`, `"month_MSC"` and period specs such as `"hour_msc"` or `"8-day_msc"` average the forcing into a mean seasonal cycle. Each value of the cycle is one spinup timestep.
+- Anomalies are not allowed as spinup forcing.
+
+The forcing is averaged for every variable, and the models run with their parameters at the model timestep. When the bins are longer than the model timestep, for example `"day_MSC"` on an hourly model, each spinup timestep therefore covers a whole bin with parameters and forcing amounts per model timestep. For a spinup at the model timestep, use the cycle at that resolution, such as `"hour_msc"` for an hourly model.
+
 :::
