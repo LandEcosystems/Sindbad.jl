@@ -18,12 +18,19 @@ function define(params::cFireCombustionCompleteness_vanDerWerf2006, forcing, lan
     end
 
     c_Fire_cci = zero.(cEco)
+    c_fire_ccMin = zero.(cEco)
+    c_fire_ccMax = zero.(cEco)
+    c_fire_cc_weight = zero.(cEco)
+    c_fire_aboveground_fraction = zero.(cEco)
+    c_Fire_cc_fW = one.(cEco)
+    frac_exposed = one.(cEco)
     fire_cc_table = fireCCTable(c_model)
     fire_aboveground_fraction_table = abovegroundFractionTable(c_model)
 
     ## pack land variables
     @pack_nt begin
-        (c_Fire_cci, fire_cc_table, fire_aboveground_fraction_table) ⇒ land.diagnostics
+        (c_Fire_cci, c_fire_ccMin, c_fire_ccMax, c_fire_cc_weight, c_fire_aboveground_fraction, c_Fire_cc_fW, frac_exposed) ⇒ land.diagnostics
+        (fire_cc_table, fire_aboveground_fraction_table) ⇒ land.diagnostics
     end
     return land
 end
@@ -34,35 +41,31 @@ function precompute(params::cFireCombustionCompleteness_vanDerWerf2006, forcing,
 
     ## unpack land variables
     @unpack_nt begin
-        cEco ⇐ land.pools
         soilW ⇐ land.pools
         (fire_cc_table, fire_aboveground_fraction_table) ⇐ land.diagnostics
+        (c_fire_ccMin, c_fire_ccMax, c_fire_cc_weight, c_fire_aboveground_fraction, c_Fire_cc_fW, frac_exposed) ⇐ land.diagnostics
         zix ⇐ helpers.pools
         zix_cHeterotrophic ⇐ land.cCycleBase
         (w_sat, ∑w_sat, soil_layer_thickness) ⇐ land.properties
         (z_zero, o_one) ⇐ land.constants
     end
 
-    c_fire_ccMax = zero.(cEco)
-    c_fire_ccMin = zero.(cEco)
-    c_fire_cc_weight = zero.(cEco)
-    c_fire_aboveground_fraction = zero.(cEco)
-    c_Fire_cc_fW = zero.(cEco)
-    frac_exposed = one.(cEco)
-
-    ## calculate variables
+    ## per-pool combustion completeness and aboveground fraction from the tables
+    @rep_vec c_fire_ccMin ⇒ helpers.pools.zeros.cEco
+    @rep_vec c_fire_ccMax ⇒ helpers.pools.zeros.cEco
+    @rep_vec c_fire_cc_weight ⇒ helpers.pools.zeros.cEco
+    @rep_vec c_fire_aboveground_fraction ⇒ helpers.pools.zeros.cEco
     (c_fire_ccMin, c_fire_ccMax, c_fire_cc_weight) = getFireCCFromParams(c_fire_ccMin, c_fire_ccMax, c_fire_cc_weight, fire_cc_table, fire_cc_scalar, helpers)
     c_fire_aboveground_fraction = getAbovegroundFractionFromParams(c_fire_aboveground_fraction, fire_aboveground_fraction_table, helpers)
 
-    totalSoilW = at_least_zero(totalS(soilW))
-    soilW_nor = at_most_one(totalSoilW / ∑w_sat)
+    ## initial moisture state of heterotrophic pools for the filter in compute
+    soilW_nor = at_most_one(at_least_zero(totalS(soilW)) / ∑w_sat)
+    @rep_vec c_Fire_cc_fW ⇒ helpers.pools.ones.cEco
     for izix in zix_cHeterotrophic
         @rep_elem soilW_nor ⇒ (c_Fire_cc_fW, izix)
     end
-    for zixVeg in zix.cVeg
-        @rep_elem o_one ⇒ (c_Fire_cc_fW, zixVeg)
-    end
 
+    ## diagnose peat from the porosity of the top peat_burn_depth_max of soil
     peat_porosity = zero(w_sat[1])
     depth = zero(peat_burn_depth_max)
     for sl in eachindex(soil_layer_thickness)
@@ -75,22 +78,17 @@ function precompute(params::cFireCombustionCompleteness_vanDerWerf2006, forcing,
     peat_porosity = depth > z_zero ? peat_porosity / depth : z_zero
     peat = peat_porosity >= peat_porosity_threshold ? o_one : z_zero
 
+    ## maximum exposed fraction of each pool
     soil_depth = sum(soil_layer_thickness)
     f_soil = soil_depth > z_zero ? at_most_one(soil_burn_depth_max / soil_depth) : z_zero
     f_peat = soil_depth > z_zero ? at_most_one(peat_burn_depth_max / soil_depth) : z_zero
+    f_bg_mic = at_least_zero(f_soil + peat * (f_peat - f_soil))
+    f_bg_soil = peat * f_peat
 
     for izix in zix.cEco
+        f_bg = izix ∈ zix.cSoil ? f_bg_soil : izix ∈ zix.cMic ? f_bg_mic : f_soil
         f_ag = c_fire_aboveground_fraction[izix]
-        @rep_elem f_ag + (o_one - f_ag) * f_soil ⇒ (frac_exposed, izix)
-    end
-    for izix in zix.cMic
-        f_ag = c_fire_aboveground_fraction[izix]
-        f_bg = at_least_zero(f_soil + peat * (f_peat - f_soil))
         @rep_elem f_ag + (o_one - f_ag) * f_bg ⇒ (frac_exposed, izix)
-    end
-    for izix in zix.cSoil
-        f_ag = c_fire_aboveground_fraction[izix]
-        @rep_elem f_ag + (o_one - f_ag) * peat * f_peat ⇒ (frac_exposed, izix)
     end
 
     ## pack land variables

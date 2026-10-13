@@ -20,8 +20,6 @@ function define(params::cDieBack_ImplicitResprout, forcing, land, helpers)
 end
 
 function compute(params::cDieBack_ImplicitResprout, forcing, land, helpers)
-    ## unpack forcing
-    @unpack_nt f_dist_intensity ⇐ forcing
     @unpack_cDieBack_ImplicitResprout params
 
     ## unpack land variables
@@ -31,14 +29,18 @@ function compute(params::cDieBack_ImplicitResprout, forcing, land, helpers)
         c_remain ⇐ land.states
         c_model ⇐ land.models
         z_zero ⇐ land.constants
-        (c_flow_QP_vec, c_disturbance_mortality, c_disturbance_flow, c_disturbance_efflux) ⇐ land.diagnostics
+        (c_f_cVeg_dieOff, c_flow_QP_vec, c_disturbance_mortality, c_disturbance_flow, c_disturbance_efflux) ⇐ land.diagnostics
     end
+    # losses are per time step, so clear the previous step before accumulating
+    @rep_vec c_disturbance_mortality ⇒ helpers.pools.zeros.cEco
+    @rep_vec c_disturbance_flow ⇒ helpers.pools.zeros.cEco
+    @rep_vec c_disturbance_efflux ⇒ helpers.pools.zeros.cEco
     zix_cVeg = helpers.pools.zix.cVeg
-    if f_dist_intensity > z_zero
+    if c_f_cVeg_dieOff > z_zero
         for fO ∈ c_flow_order
             c_giver[fO] ∈ zix_cVeg || continue
             frac_lives = c_giver[fO] ∈ helpers.pools.zix.cVegReserve ? frac_reserve_survival : zero(frac_reserve_survival)
-            cLoss = at_least_zero(cEco[c_giver[fO]] - c_remain * frac_lives) * f_dist_intensity * c_flow_QP_vec[fO]
+            cLoss = at_least_zero(cEco[c_giver[fO]] - c_remain * frac_lives) * c_f_cVeg_dieOff * c_flow_QP_vec[fO]
             #=
             # deplete pool
             @add_to_elem -cLoss ⇒ (cEco, c_giver[fO])
