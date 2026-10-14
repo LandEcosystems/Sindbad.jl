@@ -17,7 +17,7 @@ module SindbadPlotsExt
     using SindbadTEM.Processes: define, precompute
     using SindbadTEM.OmniTools
     using Sindbad.Types
-    using Sindbad.Setup: getPoolInformation
+    using Sindbad.Setup: getPoolInformation, carbonPoolNames
     using Sindbad.DataLoaders
     using Sindbad.ErrorMetrics
     using Sindbad.NaNStatistics

@@ -89,29 +89,33 @@ function _poolNamePrefixes(pool_names)
 end
 
 """
-    _syntheticCarbonLand(approach, pool_names, veg_type_name, extra_approaches)
+    _syntheticCarbonLand(approach, pool_names, veg_type_name, extra_approaches, helpers)
 
-Build a minimal `land`/`helpers`, run `define`+`precompute` for a fresh default
+Build a minimal `land`, and `helpers` unless an experiment's are given, run `define`+`precompute` for a fresh default
 instance of `approach`'s type (ignoring any parameter values `approach` itself
 carries) and then `extra_approaches` on it. Returns `(land, helpers)`, or
 `(nothing, nothing)` if that raises for this approach (caller falls back to an
 index-only label).
 
-No forcing, spatial data or real experiment: `zix` comes from `pool_names`
-(`_poolNamePrefixes`); `land` carries only the placeholder fields `define`/
-`precompute` read (`states.veg_type_name`, `vegClass.veg_type_class_map`, zeroed
-`pools.cEco`).
+No forcing, spatial data or model run: `land` carries only the placeholder fields
+`define`/`precompute` read (`states.veg_type_name`, `vegClass.veg_type_class_map`,
+zeroed `pools.cEco`). Given `helpers` from an experiment `info`, their pools and
+`zix` are used. Otherwise `zix` comes from `pool_names` (`_poolNamePrefixes`) plus
+an entry for every `carbonPoolNames()` name.
 """
-function _syntheticCarbonLand(approach, pool_names, veg_type_name, extra_approaches)
+function _syntheticCarbonLand(approach, pool_names, veg_type_name, extra_approaches, helpers)
     try
         n_pools = length(pool_names)
-        # cVeg/cLit/cMic/cSoil must exist even where empty (e.g. GSI has no microbial pool)
-        zix_names = Symbol.(union(_poolNamePrefixes(pool_names), ("cVeg", "cLit", "cMic", "cSoil")))
-        zix = NamedTuple{Tuple(zix_names)}(Tuple(
-            Tuple(findall(nm -> startswith(String(nm), String(prefix)), pool_names))
-            for prefix ∈ zix_names))
-        helpers = (; pools=(; zix=zix, components=(; cEco=pool_names),
-            zeros=(; cEco=zeros(n_pools)), ones=(; cEco=ones(n_pools))))
+        if isnothing(helpers)
+            # Every carbon pool name gets an entry, empty where this configuration lacks
+            # it, as setPoolsInfo does for a real experiment.
+            zix_names = Symbol.(union(_poolNamePrefixes(pool_names), String.(carbonPoolNames())))
+            zix = NamedTuple{Tuple(zix_names)}(Tuple(
+                Tuple(findall(nm -> startswith(String(nm), String(prefix)), pool_names))
+                for prefix ∈ zix_names))
+            helpers = (; pools=(; zix=zix, components=(; cEco=pool_names),
+                zeros=(; cEco=zeros(n_pools)), ones=(; cEco=ones(n_pools))))
+        end
         land = (; pools=(; cEco=zeros(n_pools)), diagnostics=(;), cCycleBase=(;), models=(;),
             states=(; veg_type_name=veg_type_name),
             vegClass=(; veg_type_class_map=Classification_SINDBAD()))
@@ -196,8 +200,9 @@ labelled arrow per flow.
 - `land`: a `define`+`precompute`d land from a real experiment run. When given,
   topology and T/A/M/Q come from it, not a synthetic run. Sufficient on its own;
   `helpers` is never read for this.
-- `helpers`: optional even with `land` given; only used to read
-  `helpers.dates.temporal_resolution` for `model_timestep` below.
+- `helpers`: an experiment's `info.helpers`. With `land`, only used to read
+  `helpers.dates.temporal_resolution` for `model_timestep` below. Without `land`,
+  the synthetic run uses its pools and `zix` instead of building its own.
 - `veg_type_name`: vegetation type for the synthetic path's turnover-time tables;
   defaults to `land.states.veg_type_name` when `land` is given, else
   `:Evergreen_Needleleaf_Forests`. Unused when `land` is given.
@@ -274,7 +279,7 @@ function plotCarbonFlows(approach, file_path, ::VisualizationPlots;
         n_pools = length(pool_names)
         n_flows = length(land.cCycleBase.c_flow_order)
     else
-        land, helpers = _syntheticCarbonLand(approach, pool_names, veg_type_name, extra_approaches)
+        land, helpers = _syntheticCarbonLand(approach, pool_names, veg_type_name, extra_approaches, helpers)
     end
     k_base = isnothing(land) ? nothing : get(land.diagnostics, :c_eco_k_base, nothing)
     a_vec = isnothing(land) ? nothing : get(land.diagnostics, :c_flow_A_vec, nothing)

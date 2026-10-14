@@ -182,9 +182,9 @@ module Visualization
         approach_name = _approachName(approach, kwargs)
         file_path = joinpath(info.output.dirs.figure,
             "carbon_flow_matrix_$(info.experiment.basics.id)_$(approach_name)_$(suffix).pdf")
-        # an explicit pool_configuration in kwargs (rare) wins over info's, since it
-        # comes later in this merge
-        kwargs = (; pool_configuration=_experimentPoolConfiguration(info), kwargs...)
+        # an explicit pool_configuration or helpers in kwargs (rare) wins over info's,
+        # since it comes later in this merge
+        kwargs = (; pool_configuration=_experimentPoolConfiguration(info), helpers=info.helpers, kwargs...)
         return plotCarbonFlows(approach, file_path, _resolvedBackend(plotCarbonFlows, backend, approach, file_path); kwargs...)
     end
 
