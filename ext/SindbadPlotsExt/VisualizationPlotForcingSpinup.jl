@@ -15,19 +15,19 @@ end
 """
     plotForcing(info, forcing, ::VisualizationPlots)
 
-Plots every forcing variable as a time series and saves one figure per variable.
+Saves figures of every forcing variable.
 
 # Arguments
 - `info`: Information structure containing experiment details
 - `forcing`: the forcing NamedTuple with the `variables` and their `data`
 
 # Notes
-- The figures are `forcing_<experiment>_<domain>_<variable>.png` in
-  `info.output.dirs.figure`.
-- For one location, every dimension after time, e.g. layers, gives one line. The x
-  axis has the dates of the time coordinates of the forcing, see `_timeAxis`.
-- For a spatial run, the figures are `forcing_mean_*` and `forcing_timeseries_*`, see
-  `_plotForcingSpatial`.
+- For one location, the figure is `forcing_<experiment>_<domain>_<variable>.png` in
+  `info.output.dirs.figure`. Every dimension after time, e.g. layers, gives one line,
+  the x axis has the dates of the time coordinates of the forcing, see `_timeAxis`,
+  and the cycles of the time series are drawn next to it, see
+  `_plotTimeSeriesWithCycles`.
+- For a spatial run, the figures are listed in `_plotForcingSpatial`.
 - The name and units are the `standard_name` and `sindbad_unit` of the variable in
   the forcing settings.
 """
@@ -55,7 +55,7 @@ end
 # ------------------------------------------------------------------
 
 """
-    plotSpinup(info, spinup, ::VisualizationPlots; loc_index=1)
+    plotSpinup(info, spinup, ::VisualizationPlots; loc_index=1, output=nothing)
 
 Plots `cEco` and `TWS` at every stored step of the spinup of one location, with one
 panel per layer, and saves one figure per pool.
@@ -65,19 +65,21 @@ panel per layer, and saves one figure per pool.
 - `spinup`: the stored spinup from `prepSpinupOut`, e.g. `out.spinup` of
   `runExperimentForward`, or `prepSpinupOut(info, run_helpers)` after `runTEM!`
 - `loc_index`: the index of the location in `spinup.sequences`
-- `output`: the output of the forward run that followed the spinup, or `nothing`. When
-  it has `pools.cEco` or `pools.TWS`, their time series is appended after the spinup
-  in another colour, with a red dashed line at the end of the spinup.
+- `output`: the output of the forward run that followed the spinup, or `nothing`.
+  When it has `pools.cEco` or `pools.TWS`, their time series is appended after the
+  spinup in another colour, with a red dashed line at the end of the spinup.
 
 # Notes
 - The spinup is only stored with `store_spinup` set to true. Without it, `spinup` is
   `nothing` and nothing is plotted.
-- The figures are `spinup_<experiment>_<domain>_<pool>.png` in `info.output.dirs.figure`,
-  with `_loc<loc_index>` after the domain when there is more than one location.
-- The x axis is in years of spinup. A `LoopTEM` step moves one time step of the run,
-  and the other spinup modes change the pools without moving in time. Red dashed lines
-  mark the end of each step of the spinup sequence. The number of each step is written
-  in red at the top of its period, and the steps are listed in the title.
+- The figures are `spinup_<experiment>_<domain>_<pool>.png` in
+  `info.output.dirs.figure`, with `_loc<loc_index>` after the domain when there is
+  more than one location.
+- The x axis is in years since the start of the spinup. A `LoopTEM` step moves one
+  time step of the run, and the other spinup modes change the pools without moving in
+  time. Red dashed lines mark the end of each step of the spinup sequence. The number
+  of each step is written in red at the top of its period, and the steps are listed
+  in the title.
 """
 function plotSpinup(info, spinup, ::VisualizationPlots; loc_index=1, output=nothing)
     if isnothing(spinup)
@@ -108,7 +110,8 @@ function plotSpinup(info, spinup, ::VisualizationPlots; loc_index=1, output=noth
         has_forward = !isnothing(fwd_data)
         fwd_years = has_forward ? last(row_years) .+ (1:size(fwd_data, 1)) ./ _stepsPerYear(info) : Float64[]
         year_ticks = _spinupYearTicks(has_forward ? last(fwd_years) : last(row_years))
-        # the end of the last spinup step is only marked when the forward run follows it
+        # the end of the last spinup step is only marked when the forward run follows
+        # it
         bound_years = has_forward ? seq_bounds : seq_bounds[1:end-1]
         # every period is labelled with its step number in the middle of its span
         period_starts = [0.0; seq_bounds[1:end-1]]
@@ -152,8 +155,8 @@ function _forwardPoolData(info, output, pool_name, loc_ind, n_layers)
     return size(loc_data, 2) == n_layers ? loc_data : nothing
 end
 
-# The years of spinup at every stored row, the year at the end of each step of the
-# sequence, and a label for each step.
+# The years since the start of the spinup at every stored row, and for every step of
+# the sequence with stored rows, the year at its end, its label and its index.
 function _spinupYears(info, sequence, loc_steps)
     steps_per_year = _stepsPerYear(info)
     row_years = zeros(length(loc_steps))
@@ -175,8 +178,8 @@ function _spinupYears(info, sequence, loc_steps)
     return row_years, seq_bounds, seq_labels, seq_ids
 end
 
-# Writes the name of every period above the lines of a panel, and makes room for it at
-# the top of the y axis.
+# Writes the name of every period above the lines of a panel, and makes room for it
+# at the top of the y axis.
 function _labelSpinupPeriods!(p, period_mids, period_names, panel_values)
     finite = filter(isfinite, panel_values)
     isempty(finite) && return nothing

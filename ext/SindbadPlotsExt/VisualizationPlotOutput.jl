@@ -18,8 +18,8 @@ const _model_color = "#2C7FB8"
 # the colour of the forward run appended after the spinup
 const _forward_color = "#E69F00"
 
-# the colours of the default and the optimized output when both are drawn, a vermillion
-# and a green that differ in hue and lightness
+# the colours of the default and the optimized output when both are drawn, a
+# vermillion and a green that differ in hue and lightness
 const _def_color = "#D55E00"
 const _opt_color = :seagreen3
 
@@ -30,61 +30,124 @@ _varTitle(domain, vinfo) = "$(domain): $(_varLongName(vinfo)) [$(vinfo["units"])
 _varAxisLabel(vinfo) = "$(vinfo["standard_name"]) [$(vinfo["units"])]"
 
 # ------------------------------------------------------------------
-# time series with mean seasonal cycle
+# time series with mean seasonal and diurnal cycles
 # ------------------------------------------------------------------
 
 # one line or set of points of a time series figure, with its plot keywords
 _series(y; kw...) = (; y=y, kw=(; kw...))
 
 const _month_initials = ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"]
-const _month_first_doy = [1, 32, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335]
+# the first day of every month on the 366 day calendar of TimeSamplers
+const _month_first_day = [1, 32, 61, 92, 122, 153, 183, 214, 245, 275, 306, 336]
 
 """
-    _mscGroups(x_data)
+    _timeStepHours(x_data)
 
-Returns the group of every time step for the mean seasonal cycle, with the x values and
-ticks of the groups, or `nothing` when the time steps are not dates or are a year or
-longer apart. Time steps shorter than a month are grouped by day of year, and longer
-ones by month.
+Returns the time step of a time axis in hours, or `nothing` when the time steps are
+not dates.
 """
-function _mscGroups(x_data)
+function _timeStepHours(x_data)
     length(x_data) < 2 && return nothing
     eltype(x_data) <: Dates.TimeType || return nothing
-    step_days = Dates.value(Dates.Millisecond(x_data[2] - x_data[1])) / 86_400_000
-    step_days >= 300 && return nothing
-    if step_days >= 28
-        return (; groups=Dates.month.(x_data), x=1:12, xticks=(1:12, _month_initials), xlabel="month")
-    end
-    return (; groups=Dates.dayofyear.(x_data), x=1:366, xticks=(_month_first_doy, _month_initials), xlabel="day of year")
-end
-
-function _mscValues(y, groups, n_groups)
-    sums = zeros(n_groups)
-    counts = zeros(Int, n_groups)
-    for (v, g) ∈ zip(y, groups)
-        isnan(v) && continue
-        sums[g] += v
-        counts[g] += 1
-    end
-    return [c == 0 ? NaN : s / c for (s, c) ∈ zip(sums, counts)]
+    return Dates.value(Dates.Millisecond(x_data[2] - x_data[1])) / 3_600_000
 end
 
 """
-    _plotTimeSeriesWithMSC(x_data, series, fig_path; title, ylabel, legend_columns=2)
+    _mscAggregationName(x_data)
 
-Saves a time series figure with two panels: the time series in 70% of the width, and
-its mean seasonal cycle (MSC) on the same y range in the rest. `series` is a list of
-`_series`, and each is drawn with the same keywords in both panels.
+Returns the name of the TimeSamplers aggregation to the mean seasonal cycle at the
+time step of a time axis, which is the time step followed by `_msc`, e.g.
+`"day_msc"`, `"8-day_msc"` or `"month_msc"`. A time step shorter than a day gives
+`"day_msc"`, the seasonal cycle of daily values. It returns `nothing` when the time
+steps are not dates, are a year or longer apart, or are not a whole number of hours.
+"""
+function _mscAggregationName(x_data)
+    step_hours = _timeStepHours(x_data)
+    isnothing(step_hours) && return nothing
+    step_hours >= 300 * 24 && return nothing
+    step_hours >= 28 * 24 && return "month_msc"
+    isinteger(step_hours) || return nothing
+    n_hours = Int(step_hours)
+    n_hours < 24 && return "day_msc"
+    n_hours % 24 == 0 || return nothing
+    return (n_hours == 24 ? "day" : "$(n_hours ÷ 24)-day") * "_msc"
+end
+
+"""
+    _diurnalAggregationName(x_data)
+
+Returns the name of the TimeSamplers aggregation to the mean diurnal cycle at a time
+step shorter than a day that divides a day, e.g. `"hour_msc_day"` or
+`"3-hour_msc_day"`, or `nothing` for any other time step.
+"""
+function _diurnalAggregationName(x_data)
+    step_hours = _timeStepHours(x_data)
+    isnothing(step_hours) && return nothing
+    (isinteger(step_hours) && step_hours < 24 && 24 % Int(step_hours) == 0) || return nothing
+    n_hours = Int(step_hours)
+    return (n_hours == 1 ? "hour" : "$(n_hours)-hour") * "_msc_day"
+end
+
+"""
+    _cyclePanels(x_data)
+
+Returns the cycles drawn next to a time series, each with its TimeSamplers sampler,
+the x values and ticks of its positions and its title: the mean seasonal cycle (MSC),
+and for a time step shorter than a day also the mean diurnal cycle. It is empty when
+`_mscAggregationName` is `nothing`.
 
 # Notes:
-- The MSC panel has no y axis, and it is left out when the time steps are not dates or
-  are a year or longer apart. See `_mscGroups`.
-- The legend is in its own strip under both panels, so that the two panels have the
-  same height and their y axes line up.
+- The means skip missing values.
+- The x values come from the zero based cycle positions of `time_resample_dates`, in
+  the order of the sampled values. TimeSamplers counts day positions on a 366 day
+  calendar, so that Mar 1 has the same position in every year. The MSC is drawn at
+  the day of that calendar, or at the month for monthly data, and the diurnal cycle
+  at the hour of the day.
 """
-function _plotTimeSeriesWithMSC(x_data, series, fig_path; title, ylabel, legend_columns=2)
-    msc = _mscGroups(x_data)
-    if isnothing(msc)
+function _cyclePanels(x_data)
+    cycles = []
+    msc_aggr = _mscAggregationName(x_data)
+    isnothing(msc_aggr) && return cycles
+    sampler = first(create_TimeSampler(x_data, msc_aggr, nanmean))
+    positions = time_resample_dates(x_data, msc_aggr)
+    step_hours = _timeStepHours(x_data)
+    diurnal_aggr = _diurnalAggregationName(x_data)
+    if msc_aggr == "month_msc"
+        push!(cycles, (; sampler, x=positions .+ 1, xticks=(1:12, _month_initials), xlabel="month", title="MSC"))
+    else
+        days_per_position = isnothing(diurnal_aggr) ? step_hours / 24 : 1
+        msc_title = isnothing(diurnal_aggr) ? "MSC" : "MSC of daily values"
+        push!(cycles, (; sampler, x=positions .* days_per_position .+ 1, xticks=(_month_first_day, _month_initials), xlabel="day of year", title=msc_title))
+    end
+    if !isnothing(diurnal_aggr)
+        sampler = first(create_TimeSampler(x_data, diurnal_aggr, nanmean))
+        positions = time_resample_dates(x_data, diurnal_aggr)
+        push!(cycles, (; sampler, x=positions .* step_hours, xticks=0:3:21, xlabel="hour of day", title="mean diurnal cycle"))
+    end
+    return cycles
+end
+
+_cycleValues(y, cycle) = time_sampling(collect(y), cycle.sampler)
+
+"""
+    _plotTimeSeriesWithCycles(x_data, series, fig_path; title, ylabel, legend_columns=2)
+
+Saves a time series figure with the time series and its cycles from `_cyclePanels` on
+the same y range: the mean seasonal cycle (MSC) next to a time series of a day or
+longer, with 70% of the width for the time series, and the MSC of daily values and
+the mean diurnal cycle next to a time series shorter than a day, with 60% of the
+width for the time series. `series` is a list of `_series`, and each is drawn with
+the same keywords in every panel.
+
+# Notes:
+- The cycle panels have no y axis. Without cycles, e.g. for yearly time steps, the
+  figure is the time series alone with the legend below it.
+- The legend is in its own strip under the panels, so that all panels have the same
+  height and their y axes line up.
+"""
+function _plotTimeSeriesWithCycles(x_data, series, fig_path; title, ylabel, legend_columns=2)
+    cycles = _cyclePanels(x_data)
+    if isempty(cycles)
         p_ts = plots_plot(; _figStyle()..., title=title, xlabel="time", ylabel=ylabel, legend=:outerbottom, legendcolumns=legend_columns)
         for s ∈ series
             plots_plot!(p_ts, x_data, s.y; s.kw...)
@@ -92,16 +155,23 @@ function _plotTimeSeriesWithMSC(x_data, series, fig_path; title, ylabel, legend_
         plots_savefig(p_ts, fig_path)
         return nothing
     end
-    msc_series = [_mscValues(s.y, msc.groups, length(msc.x)) for s ∈ series]
-    y_lims = _paddedLims([[s.y for s ∈ series]; msc_series])
+    cycle_series = [[_cycleValues(s.y, cycle) for s ∈ series] for cycle ∈ cycles]
+    y_lims = _paddedLims([[s.y for s ∈ series]; reduce(vcat, cycle_series)])
 
     p_ts = plots_plot(; _figStyle()..., title=title, xlabel="time", ylabel=ylabel, ylims=y_lims, legend=false)
-    p_msc = plots_plot(; _figStyle()..., title="MSC", xlabel=msc.xlabel, xticks=msc.xticks, ylims=y_lims, yticks=false, showaxis=:x, grid=:x, legend=false)
-    for (s, s_msc) ∈ zip(series, msc_series)
+    for s ∈ series
         plots_plot!(p_ts, x_data, s.y; s.kw..., label="")
-        plots_plot!(p_msc, msc.x, s_msc; s.kw..., label="")
     end
-    panels = plots_plot(p_ts, p_msc; layout=plots_grid(1, 2; widths=[0.7, 0.3]))
+    p_cycles = map(cycles, cycle_series) do cycle, values_list
+        p = plots_plot(; _figStyle()..., title=cycle.title, xlabel=cycle.xlabel, xticks=cycle.xticks, ylims=y_lims, yticks=false, showaxis=:x, grid=:x, legend=false)
+        for (s, values) ∈ zip(series, values_list)
+            plots_plot!(p, cycle.x, values; s.kw..., label="")
+        end
+        p
+    end
+    ts_width = length(cycles) == 1 ? 0.7 : 0.6
+    cycle_widths = fill((1 - ts_width) / length(cycles), length(cycles))
+    panels = plots_plot(p_ts, p_cycles...; layout=plots_grid(1, 1 + length(cycles); widths=[ts_width; cycle_widths]))
 
     labelled = [s for s ∈ series if !isempty(string(get(s.kw, :label, "")))]
     if isempty(labelled)
@@ -271,19 +341,19 @@ function _plotOutputVsObsForVariable!(info, obs_array, var_row, def_dat, lossMet
         push!(series, _series(opt_var; color=_opt_color, label="opt ($(round(metr_opt, digits=2)))", lw=1.0))
     end
 
-    _plotTimeSeriesWithMSC(xdata, series, fig_prefix * "_$(vname).png"; title="$(_varTitle(domain, vinfo)) | $(nameof(typeof(lossMetric)))", ylabel=_varAxisLabel(vinfo), legend_columns=legend_columns)
+    _plotTimeSeriesWithCycles(xdata, series, fig_prefix * "_$(vname).png"; title="$(_varTitle(domain, vinfo)) | $(nameof(typeof(lossMetric)))", ylabel=_varAxisLabel(vinfo), legend_columns=legend_columns)
     return nothing
 end
 
-# Draws and saves one def-vs-opt line plot for a single debug variable/layer. Shared by
-# plotTimeSeries(info, opt_dat, def_dat)'s single-layer and multi-layer branches. Without
-# an optimized run, opt_col is nothing and only the default line is drawn.
+# Saves the time series of one debug variable or layer with its cycles, see
+# `_plotTimeSeriesWithCycles`: the default output, and the optimized output when
+# opt_col is not nothing.
 function _plotDebugVariableLayer!(xdata, def_col, opt_col, title_str, ylabel_str, fig_path)
     series = Any[_series(def_col; label="def ($(round(mean(def_col), digits=2)))", color=isnothing(opt_col) ? _model_color : _def_color, lw=1.0)]
     if !isnothing(opt_col)
         push!(series, _series(opt_col; color=_opt_color, lw=1.0, label="opt ($(round(mean(opt_col), digits=2)))"))
     end
-    _plotTimeSeriesWithMSC(xdata, series, fig_path; title=title_str, ylabel=ylabel_str)
+    _plotTimeSeriesWithCycles(xdata, series, fig_path; title=title_str, ylabel=ylabel_str)
     return nothing
 end
 
@@ -349,14 +419,19 @@ Plot debugging figures for model outputs.
 - `def_dat`: Default model output data
 
 # Description
-This function generates debugging figures by plotting the optimized and default model outputs for each variable specified in the experiment's output variables list. With `opt_dat` set to `nothing`, e.g. for a forward run, only the default output is plotted.
+This function generates debugging figures by plotting the optimized and default model
+outputs for each variable specified in the experiment's output variables list. With
+`opt_dat` set to `nothing`, e.g. for a forward run, only the default output is
+plotted.
 
 For a spatial run, i.e. with `forcing_helpers` given and more than one location, the
-figures are `debug_mean_*`, the time mean of every location, and `debug_timeseries_*`,
-the mean of all locations and a few random locations, of the optimized output, or of
-the default output without an optimized one. See `_plotDebugSpatial`.
+figures are `debug_timeseries_*` and `debug_spacetime_*` of the optimized output, or
+of the default output without an optimized one, and `debug_mean_*` for a grid. See
+`_plotDebugSpatial`.
 
-For one location, it calculates the mean of the model outputs across layers and then plots them against time using Plots.jl. Debugging figures are saved in a directory specified by `info.output.dirs.figure`.
+For one location, it calculates the mean of the model outputs across layers and then
+plots them against time using Plots.jl. Debugging figures are saved in a directory
+specified by `info.output.dirs.figure`.
 """
 function plotTimeSeries(info, opt_dat, def_dat, ::VisualizationPlots; forcing_helpers=nothing)
     space = _spaceInfo(forcing_helpers)
@@ -414,10 +489,10 @@ function plotTimeSeries(info, obs_array, cost_options, def_dat, ::VisualizationP
     return nothing
 end
 
-# Explicit-argument target of the arity-1 wrapper above: def-vs-optimized-vs-observations
-# plotting (the full comparison). Not an independent public entry point (see Visualization.jl).
-# A spatial run compares only the optimized output with the observations, as
-# `comparison_mean_*` and `comparison_timeseries_*`. See `_plotComparisonSpatial`.
+# Explicit-argument target of the arity-1 wrapper above:
+# def-vs-optimized-vs-observations plotting (the full comparison). Not an independent
+# public entry point (see Visualization.jl). A spatial run compares only the
+# optimized output with the observations, see `_plotComparisonSpatial`.
 function plotTimeSeries(info, obs_array, cost_options, def_dat, opt_dat, ::VisualizationPlots; forcing_helpers=nothing)
     space = _spaceInfo(forcing_helpers)
     if _isSpatial(space)
