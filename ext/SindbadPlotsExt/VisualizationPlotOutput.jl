@@ -1,6 +1,7 @@
 # Bring the target functions into scope for adding methods. This should be done using `import` and not `using`.
 import Sindbad.Visualization: plotPerformanceHistograms, plotTimeSeries
 using Sindbad
+import Dates
 
 # ------------------------------------------------------------------
 # shared figure style
@@ -27,6 +28,104 @@ _varLongName(vinfo) = isempty(vinfo["long_name"]) ? vinfo["standard_name"] : vin
 _varTitle(domain, vinfo) = "$(domain): $(_varLongName(vinfo)) [$(vinfo["units"])]"
 
 _varAxisLabel(vinfo) = "$(vinfo["standard_name"]) [$(vinfo["units"])]"
+
+# ------------------------------------------------------------------
+# time series with mean seasonal cycle
+# ------------------------------------------------------------------
+
+# one line or set of points of a time series figure, with its plot keywords
+_series(y; kw...) = (; y=y, kw=(; kw...))
+
+const _month_initials = ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"]
+const _month_first_doy = [1, 32, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335]
+
+"""
+    _mscGroups(x_data)
+
+Returns the group of every time step for the mean seasonal cycle, with the x values and
+ticks of the groups, or `nothing` when the time steps are not dates or are a year or
+longer apart. Time steps shorter than a month are grouped by day of year, and longer
+ones by month.
+"""
+function _mscGroups(x_data)
+    length(x_data) < 2 && return nothing
+    eltype(x_data) <: Dates.TimeType || return nothing
+    step_days = Dates.value(Dates.Millisecond(x_data[2] - x_data[1])) / 86_400_000
+    step_days >= 300 && return nothing
+    if step_days >= 28
+        return (; groups=Dates.month.(x_data), x=1:12, xticks=(1:12, _month_initials), xlabel="month")
+    end
+    return (; groups=Dates.dayofyear.(x_data), x=1:366, xticks=(_month_first_doy, _month_initials), xlabel="day of year")
+end
+
+function _mscValues(y, groups, n_groups)
+    sums = zeros(n_groups)
+    counts = zeros(Int, n_groups)
+    for (v, g) ∈ zip(y, groups)
+        isnan(v) && continue
+        sums[g] += v
+        counts[g] += 1
+    end
+    return [c == 0 ? NaN : s / c for (s, c) ∈ zip(sums, counts)]
+end
+
+"""
+    _plotTimeSeriesWithMSC(x_data, series, fig_path; title, ylabel, legend_columns=2)
+
+Saves a time series figure with two panels: the time series in 70% of the width, and
+its mean seasonal cycle (MSC) on the same y range in the rest. `series` is a list of
+`_series`, and each is drawn with the same keywords in both panels.
+
+# Notes:
+- The MSC panel has no y axis, and it is left out when the time steps are not dates or
+  are a year or longer apart. See `_mscGroups`.
+- The legend is in its own strip under both panels, so that the two panels have the
+  same height and their y axes line up.
+"""
+function _plotTimeSeriesWithMSC(x_data, series, fig_path; title, ylabel, legend_columns=2)
+    msc = _mscGroups(x_data)
+    if isnothing(msc)
+        p_ts = plots_plot(; _figStyle()..., title=title, xlabel="time", ylabel=ylabel, legend=:outerbottom, legendcolumns=legend_columns)
+        for s ∈ series
+            plots_plot!(p_ts, x_data, s.y; s.kw...)
+        end
+        plots_savefig(p_ts, fig_path)
+        return nothing
+    end
+    msc_series = [_mscValues(s.y, msc.groups, length(msc.x)) for s ∈ series]
+    y_lims = _paddedLims([[s.y for s ∈ series]; msc_series])
+
+    p_ts = plots_plot(; _figStyle()..., title=title, xlabel="time", ylabel=ylabel, ylims=y_lims, legend=false)
+    p_msc = plots_plot(; _figStyle()..., title="MSC", xlabel=msc.xlabel, xticks=msc.xticks, ylims=y_lims, yticks=false, showaxis=:x, grid=:x, legend=false)
+    for (s, s_msc) ∈ zip(series, msc_series)
+        plots_plot!(p_ts, x_data, s.y; s.kw..., label="")
+        plots_plot!(p_msc, msc.x, s_msc; s.kw..., label="")
+    end
+    panels = plots_plot(p_ts, p_msc; layout=plots_grid(1, 2; widths=[0.7, 0.3]))
+
+    labelled = [s for s ∈ series if !isempty(string(get(s.kw, :label, "")))]
+    if isempty(labelled)
+        fig = plots_plot(panels; size=(1500, 480), dpi=300, left_margin=8plots_mm, bottom_margin=6plots_mm)
+    else
+        # a legend without axes: every labelled series drawn with no data
+        p_legend = plots_plot(; framestyle=:none, grid=false, xticks=false, yticks=false, legend=:top, legendcolumns=min(legend_columns, length(labelled)), legendfontsize=9, foreground_color_legend=nothing, background_color_legend=nothing)
+        for s ∈ labelled
+            plots_plot!(p_legend, [NaN], [NaN]; s.kw...)
+        end
+        fig = plots_plot(panels, p_legend; layout=plots_grid(2, 1; heights=[0.88, 0.12]), size=(1500, 540), dpi=300, left_margin=8plots_mm, bottom_margin=6plots_mm)
+    end
+    plots_savefig(fig, fig_path)
+    return nothing
+end
+
+# the range of all finite values of a list of series, with 5% space on both sides
+function _paddedLims(all_values)
+    finite = filter(isfinite, reduce(vcat, [vec(collect(v)) for v ∈ all_values]))
+    isempty(finite) && return :auto
+    y_low, y_high = extrema(finite)
+    y_span = y_high > y_low ? y_high - y_low : max(abs(y_high), 1.0) * 0.1
+    return (y_low - 0.05 * y_span, y_high + 0.05 * y_span)
+end
 
 # ------------------------------------------------------------------
 # performance histograms
@@ -161,18 +260,18 @@ function _plotOutputVsObsForVariable!(info, obs_array, var_row, def_dat, lossMet
     has_opt = !isnothing(opt_dat)
     legend_columns = has_opt ? 3 : 2
 
-    plots_plot(xdata, obs_var; _figStyle()..., label="obs", seriestype=:scatter, mc=:black, ms=2.5, msw=0, ma=0.65, title="$(_varTitle(domain, vinfo)) | $(nameof(typeof(lossMetric)))", xlabel="time", ylabel=_varAxisLabel(vinfo), legend=:outerbottom, legendcolumns=legend_columns)
-    plots_plot!(xdata, def_var; lw=1.0, label="def ($(round(metr_def, digits=2)))", color=has_opt ? _def_color : _model_color)
+    series = Any[_series(obs_var; label="obs", seriestype=:scatter, mc=:black, ms=2.5, msw=0, ma=0.65),
+        _series(def_var; lw=1.0, label="def ($(round(metr_def, digits=2)))", color=has_opt ? _def_color : _model_color)]
 
     if has_opt
         (_, _, opt_var) = getData(opt_dat, obs_array, var_row)
         opt_var_TMP = vec(mean(opt_var, dims=3))
         opt_var = opt_var_TMP[tspan]
         metr_opt = metric(lossMetric, opt_var[valids], obs_var[valids], obs_σ[valids])
-        plots_plot!(xdata, opt_var; color=_opt_color, label="opt ($(round(metr_opt, digits=2)))", lw=1.0)
+        push!(series, _series(opt_var; color=_opt_color, label="opt ($(round(metr_opt, digits=2)))", lw=1.0))
     end
 
-    plots_savefig(fig_prefix * "_$(vname).png")
+    _plotTimeSeriesWithMSC(xdata, series, fig_prefix * "_$(vname).png"; title="$(_varTitle(domain, vinfo)) | $(nameof(typeof(lossMetric)))", ylabel=_varAxisLabel(vinfo), legend_columns=legend_columns)
     return nothing
 end
 
@@ -180,11 +279,11 @@ end
 # plotTimeSeries(info, opt_dat, def_dat)'s single-layer and multi-layer branches. Without
 # an optimized run, opt_col is nothing and only the default line is drawn.
 function _plotDebugVariableLayer!(xdata, def_col, opt_col, title_str, ylabel_str, fig_path)
-    plots_plot(xdata, def_col; _figStyle()..., label="def ($(round(mean(def_col), digits=2)))", title=title_str, xlabel="time", ylabel=ylabel_str, color=isnothing(opt_col) ? _model_color : _def_color, lw=1.0, legend=:outerbottom, legendcolumns=2)
+    series = Any[_series(def_col; label="def ($(round(mean(def_col), digits=2)))", color=isnothing(opt_col) ? _model_color : _def_color, lw=1.0)]
     if !isnothing(opt_col)
-        plots_plot!(xdata, opt_col; color=_opt_color, lw=1.0, label="opt ($(round(mean(opt_col), digits=2)))")
+        push!(series, _series(opt_col; color=_opt_color, lw=1.0, label="opt ($(round(mean(opt_col), digits=2)))"))
     end
-    plots_savefig(fig_path)
+    _plotTimeSeriesWithMSC(xdata, series, fig_path; title=title_str, ylabel=ylabel_str)
     return nothing
 end
 

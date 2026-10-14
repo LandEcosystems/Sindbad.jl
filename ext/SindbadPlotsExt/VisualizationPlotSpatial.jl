@@ -152,11 +152,11 @@ array as lines.
 """
 function _plotSpaceTimeSeries(x_data, data_tl, space, title, ylabel, fig_path; color=_model_color)
     pixels = _randomLocations(_validLocations(data_tl))
-    p = plots_plot(x_data, _spaceMean(data_tl); _figStyle()..., title=title, xlabel="time", ylabel=ylabel, label="mean of all locations", color=color, lw=1.6, legend=:outerbottom, legendcolumns=3)
+    series = Any[_series(_spaceMean(data_tl); label="mean of all locations", color=color, lw=1.6)]
     for (k, loc) ∈ enumerate(pixels)
-        plots_plot!(p, x_data, view(data_tl, :, loc); label=_locationLabel(space, loc), color=_pixel_colors[k], lw=0.8, alpha=0.85)
+        push!(series, _series(data_tl[:, loc]; label=_locationLabel(space, loc), color=_pixel_colors[k], lw=0.8, alpha=0.85))
     end
-    plots_savefig(p, fig_path)
+    _plotTimeSeriesWithMSC(x_data, series, fig_path; title=title, ylabel=ylabel, legend_columns=3)
     return nothing
 end
 
@@ -190,13 +190,13 @@ taken over the locations and time steps with an observation.
 function _plotComparisonTimeSeries(x_data, obs_tl, mod_tl, space, title, ylabel, fig_path)
     pixels = _randomLocations(_validLocations(obs_tl))
     mod_masked = ifelse.(isnan.(obs_tl), NaN, mod_tl)
-    p = plots_plot(x_data, _spaceMean(mod_masked); _figStyle()..., title=title, xlabel="time", ylabel=ylabel, label="mean of all locations", color=_model_color, lw=1.6, legend=:outerbottom, legendcolumns=3)
-    plots_plot!(p, x_data, _spaceMean(obs_tl); label="", color=_model_color, lw=1.2, linestyle=:dash)
+    series = Any[_series(_spaceMean(mod_masked); label="mean of all locations", color=_model_color, lw=1.6),
+        _series(_spaceMean(obs_tl); label="", color=_model_color, lw=1.2, linestyle=:dash)]
     for (k, loc) ∈ enumerate(pixels)
-        plots_plot!(p, x_data, view(mod_tl, :, loc); label=_locationLabel(space, loc), color=_pixel_colors[k], lw=0.8)
-        plots_plot!(p, x_data, view(obs_tl, :, loc); label="", color=_pixel_colors[k], lw=0.8, linestyle=:dash)
+        push!(series, _series(mod_tl[:, loc]; label=_locationLabel(space, loc), color=_pixel_colors[k], lw=0.8))
+        push!(series, _series(obs_tl[:, loc]; label="", color=_pixel_colors[k], lw=0.8, linestyle=:dash))
     end
-    plots_savefig(p, fig_path)
+    _plotTimeSeriesWithMSC(x_data, series, fig_path; title=title, ylabel=ylabel, legend_columns=3)
     return nothing
 end
 
@@ -295,14 +295,20 @@ function _timeAxis(info, forcing_helpers, n_time)
     return collect(1:n_time)
 end
 
-# one line per column of a forcing variable. With time, the first dimension is time and
-# the x axis has its dates, and without time the x axis is the index of the values.
+# one line per column of a forcing variable. With time, the first dimension is time, the
+# x axis has its dates and the mean seasonal cycle is drawn next to it. Without time,
+# the x axis is the index of the values.
 function _plotForcingLines(info, forcing_helpers, f_arr, has_time, title, ylabel, fig_path)
     f_mat = reshape(f_arr, size(f_arr, 1), :)
     x_data = has_time ? _timeAxis(info, forcing_helpers, size(f_mat, 1)) : axes(f_mat, 1)
     is_dates = eltype(x_data) <: TimeType
     is_multi = size(f_mat, 2) > 1
-    plots_plot(x_data, f_mat; _figStyle()..., title=title, xlabel=is_dates ? "time" : "index", ylabel=ylabel, label=permutedims(["layer $(l)" for l in axes(f_mat, 2)]), legend=is_multi ? :outerright : false, color=is_multi ? :auto : _def_color, lw=1.0)
+    if is_dates
+        series = Any[_series(f_mat[:, l]; label=is_multi ? "layer $(l)" : "", color=is_multi ? :auto : _def_color, lw=1.0) for l in axes(f_mat, 2)]
+        _plotTimeSeriesWithMSC(x_data, series, fig_path; title=title, ylabel=ylabel, legend_columns=min(size(f_mat, 2), 6))
+        return nothing
+    end
+    plots_plot(x_data, f_mat; _figStyle()..., title=title, xlabel="index", ylabel=ylabel, label=permutedims(["layer $(l)" for l in axes(f_mat, 2)]), legend=is_multi ? :outerright : false, color=is_multi ? :auto : _def_color, lw=1.0)
     plots_savefig(fig_path)
     return nothing
 end
