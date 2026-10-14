@@ -75,7 +75,8 @@ panel per layer, and saves one figure per pool.
   with `_loc<loc_index>` after the domain when there is more than one location.
 - The x axis is in years of spinup. A `LoopTEM` step moves one time step of the run,
   and the other spinup modes change the pools without moving in time. Red dashed lines
-  mark the end of each step of the spinup sequence, which are listed in the title.
+  mark the end of each step of the spinup sequence. The number of each step is written
+  in red at the top of its period, and the steps are listed in the title.
 """
 function plotSpinup(info, spinup, ::VisualizationPlots; loc_index=1, output=nothing)
     if isnothing(spinup)
@@ -93,7 +94,7 @@ function plotSpinup(info, spinup, ::VisualizationPlots; loc_index=1, output=noth
     loc_steps = collect(view_at_trailing_indices(step_data, loc_ind))
     n_rows = count(>=(0), loc_steps)
     loc_steps = loc_steps[1:n_rows]
-    row_years, seq_bounds, seq_labels = _spinupYears(info, sequence, loc_steps)
+    row_years, seq_bounds, seq_labels, seq_ids = _spinupYears(info, sequence, loc_steps)
     dates_run = info.helpers.dates.range
     forward_label = "forward $(year(first(dates_run)))-$(year(last(dates_run)))"
 
@@ -108,6 +109,14 @@ function plotSpinup(info, spinup, ::VisualizationPlots; loc_index=1, output=noth
         year_ticks = _spinupYearTicks(has_forward ? last(fwd_years) : last(row_years))
         # the end of the last spinup step is only marked when the forward run follows it
         bound_years = has_forward ? seq_bounds : seq_bounds[1:end-1]
+        # every period is labelled with its step number in the middle of its span
+        period_starts = [0.0; seq_bounds[1:end-1]]
+        period_mids = (period_starts .+ seq_bounds) ./ 2
+        period_names = string.(seq_ids)
+        if has_forward
+            push!(period_mids, (last(row_years) + last(fwd_years)) / 2)
+            push!(period_names, "fwd")
+        end
         title_steps = has_forward ? [seq_labels; forward_label] : seq_labels
         title_pools = has_forward ? "spinup and forward run" : "spinup"
         layer_names = _spinupLayerNames(info, pool_name, n_layers)
@@ -119,6 +128,7 @@ function plotSpinup(info, spinup, ::VisualizationPlots; loc_index=1, output=noth
             p = plots_plot(row_years, loc_data[:, l]; _figStyle()..., title=layer_names[l], legend=false, color=_model_color, lw=1.0, xticks=year_ticks, xlabel=l > n_layers - n_cols ? "year since spinup start" : "", ylabel=mod1(l, n_cols) == 1 ? "$(pool_name) [$(pool_units)]" : "", titlefontsize=10, tickfontsize=7, guidefontsize=8, grid=:x)
             has_forward && plots_plot!(p, fwd_years, fwd_data[:, l]; color=_forward_color, lw=1.0)
             plots_vline!(p, bound_years; color=:red, linestyle=:dash, lw=0.8)
+            _labelSpinupPeriods!(p, period_mids, period_names, has_forward ? vcat(loc_data[:, l], fwd_data[:, l]) : loc_data[:, l])
             p
         end
         fig = plots_plot(panels...; layout=(n_rows_fig, n_cols), size=(430 * n_cols, fig_height), plot_title="$(loc_name): $(title_pools) $(pool_name) [$(pool_units)]\n" * join(title_steps, "  |  "), plot_titlefontsize=10, plot_titlevspan=110 / fig_height, dpi=300, left_margin=12plots_mm, bottom_margin=8plots_mm, right_margin=3plots_mm)
@@ -152,14 +162,29 @@ function _spinupYears(info, sequence, loc_steps)
     end
     seq_bounds = Float64[]
     seq_labels = String[]
+    seq_ids = Int[]
     for (k, seq) in enumerate(sequence)
         last_row = findlast(==(k), loc_steps)
         isnothing(last_row) && continue
         push!(seq_bounds, row_years[last_row])
+        push!(seq_ids, k)
         mode_name = nameof(typeof(seq.spinup_mode))
         push!(seq_labels, seq.spinup_mode isa LoopTEM ? "$(k): $(mode_name) $(seq.forcing) x$(seq.n_repeat)" : "$(k): $(mode_name)")
     end
-    return row_years, seq_bounds, seq_labels
+    return row_years, seq_bounds, seq_labels, seq_ids
+end
+
+# Writes the name of every period above the lines of a panel, and makes room for it at
+# the top of the y axis.
+function _labelSpinupPeriods!(p, period_mids, period_names, panel_values)
+    finite = filter(isfinite, panel_values)
+    isempty(finite) && return nothing
+    y_low, y_high = extrema(finite)
+    y_span = y_high > y_low ? y_high - y_low : max(abs(y_high), 1.0) * 0.1
+    plots_ylims!(p, (y_low - 0.05 * y_span, y_high + 0.2 * y_span))
+    y_label = y_high + 0.11 * y_span
+    plots_annotate!(p, [(x, y_label, plots_text(name, 7, :red)) for (x, name) in zip(period_mids, period_names)])
+    return nothing
 end
 
 # A round tick interval that gives close to n_ticks ticks for any spinup length.
