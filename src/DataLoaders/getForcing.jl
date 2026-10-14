@@ -230,7 +230,8 @@ function getForcing(info::NamedTuple)
         target_resolution = dims(targetcube)
         print_info(getForcing, @__FILE__, @__LINE__, "remapping forcing variables to target resolution: $(target_resolution)")
         interpincubes = map(incubes) do incube
-            YAXArrays.xresample(last(incube), to=target_resolution)
+            rescube = YAXArrays.xresample(last(incube), to=target_resolution)
+            rebuild(rescube, data=reshape(parent(rescube), size(rescube)))
         end
     else 
         interpincubes = last.(incubes)
