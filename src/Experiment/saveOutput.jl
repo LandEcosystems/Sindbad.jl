@@ -1,5 +1,6 @@
 export saveOutCubes
 export saveRestartCubes
+export saveSpinupCubes
 export saveParameterCubes
 
 
@@ -203,6 +204,57 @@ function getRestartDataset(info, restart, restart_metadata)
         DataLoaders.YAXArray(var_dims, collect(data_out), getVariableInfo(getVarFull(var_pair), t_step))
     end
     return DataLoaders.YAXArrays.Dataset(; zip(variable_names, all_yax)..., properties=restart_metadata)
+end
+
+
+"""
+    saveSpinupCubes(info, spinup)
+
+Saves `cEco` and `TWS` at every stored step of the spinup to the spinup file.
+
+# Arguments:
+- `info`: a SINDBAD NamedTuple with all information needed for setup and execution of an experiment
+- `spinup`: the stored spinup of an eager run from `prepSpinupOut`, or `nothing`, in
+  which case no file is written
+
+# Notes:
+- The file is `spinup_` followed by the base name of the output files, in the output
+  format, for example `spinup_<experiment>_<domain>.zarr`.
+- The variables and their dimensions are described in `prepSpinupOut`.
+- The `spinup_sequence_method` global attribute is the name of the spinup sequence
+  method, and `spinup_sequence` lists the steps of the sequence of the first location,
+  as `mode:forcing:n_repeat:n_timesteps` separated by `;`.
+"""
+function saveSpinupCubes end
+
+saveSpinupCubes(_, ::Nothing) = nothing
+
+function saveSpinupCubes(info, spinup)
+    data_path = getSpinupFilePath(info)
+    spinup_metadata = copy(info.output.file_info.global_metadata)
+    method_name = string(nameof(typeof(info.spinup.method)))
+    spinup_metadata["spinup_sequence_method"] = lowercase(replace(method_name, r"(?<!^)([A-Z])" => s"_\1"))
+    spinup_metadata["spinup_sequence"] = join([join((nameof(typeof(seq.spinup_mode)), seq.forcing, seq.n_repeat, seq.n_timesteps), ":") for seq ∈ first(spinup.sequences)], ";")
+    t_step = info.experiment.basics.temporal_resolution
+    all_yax = map(spinup.variables, spinup.dims, spinup.data) do var_pair, var_dims, var_data
+        var_info = isnothing(var_pair) ? Dict{String,Any}("long_name" => "index of the spinup sequence step of the row, 0 before the spinup and -1 after the end of the sequence", "units" => "-") : getVariableInfo(getVarFull(var_pair), t_step)
+        DataLoaders.YAXArray(var_dims, var_data, var_info)
+    end
+    spinup_ds = DataLoaders.YAXArrays.Dataset(; zip(spinup.names, all_yax)..., properties=spinup_metadata)
+    print_info(nothing, @__FILE__, @__LINE__, "saving pools at every stored spinup step to `$(data_path)`", n_m=4)
+    DataLoaders.YAXArrays.savedataset(spinup_ds, path=data_path, overwrite=true)
+    return nothing
+end
+
+"""
+    getSpinupFilePath(info)
+
+Returns the path of the spinup file, which is the output file prefix with `spinup_`
+added in front of its base name.
+"""
+function getSpinupFilePath(info)
+    file_prefix = info.output.file_info.file_prefix
+    return joinpath(dirname(file_prefix), "spinup_" * basename(file_prefix)) * ".$(info.output.format)"
 end
 
 

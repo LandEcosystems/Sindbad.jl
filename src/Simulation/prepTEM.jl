@@ -50,53 +50,67 @@ function addErrorCatcher(_, ::DoNotDebugModel) # do nothing debug model is false
 end
 
 """
-    addSpinupLog(loc_land, sequence, ::SpinupLogType)
+    addSpinupStore(loc_land, sequence, store_spinup_mode)
 
-Adds or skips the preallocated holder for storing the spinup log during model spinup, depending on the specified `SpinupLogType`.
+Adds or skips the preallocated arrays that store `cEco` and `TWS` at every time step of
+the spinup, depending on the specified `store_spinup_mode`.
 
 # Arguments:
 - `loc_land`: A core SINDBAD NamedTuple containing all variables for a given time step, which is overwritten at every time step.
-- `sequence`: The spinup sequence, which defines the number of repeats and timesteps for the spinup process.
-- `::SpinupLogType`: A type dispatch that determines whether to store the spinup log:
-    - `DoStoreSpinup`: Enables storing the spinup log for each repeat of the spinup process. Set `store_spinup` to true in flag section of experiment_json.
-    - `DoNotStoreSpinup`: Skips storing the spinup log. Set `store_spinup` to false in flag section of experiment_json.
+- `sequence`: The spinup sequence of the location, which sets the number of stored rows.
+- `store_spinup_mode`: A type dispatch that determines whether to store the spinup:
+    - `DoStoreSpinup`: Adds the arrays. Set `store_spinup` to true in flag section of experiment_json.
+    - `DoNotStoreSpinup`: Returns `loc_land` as is. Set `store_spinup` to false in flag section of experiment_json.
 
 # Returns:
-- `loc_land`: The updated `loc_land` NamedTuple, potentially with the spinup log added.
+- `loc_land`: The `loc_land` NamedTuple, with `spinup_cEco`, `spinup_TWS` and
+  `spinup_step` in `land.states` when the spinup is stored.
 
 # Notes:
-- When `DoStoreSpinup` is used:
-    - The function calculates the total number of repeats in the spinup sequence.
-    - Preallocates a vector to store the spinup log for each repeat.
-    - Updates the `loc_land` NamedTuple with the spinup log.
-- When `DoNotStoreSpinup` is used, the function simply returns `loc_land` without modifications.
-
-# Examples:
-1. **Storing the spinup log**:
-```julia
-loc_land = (pools = rand(10), states = rand(10))
-sequence = [(n_repeat = 3, n_timesteps = 10), (n_repeat = 2, n_timesteps = 5)]
-loc_land = addSpinupLog(loc_land, sequence, DoStoreSpinup())
-```
-
-2. **Skipping the spinup log**:
-```julia
-loc_land = (pools = rand(10), states = rand(10))
-sequence = [(n_repeat = 3, n_timesteps = 10), (n_repeat = 2, n_timesteps = 5)]
-loc_land = addSpinupLog(loc_land, sequence, DoNotStoreSpinup())
-```
+- `spinup_cEco` and `spinup_TWS` have one row per stored step and one column per layer.
+  Row 1 is the state before the spinup. A `LoopTEM` step stores every time step of
+  every repeat, and any other spinup mode stores one row per repeat. See
+  `spinupStoreSteps`.
+- A pool that is not in `land.pools` gets `nothing` instead of an array.
+- `spinup_step` is a one-element vector with the last written row.
+- The arrays are sized from the sequence of the location. `getSpaceLand` gives every
+  location its own land, so each location gets arrays of its own size.
+- The stored values are meant for forward runs. With dual numbers, as in
+  `PreAllocArrayFD`, the arrays do not take the values.
 """
-function addSpinupLog end
+function addSpinupStore end
 
-function addSpinupLog(loc_land, sequence, ::DoStoreSpinup) # when history is true
-    n_repeat = 1 + sum(_seq -> _seq.n_repeat, sequence)
-    spinuplog = Vector{typeof(loc_land.pools)}(undef, n_repeat)
-    @pack_nt spinuplog ⇒ loc_land.states
+function addSpinupStore(loc_land, sequence, ::DoStoreSpinup)
+    n_rows = 1 + sum(seq -> seq.n_repeat * spinupStoreSteps(seq), sequence)
+    spinup_cEco = getSpinupOutArray(loc_land.pools, :cEco, n_rows)
+    spinup_TWS = getSpinupOutArray(loc_land.pools, :TWS, n_rows)
+    spinup_step = [0]
+    @pack_nt (spinup_cEco, spinup_TWS, spinup_step) ⇒ loc_land.states
     return loc_land
 end
 
-function addSpinupLog(loc_land, _, ::DoNotStoreSpinup) # when history is false
+function addSpinupStore(loc_land, _, ::DoNotStoreSpinup)
     return loc_land
+end
+
+"""
+    spinupStoreSteps(spin_seq)
+
+Returns the number of rows stored for one repeat of a spinup step, which is the number
+of time steps for `LoopTEM` and one for any other spinup mode.
+"""
+spinupStoreSteps(spin_seq) = spin_seq.spinup_mode isa LoopTEM ? spin_seq.n_timesteps : 1
+
+"""
+    getSpinupOutArray(pools, pool_name, n_rows)
+
+Returns a NaN-filled array of `n_rows` rows and one column per layer of the pool, or
+`nothing` when the pool is not in `pools`.
+"""
+function getSpinupOutArray(pools, pool_name, n_rows)
+    hasproperty(pools, pool_name) || return nothing
+    pool = getproperty(pools, pool_name)
+    return fill(convert(eltype(pool), NaN), n_rows, length(pool))
 end
 
 
@@ -284,7 +298,7 @@ end
     getSpaceLand(space_selected_models, space_forcing, space_spinup, land_init, tem_info)
 
 Builds the initial land NT of every location from the models and the forcing of that
-location, with a spinup log sized to the number of repeats of its own sequence.
+location, with a spinup store sized to its own sequence.
 
 # Arguments:
 - `space_selected_models`: a collection of the models of each location, from
@@ -302,7 +316,7 @@ location, with a spinup log sized to the number of repeats of its own sequence.
 """
 function getSpaceLand(space_selected_models, space_forcing, space_spinup, land_init, tem_info)
     return Tuple(map(space_selected_models, space_forcing, space_spinup) do loc_models, loc_forcing, loc_spinup
-        # runTEMOne adds the spinup log for the sequence of this location
+        # runTEMOne adds the spinup store for the sequence of this location
         last(runTEMOne(loc_models, loc_forcing, deepcopy(land_init), tem_info, loc_spinup.sequence))
     end)
 end
@@ -859,7 +873,7 @@ run the SINDBAD TEM for one time step
 - `loc_forcing`: a forcing NT for a single location
 - `land_init`: initial SINDBAD land with all fields and subfields
 - `tem`: a nested NT with necessary information of helpers, models, and spinup needed to run SINDBAD TEM and models
-- `spinup_sequence`: the spinup sequence of the location, used to size the spinup log
+- `spinup_sequence`: the spinup sequence of the location, used to size the spinup store
 
 # Returns:
 - `loc_forcing_t`: the forcing NT for the current time step
@@ -871,7 +885,7 @@ function runTEMOne(selected_models, loc_forcing, land_init, tem, spinup_sequence
         tem.model_helpers)
     loc_land = computeTEM(selected_models, loc_forcing_t, loc_land, tem.model_helpers)
     # loc_land = drop_empty_namedtuple_fields(loc_land)
-    loc_land = addSpinupLog(loc_land, spinup_sequence, tem.run.store_spinup)
+    loc_land = addSpinupStore(loc_land, spinup_sequence, tem.run.store_spinup)
     checkSpinupInput(loc_land, loc_forcing_t, spinup_sequence)
     # loc_land = definePrecomputeTEM(selected_models, loc_forcing_t, loc_land,
         # tem.model_helpers)

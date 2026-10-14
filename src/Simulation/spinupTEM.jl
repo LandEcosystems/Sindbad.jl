@@ -178,7 +178,7 @@ function spinup(::Any, ::Any, ::Any, land, ::Any, ::Any, x::SpinupMode)
 end
 
 function spinup(spinup_models, spinup_forcing, loc_forcing_t, land, tem_info, n_timesteps, ::LoopTEM)
-    land = timeLoopTEMSpinup(spinup_models, spinup_forcing, loc_forcing_t, land, tem_info, n_timesteps)
+    land = timeLoopTEMSpinup(spinup_models, spinup_forcing, loc_forcing_t, land, tem_info, n_timesteps, tem_info.run.store_spinup)
     return land
 end
 
@@ -433,54 +433,77 @@ sequenceForcing(spinup_forcings::NamedTuple, ::SpinupStepWithAggregator{F}) wher
 sequenceForcing(::NamedTuple, ::SpinupStepWithAggregator{:none}) = (;)
 
 """
-    setSpinupLog(land, log_index, spinup_log_mode)
+    storeSpinupStep!(land, store_spinup_mode)
 
-Stores or skips the spinup log during the spinup process, depending on the specified `spinup_log_mode`.
+Writes `cEco` and `TWS` of `land.pools` to the next row of the spinup store, or does
+nothing, depending on the specified `store_spinup_mode`.
 
 # Arguments:
 - `land`: A SINDBAD NamedTuple containing all variables for a given time step, which is overwritten at every timestep.
-- `log_index`: The index in the spinup log where the current state of `land.pools` will be stored.
-- `spinup_log_mode`: A type dispatch that determines whether to store the spinup log:
-    - `DoStoreSpinup`: Enables storing the spinup log at the specified `log_index`. Set the `store_spinup` flag to `true` in flag section of experiment_json.
-    - `DoNotStoreSpinup`: Skips storing the spinup log. Set the `store_spinup` flag to `false` in flag section of experiment_json.
-
-# Returns:
-- `land`: The updated SINDBAD NamedTuple, potentially with the spinup log stored.
+- `store_spinup_mode`: A type dispatch that determines whether to store the spinup:
+    - `DoStoreSpinup`: Writes the next row of `land.states.spinup_cEco` and `land.states.spinup_TWS`. Set the `store_spinup` flag to `true` in flag section of experiment_json.
+    - `DoNotStoreSpinup`: Does nothing. Set the `store_spinup` flag to `false` in flag section of experiment_json.
 
 # Notes:
-- When `DoStoreSpinup` is used:
-    - The function stores the current state of `land.pools` in `land.states.spinuplog` at the specified `log_index`.
-- When `DoNotStoreSpinup` is used:
-    - The function does nothing and simply returns the input `land`.
-
-# Examples:
-1. **Storing the spinup log**:
-```julia
-land = (pools = ..., states = (spinuplog = Vector{Any}(undef, 10)))
-log_index = 1
-land = setSpinupLog(land, log_index, DoStoreSpinup())
-```
-
-2. **Skipping the spinup log**:
-```julia
-land = (pools = ..., states = (spinuplog = Vector{Any}(undef, 10)))
-log_index = 1
-land = setSpinupLog(land, log_index, DoNotStoreSpinup())
-```
+- The row is `land.states.spinup_step[1]` after it is increased by one. The arrays are
+  added by `addSpinupStore`.
+- A row beyond the size of the arrays is not written, so a land that is shared across
+  locations with longer sequences does not fail.
 """
-function setSpinupLog end
+function storeSpinupStep! end
 
-function setSpinupLog(land, log_index, ::DoStoreSpinup)
-    land.states.spinuplog[log_index] = land.pools
-    return land
+function storeSpinupStep!(land, ::DoStoreSpinup)
+    spinup_step = land.states.spinup_step
+    spinup_step[1] += 1
+    row = spinup_step[1]
+    storeSpinupRow!(land.states.spinup_cEco, land.pools, Val(:cEco), row)
+    storeSpinupRow!(land.states.spinup_TWS, land.pools, Val(:TWS), row)
+    return nothing
 end
 
-function setSpinupLog(land, _, ::DoNotStoreSpinup)
-    return land
+storeSpinupStep!(_, ::DoNotStoreSpinup) = nothing
+
+storeSpinupRow!(::Nothing, _, _, _) = nothing
+
+# the pool name is a Val so that the pool is found at compile time
+function storeSpinupRow!(spinup_pool, pools, ::Val{pool_name}, row) where {pool_name}
+    row > size(spinup_pool, 1) && return nothing
+    pool = getfield(pools, pool_name)
+    for layer ∈ eachindex(pool)
+        @inbounds spinup_pool[row, layer] = pool[layer]
+    end
+    return nothing
 end
 
 """
-    spinupSequence(spinup_models, sel_forcing, loc_forcing_t, land, tem_info, n_timesteps, log_index, n_repeat, spinup_mode)
+    storeSpinupRepeat!(land, spinup_mode, store_spinup_mode)
+
+Writes one row of the spinup store after a repeat of a spinup step. A `LoopTEM` step
+already wrote every time step in `timeLoopTEMSpinup`, so nothing is written for it.
+"""
+function storeSpinupRepeat! end
+
+storeSpinupRepeat!(_, ::LoopTEM, _) = nothing
+
+storeSpinupRepeat!(land, _, store_spinup_mode) = storeSpinupStep!(land, store_spinup_mode)
+
+"""
+    resetSpinupStore!(land, store_spinup_mode)
+
+Sets the last written row of the spinup store to zero, so that a new spinup of the
+same land writes from the first row again.
+"""
+function resetSpinupStore! end
+
+function resetSpinupStore!(land, ::DoStoreSpinup)
+    land.states.spinup_step[1] = 0
+    return nothing
+end
+
+resetSpinupStore!(_, ::DoNotStoreSpinup) = nothing
+
+"""
+    spinupSequence(spinup_models, sel_forcing, loc_forcing_t, land, tem_info, n_timesteps, n_repeat, spinup_mode)
 
 Executes a sequence of model spinup iterations for the Terrestrial Ecosystem Model (TEM).
 
@@ -491,7 +514,6 @@ Executes a sequence of model spinup iterations for the Terrestrial Ecosystem Mod
 - `land`: Land surface parameters
 - `tem_info`: TEM model information and parameters
 - `n_timesteps`: Number of timesteps for the spinup
-- `log_index`: Index for logging purposes
 - `n_repeat`: Number of times to repeat the spinup sequence
 - `spinup_mode`: Mode of spinup operation (e.g., "normal", "accelerated")
 
@@ -503,15 +525,15 @@ the sequence of model runs according to specified parameters.
 # Returns
 land with the updated pools after the spinup sequence.
 """
-function spinupSequence(spinup_models, sel_forcing, loc_forcing_t, land, tem_info, n_timesteps, log_index, n_repeat, spinup_mode)
-    land = spinupSequenceLoop(spinup_models, sel_forcing, loc_forcing_t, land, tem_info, n_timesteps, log_index, n_repeat, spinup_mode)
+function spinupSequence(spinup_models, sel_forcing, loc_forcing_t, land, tem_info, n_timesteps, n_repeat, spinup_mode)
+    land = spinupSequenceLoop(spinup_models, sel_forcing, loc_forcing_t, land, tem_info, n_timesteps, n_repeat, spinup_mode)
     # end
     return land
 end
 
 
 """
-    spinupSequenceLoop(spinup_models, sel_forcing, loc_forcing_t, land, tem_info, n_timesteps, log_loop, n_repeat, spinup_mode)
+    spinupSequenceLoop(spinup_models, sel_forcing, loc_forcing_t, land, tem_info, n_timesteps, n_repeat, spinup_mode)
 
 Runs sequential loops for model spin-up simulations for each repeat of a spinup sequence.
 
@@ -522,12 +544,11 @@ Runs sequential loops for model spin-up simulations for each repeat of a spinup 
 - `land`: Land surface parameters/conditions
 - `tem_info`: Model configuration and parameters for TEM
 - `n_timesteps`: Number of timesteps to simulate
-- `log_loop`: Boolean flag for logging loop information
 - `n_repeat`: Number of times to repeat the spin-up loop
 - `spinup_mode`: Mode of spin-up simulation (e.g., "normal", "accelerated")
 """
-function spinupSequenceLoop(spinup_models, sel_forcing, loc_forcing_t, land, tem_info, n_timesteps, log_loop, n_repeat, spinup_mode)
-    for loop_index ∈ 1:n_repeat
+function spinupSequenceLoop(spinup_models, sel_forcing, loc_forcing_t, land, tem_info, n_timesteps, n_repeat, spinup_mode)
+    for _ ∈ 1:n_repeat
         land = spinup(spinup_models,
             sel_forcing,
             loc_forcing_t,
@@ -535,8 +556,7 @@ function spinupSequenceLoop(spinup_models, sel_forcing, loc_forcing_t, land, tem
             tem_info,
             n_timesteps,
             spinup_mode)
-        land = setSpinupLog(land, log_loop, tem_info.run.store_spinup)
-        log_loop += 1
+        storeSpinupRepeat!(land, spinup_mode, tem_info.run.store_spinup)
     end
     return land
 end
@@ -578,15 +598,16 @@ julia> # land = spinupTEM(selected_models, forcing, loc_forcing_t, land, tem_inf
 function spinupTEM end
 
 function spinupTEM(selected_models, loc_spinup, loc_forcing_t, land, tem_info, ::DoSpinupTEM, loc_restart=nothing)
-    land = setSpinupLog(land, 1, tem_info.run.store_spinup)
-    land, _ = runSpinupSequences(loc_spinup.sequence, selected_models, loc_spinup.forcing, loc_forcing_t, land, tem_info, 2, loc_restart)
+    resetSpinupStore!(land, tem_info.run.store_spinup)
+    storeSpinupStep!(land, tem_info.run.store_spinup)
+    land = runSpinupSequences(loc_spinup.sequence, selected_models, loc_spinup.forcing, loc_forcing_t, land, tem_info, loc_restart)
     return land
 end
 
 """
-    runSpinupSequences(spin_seqs, selected_models, spinup_forcings, loc_forcing_t, land, tem_info, log_index, loc_restart=nothing)
+    runSpinupSequences(spin_seqs, selected_models, spinup_forcings, loc_forcing_t, land, tem_info, loc_restart=nothing)
 
-Runs every spinup sequence of `spin_seqs` in order, threading `land` and the spinup log index through the sequences.
+Runs every spinup sequence of `spin_seqs` in order, threading `land` through the sequences.
 
 # Arguments:
 - `spin_seqs`: a tuple of spinup sequences, each with the forcing name, number of timesteps, number of repeats, and the spinup mode
@@ -595,27 +616,26 @@ Runs every spinup sequence of `spin_seqs` in order, threading `land` and the spi
 - `loc_forcing_t`: a forcing NT for a single location and a single time step
 - `land`: SINDBAD NT input to the spinup of TEM during which subfield(s) of pools are overwritten
 - `tem_info`: helper NT with necessary objects for model run and type consistencies
-- `log_index`: the index in the spinup log at which the next sequence starts writing
 - `loc_restart`: where the pools are stored for the restart file after the step whose `save_restart` is true, or `nothing`
 
 # Returns:
-- a tuple of the updated `land` and the next free `log_index`
+- the updated `land`
 
 # Notes:
 - The sequences are consumed recursively with `Base.tail` rather than with a `for` loop. `spin_seqs` is a heterogeneous tuple, so a `for` loop indexes it with a runtime state, which puts the whole tuple and every extracted element on the heap once per iteration. Recursion specialises one method per sequence and removes those allocations.
 """
 function runSpinupSequences end
 
-runSpinupSequences(::Tuple{}, selected_models, spinup_forcings, loc_forcing_t, land, tem_info, log_index, loc_restart=nothing) = (land, log_index)
+runSpinupSequences(::Tuple{}, selected_models, spinup_forcings, loc_forcing_t, land, tem_info, loc_restart=nothing) = land
 
-function runSpinupSequences(spin_seqs::Tuple, selected_models, spinup_forcings, loc_forcing_t, land, tem_info, log_index, loc_restart=nothing)
+function runSpinupSequences(spin_seqs::Tuple, selected_models, spinup_forcings, loc_forcing_t, land, tem_info, loc_restart=nothing)
     spin_seq = first(spin_seqs)
     n_repeat = spin_seq.n_repeat
     sel_forcing = sequenceForcing(spinup_forcings, spin_seq)
     spinup_models = getSpinupModels(selected_models, spin_seq.model_indices)
-    land = spinupSequence(spinup_models, sel_forcing, loc_forcing_t, land, tem_info, spin_seq.n_timesteps, log_index, n_repeat, spin_seq.spinup_mode)
+    land = spinupSequence(spinup_models, sel_forcing, loc_forcing_t, land, tem_info, spin_seq.n_timesteps, n_repeat, spin_seq.spinup_mode)
     spin_seq.save_restart && setRestart!(loc_restart, land, tem_info)
-    return runSpinupSequences(Base.tail(spin_seqs), selected_models, spinup_forcings, loc_forcing_t, land, tem_info, log_index + n_repeat, loc_restart)
+    return runSpinupSequences(Base.tail(spin_seqs), selected_models, spinup_forcings, loc_forcing_t, land, tem_info, loc_restart)
 end
 
 """
@@ -693,6 +713,30 @@ function timeLoopTEMSpinup(spinup_models, spinup_forcing, loc_forcing_t, land, t
     for ts ∈ 1:n_timesteps
         f_ts = getForcingForTimeStep(spinup_forcing, loc_forcing_t, ts, tem_info.vals.forcing_types)
         land = computeTEM(spinup_models, f_ts, land, tem_info.model_helpers)
+    end
+    return land
+end
+
+"""
+    timeLoopTEMSpinup(spinup_models, spinup_forcing, loc_forcing_t, land, tem_info, n_timesteps, store_spinup_mode)
+
+Runs the time loop of the spinup models like the method without `store_spinup_mode`,
+and with `DoStoreSpinup` writes `cEco` and `TWS` to the spinup store after every time
+step.
+
+# Notes:
+- Only `spinup` with `LoopTEM` calls this method. The solver based spinup modes call the
+  method without `store_spinup_mode`, so their trial runs are not stored.
+"""
+function timeLoopTEMSpinup(spinup_models, spinup_forcing, loc_forcing_t, land, tem_info, n_timesteps, ::DoNotStoreSpinup)
+    return timeLoopTEMSpinup(spinup_models, spinup_forcing, loc_forcing_t, land, tem_info, n_timesteps)
+end
+
+function timeLoopTEMSpinup(spinup_models, spinup_forcing, loc_forcing_t, land, tem_info, n_timesteps, store_spinup_mode::DoStoreSpinup)
+    for ts ∈ 1:n_timesteps
+        f_ts = getForcingForTimeStep(spinup_forcing, loc_forcing_t, ts, tem_info.vals.forcing_types)
+        land = computeTEM(spinup_models, f_ts, land, tem_info.model_helpers)
+        storeSpinupStep!(land, store_spinup_mode)
     end
     return land
 end
