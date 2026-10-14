@@ -95,10 +95,8 @@ function parallelizeTEM!(space_selected_models::Vector, space_forcing, space_spi
 end
 
 function parallelizeTEM!(space_selected_models::Vector, space_forcing, space_spinup, loc_forcing_t, space_output, space_restart, space_land, tem_info, ::QbmapParallelization)
-    space_index = 1
-    qbmap(space_forcing) do _
+    qbmap(eachindex(space_forcing)) do space_index
         coreTEM!(space_selected_models[space_index], space_forcing[space_index], space_spinup[space_index], loc_forcing_t, space_output[space_index], space_restart[space_index], space_land[space_index], tem_info)
-        space_index += 1
     end
     return nothing
 end
