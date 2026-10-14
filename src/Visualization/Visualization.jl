@@ -15,7 +15,7 @@ plotting model outputs, diagnostics, and experiment metadata via `Plots.jl`.
 - `namedTupleToFlareJSON` and `getAllVariables` (`utilsVisualization.jl`) have no external plotting dependency and are always available.
 
 ## Optional (via `SindbadPlotsExt`)
-- `plotPerformanceHistograms`, `plotTimeSeries`, and `plotIOModelStructure` dispatch on a `VisualizationTypes` backend value read from `info.helpers.run.visualization_backend` (set from `exe_rules.visualization_backend` in the experiment config, defaulting to `"Types"`). The default `VisualizationTypes` backend logs an info message and returns `nothing`. Setting `visualization_backend = "Plots"` in the config selects the `VisualizationPlots` backend, whose real plotting methods are only added once `Plots.jl` is loaded, at which point Julia's package extension mechanism loads `SindbadPlotsExt` (see root `Project.toml` `[weakdeps]` + `[extensions]`). `using Sindbad` alone is sufficient once `Plots` is also loaded in the session — end users typically should not `using SindbadPlotsExt` directly.
+- `plotPerformanceHistograms`, `plotTimeSeries`, `plotForcing`, `plotSpinup`, and `plotIOModelStructure` dispatch on a `VisualizationTypes` backend value read from `info.helpers.run.visualization_backend` (set from `exe_rules.visualization_backend` in the experiment config, defaulting to `"Types"`). The default `VisualizationTypes` backend logs an info message and returns `nothing`. Setting `visualization_backend = "Plots"` in the config selects the `VisualizationPlots` backend, whose real plotting methods are only added once `Plots.jl` is loaded, at which point Julia's package extension mechanism loads `SindbadPlotsExt` (see root `Project.toml` `[weakdeps]` + `[extensions]`). `using Sindbad` alone is sufficient once `Plots` is also loaded in the session — end users typically should not `using SindbadPlotsExt` directly.
 - `plotTimeSeriesWithObs` and `plotTimeSeriesDebug` are deprecated-but-supported aliases of `plotTimeSeries`, kept for backward compatibility with their original signatures.
 
 # Notes
@@ -54,6 +54,8 @@ module Visualization
     export plotTimeSeriesDebug
     export plotIOModelStructure
     export plotCarbonFlows
+    export plotForcing
+    export plotSpinup
 
     # Thin convenience wrappers: resolve the configured visualization backend from `info`
     # (or `out`/`out_opti`, which carry `.info`) and forward to the 4-arg method that
@@ -87,9 +89,11 @@ module Visualization
         return plotTimeSeries(out, cost_options, _resolvedBackend(plotTimeSeries, backend, out, cost_options))
     end
 
-    function plotTimeSeries(info, opt_dat, def_dat)
+    # `forcing_helpers` gives the spatial dimensions, which a spatial run needs for its
+    # mean and time series figures
+    function plotTimeSeries(info, opt_dat, def_dat; forcing_helpers=nothing)
         backend = info.helpers.run.visualization_backend
-        return plotTimeSeries(info, opt_dat, def_dat, _resolvedBackend(plotTimeSeries, backend, info, opt_dat, def_dat))
+        return plotTimeSeries(info, opt_dat, def_dat, _resolvedBackend(plotTimeSeries, backend, info, opt_dat, def_dat); forcing_helpers=forcing_helpers)
     end
 
     # Backward-compatible aliases: old names/signatures forward onto the unified
@@ -101,11 +105,35 @@ module Visualization
     # out.observation instead), so it resolves its own backend and forwards to the
     # explicit-argument method directly, preserving the exact old behavior/signature.
     plotTimeSeriesWithObs(out_opti) = plotTimeSeries(out_opti)
-    plotTimeSeriesDebug(info, opt_dat, def_dat) = plotTimeSeries(info, opt_dat, def_dat)
+    plotTimeSeriesDebug(info, opt_dat, def_dat; kwargs...) = plotTimeSeries(info, opt_dat, def_dat; kwargs...)
 
     function plotTimeSeriesWithObs(out, obs_array, cost_options)
         backend = out.info.helpers.run.visualization_backend
         return plotTimeSeries(out.info, obs_array, cost_options, out.output, _resolvedBackend(plotTimeSeries, backend, out.info, obs_array, cost_options, out.output))
+    end
+
+    # `out` is the output of an experiment run, which carries `.info` and `.forcing`
+    plotForcing(out) = plotForcing(out.info, out.forcing)
+
+    function plotForcing(info, forcing)
+        backend = info.helpers.run.visualization_backend
+        return plotForcing(info, forcing, _resolvedBackend(plotForcing, backend, info, forcing))
+    end
+
+    # `out` is the output of a forward or optimization run, which carries `.info`, the
+    # stored `.spinup` and the `.output` of the forward run that followed it
+    plotSpinup(out; kwargs...) = plotSpinup(out.info, out.spinup; output=_forwardOutput(out), kwargs...)
+
+    # the output of the run whose spinup is stored, which is the optimized one when there
+    # are both
+    function _forwardOutput(out)
+        hasproperty(out, :output) || return nothing
+        return hasproperty(out.output, :optimized) ? out.output.optimized : out.output
+    end
+
+    function plotSpinup(info, spinup; kwargs...)
+        backend = info.helpers.run.visualization_backend
+        return plotSpinup(info, spinup, _resolvedBackend(plotSpinup, backend, info, spinup); kwargs...)
     end
 
     # falls back to land.models.c_model when approach is omitted, so a real `land` is
@@ -199,7 +227,7 @@ module Visualization
         return nothing
     end
 
-    function plotTimeSeries(info, opt_dat, def_dat, ::VisualizationTypes)
+    function plotTimeSeries(info, opt_dat, def_dat, ::VisualizationTypes; kwargs...)
         print_info(plotTimeSeries, @__FILE__, @__LINE__, _visualizationFallbackMessage(plotTimeSeries, info.helpers.run.visualization_backend), n_f=4)
         return nothing
     end
@@ -207,8 +235,18 @@ module Visualization
     # Needed so the legacy 3-arg plotTimeSeriesWithObs(out, obs_array, cost_options)
     # alias (which forwards straight to this arity, bypassing the arity-2 wrapper above)
     # still degrades gracefully when no Plots backend is loaded.
-    function plotTimeSeries(info, obs_array, cost_options, def_dat, ::VisualizationTypes)
+    function plotTimeSeries(info, obs_array, cost_options, def_dat, ::VisualizationTypes; kwargs...)
         print_info(plotTimeSeries, @__FILE__, @__LINE__, _visualizationFallbackMessage(plotTimeSeries, info.helpers.run.visualization_backend), n_f=4)
+        return nothing
+    end
+
+    function plotForcing(info, forcing, ::VisualizationTypes)
+        print_info(plotForcing, @__FILE__, @__LINE__, _visualizationFallbackMessage(plotForcing, info.helpers.run.visualization_backend), n_f=4)
+        return nothing
+    end
+
+    function plotSpinup(info, spinup, ::VisualizationTypes; kwargs...)
+        print_info(plotSpinup, @__FILE__, @__LINE__, _visualizationFallbackMessage(plotSpinup, info.helpers.run.visualization_backend), n_f=4)
         return nothing
     end
 

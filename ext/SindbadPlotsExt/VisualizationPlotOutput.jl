@@ -1,6 +1,33 @@
 # Bring the target functions into scope for adding methods. This should be done using `import` and not `using`.
 import Sindbad.Visualization: plotPerformanceHistograms, plotTimeSeries
 using Sindbad
+
+# ------------------------------------------------------------------
+# shared figure style
+# ------------------------------------------------------------------
+
+# The figures have no top and right axis lines, a thin grid, dark grey labels and
+# ticks, and are saved at 300 dpi.
+_figStyle() = (; framestyle=:axes, gridalpha=0.25, gridlinewidth=0.4, guidefontcolor=:grey25, tickfontcolor=:grey25, titlefontsize=12, guidefontsize=10, tickfontsize=8, legendfontsize=9, foreground_color_legend=nothing, dpi=300, size=(1200, 500), left_margin=5plots_mm, bottom_margin=4plots_mm)
+
+# the colour of a single or default model output, a medium blue that stays apart from
+# the black observations
+const _model_color = "#2C7FB8"
+
+# the colour of the forward run appended after the spinup
+const _forward_color = "#E69F00"
+
+# the colours of the default and the optimized output when both are drawn, a vermillion
+# and a green that differ in hue and lightness
+const _def_color = "#D55E00"
+const _opt_color = :seagreen3
+
+_varLongName(vinfo) = isempty(vinfo["long_name"]) ? vinfo["standard_name"] : vinfo["long_name"]
+
+_varTitle(domain, vinfo) = "$(domain): $(_varLongName(vinfo)) [$(vinfo["units"])]"
+
+_varAxisLabel(vinfo) = "$(vinfo["standard_name"]) [$(vinfo["units"])]"
+
 # ------------------------------------------------------------------
 # performance histograms
 # ------------------------------------------------------------------
@@ -31,7 +58,6 @@ function plotPerformanceHistograms(out_opti, ::VisualizationPlots)
     info = out_opti.info
     costOpt = out_opti.cost_options
     run_helpers = out_opti.run_helpers
-    plots_default(titlefont=(20, "times"), legendfontsize=18, tickfont=(15, :blue))
 
     domain = info.experiment.basics.domain
     fig_prefix = joinpath(info.output.dirs.figure, "comparison_histograms_" * info.experiment.basics.name * "_" * domain)
@@ -65,12 +91,14 @@ function plotPerformanceHistograms(out_opti, ::VisualizationPlots)
 
 
         b_range = range(-1, 1, length=50)
-        p_title = "$(var_row.variable) ($(nameof(typeof(lossMetric))))"
-        plots_histogram(first.(loss_space); title=p_title, size=(2000, 1000),bins=b_range, alpha=0.9, label="default", color="#FDB311")
-        plots_vline!([metric(lossMetric, def_var_no_nan, obs_var_no_nan, obs_σ_no_nan)], label="default_spatial", color="#FDB311", lw=3)
-        plots_histogram!(last.(loss_space); size=(2000, 1000), bins=b_range, alpha=0.5, label="optimized", color="#18A15C")
-        plots_vline!([metric(lossMetric, opt_var_no_nan, obs_var_no_nan, obs_σ_no_nan)], label="optimized_spatial", color="#18A15C", lw=3)
-        plots_xlabel!("")
+        metric_name = nameof(typeof(lossMetric))
+        p_title = "$(_varTitle(domain, vinfo)) | $(metric_name)"
+        metr_def = metric(lossMetric, def_var_no_nan, obs_var_no_nan, obs_σ_no_nan)
+        metr_opt = metric(lossMetric, opt_var_no_nan, obs_var_no_nan, obs_σ_no_nan)
+        plots_histogram(first.(loss_space); _figStyle()..., title=p_title, bins=b_range, alpha=0.55, label="def per location", color=_def_color, linecolor=:white, linewidth=0.3, xlabel="$(metric_name) of $(vinfo["standard_name"])", ylabel="number of locations", grid=:y, legend=:outerbottom, legendcolumns=4)
+        plots_histogram!(last.(loss_space); bins=b_range, alpha=0.55, label="opt per location", color=_opt_color, linecolor=:white, linewidth=0.3)
+        plots_vline!([metr_def]; label="def all locations ($(round(metr_def, digits=2)))", color=_def_color, linestyle=:dash, lw=1.2)
+        plots_vline!([metr_opt]; label="opt all locations ($(round(metr_opt, digits=2)))", color=_opt_color, linestyle=:dash, lw=1.2)
         plots_savefig(fig_prefix * "_$(v).png")
     end
     return nothing
@@ -133,15 +161,15 @@ function _plotOutputVsObsForVariable!(info, obs_array, var_row, def_dat, lossMet
     has_opt = !isnothing(opt_dat)
     legend_columns = has_opt ? 3 : 2
 
-    plots_plot(xdata, obs_var; label="obs", seriestype=:scatter, mc=:black, ms=4, lw=0, ma=0.65, left_margin=1plots_cm)
-    plots_plot!(xdata, def_var, lw=1.5, ls=:dash, left_margin=1plots_cm, legend=:outerbottom, legendcolumns=legend_columns, label="def ($(round(metr_def, digits=2)))", size=(2000, 1000), title="$(domain): $(vinfo["long_name"]) ($(vinfo["units"])) -> $(nameof(typeof(lossMetric)))", color=:steelblue2)
+    plots_plot(xdata, obs_var; _figStyle()..., label="obs", seriestype=:scatter, mc=:black, ms=2.5, msw=0, ma=0.65, title="$(_varTitle(domain, vinfo)) | $(nameof(typeof(lossMetric)))", xlabel="time", ylabel=_varAxisLabel(vinfo), legend=:outerbottom, legendcolumns=legend_columns)
+    plots_plot!(xdata, def_var; lw=1.0, label="def ($(round(metr_def, digits=2)))", color=has_opt ? _def_color : _model_color)
 
     if has_opt
         (_, _, opt_var) = getData(opt_dat, obs_array, var_row)
         opt_var_TMP = vec(mean(opt_var, dims=3))
         opt_var = opt_var_TMP[tspan]
         metr_opt = metric(lossMetric, opt_var[valids], obs_var[valids], obs_σ[valids])
-        plots_plot!(xdata, opt_var; color=:seagreen3, label="opt ($(round(metr_opt, digits=2)))", lw=1.5, ls=:dash)
+        plots_plot!(xdata, opt_var; color=_opt_color, label="opt ($(round(metr_opt, digits=2)))", lw=1.0)
     end
 
     plots_savefig(fig_prefix * "_$(vname).png")
@@ -149,11 +177,13 @@ function _plotOutputVsObsForVariable!(info, obs_array, var_row, def_dat, lossMet
 end
 
 # Draws and saves one def-vs-opt line plot for a single debug variable/layer. Shared by
-# plotTimeSeries(info, opt_dat, def_dat)'s single-layer and multi-layer branches.
+# plotTimeSeries(info, opt_dat, def_dat)'s single-layer and multi-layer branches. Without
+# an optimized run, opt_col is nothing and only the default line is drawn.
 function _plotDebugVariableLayer!(xdata, def_col, opt_col, title_str, ylabel_str, fig_path)
-    plots_plot(xdata, def_col; label="def ($(round(mean(def_col), digits=2)))", size=(2000, 1000), title=title_str, left_margin=1plots_cm, color=:steelblue2)
-    plots_plot!(xdata, opt_col, color=:seagreen3; label="opt ($(round(mean(opt_col), digits=2)))")
-    plots_ylabel!(ylabel_str, font=(20, :green))
+    plots_plot(xdata, def_col; _figStyle()..., label="def ($(round(mean(def_col), digits=2)))", title=title_str, xlabel="time", ylabel=ylabel_str, color=isnothing(opt_col) ? _model_color : _def_color, lw=1.0, legend=:outerbottom, legendcolumns=2)
+    if !isnothing(opt_col)
+        plots_plot!(xdata, opt_col; color=_opt_color, lw=1.0, label="opt ($(round(mean(opt_col), digits=2)))")
+    end
     plots_savefig(fig_path)
     return nothing
 end
@@ -187,7 +217,7 @@ function plotTimeSeries(out_opti, ::VisualizationPlots)
     cost_options = out_opti.cost_options
     def_dat = out_opti.output.default
     opt_dat = out_opti.output.optimized
-    return plotTimeSeries(info, obs_array, cost_options, def_dat, opt_dat, VisualizationPlots())
+    return plotTimeSeries(info, obs_array, cost_options, def_dat, opt_dat, VisualizationPlots(); forcing_helpers=_forcingHelpers(out_opti))
 end
 
 """
@@ -206,7 +236,7 @@ function plotTimeSeries(out, cost_options, ::VisualizationPlots)
     info = out.info
     obs_array = out.observation
     def_dat = out.output
-    return plotTimeSeries(info, obs_array, cost_options, def_dat, VisualizationPlots())
+    return plotTimeSeries(info, obs_array, cost_options, def_dat, VisualizationPlots(); forcing_helpers=_forcingHelpers(out))
 end
 
 """
@@ -220,28 +250,41 @@ Plot debugging figures for model outputs.
 - `def_dat`: Default model output data
 
 # Description
-This function generates debugging figures by plotting the optimized and default model outputs for each variable specified in the experiment's output variables list. It calculates the mean of the model outputs across layers and then plots them against time using Plots.jl. Debugging figures are saved in a directory specified by `info.output.dirs.figure`.
+This function generates debugging figures by plotting the optimized and default model outputs for each variable specified in the experiment's output variables list. With `opt_dat` set to `nothing`, e.g. for a forward run, only the default output is plotted.
+
+For a spatial run, i.e. with `forcing_helpers` given and more than one location, the
+figures are `debug_mean_*`, the time mean of every location, and `debug_timeseries_*`,
+the mean of all locations and a few random locations, of the optimized output, or of
+the default output without an optimized one. See `_plotDebugSpatial`.
+
+For one location, it calculates the mean of the model outputs across layers and then plots them against time using Plots.jl. Debugging figures are saved in a directory specified by `info.output.dirs.figure`.
 """
-function plotTimeSeries(info, opt_dat, def_dat, ::VisualizationPlots)
-    output_array_opt = values(opt_dat)
+function plotTimeSeries(info, opt_dat, def_dat, ::VisualizationPlots; forcing_helpers=nothing)
+    space = _spaceInfo(forcing_helpers)
+    if _isSpatial(space)
+        has_opt = !isnothing(opt_dat)
+        return _plotDebugSpatial(info, has_opt ? opt_dat : def_dat, space, has_opt ? "opt" : "def")
+    end
+    has_opt = !isnothing(opt_dat)
+    output_array_opt = has_opt ? values(opt_dat) : nothing
     output_array_def = values(def_dat)
     output_vars = info.output.variables
 
-    plots_default(titlefont=(20, "times"), legendfontsize=18, tickfont=(15, :blue))
     domain = info.experiment.basics.domain
     fig_prefix = joinpath(info.output.dirs.figure, "debug_" * info.experiment.basics.name * "_" * domain)
     for (o, v) in enumerate(output_vars)
         def_var = mean(output_array_def[o], dims=3)[:, :, 1]
-        opt_var = mean(output_array_opt[o], dims=3)[:, :, 1]
+        opt_var = has_opt ? mean(output_array_opt[o], dims=3)[:, :, 1] : nothing
         vinfo = getVariableInfo(v, info.experiment.basics.temporal_resolution)
         vname = vinfo["standard_name"]
         println("plot debug::", vname)
         xdata = [info.helpers.dates.range...]
-        if size(opt_var, 2) == 1
-            _plotDebugVariableLayer!(xdata, def_var[:, 1], opt_var[:, 1], "$(vinfo["long_name"]) ($(vinfo["units"]))", vinfo["standard_name"], fig_prefix * "_$(vname).png")
+        optLayer(ll) = has_opt ? opt_var[:, ll] : nothing
+        if size(def_var, 2) == 1
+            _plotDebugVariableLayer!(xdata, def_var[:, 1], optLayer(1), _varTitle(domain, vinfo), _varAxisLabel(vinfo), fig_prefix * "_$(vname).png")
         else
-            foreach(axes(opt_var, 2)) do ll
-                _plotDebugVariableLayer!(xdata, def_var[:, ll], opt_var[:, ll], "$(domain): $(vinfo["long_name"]), layer $(ll),  ($(vinfo["units"]))", vinfo["standard_name"], fig_prefix * "_$(vname)_$(ll).png")
+            foreach(axes(def_var, 2)) do ll
+                _plotDebugVariableLayer!(xdata, def_var[:, ll], optLayer(ll), "$(_varTitle(domain, vinfo)), layer $(ll)", _varAxisLabel(vinfo), fig_prefix * "_$(vname)_$(ll).png")
             end
         end
     end
@@ -252,8 +295,16 @@ end
 # plotting (no optimized comparison). Not an independent public entry point (see
 # Visualization.jl for why it doesn't get its own `::VisualizationTypes` fallback there,
 # except where needed to back the legacy `plotTimeSeriesWithObs(out, obs_array, cost_options)` alias).
-function plotTimeSeries(info, obs_array, cost_options, def_dat, ::VisualizationPlots)
-    plots_default(titlefont=(20, "times"), legendfontsize=18, tickfont=(15, :blue))
+function plotTimeSeries(info, obs_array, cost_options, def_dat, ::VisualizationPlots; forcing_helpers=nothing)
+    space = _spaceInfo(forcing_helpers)
+    if _isSpatial(space)
+        foreach(cost_options) do var_row
+            println("plot spatial comparison:: $(var_row.variable)")
+            vname, vinfo, lossMetric = getCostRowVariableInfo(var_row, info.experiment.basics.temporal_resolution)
+            _plotComparisonSpatial(info, obs_array, var_row, def_dat, "model", lossMetric, vinfo, vname, space)
+        end
+        return nothing
+    end
     domain = info.experiment.basics.domain
     fig_prefix = joinpath(info.output.dirs.figure, "time_series_single_" * info.experiment.basics.name * "_" * domain)
     foreach(cost_options) do var_row
@@ -266,8 +317,18 @@ end
 
 # Explicit-argument target of the arity-1 wrapper above: def-vs-optimized-vs-observations
 # plotting (the full comparison). Not an independent public entry point (see Visualization.jl).
-function plotTimeSeries(info, obs_array, cost_options, def_dat, opt_dat, ::VisualizationPlots)
-    plots_default(titlefont=(20, "times"), legendfontsize=18, tickfont=(15, :blue))
+# A spatial run compares only the optimized output with the observations, as
+# `comparison_mean_*` and `comparison_timeseries_*`. See `_plotComparisonSpatial`.
+function plotTimeSeries(info, obs_array, cost_options, def_dat, opt_dat, ::VisualizationPlots; forcing_helpers=nothing)
+    space = _spaceInfo(forcing_helpers)
+    if _isSpatial(space)
+        foreach(cost_options) do var_row
+            println("plot spatial comparison:: $(var_row.variable)")
+            vname, vinfo, lossMetric = getCostRowVariableInfo(var_row, info.experiment.basics.temporal_resolution)
+            _plotComparisonSpatial(info, obs_array, var_row, opt_dat, "opt", lossMetric, vinfo, vname, space)
+        end
+        return nothing
+    end
     domain = info.experiment.basics.domain
     fig_prefix = joinpath(info.output.dirs.figure, "comparison_time_series_" * info.experiment.basics.name * "_" * domain)
     foreach(cost_options) do var_row
