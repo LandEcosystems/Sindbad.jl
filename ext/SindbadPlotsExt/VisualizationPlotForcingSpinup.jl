@@ -38,6 +38,7 @@ function plotForcing(info, forcing, ::VisualizationPlots)
     fig_prefix = joinpath(info.output.dirs.figure, "forcing_" * info.experiment.basics.name * "_" * domain)
     forcing_settings = _getSetting(info.experiment.data_settings.forcing, :variables)
     for (f_i, (v, f_data)) in enumerate(zip(forcing.variables, forcing.data))
+        println("plot forcing::", v)
         f_arr = Array(f_data)
         ndims(f_arr) == 0 && continue
         v_settings = _getSetting(forcing_settings, v)

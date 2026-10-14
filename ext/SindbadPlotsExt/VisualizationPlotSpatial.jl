@@ -7,14 +7,20 @@ using Dates: TimeType
 #
 # A spatial run has more than one location. Its forcing, output and observation arrays
 # have the spatial dimensions last, in the order of `forcing_helpers.sizes`, so every
-# array is read as (leading..., space...). For each variable two figures are drawn:
-# - `*_mean_*`: the time mean of every location, as a heatmap for a grid with two
-#   spatial dimensions, and as points along the location index for a list of sites
+# array is read as (leading..., space...). For each variable these figures are drawn:
 # - `*_timeseries_*`: the mean over all locations, and a few random locations to show
 #   the spatial variability. The random locations are drawn with a fixed seed, so the
 #   same locations are picked whenever the set of valid locations is the same.
+# - `*_spacetime_*`: a heatmap with time on the x axis and the locations, or the
+#   latitudes of a grid, on the y axis, for the debug and forcing figures.
+# - `*_mean_*`: the time mean of every location, as a heatmap for a grid with two
+#   spatial dimensions, and as points along the location index for a list of sites.
+#   For a list of sites, the debug and forcing figures leave it out, since
+#   `*_spacetime_*` already shows every site, except for forcing without time.
 
 const _pixel_colors = [:darkorange2, :firebrick3, :purple3, :teal, :olivedrab]
+# the mean of all locations, a strong blue that none of the location colours is close to
+const _mean_color = "#2B59C3"
 const _pixel_seed = 1
 
 """
@@ -39,6 +45,9 @@ function _spaceInfo(forcing_helpers)
 end
 
 _isSpatial(space) = !isnothing(space) && space.n_loc > 1
+
+# a grid has two spatial dimensions, e.g. lat and lon, and a list of sites has one
+_isGrid(space) = length(space.sizes) == 2
 
 _forcingHelpers(out) = hasproperty(out, :forcing) ? out.forcing.helpers : nothing
 
@@ -150,13 +159,44 @@ end
 Saves the mean over all locations and a few random locations of a (time, location)
 array as lines.
 """
-function _plotSpaceTimeSeries(x_data, data_tl, space, title, ylabel, fig_path; color=_model_color)
+function _plotSpaceTimeSeries(x_data, data_tl, space, title, ylabel, fig_path)
     pixels = _randomLocations(_validLocations(data_tl))
-    series = Any[_series(_spaceMean(data_tl); label="mean of all locations", color=color, lw=1.6)]
+    series = Any[_series(_spaceMean(data_tl); label="mean of all locations", color=_mean_color, lw=2.6)]
     for (k, loc) ∈ enumerate(pixels)
         push!(series, _series(data_tl[:, loc]; label=_locationLabel(space, loc), color=_pixel_colors[k], lw=0.8, alpha=0.85))
     end
     _plotTimeSeriesWithMSC(x_data, series, fig_path; title=title, ylabel=ylabel, legend_columns=3)
+    return nothing
+end
+
+"""
+    _plotSpaceTime(x_data, data_tl, space, title, units, fig_path)
+
+Saves a heatmap of a (time, location) array with time on the x axis. A list of sites
+has one row per site, and a grid has one row per latitude, with the mean over longitude.
+The title has the mean and the number of missing values of the whole array.
+"""
+function _plotSpaceTime(x_data, data_tl, space, title, units, fig_path)
+    n_time = size(data_tl, 1)
+    if length(space.sizes) == 2
+        x_dim, y_dim = _mapDims(space)
+        data_grid = reshape(data_tl, n_time, space.sizes...)
+        n_rows = space.sizes[y_dim]
+        z = [_nanMean(selectdim(selectdim(data_grid, 1, t), y_dim, r)) for r ∈ 1:n_rows, t ∈ 1:n_time]
+        y = space.coords[y_dim]
+        y_order = eltype(y) <: Real ? sortperm(y) : collect(eachindex(y))
+        y, z = y[y_order], z[y_order, :]
+        y_label = string(space.names[y_dim])
+        y_ticks = :auto
+    else
+        z = permutedims(data_tl)
+        y = 1:space.n_loc
+        y_label = string(first(space.names))
+        y_ticks = space.n_loc <= 40 ? (1:space.n_loc, string.(first(space.coords))) : :auto
+    end
+    stats = "mean = $(round(_nanMean(data_tl), digits=2)), NaNs = $(count(isnan, data_tl))"
+    p = plots_heatmap(x_data, y, z; _figStyle()..., title="$(title) | $(stats)", xlabel="time", ylabel=y_label, yticks=y_ticks, colorbar_title=units, color=:viridis, grid=false, framestyle=:box, size=(1500, 600), left_margin=8plots_mm)
+    plots_savefig(p, fig_path)
     return nothing
 end
 
@@ -190,8 +230,8 @@ taken over the locations and time steps with an observation.
 function _plotComparisonTimeSeries(x_data, obs_tl, mod_tl, space, title, ylabel, fig_path)
     pixels = _randomLocations(_validLocations(obs_tl))
     mod_masked = ifelse.(isnan.(obs_tl), NaN, mod_tl)
-    series = Any[_series(_spaceMean(mod_masked); label="mean of all locations", color=_model_color, lw=1.6),
-        _series(_spaceMean(obs_tl); label="", color=_model_color, lw=1.2, linestyle=:dash)]
+    series = Any[_series(_spaceMean(mod_masked); label="mean of all locations", color=_mean_color, lw=2.6),
+        _series(_spaceMean(obs_tl); label="", color=_mean_color, lw=2.0, linestyle=:dash)]
     for (k, loc) ∈ enumerate(pixels)
         push!(series, _series(mod_tl[:, loc]; label=_locationLabel(space, loc), color=_pixel_colors[k], lw=0.8))
         push!(series, _series(obs_tl[:, loc]; label="", color=_pixel_colors[k], lw=0.8, linestyle=:dash))
@@ -207,8 +247,8 @@ end
 """
     _plotDebugSpatial(info, model_dat, space, model_label)
 
-Saves `debug_mean_*` and `debug_timeseries_*` for every output variable and layer of a
-spatial run.
+Saves `debug_timeseries_*` and `debug_spacetime_*` for every output variable and layer
+of a spatial run, and `debug_mean_*` for a grid.
 """
 function _plotDebugSpatial(info, model_dat, space, model_label)
     domain = info.experiment.basics.domain
@@ -227,8 +267,9 @@ function _plotDebugSpatial(info, model_dat, space, model_label)
             layer_title = n_layer > 1 ? ", layer $(ll)" : ""
             data_tl = data_tll[:, ll, :]
             title = "$(_varTitle(domain, vinfo))$(layer_title) | $(model_label)"
-            _plotMeanMap(space, data_tl, "$(title), time mean", vinfo["units"], joinpath(fig_dir, "debug_mean_$(name_prefix)_$(vname)$(layer_tag).png"))
+            _isGrid(space) && _plotMeanMap(space, data_tl, "$(title), time mean", vinfo["units"], joinpath(fig_dir, "debug_mean_$(name_prefix)_$(vname)$(layer_tag).png"))
             _plotSpaceTimeSeries(x_var, data_tl, space, title, _varAxisLabel(vinfo), joinpath(fig_dir, "debug_timeseries_$(name_prefix)_$(vname)$(layer_tag).png"))
+            _plotSpaceTime(x_var, data_tl, space, title, vinfo["units"], joinpath(fig_dir, "debug_spacetime_$(name_prefix)_$(vname)$(layer_tag).png"))
         end
     end
     return nothing
@@ -237,8 +278,9 @@ end
 """
     _plotForcingSpatial(info, forcing, space)
 
-Saves `forcing_mean_*` for every forcing variable and layer with spatial dimensions, and
-`forcing_timeseries_*` for those that also have time. A variable without spatial
+Saves `forcing_timeseries_*` and `forcing_spacetime_*` for every forcing variable and
+layer with spatial dimensions and time, and `forcing_mean_*` for a grid or for those
+without time. A variable without spatial
 dimensions is drawn as one time series.
 """
 function _plotForcingSpatial(info, forcing, space)
@@ -247,6 +289,7 @@ function _plotForcingSpatial(info, forcing, space)
     fig_dir = info.output.dirs.figure
     forcing_settings = _getSetting(info.experiment.data_settings.forcing, :variables)
     for (f_i, (v, f_data)) ∈ enumerate(zip(forcing.variables, forcing.data))
+        println("plot forcing::", v)
         f_arr = Array(f_data)
         ndims(f_arr) == 0 && continue
         v_settings = _getSetting(forcing_settings, v)
@@ -267,8 +310,10 @@ function _plotForcingSpatial(info, forcing, space)
             layer_title = n_layer > 1 ? ", layer $(ll)" : ""
             data_tl = data_tll[:, ll, :]
             mean_title = has_time ? "$(title)$(layer_title), time mean" : "$(title)$(layer_title)"
-            _plotMeanMap(space, data_tl, mean_title, v_units, joinpath(fig_dir, "forcing_mean_$(name_prefix)_$(v)$(layer_tag).png"); color=_def_color)
-            has_time && _plotSpaceTimeSeries(x_var, data_tl, space, "$(title)$(layer_title)", ylabel, joinpath(fig_dir, "forcing_timeseries_$(name_prefix)_$(v)$(layer_tag).png"); color=_def_color)
+            (_isGrid(space) || !has_time) && _plotMeanMap(space, data_tl, mean_title, v_units, joinpath(fig_dir, "forcing_mean_$(name_prefix)_$(v)$(layer_tag).png"); color=_def_color)
+            has_time || continue
+            _plotSpaceTimeSeries(x_var, data_tl, space, "$(title)$(layer_title)", ylabel, joinpath(fig_dir, "forcing_timeseries_$(name_prefix)_$(v)$(layer_tag).png"))
+            _plotSpaceTime(x_var, data_tl, space, "$(title)$(layer_title)", v_units, joinpath(fig_dir, "forcing_spacetime_$(name_prefix)_$(v)$(layer_tag).png"))
         end
     end
     return nothing
