@@ -122,6 +122,7 @@ purpose(::Type{SpinupTypes}) = "Abstract type for model spinup related functions
 export SpinupMode
 export LoopTEM
 export SpinupInput
+export ClearanceA0
 export EtaScaleA0H
 export EtaScaleA0HCWD
 export EtaScaleAHCWD
@@ -140,6 +141,9 @@ export SSPSSRootfind
 
 abstract type SpinupMode <: SpinupTypes end
 purpose(::Type{SpinupMode}) = "Abstract type for model spinup modes in SINDBAD"
+
+struct ClearanceA0 <: SpinupMode end
+purpose(::Type{ClearanceA0}) = "set the vegetation carbon pools to c_remain, the vegetation part of EtaScaleA0H"
 
 struct EtaScaleA0H <: SpinupMode end
 purpose(::Type{EtaScaleA0H}) = "scale carbon pools using diagnostic scalars for ηH and c_remain"

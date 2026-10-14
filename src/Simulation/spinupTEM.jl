@@ -240,6 +240,28 @@ function spinup(_, _, _, land, helpers, _, ::EtaScaleAHCWD)
 end
 
 
+# ClearanceA0 is the vegetation part of EtaScaleA0H, and EtaScaleH the heterotrophic
+# part, so that the two can be separate steps of a spinup sequence.
+function spinup(_, _, _, land, helpers, _, ::ClearanceA0)
+    @unpack_nt cEco ⇐ land.pools
+    helpers = helpers.model_helpers
+    cEco_prev = copy(cEco)
+    c_remain = one(eltype(cEco))
+    if :c_remain ∈ propertynames(land.states)
+        c_remain = land.states.c_remain
+    end
+    for cVegZix ∈ helpers.pools.zix.cVeg
+        cLoss = at_least_zero(cEco[cVegZix] - c_remain)
+        cVegNew = cEco[cVegZix] - cLoss
+        @rep_elem cVegNew ⇒ (cEco, cVegZix)
+    end
+    @pack_nt cEco ⇒ land.pools
+    land = SindbadTEM.adjustPackPoolComponents(land, helpers, land.models.c_model)
+    @pack_nt cEco_prev ⇒ land.states
+    return land
+end
+
+
 function spinup(_, _, _, land, helpers, _, ::EtaScaleA0H)
     @unpack_nt cEco ⇐ land.pools
     helpers = helpers.model_helpers

@@ -127,7 +127,8 @@ function prepSequenceWithAge(year_disturbance; nrepeat_base=200, year_start = 19
         sequence = [
             Dict("spinup_mode" => "loop_TEM", "models" => "spinup", "forcing" => "all_years", "n_repeat" => 1),
             Dict("spinup_mode" => "loop_TEM", "models" => "spinup", "forcing" => forcing_msc, "n_repeat" => nrepeat_base),
-            Dict("spinup_mode" => "eta_scale_A0H", "forcing" => nothing, "models" => nothing, "n_repeat" => 1, "save_restart" => true),
+            Dict("spinup_mode" => "clearance_A0", "forcing" => nothing, "models" => nothing, "n_repeat" => 1),
+            Dict("spinup_mode" => "eta_scale_H", "forcing" => nothing, "models" => nothing, "n_repeat" => 1, "save_restart" => true),
             Dict("spinup_mode" => "loop_TEM", "models" => "spinup", "forcing" => forcing_msc, "n_repeat" => nrepeat_age),
         ]
     end
