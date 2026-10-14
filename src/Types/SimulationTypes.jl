@@ -143,7 +143,7 @@ abstract type SpinupMode <: SpinupTypes end
 purpose(::Type{SpinupMode}) = "Abstract type for model spinup modes in SINDBAD"
 
 struct ClearanceA0 <: SpinupMode end
-purpose(::Type{ClearanceA0}) = "set the vegetation carbon pools to c_remain, the vegetation part of EtaScaleA0H"
+purpose(::Type{ClearanceA0}) = "cut the vegetation carbon pools down to c_remain, as EtaScaleA0H does without the scaling by ηH"
 
 struct EtaScaleA0H <: SpinupMode end
 purpose(::Type{EtaScaleA0H}) = "scale carbon pools using diagnostic scalars for ηH and c_remain"

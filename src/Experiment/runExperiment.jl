@@ -179,9 +179,9 @@ end
 """
     withoutSpinupStore(info)
 
-Returns `info` with `store_spinup` switched off, for the many model runs of an
-optimization or a sensitivity analysis. Storing the spinup there only costs time and
-memory, so the setting of the experiment is used only in the forward runs.
+Returns `info` with `store_spinup` set to `DoNotStoreSpinup`. The model runs of an
+optimization and of a sensitivity analysis use it, and the forward runs keep the
+setting of the experiment.
 """
 withoutSpinupStore(info) = @set info.helpers.run.store_spinup = DoNotStoreSpinup()
 
@@ -189,20 +189,23 @@ withoutSpinupStore(info) = @set info.helpers.run.store_spinup = DoNotStoreSpinup
 """
     plotForwardRun(info, forcing, def_output, spinup; opt_output=nothing)
 
-Plots the forcing and the debug time series of every output variable of a forward run,
-and the stored spinup when there is one.
+Plots the forcing and the debug time series of every output variable of a forward
+run, and the stored spinup when there is one.
 
 # Arguments
-- `info`: a SINDBAD NamedTuple with all information needed for setup and execution of an experiment
+- `info`: a SINDBAD NamedTuple with all information needed for setup and execution of
+  an experiment
 - `forcing`: the forcing NamedTuple of the run
-- `def_output`: the output of the forward run with the default parameters, or the only
-  output of a plain forward run
-- `spinup`: the stored spinup from `prepSpinupOut`, or `nothing` when it is not stored
+- `def_output`: the output of the forward run with the default parameters, or the
+  only output of a plain forward run
+- `spinup`: the stored spinup from `prepSpinupOut`, or `nothing` when it is not
+  stored
 - `opt_output`: the output of the forward run with the optimized parameters, or
   `nothing` for a plain forward run
 
 # Notes
-- Nothing is drawn unless `visualization_backend` is set to `"Plots"` and Plots is loaded.
+- Nothing is drawn unless `visualization_backend` is set to `"Plots"` and Plots is
+  loaded.
 """
 function plotForwardRun(info, forcing, def_output, spinup; opt_output=nothing)
     plotForcing(info, forcing)
@@ -259,7 +262,8 @@ function runExperimentForward(sindbad_experiment::String; replace_info=Dict(), l
     saveOutCubes(info, values(run_output.output), output_dims, info.output.variables)
     saveRestartCubes(info, run_output.restart)
     saveSpinupCubes(info, run_output.spinup)
-    # the figures need the forcing and output in memory, which a lazy run does not have
+    # the figures need the forcing and output in memory, which a lazy run does not
+    # have
     info.helpers.run.run_lazy isa DoRunLazy || plotForwardRun(info, forcing, run_output.output, run_output.spinup)
     set_log_level()
     return run_output
@@ -364,8 +368,8 @@ function runExperimentOpti(sindbad_experiment::String; replace_info=Dict(), log_
     set_log_level(log_level)
     setExperimentMode!(replace_info, :optimization)
     info, forcing = prepExperiment(sindbad_experiment; replace_info=replace_info)
-    # the final forward run in runExperimentForwardParams prepares its own info, so it
-    # stores the spinup when the experiment says so
+    # the final forward run in runExperimentForwardParams prepares its own info, so
+    # it stores the spinup when the experiment says so
     info = withoutSpinupStore(info)
     run_helpers = prepTEM(info.models.forward, forcing, info)
     opti_output = runExperiment(info, forcing, info.helpers.run.run_optimization)
@@ -448,7 +452,9 @@ Run a SINDBAD forward simulation, choosing between eager and lazy execution.
 - A NamedTuple with:
   - `output`: for `DoNotRunLazy`, a NamedTuple pairing each unique output variable name (from `info.output.variables`) with its computed time series. For `DoRunLazy`, the lazy YAXArray output produced by `runTEMYax`.
   - `restart`: the pools of every location after the spinup step with `save_restart`, to be written with `saveRestartCubes`
-  - `spinup`: for `DoNotRunLazy` with `store_spinup` true, `cEco` and `TWS` of every location at every stored spinup step from `prepSpinupOut`, to be written with `saveSpinupCubes`. Otherwise `nothing`.
+  - `spinup`: for `DoNotRunLazy` with `store_spinup` true, `cEco` and `TWS` of every
+    location at every stored spinup step from `prepSpinupOut`, to be written with
+    `saveSpinupCubes`. Otherwise `nothing`.
 
 # Description
 This function is the entry point for executing the forward model of a SINDBAD experiment. It dispatches on the run mode to select between two execution strategies:

@@ -213,7 +213,8 @@ end
 Saves `cEco` and `TWS` at every stored step of the spinup to the spinup file.
 
 # Arguments:
-- `info`: a SINDBAD NamedTuple with all information needed for setup and execution of an experiment
+- `info`: a SINDBAD NamedTuple with all information needed for setup and execution of
+  an experiment
 - `spinup`: the stored spinup of an eager run from `prepSpinupOut`, or `nothing`, in
   which case no file is written
 
@@ -222,8 +223,8 @@ Saves `cEco` and `TWS` at every stored step of the spinup to the spinup file.
   format, for example `spinup_<experiment>_<domain>.zarr`.
 - The variables and their dimensions are described in `prepSpinupOut`.
 - The `spinup_sequence_method` global attribute is the name of the spinup sequence
-  method, and `spinup_sequence` lists the steps of the sequence of the first location,
-  as `mode:forcing:n_repeat:n_timesteps` separated by `;`.
+  method, and `spinup_sequence` lists the steps of the sequence of the first
+  location, as `mode:forcing:n_repeat:n_timesteps` separated by `;`.
 """
 function saveSpinupCubes end
 

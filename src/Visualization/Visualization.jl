@@ -89,8 +89,8 @@ module Visualization
         return plotTimeSeries(out, cost_options, _resolvedBackend(plotTimeSeries, backend, out, cost_options))
     end
 
-    # `forcing_helpers` gives the spatial dimensions, which a spatial run needs for its
-    # mean and time series figures
+    # `forcing_helpers` gives the spatial dimensions, which the figures of a spatial
+    # run need
     function plotTimeSeries(info, opt_dat, def_dat; forcing_helpers=nothing)
         backend = info.helpers.run.visualization_backend
         return plotTimeSeries(info, opt_dat, def_dat, _resolvedBackend(plotTimeSeries, backend, info, opt_dat, def_dat); forcing_helpers=forcing_helpers)
@@ -120,12 +120,12 @@ module Visualization
         return plotForcing(info, forcing, _resolvedBackend(plotForcing, backend, info, forcing))
     end
 
-    # `out` is the output of a forward or optimization run, which carries `.info`, the
-    # stored `.spinup` and the `.output` of the forward run that followed it
+    # `out` is the output of a forward or optimization run, which carries `.info`,
+    # the stored `.spinup` and the `.output` of the forward run that followed it
     plotSpinup(out; kwargs...) = plotSpinup(out.info, out.spinup; output=_forwardOutput(out), kwargs...)
 
-    # the output of the run whose spinup is stored, which is the optimized one when there
-    # are both
+    # the output of the run whose spinup is stored, which is the optimized one when
+    # there are both
     function _forwardOutput(out)
         hasproperty(out, :output) || return nothing
         return hasproperty(out.output, :optimized) ? out.output.optimized : out.output

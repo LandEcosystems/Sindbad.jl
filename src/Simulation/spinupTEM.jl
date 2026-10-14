@@ -240,8 +240,9 @@ function spinup(_, _, _, land, helpers, _, ::EtaScaleAHCWD)
 end
 
 
-# ClearanceA0 is the vegetation part of EtaScaleA0H, and EtaScaleH the heterotrophic
-# part, so that the two can be separate steps of a spinup sequence.
+# Cuts every vegetation pool of cEco down to `land.states.c_remain`, or to one
+# without it. ClearanceA0 followed by EtaScaleH changes the pools as EtaScaleA0H
+# does.
 function spinup(_, _, _, land, helpers, _, ::ClearanceA0)
     @unpack_nt cEco ⇐ land.pools
     helpers = helpers.model_helpers
@@ -463,14 +464,17 @@ nothing, depending on the specified `store_spinup_mode`.
 # Arguments:
 - `land`: A SINDBAD NamedTuple containing all variables for a given time step, which is overwritten at every timestep.
 - `store_spinup_mode`: A type dispatch that determines whether to store the spinup:
-    - `DoStoreSpinup`: Writes the next row of `land.states.spinup_cEco` and `land.states.spinup_TWS`. Set the `store_spinup` flag to `true` in flag section of experiment_json.
-    - `DoNotStoreSpinup`: Does nothing. Set the `store_spinup` flag to `false` in flag section of experiment_json.
+    - `DoStoreSpinup`: Writes the next row of `land.states.spinup_cEco` and
+      `land.states.spinup_TWS`. Set the `store_spinup` flag to `true` in flag section
+      of experiment_json.
+    - `DoNotStoreSpinup`: Does nothing. Set the `store_spinup` flag to `false` in
+      flag section of experiment_json.
 
 # Notes:
-- The row is `land.states.spinup_step[1]` after it is increased by one. The arrays are
-  added by `addSpinupStore`.
-- A row beyond the size of the arrays is not written, so a land that is shared across
-  locations with longer sequences does not fail.
+- The row is `land.states.spinup_step[1]` after it is increased by one. The arrays
+  are added by `addSpinupStore`.
+- A row beyond the size of the arrays is not written, e.g. for a land that is shared
+  by locations with longer sequences.
 """
 function storeSpinupStep! end
 
@@ -629,7 +633,8 @@ end
 """
     runSpinupSequences(spin_seqs, selected_models, spinup_forcings, loc_forcing_t, land, tem_info, loc_restart=nothing)
 
-Runs every spinup sequence of `spin_seqs` in order, threading `land` through the sequences.
+Runs every spinup sequence of `spin_seqs` in order, threading `land` through the
+sequences.
 
 # Arguments:
 - `spin_seqs`: a tuple of spinup sequences, each with the forcing name, number of timesteps, number of repeats, and the spinup mode
@@ -747,8 +752,8 @@ and with `DoStoreSpinup` writes `cEco` and `TWS` to the spinup store after every
 step.
 
 # Notes:
-- Only `spinup` with `LoopTEM` calls this method. The solver based spinup modes call the
-  method without `store_spinup_mode`, so their trial runs are not stored.
+- Only `spinup` with `LoopTEM` calls this method. The solver based spinup modes call
+  the method without `store_spinup_mode`, so their trial runs are not stored.
 """
 function timeLoopTEMSpinup(spinup_models, spinup_forcing, loc_forcing_t, land, tem_info, n_timesteps, ::DoNotStoreSpinup)
     return timeLoopTEMSpinup(spinup_models, spinup_forcing, loc_forcing_t, land, tem_info, n_timesteps)

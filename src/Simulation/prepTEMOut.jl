@@ -343,29 +343,31 @@ end
 Collects the stored spinup of every location into arrays for the spinup file.
 
 # Arguments:
-- `info`: A SINDBAD NamedTuple containing all information needed for setup and execution of an experiment.
+- `info`: A SINDBAD NamedTuple containing all information needed for setup and
+  execution of an experiment.
 - `run_helpers`: the run helpers of an eager run, after `runTEM!`
 
 # Returns:
 - `nothing` when `store_spinup` is false. Otherwise a NamedTuple with:
-  - `variables`: the field and subfield pairs of the stored pools, e.g. `(:pools, :cEco)`.
-    The step index has `nothing` as its pair.
-  - `names`: the variable names in the file, the pool names and `spinup_sequence_step`
+  - `variables`: the field and subfield pairs of the stored pools, e.g. `(:pools,
+    :cEco)`. The step index has `nothing` as its pair.
+  - `names`: the variable names in the file, the pool names and
+    `spinup_sequence_step`
   - `dims`: the `Dim` objects of each variable
   - `data`: one array per variable
   - `sequences`: the spinup sequence of every location
   - `space_ind`: the spatial indices of every location, in the order of `sequences`
 
 # Notes:
-- Each pool has the dimensions `(spinup_step, layer, space...)`. The layer and spatial
-  dimensions are those of the same pool in the restart file, so the layer dimension is
-  dropped for a pool with one layer.
-- The locations can have sequences of different lengths, e.g. with `sequence_with_age`.
-  The `spinup_step` dimension has the length of the longest one, and the rows after the
-  end of a shorter sequence are NaN.
-- `spinup_sequence_step` has the dimensions `(spinup_step, space...)`. It is the index of
-  the step of the spinup sequence that wrote each row, 0 for the state before the
-  spinup, and -1 for the padding rows.
+- Each pool has the dimensions `(spinup_step, layer, space...)`. The layer and
+  spatial dimensions are those of the same pool in the restart file, so the layer
+  dimension is dropped for a pool with one layer.
+- The locations can have sequences of different lengths, e.g. with
+  `sequence_with_age`. The `spinup_step` dimension has the length of the longest one,
+  and the rows after the end of a shorter sequence are NaN.
+- `spinup_sequence_step` has the dimensions `(spinup_step, space...)`. It is the
+  index of the step of the spinup sequence that wrote each row, 0 for the state
+  before the spinup, and -1 for the padding rows.
 """
 function prepSpinupOut end
 
@@ -426,8 +428,8 @@ end
 """
     getSpinupSequenceSteps(sequence)
 
-Returns the index of the spinup sequence step for every stored row of a location, with
-0 for the first row, which is the state before the spinup.
+Returns the index of the spinup sequence step for every stored row of a location,
+with 0 for the first row, which is the state before the spinup.
 """
 function getSpinupSequenceSteps(sequence)
     steps = [0]

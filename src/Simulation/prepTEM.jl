@@ -52,31 +52,34 @@ end
 """
     addSpinupStore(loc_land, sequence, store_spinup_mode)
 
-Adds or skips the preallocated arrays that store `cEco` and `TWS` at every time step of
-the spinup, depending on the specified `store_spinup_mode`.
+Adds or skips the preallocated arrays that store `cEco` and `TWS` at every time step
+of the spinup, depending on the specified `store_spinup_mode`.
 
 # Arguments:
 - `loc_land`: A core SINDBAD NamedTuple containing all variables for a given time step, which is overwritten at every time step.
-- `sequence`: The spinup sequence of the location, which sets the number of stored rows.
+- `sequence`: The spinup sequence of the location, which sets the number of stored
+  rows.
 - `store_spinup_mode`: A type dispatch that determines whether to store the spinup:
-    - `DoStoreSpinup`: Adds the arrays. Set `store_spinup` to true in flag section of experiment_json.
-    - `DoNotStoreSpinup`: Returns `loc_land` as is. Set `store_spinup` to false in flag section of experiment_json.
+    - `DoStoreSpinup`: Adds the arrays. Set `store_spinup` to true in flag section of
+      experiment_json.
+    - `DoNotStoreSpinup`: Returns `loc_land` as is. Set `store_spinup` to false in
+      flag section of experiment_json.
 
 # Returns:
 - `loc_land`: The `loc_land` NamedTuple, with `spinup_cEco`, `spinup_TWS` and
   `spinup_step` in `land.states` when the spinup is stored.
 
 # Notes:
-- `spinup_cEco` and `spinup_TWS` have one row per stored step and one column per layer.
-  Row 1 is the state before the spinup. A `LoopTEM` step stores every time step of
-  every repeat, and any other spinup mode stores one row per repeat. See
+- `spinup_cEco` and `spinup_TWS` have one row per stored step and one column per
+  layer. Row 1 is the state before the spinup. A `LoopTEM` step stores every time
+  step of every repeat, and any other spinup mode stores one row per repeat. See
   `spinupStoreSteps`.
 - A pool that is not in `land.pools` gets `nothing` instead of an array.
 - `spinup_step` is a one-element vector with the last written row.
 - The arrays are sized from the sequence of the location. `getSpaceLand` gives every
   location its own land, so each location gets arrays of its own size.
-- The stored values are meant for forward runs. With dual numbers, as in
-  `PreAllocArrayFD`, the arrays do not take the values.
+- The arrays have the number type of the pools at setup, so they cannot hold the dual
+  numbers of `PreAllocArrayFD`.
 """
 function addSpinupStore end
 
@@ -96,8 +99,8 @@ end
 """
     spinupStoreSteps(spin_seq)
 
-Returns the number of rows stored for one repeat of a spinup step, which is the number
-of time steps for `LoopTEM` and one for any other spinup mode.
+Returns the number of rows stored for one repeat of a spinup step, which is the
+number of time steps for `LoopTEM` and one for any other spinup mode.
 """
 spinupStoreSteps(spin_seq) = spin_seq.spinup_mode isa LoopTEM ? spin_seq.n_timesteps : 1
 
@@ -870,7 +873,8 @@ run the SINDBAD TEM for one time step
 - `loc_forcing`: a forcing NT for a single location
 - `land_init`: initial SINDBAD land with all fields and subfields
 - `tem`: a nested NT with necessary information of helpers, models, and spinup needed to run SINDBAD TEM and models
-- `spinup_sequence`: the spinup sequence of the location, used to size the spinup store
+- `spinup_sequence`: the spinup sequence of the location, used to size the spinup
+  store
 
 # Returns:
 - `loc_forcing_t`: the forcing NT for the current time step
