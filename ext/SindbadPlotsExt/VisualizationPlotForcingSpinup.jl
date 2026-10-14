@@ -5,12 +5,8 @@ using Dates: year
 # forcing
 # ------------------------------------------------------------------
 
-# the settings can be a Dict or a NamedTuple, and a field can be missing
-function _getSetting(settings, key)
-    isnothing(settings) && return nothing
-    settings isa AbstractDict && return get(settings, string(key), get(settings, Symbol(key), nothing))
-    return hasproperty(settings, Symbol(key)) ? getproperty(settings, Symbol(key)) : nothing
-end
+# a field of the settings NamedTuple, or nothing when it is missing
+_getSetting(settings, key) = get(settings, Symbol(key), nothing)
 
 """
     plotForcing(info, forcing, ::VisualizationPlots)
