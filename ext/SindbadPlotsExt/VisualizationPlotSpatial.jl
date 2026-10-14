@@ -23,7 +23,7 @@ const _pixel_colors = [:darkorange2, :firebrick3, :purple3, :teal, :olivedrab]
 # the colour of the mean of all locations, a strong blue that is apart from all
 # location colours
 const _mean_color = "#2B59C3"
-const _pixel_seed = 1
+const _pixel_seed = 2739
 
 """
     _spaceInfo(forcing_helpers)
