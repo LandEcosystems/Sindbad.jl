@@ -12,11 +12,13 @@ using Dates: TimeType
 #   the spatial variability. The random locations are drawn with a fixed seed, so the
 #   same locations are picked whenever the set of valid locations is the same.
 # - `*_spacetime_*`: a heatmap with time on the x axis and the locations, or the
-#   latitudes of a grid, on the y axis, for the debug and forcing figures.
+#   latitudes of a grid, on the y axis. The comparison has three rows: obs, model,
+#   and their difference.
 # - `*_mean_*`: the time mean of every location, as a heatmap for a grid with two
 #   spatial dimensions, and as points along the location index for a list of sites.
-#   For a list of sites, the debug and forcing figures leave it out, since
-#   `*_spacetime_*` already shows every site, except for forcing without time.
+#   For a list of sites, it is left out, since `*_spacetime_*` already shows every
+#   site. Forcing without time of a list of sites is drawn as `*_spacetime_*` with
+#   one column per layer.
 
 const _pixel_colors = [:darkorange2, :firebrick3, :purple3, :teal, :olivedrab]
 # the mean of all locations, a strong blue that none of the location colours is close to
@@ -177,8 +179,22 @@ has one row per site, and a grid has one row per latitude, with the mean over lo
 The title has the mean and the number of missing values of the whole array.
 """
 function _plotSpaceTime(x_data, data_tl, space, title, units, fig_path)
+    p = _spaceTimePanel(x_data, data_tl, space; title=title, units=units)
+    plots_savefig(plots_plot(p; size=(1500, 600), left_margin=8plots_mm), fig_path)
+    return nothing
+end
+
+"""
+    _spaceTimePanel(x_data, data_tl, space; title, units, lims=:auto, cmap=:viridis, xlabel="time")
+
+Draws the heatmap of `_plotSpaceTime` as one panel, with the mean and the number of
+missing values of the array in the title. `lims` is the range of the colour scale.
+Missing values are light grey, so that they differ from the white middle of a
+diverging colour scale.
+"""
+function _spaceTimePanel(x_data, data_tl, space; title, units, lims=:auto, cmap=:viridis, xlabel="time")
     n_time = size(data_tl, 1)
-    if length(space.sizes) == 2
+    if _isGrid(space)
         x_dim, y_dim = _mapDims(space)
         data_grid = reshape(data_tl, n_time, space.sizes...)
         n_rows = space.sizes[y_dim]
@@ -195,7 +211,39 @@ function _plotSpaceTime(x_data, data_tl, space, title, units, fig_path)
         y_ticks = space.n_loc <= 40 ? (1:space.n_loc, string.(first(space.coords))) : :auto
     end
     stats = "mean = $(round(_nanMean(data_tl), digits=2)), NaNs = $(count(isnan, data_tl))"
-    p = plots_heatmap(x_data, y, z; _figStyle()..., title="$(title) | $(stats)", xlabel="time", ylabel=y_label, yticks=y_ticks, colorbar_title=units, color=:viridis, grid=false, framestyle=:box, size=(1500, 600), left_margin=8plots_mm)
+    return plots_heatmap(x_data, y, z; _figStyle()..., title="$(title) | $(stats)", xlabel=xlabel, ylabel=y_label, yticks=y_ticks, clims=lims, colorbar_title=units, color=cmap, grid=false, framestyle=:box, background_color_inside=:grey85)
+end
+
+"""
+    _plotComparisonSpaceTime(x_data, obs_tl, mod_tl, space, title, model_label, units, fig_path)
+
+Saves the observation, the model and their difference as three rows of `_spaceTimePanel`
+on the same time axis. The observation and model rows share one colour scale, and the
+difference has a scale centred on zero. The model is drawn at every time step, and the
+difference only where the observation is.
+"""
+function _plotComparisonSpaceTime(x_data, obs_tl, mod_tl, space, title, model_label, units, fig_path)
+    diff_tl = mod_tl .- obs_tl
+    lims = _finiteLims(vec(obs_tl), vec(mod_tl))
+    p_obs = _spaceTimePanel(x_data, obs_tl, space; title="obs", units=units, lims=lims, xlabel="")
+    p_mod = _spaceTimePanel(x_data, mod_tl, space; title=model_label, units=units, lims=lims, xlabel="")
+    p_diff = _spaceTimePanel(x_data, diff_tl, space; title="$(model_label) - obs", units=units, lims=_symmetricLims(vec(diff_tl)), cmap=:RdBu)
+    fig = plots_plot(p_obs, p_mod, p_diff; layout=(3, 1), size=(1500, 1500), plot_title=title, plot_titlefontsize=12, dpi=300, left_margin=8plots_mm, bottom_margin=4plots_mm)
+    plots_savefig(fig, fig_path)
+    return nothing
+end
+
+"""
+    _plotSpaceLayers(data_ll, space, title, units, fig_path)
+
+Saves a heatmap of a (layer, location) array without time, like `_plotSpaceTime` with
+one column per layer and the locations of a list of sites on the y axis.
+"""
+function _plotSpaceLayers(data_ll, space, title, units, fig_path)
+    n_layer = size(data_ll, 1)
+    y_ticks = space.n_loc <= 40 ? (1:space.n_loc, string.(first(space.coords))) : :auto
+    stats = "mean = $(round(_nanMean(data_ll), digits=2)), NaNs = $(count(isnan, data_ll))"
+    p = plots_heatmap(1:n_layer, 1:space.n_loc, permutedims(data_ll); _figStyle()..., title="$(title) | $(stats)", xlabel="layer", ylabel=string(first(space.names)), xticks=1:n_layer, yticks=y_ticks, colorbar_title=units, color=:viridis, grid=false, framestyle=:box, size=(500 + 120 * n_layer, 600), left_margin=8plots_mm)
     plots_savefig(p, fig_path)
     return nothing
 end
@@ -279,8 +327,8 @@ end
     _plotForcingSpatial(info, forcing, space)
 
 Saves `forcing_timeseries_*` and `forcing_spacetime_*` for every forcing variable and
-layer with spatial dimensions and time, and `forcing_mean_*` for a grid or for those
-without time. A variable without spatial
+layer with spatial dimensions and time, and `forcing_mean_*` for a grid. Forcing without
+time of a list of sites is one `forcing_spacetime_*` with a column per layer. A variable without spatial
 dimensions is drawn as one time series.
 """
 function _plotForcingSpatial(info, forcing, space)
@@ -304,13 +352,18 @@ function _plotForcingSpatial(info, forcing, space)
         end
         data_tll = _toTimeLayerLoc(f_arr, space; has_time=has_time)
         n_layer = size(data_tll, 2)
+        # forcing without time of a list of sites is one heatmap with a column per layer
+        if !has_time && !_isGrid(space)
+            _plotSpaceLayers(data_tll[1, :, :], space, title, v_units, joinpath(fig_dir, "forcing_spacetime_$(name_prefix)_$(v).png"))
+            continue
+        end
         x_var = _timeAxis(info, forcing.helpers, size(data_tll, 1))
         for ll ∈ 1:n_layer
             layer_tag = n_layer > 1 ? "_$(ll)" : ""
             layer_title = n_layer > 1 ? ", layer $(ll)" : ""
             data_tl = data_tll[:, ll, :]
             mean_title = has_time ? "$(title)$(layer_title), time mean" : "$(title)$(layer_title)"
-            (_isGrid(space) || !has_time) && _plotMeanMap(space, data_tl, mean_title, v_units, joinpath(fig_dir, "forcing_mean_$(name_prefix)_$(v)$(layer_tag).png"); color=_def_color)
+            _isGrid(space) && _plotMeanMap(space, data_tl, mean_title, v_units, joinpath(fig_dir, "forcing_mean_$(name_prefix)_$(v)$(layer_tag).png"); color=_def_color)
             has_time || continue
             _plotSpaceTimeSeries(x_var, data_tl, space, "$(title)$(layer_title)", ylabel, joinpath(fig_dir, "forcing_timeseries_$(name_prefix)_$(v)$(layer_tag).png"))
             _plotSpaceTime(x_var, data_tl, space, "$(title)$(layer_title)", v_units, joinpath(fig_dir, "forcing_spacetime_$(name_prefix)_$(v)$(layer_tag).png"))
@@ -361,8 +414,8 @@ end
 """
     _plotComparisonSpatial(info, obs_array, var_row, model_dat, model_label, lossMetric, vinfo, vname, space)
 
-Saves `comparison_mean_*` and `comparison_timeseries_*` of one observed variable of a
-spatial run.
+Saves `comparison_spacetime_*` and `comparison_timeseries_*` of one observed variable of
+a spatial run, and `comparison_mean_*` for a grid.
 """
 function _plotComparisonSpatial(info, obs_array, var_row, model_dat, model_label, lossMetric, vinfo, vname, space)
     domain = info.experiment.basics.domain
@@ -380,7 +433,10 @@ function _plotComparisonSpatial(info, obs_array, var_row, model_dat, model_label
     x_data = [time_resample_dates(var_row.temporal_aggr)...]
     x_data = length(x_data) == size(obs_tl, 1) ? x_data : collect(1:size(obs_tl, 1))
     title = "$(_varTitle(domain, vinfo)) | $(model_label) $(metric_name): $(round(metric_value, digits=2))"
-    _plotComparisonMean(space, obs_tl, mod_tl, "$(title), time mean", model_label, vinfo["units"], joinpath(fig_dir, "comparison_mean_$(name_prefix)_$(vname).png"))
+    # a list of sites is shown completely by the space time figure, and a grid also gets
+    # its map of the time mean
+    _isGrid(space) && _plotComparisonMean(space, obs_tl, mod_tl, "$(title), time mean", model_label, vinfo["units"], joinpath(fig_dir, "comparison_mean_$(name_prefix)_$(vname).png"))
+    _plotComparisonSpaceTime(x_data, obs_tl, mod_tl, space, title, model_label, vinfo["units"], joinpath(fig_dir, "comparison_spacetime_$(name_prefix)_$(vname).png"))
     _plotComparisonTimeSeries(x_data, obs_tl, mod_tl, space, "$(title)\nsolid: $(model_label), dashed: obs", _varAxisLabel(vinfo), joinpath(fig_dir, "comparison_timeseries_$(name_prefix)_$(vname).png"))
     return nothing
 end
