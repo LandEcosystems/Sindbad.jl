@@ -719,18 +719,15 @@ function helpPrepTEM(selected_models, info, forcing::NamedTuple, output::NamedTu
 
     run_helpers = helpPrepTEM(selected_models, info, forcing, output, PreAllocArray())
 
-    forcing_helpers_with_parameter_set = updateForcingHelpers(deepcopy(forcing.helpers), info.optimization.run_options.n_threads_cost);
-
-    output_mt = prepTEMOut(info, forcing_helpers_with_parameter_set)
-    output_array_mt = output_mt.data
-
-    space_ind_mt, _ = getSpatialInfo(forcing_helpers_with_parameter_set)
-
-    space_output_mt = map([space_ind_mt...]) do lsi
-        getLocData(output_array_mt, lsi)
+    # one copy of the output of the first location per parallel task of the threaded
+    # cost, which only runs for single location runs. The copies have the shape of the
+    # serial output, so the metric of both costs is computed on the same data.
+    output_array_mt = [deepcopy(run_helpers.output_array) for _ in 1:info.optimization.run_options.n_threads_cost]
+    space_output_mt = map(output_array_mt) do output_array
+        getLocData(output_array, run_helpers.space_ind[1])
     end
 
-    run_helpers = (; run_helpers..., space_output_mt=space_output_mt, space_ind_mt=space_ind_mt, output_array_mt=output_array_mt, output_dims_mt=output_mt.dims, forcing_helpers_with_parameter_set=forcing_helpers_with_parameter_set)
+    run_helpers = (; run_helpers..., space_output_mt=space_output_mt, output_array_mt=output_array_mt)
     return run_helpers
 end
 
