@@ -353,8 +353,7 @@ function getTypedModel(model::Symbol, model_timestep="day", num_type=Float64)
     if length(parameter_names) > 0
         parameter_vals = []
         for pn ∈ parameter_names
-            param = getParameterValue(model_obj(), pn, model_timestep)
-            # param = getfield(model_obj(), pn)
+            param = getParameterValue(model_instance, pn, model_timestep)
             parameter_typed = if typeof(param) <: Array
                 num_type.(param)
             else
