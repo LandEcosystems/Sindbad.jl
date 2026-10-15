@@ -134,3 +134,17 @@ function prepSequenceWithAge(year_disturbance; nrepeat_base=200, year_start = 19
     end
     return sequence
 end
+
+function prepSequenceWithSpinupInput(year_disturbance; nrepeat_base=200, year_start = 1979, forcing_msc = "day_MSC")
+    nrepeat_age = nrepeatYearsAge(year_disturbance; year_start)
+    sequence = [
+        Dict("spinup_mode" => "spinup_input", "models" => "spinup", "forcing" => nothing, "n_repeat" => 1)
+        ]
+    if nrepeat_age >= 0
+        sequence = [
+            Dict("spinup_mode" => "spinup_input", "models" => "spinup", "forcing" => nothing, "n_repeat" => 1),
+            Dict("spinup_mode" => "loop_TEM", "models" => "spinup", "forcing" => forcing_msc, "n_repeat" => nrepeat_age)    
+            ]
+    end
+    return sequence
+end

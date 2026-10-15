@@ -229,6 +229,7 @@ export SpinupSequence
 export SequenceDefault
 export SequenceList
 export SequenceWithAge
+export SequenceWithSpinupInput
 
 abstract type SpinupSequence <: SpinupTypes end
 purpose(::Type{SpinupSequence}) = "Abstract type for methods that build the spinup sequence of a location in SINDBAD"
@@ -241,6 +242,9 @@ purpose(::Type{SequenceList}) = "use the explicit list of spinup sequences given
 
 struct SequenceWithAge <: SpinupSequence end
 purpose(::Type{SequenceWithAge}) = "build the spinup sequence from the disturbance year of the location so that the years since disturbance are replayed"
+
+struct SequenceWithSpinupInput <: SpinupSequence end
+purpose(::Type{SequenceWithSpinupInput}) = "build the spinup sequence with spinup input from previously saved cEco and TWS pools through forcing json"
 
 
 # ------------------------- spinup sequence and types ------------------------------------------------------------
