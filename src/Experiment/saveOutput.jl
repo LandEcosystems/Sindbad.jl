@@ -2,6 +2,7 @@ export saveOutCubes
 export saveRestartCubes
 export saveSpinupCubes
 export saveParameterCubes
+export savePerformanceMetrics
 
 
 """
@@ -343,4 +344,95 @@ function getParameterFilePath(info)
     file_prefix = info.output.file_info.file_prefix
     param_dir = hasproperty(info.output.dirs, :optimization) ? info.output.dirs.optimization : dirname(file_prefix)
     return joinpath(param_dir, "params_" * basename(file_prefix)) * ".$(info.output.format)"
+end
+
+
+"""
+    savePerformanceMetrics(info, cost_options, observations, def_output, opt_output)
+
+Saves the performance of the default and the optimized output for every observation
+constraint of the cost, in every metric of ErrorMetrics, to
+`performance_<name>_<domain>.csv` next to the csv of the optimized parameters, see
+`getPerformanceFilePath`. Returns the path.
+
+# Arguments:
+- `info`: the experiment information of the forward runs
+- `cost_options`: the cost options from `prepCostOptions`
+- `observations`: the observation arrays of the cost
+- `def_output`, `opt_output`: the output of the forward runs with the default and the
+  optimized parameters
+
+# Notes:
+- One row per constraint, with its cost metric and weight, the number of points, the
+  mean of the observation and of both outputs, `loss_def` and `loss_opt`, and a
+  `<metric>_def` and `<metric>_opt` column per metric.
+- `loss_def` and `loss_opt` are the weighted cost of the constraint, as in the
+  optimization.
+- The other columns use the data of the cost, after its aggregation, on the points
+  where the observation, its uncertainty and both outputs are valid, so that both
+  outputs are compared on the same points.
+- A metric that is not finite, e.g. a correlation of one point, is NaN.
+"""
+function savePerformanceMetrics(info, cost_options, observations, def_output, opt_output)
+    metrics = errorMetrics()
+    loss_def = metricVector(def_output, observations, cost_options)
+    loss_opt = metricVector(opt_output, observations, cost_options)
+    rows = map(enumerate(cost_options)) do (i, cost_option)
+        y, yσ, y_def = getData(def_output, observations, cost_option)
+        _, _, y_opt = getData(opt_output, observations, cost_option)
+        y, yσ, y_def, y_opt = (Float64.(vec(collect(a))) for a ∈ (y, yσ, y_def, y_opt))
+        valid = isfinite.(y) .& isfinite.(yσ) .& isfinite.(y_def) .& isfinite.(y_opt)
+        y, yσ, y_def, y_opt = y[valid], yσ[valid], y_def[valid], y_opt[valid]
+        metric_values = Pair{Symbol,Float64}[]
+        for m ∈ metrics, (run_name, ŷ) ∈ (("def", y_def), ("opt", y_opt))
+            push!(metric_values, Symbol("$(nameof(typeof(m)))_$(run_name)") => performanceMetricValue(m, ŷ, y, yσ))
+        end
+        (; variable=String(cost_option.variable),
+            cost_metric=String(nameof(typeof(cost_option.cost_metric))),
+            cost_weight=Float64(cost_option.cost_weight), n=length(y),
+            mean_obs=meanOrNaN(y), mean_def=meanOrNaN(y_def), mean_opt=meanOrNaN(y_opt),
+            loss_def=Float64(loss_def[i]), loss_opt=Float64(loss_opt[i]), metric_values...)
+    end
+    performance_path = getPerformanceFilePath(info)
+    CSV.write(performance_path, rows)
+    print_info(savePerformanceMetrics, @__FILE__, @__LINE__, "saved the performance of the default and optimized output to `$(performance_path)`", n_m=4)
+    return performance_path
+end
+
+"""
+    errorMetrics()
+
+Returns an instance of every concrete metric type of ErrorMetrics, sorted by name.
+"""
+function errorMetrics()
+    metric_types = [getproperty(ErrorMetrics, n) for n ∈ names(ErrorMetrics)]
+    metric_types = filter(t -> t isa DataType && t <: ErrorMetric && isconcretetype(t), metric_types)
+    return [t() for t ∈ sort(metric_types; by=nameof)]
+end
+
+# the value of a metric, or NaN when it is not finite or cannot be calculated, e.g. a
+# correlation of a constant series
+function performanceMetricValue(m, ŷ, y, yσ)
+    isempty(y) && return NaN
+    value = try
+        Float64(metric(m, ŷ, y, yσ))
+    catch
+        NaN
+    end
+    return isfinite(value) ? value : NaN
+end
+
+meanOrNaN(x) = isempty(x) ? NaN : sum(x) / length(x)
+
+"""
+    getPerformanceFilePath(info)
+
+Returns the path of the performance file of `savePerformanceMetrics`. It is next to
+the csv of the optimized parameters, and its name is the base name of the output files
+with `performance_` added in front.
+"""
+function getPerformanceFilePath(info)
+    file_prefix = info.output.file_info.file_prefix
+    performance_dir = hasproperty(info.output.dirs, :optimization) ? info.output.dirs.optimization : dirname(file_prefix)
+    return joinpath(performance_dir, "performance_" * basename(file_prefix) * ".csv")
 end
