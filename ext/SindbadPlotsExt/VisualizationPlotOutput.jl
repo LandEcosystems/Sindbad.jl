@@ -210,7 +210,11 @@ Generate performance histograms based on optimization output data.
 - `out_opti`: ParameterOptimization output data structure containing model outputs and information
 
 # Description
-Creates histogram plots to visualize the distribution of  performance metrics from optimization results.
+Saves one figure, `comparison_histograms_<name>_<domain>.png`, with a panel per
+observation constraint of the cost in two columns: the histograms of the metric per
+location of the default and the optimized output, and the metric of all locations as
+dashed lines, with its values in the title of the panel. The metric is the cost metric,
+or NSE for a cost of NSEInv or NNSEInv.
 
 # Examples
 ```jldoctest
@@ -225,28 +229,19 @@ function plotPerformanceHistograms(out_opti, ::VisualizationPlots)
     def_dat = out_opti.output.default
     obs_array = out_opti.observation
     info = out_opti.info
-    costOpt = out_opti.cost_options
     run_helpers = out_opti.run_helpers
 
     domain = info.experiment.basics.domain
-    fig_prefix = joinpath(info.output.dirs.figure, "comparison_histograms_" * info.experiment.basics.name * "_" * domain)
-    losses = map(costOpt) do var_row
-        v = var_row.variable
-        v_key = v
-        println("plot performance comparison:: $v")
-        v = (var_row.mod_field, var_row.mod_subfield)
-        vinfo = getVariableInfo(v, info.experiment.basics.temporal_resolution)
-        v = vinfo["standard_name"]
-        lossMetric = var_row.cost_metric
-        loss_name = nameof(typeof(lossMetric))
-        if loss_name in (:NNSEInv, :NSEInv)
-            lossMetric = NSE()
-        end
-        (obs_var, obs_σ, def_var) = getData(def_dat, obs_array, var_row);
-        (_, _, opt_var) = getData(opt_dat, obs_array, var_row);
+    fig_path = joinpath(info.output.dirs.figure, "comparison_histograms_" * info.experiment.basics.name * "_" * domain * ".png")
+    b_range = range(-1, 1, length=50)
+    panels = map(enumerate(out_opti.cost_options)) do (i, var_row)
+        println("plot performance comparison:: $(var_row.variable)")
+        vname, vinfo, lossMetric = getCostRowVariableInfo(var_row, info.experiment.basics.temporal_resolution)
+        (obs_var, obs_σ, def_var) = getData(def_dat, obs_array, var_row)
+        (_, _, opt_var) = getData(opt_dat, obs_array, var_row)
 
-        (obs_var_no_nan, obs_σ_no_nan, def_var_no_nan) = getDataWithoutNaN(obs_var, obs_σ, def_var);
-        (obs_var_no_nan, obs_σ_no_nan, opt_var_no_nan) = getDataWithoutNaN(obs_var, obs_σ, opt_var);
+        (obs_var_no_nan, obs_σ_no_nan, def_var_no_nan) = getDataWithoutNaN(obs_var, obs_σ, def_var)
+        (obs_var_no_nan, obs_σ_no_nan, opt_var_no_nan) = getDataWithoutNaN(obs_var, obs_σ, opt_var)
 
         loss_space = map([run_helpers.space_ind...]) do lsi
             opt_pix = view_at_trailing_indices(opt_var, lsi)
@@ -258,18 +253,21 @@ function plotPerformanceHistograms(out_opti, ::VisualizationPlots)
             [metric(lossMetric, def_pix_no_nan, obs_pix_no_nan, obs_σ_pix_no_nan), metric(lossMetric, opt_pix_no_nan, obs_pix_no_nan, obs_σ_pix_no_nan)]
         end
 
-
-        b_range = range(-1, 1, length=50)
         metric_name = nameof(typeof(lossMetric))
-        p_title = "$(_varTitle(domain, vinfo)) | $(metric_name)"
         metr_def = metric(lossMetric, def_var_no_nan, obs_var_no_nan, obs_σ_no_nan)
         metr_opt = metric(lossMetric, opt_var_no_nan, obs_var_no_nan, obs_σ_no_nan)
-        plots_histogram(first.(loss_space); _figStyle()..., title=p_title, bins=b_range, alpha=0.55, label="def per location", color=_def_color, linecolor=:white, linewidth=0.3, xlabel="$(metric_name) of $(vinfo["standard_name"])", ylabel="number of locations", grid=:y, legend=:outerbottom, legendcolumns=4)
-        plots_histogram!(last.(loss_space); bins=b_range, alpha=0.55, label="opt per location", color=_opt_color, linecolor=:white, linewidth=0.3)
-        plots_vline!([metr_def]; label="def all locations ($(round(metr_def, digits=2)))", color=_def_color, linestyle=:dash, lw=1.2)
-        plots_vline!([metr_opt]; label="opt all locations ($(round(metr_opt, digits=2)))", color=_opt_color, linestyle=:dash, lw=1.2)
-        plots_savefig(fig_prefix * "_$(v).png")
+        p_title = "$(vname) | $(metric_name) def $(_roundText(metr_def)), opt $(_roundText(metr_opt))"
+        show_legend = i == 1 ? :topleft : false
+        p = plots_histogram(first.(loss_space); _figStyle()..., title=p_title, titlefontsize=9, bins=b_range, alpha=0.55, label="def per location", color=_def_color, linecolor=:white, linewidth=0.3, xlabel="$(metric_name)", ylabel="number of locations", guidefontsize=8, tickfontsize=7, grid=:y, legend=show_legend, legendfontsize=7)
+        plots_histogram!(p, last.(loss_space); bins=b_range, alpha=0.55, label="opt per location", color=_opt_color, linecolor=:white, linewidth=0.3)
+        plots_vline!(p, [metr_def]; label="", color=_def_color, linestyle=:dash, lw=1.2)
+        plots_vline!(p, [metr_opt]; label="", color=_opt_color, linestyle=:dash, lw=1.2)
+        p
     end
+    n_cols = min(2, length(panels))
+    n_rows = cld(length(panels), n_cols)
+    fig = plots_plot(panels...; layout=(n_rows, n_cols), size=(550 * n_cols, 320 * n_rows), dpi=300, plot_title="$(domain): $(info.experiment.basics.name), dashed lines are the metric of all locations", plot_titlefontsize=11, left_margin=6plots_mm, bottom_margin=4plots_mm)
+    plots_savefig(fig, fig_path)
     return nothing
 end
 
@@ -293,55 +291,100 @@ function getCostRowVariableInfo(var_row, temporal_resolution)
     return vname, vinfo, lossMetric
 end
 
-# Core of the "output vs. observations" time series plot for one variable: trims to
-# the non-NaN observation span, computes the default (and, if `opt_dat` is given, the
-# optimized) series' performance metric, and draws obs (scatter) + def (+opt) lines.
-# `opt_dat === nothing` selects the single-series (no comparison) rendering; this is a
-# plain internal control-flow branch in one private helper, not a public dispatch
-# method, so it doesn't conflict with using argument *count* for the public API.
-function _plotOutputVsObsForVariable!(info, obs_array, var_row, def_dat, lossMetric, domain, vinfo, vname, fig_prefix; opt_dat=nothing)
-    valids = var_row.valids
-    (obs_var, obs_σ, def_var) = getData(def_dat, obs_array, var_row)
-    # `dims=` reductions keep the reduced dimension as a singleton instead of dropping
-    # it (e.g. (T,1,1) stays 3D), so `vec` flattens down to a plain 1D vector - without
-    # it, `findall` below returns `CartesianIndex`es, `tspan` becomes a `CartesianIndices`
-    # range instead of a `UnitRange`, and every `[tspan]` index downstream silently stays
-    # 3D instead of collapsing to a vector (breaking the `plot(...)` calls).
-    obs_var_TMP = vec(nanmean(obs_var, dims=2))
+_roundText(x) = isfinite(x) ? string(round(x; sigdigits=3)) : "n/a"
 
-    non_nan_index = findall(x -> !isnan(x), obs_var_TMP)
-    if length(non_nan_index) < 2
-        tspan = 1:length(obs_var_TMP)
-    else
-        tspan = first(non_nan_index):last(non_nan_index)
-    end
-    obs_var = obs_var_TMP[tspan]
-    obs_σ = obs_σ[tspan]
+# the sampler of the monthly mean seasonal cycle of a time axis of dates, with the
+# month of each value, or nothing when the time steps are not dates
+function _monthlyCycle(x_data)
+    eltype(x_data) <: Dates.TimeType || return nothing
+    sampler = first(create_TimeSampler(x_data, "month_msc", nanmean))
+    return (; sampler, x=time_resample_dates(x_data, "month_msc") .+ 1)
+end
 
-    def_var_TMP = vec(mean(def_var, dims=3))
-    def_var = def_var_TMP[tspan]
-    valids = valids[tspan]
+"""
+    _plotComparisonAllVariables(info, obs_array, cost_options, def_dat, fig_path; opt_dat=nothing)
 
-    # the data is at the resolution of the cost, so the labels of the resampled time
-    # steps are used instead of the dates of the model time steps
-    xdata = [time_resample_dates(var_row.temporal_aggr)[tspan]...]
+Saves one figure with a row per observation constraint of the cost: the observations,
+the default output and, when `opt_dat` is given, the optimized output as time
+series, and their mean seasonal cycle (MSC) next to it. The title of a row gives the
+cost metric of the constraint and the bias of each output.
 
-    metr_def = metric(lossMetric, def_var[valids], obs_var[valids], obs_σ[valids])
+# Notes:
+- The data are at the resolution of the cost. The time series span the valid
+  observations.
+- The cost metric is calculated as in the cost, on the valid points of the
+  observation. The bias and the MSC use the points where the observation and every
+  output are valid, so that the outputs are compared on the same points.
+- The MSC is the monthly mean. A constraint with one or two points, e.g. a biomass,
+  or without dates has none.
+"""
+function _plotComparisonAllVariables(info, obs_array, cost_options, def_dat, fig_path; opt_dat=nothing)
     has_opt = !isnothing(opt_dat)
-    legend_columns = has_opt ? 3 : 2
+    panels = Any[]
+    for (i, var_row) ∈ enumerate(cost_options)
+        println("plot time series comparison:: $(var_row.variable)")
+        vname, vinfo, _ = getCostRowVariableInfo(var_row, info.experiment.basics.temporal_resolution)
+        metric_name = nameof(typeof(var_row.cost_metric))
+        (obs_var, obs_σ, def_var) = getData(def_dat, obs_array, var_row)
+        obs_var = vec(nanmean(obs_var, dims=2))
+        obs_σ = vec(collect(obs_σ))
+        model_vars = Any[vec(mean(def_var, dims=3))]
+        if has_opt
+            (_, _, opt_var) = getData(opt_dat, obs_array, var_row)
+            push!(model_vars, vec(mean(opt_var, dims=3)))
+        end
+        valids = var_row.valids
+        common = valids .& reduce(.&, [isfinite.(m) for m ∈ model_vars])
+        x_data = [time_resample_dates(var_row.temporal_aggr)...]
 
-    series = Any[_series(obs_var; label="obs", seriestype=:scatter, mc=:black, ms=2.5, msw=0, ma=0.65),
-        _series(def_var; lw=1.0, label="def ($(round(metr_def, digits=2)))", color=has_opt ? _def_color : _model_color)]
+        names_runs = has_opt ? ["def", "opt"] : ["model"]
+        colors_runs = has_opt ? [_def_color, _opt_color] : [_model_color]
+        metric_texts = map(names_runs, model_vars) do run_name, m
+            "$(run_name) $(_roundText(metric(var_row.cost_metric, m[valids], obs_var[valids], obs_σ[valids])))"
+        end
+        bias_texts = map(names_runs, model_vars) do run_name, m
+            "$(run_name) $(_roundText(any(common) ? mean(m[common] .- obs_var[common]) : NaN))"
+        end
+        title = "$(vname) [$(vinfo["units"])] | $(metric_name) $(join(metric_texts, ", ")) | bias $(join(bias_texts, ", "))"
 
-    if has_opt
-        (_, _, opt_var) = getData(opt_dat, obs_array, var_row)
-        opt_var_TMP = vec(mean(opt_var, dims=3))
-        opt_var = opt_var_TMP[tspan]
-        metr_opt = metric(lossMetric, opt_var[valids], obs_var[valids], obs_σ[valids])
-        push!(series, _series(opt_var; color=_opt_color, label="opt ($(round(metr_opt, digits=2)))", lw=1.0))
+        show_legend = i == 1 ? :outertop : false
+        p_ts = plots_plot(; _figStyle()..., title=title, titlefontsize=9, titlelocation=:left, ylabel=_varAxisLabel(vinfo), guidefontsize=8, tickfontsize=7, legend=show_legend, legendcolumns=1 + length(model_vars), legendfontsize=7)
+        valid_index = findall(valids)
+        if isempty(valid_index)
+            push!(panels, p_ts, plots_plot(; framestyle=:none))
+            continue
+        end
+        tspan = first(valid_index):last(valid_index)
+        if length(valid_index) < 3
+            # a few points, e.g. a yearly biomass, are labelled with their year
+            x_points = eltype(x_data) <: Dates.TimeType ? Dates.year.(x_data[valid_index]) : x_data[valid_index]
+            for (run_name, color, m) ∈ zip(names_runs, colors_runs, model_vars)
+                plots_scatter!(p_ts, x_points, m[valid_index]; color=color, markersize=5, markerstrokewidth=0, label=run_name)
+            end
+            plots_scatter!(p_ts, x_points, obs_var[valid_index]; color=:black, markersize=5, markerstrokewidth=0, label="obs", xticks=x_points, xlims=(minimum(x_points) - 1, maximum(x_points) + 1))
+        else
+            for (run_name, color, m) ∈ zip(names_runs, colors_runs, model_vars)
+                plots_plot!(p_ts, x_data[tspan], m[tspan]; color=color, lw=0.8, label=run_name)
+            end
+            plots_scatter!(p_ts, x_data[valid_index], obs_var[valid_index]; color=:black, markersize=1.5, markerstrokewidth=0, alpha=0.6, label="obs")
+        end
+
+        msc = length(valid_index) < 3 ? nothing : _monthlyCycle(x_data)
+        if isnothing(msc)
+            p_msc = plots_plot(; framestyle=:none)
+        else
+            masked(y) = ifelse.(common, y, convert(eltype(y), NaN))
+            p_msc = plots_plot(; _figStyle()..., title="MSC", titlefontsize=9, xticks=(1:12, _month_initials), tickfontsize=7, legend=false)
+            for (color, m) ∈ zip(colors_runs, model_vars)
+                plots_plot!(p_msc, msc.x, _cycleValues(masked(m), msc); color=color, lw=1.5)
+            end
+            plots_scatter!(p_msc, msc.x, _cycleValues(masked(obs_var), msc); color=:black, markersize=2.5, markerstrokewidth=0)
+        end
+        push!(panels, p_ts, p_msc)
     end
-
-    _plotTimeSeriesWithCycles(xdata, series, fig_prefix * "_$(vname).png"; title="$(_varTitle(domain, vinfo)) | $(nameof(typeof(lossMetric)))", ylabel=_varAxisLabel(vinfo), legend_columns=legend_columns)
+    n_rows = length(cost_options)
+    fig = plots_plot(panels...; layout=plots_grid(n_rows, 2; widths=[0.78, 0.22]), size=(1500, 230 * n_rows + 60), dpi=300, plot_title="$(info.experiment.basics.domain): $(info.experiment.basics.name)", plot_titlefontsize=12, left_margin=8plots_mm, bottom_margin=2plots_mm)
+    plots_savefig(fig, fig_path)
     return nothing
 end
 
@@ -370,7 +413,11 @@ Generate time series plots comparing optimized and default model outputs with ob
 - `out_opti`: ParameterOptimization output data structure containing model outputs and information
 
 # Description
-Generates time series plots that compare the optimized and default model outputs with observations. The function iterates over each variable specified in the cost options and creates a separate plot for each one. Each plot displays the observed data as scatter points, along with the default and optimized model outputs as line graphs. Additionally, it includes vertical lines indicating the calculated loss metric values for both the default and optimized models.
+Saves one figure, `comparison_time_series_<name>_<domain>.png`, with a row per
+observation constraint of the cost: the observations as points, the default and the
+optimized outputs as lines, and their monthly mean seasonal cycle next to it. The title
+of a row gives the cost metric of the constraint and the bias of both outputs. See
+`_plotComparisonAllVariables`.
 
 # Examples
 ```jldoctest
@@ -399,7 +446,9 @@ Generate time series plots comparing a single model output against observations 
 - `cost_options`: cost-option rows (one per variable) used to select and evaluate each series
 
 # Description
-Generates time series plots for each variable in `cost_options`, showing the observed data as scatter points alongside a single model-output line, with the calculated loss metric value in the legend.
+Saves one figure, `time_series_single_<name>_<domain>.png`, with a row per variable in
+`cost_options`: the observations as points and the model output as a line, with their
+monthly mean seasonal cycle next to it and the cost metric and bias in the title.
 """
 function plotTimeSeries(out, cost_options, ::VisualizationPlots)
     info = out.info
@@ -479,13 +528,8 @@ function plotTimeSeries(info, obs_array, cost_options, def_dat, ::VisualizationP
         end
         return nothing
     end
-    domain = info.experiment.basics.domain
-    fig_prefix = joinpath(info.output.dirs.figure, "time_series_single_" * info.experiment.basics.name * "_" * domain)
-    foreach(cost_options) do var_row
-        println("plot time series comparison:: $(var_row.variable)")
-        vname, vinfo, lossMetric = getCostRowVariableInfo(var_row, info.experiment.basics.temporal_resolution)
-        _plotOutputVsObsForVariable!(info, obs_array, var_row, def_dat, lossMetric, domain, vinfo, vname, fig_prefix)
-    end
+    fig_path = joinpath(info.output.dirs.figure, "time_series_single_" * info.experiment.basics.name * "_" * info.experiment.basics.domain * ".png")
+    _plotComparisonAllVariables(info, obs_array, cost_options, def_dat, fig_path)
     return nothing
 end
 
@@ -503,12 +547,7 @@ function plotTimeSeries(info, obs_array, cost_options, def_dat, opt_dat, ::Visua
         end
         return nothing
     end
-    domain = info.experiment.basics.domain
-    fig_prefix = joinpath(info.output.dirs.figure, "comparison_time_series_" * info.experiment.basics.name * "_" * domain)
-    foreach(cost_options) do var_row
-        println("plot time series comparison:: $(var_row.variable)")
-        vname, vinfo, lossMetric = getCostRowVariableInfo(var_row, info.experiment.basics.temporal_resolution)
-        _plotOutputVsObsForVariable!(info, obs_array, var_row, def_dat, lossMetric, domain, vinfo, vname, fig_prefix; opt_dat=opt_dat)
-    end
+    fig_path = joinpath(info.output.dirs.figure, "comparison_time_series_" * info.experiment.basics.name * "_" * info.experiment.basics.domain * ".png")
+    _plotComparisonAllVariables(info, obs_array, cost_options, def_dat, fig_path; opt_dat=opt_dat)
     return nothing
 end
