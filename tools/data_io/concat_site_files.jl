@@ -5,16 +5,17 @@ using Sindbad.DataLoaders: DimensionalData
 # Concatenates the files of single-site runs along the site dimension. Two kinds of
 # files are supported on top of the general `concatSiteDatasets`:
 #
-# - parameter files, combined with `concatParameterFiles`. The combined file and its
-#   params.json can be given as the `parameters` config file of a multi-site
-#   experiment, whose `forcing.subset.site` then selects the sites to run. A parameter
-#   missing in a file is NaN for the sites of that file, and the experiment uses the
-#   default of the parameter there.
+# - parameter files, combined with `concatParameterFiles`. The combined file and
+#   its params.json can be given as the `parameters` config file of a multi-site
+#   experiment, whose `forcing.subset.site` then selects the sites to run. A
+#   parameter missing in a file is NaN for the sites of that file, and the
+#   experiment uses the default of the parameter there.
 # - restart files, combined with `concatRestartFiles`. The combined file can be added
 #   to the forcing of a multi-site experiment for the `SpinupInput` spinup mode.
 #
 # The functions need Sindbad, so include this file from an environment that has it,
-# e.g., `include(joinpath(pkgdir(Sindbad), "tools", "data_io", "concat_site_files.jl"))`.
+# e.g.,
+# `include(joinpath(pkgdir(Sindbad), "tools", "data_io", "concat_site_files.jl"))`.
 
 """
     concatSiteDatasets(paths; site_dim=:site, index_sites=false, check_attributes=("units",))
