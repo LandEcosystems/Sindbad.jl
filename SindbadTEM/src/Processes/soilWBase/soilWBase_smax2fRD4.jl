@@ -60,9 +60,9 @@ function compute(params::soilWBase_smax2fRD4, forcing, land, helpers)
 
     ## calculate variables
     # get the rooting depth data & scale them
-    rootwater_capacities = repElem(rootwater_capacities, f_RDmax[1] * scalar_Fan, 1)
-    rootwater_capacities = repElem(rootwater_capacities, f_RDeff[1] * scalar_Yang, 2)
-    rootwater_capacities = repElem(rootwater_capacities, f_SWCmax[1] * scalar_Wang, 3)
+    rootwater_capacities = repElem(rootwater_capacities, f_RDmax * scalar_Fan, 1)
+    rootwater_capacities = repElem(rootwater_capacities, f_RDeff * scalar_Yang, 2)
+    rootwater_capacities = repElem(rootwater_capacities, f_SWCmax * scalar_Wang, 3)
     AWC_tmp = is_invalid_number(f_AWC) ? smax_Tian : f_AWC
     rootwater_capacities = repElem(rootwater_capacities, AWC_tmp * scalar_Tian, 4)
 
@@ -101,6 +101,8 @@ $(getModelDocString(soilWBase_smax2fRD4))
 
 *Versions*
  - 1.0 on 10.02.2020 [ttraut]
+ - 1.1 on 15.10.2026 [skoirala]: use the spatial forcings directly as they are scalars
+   at the time step
 
 *Created by*
  - ttraut

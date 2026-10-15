@@ -56,9 +56,8 @@ function precompute(params::soilWBase_soilDepth, forcing, land, helpers)
         tolerance ⇐ helpers.numbers
     end
 
-    # soil depth of the location in mm. the forcing may hold it as a scalar or
-    # as a single element array.
-    depth_in = f_soil_depth isa AbstractArray ? first(f_soil_depth) : f_soil_depth
+    # soil depth of the location in mm
+    depth_in = f_soil_depth
     column_depth = sum(soil_depths)
     if !(isfinite(depth_in) && depth_in > zero(depth_in))
         error("soilWBase_soilDepth: invalid f_soil_depth = $(depth_in) mm. Soil depth must be finite and positive.")
@@ -163,6 +162,8 @@ the soil layers, otherwise an error is thrown.
 *Versions*
  - 1.0 on 05.10.2026 [skoirala | @dr-ko]: based on soilWBase_uniform, with soil
    depth from forcing
+ - 1.1 on 15.10.2026 [skoirala]: use `f_soil_depth` directly as the forcing is
+   now unwrapped to a scalar at the time step
 
 *Created by*
  - skoirala | @dr-ko

@@ -6,7 +6,7 @@ function precompute(params::vegDynamics_forcing, forcing, land, helpers)
     ## unpack forcing
     @unpack_nt f_pft ⇐ forcing
 
-    veg_type = f_pft[1]
+    veg_type = f_pft
 
     ## pack land variables
     @pack_nt veg_type ⇒ land.states
@@ -17,7 +17,7 @@ function compute(params::vegDynamics_forcing, forcing, land, helpers)
     ## unpack forcing
     @unpack_nt f_pft ⇐ forcing
 
-    veg_type = f_pft[1]
+    veg_type = f_pft
 
     ## pack land variables
     @pack_nt veg_type ⇒ land.states
@@ -38,12 +38,9 @@ The raw vegetation-type class code is taken from the `f_pft` forcing variable an
 published, unchanged, as `land.states.veg_type` -- no catalog interpretation
 happens here, so one approach covers every `vegClass_MODIS_*` source legend: which
 legend the code is drawn from is entirely a `vegClass`-side concern
-(`vegTypeCatalog`), not this process's. `f_pft` is indexed with `[1]` rather than used
-bare since real forcing pipelines publish a spatial-only variable like this as a
-one-element array per pixel, not a bare scalar; indexing a true scalar with `[1]`
-(e.g. in this package's own synthetic test fixtures) is a no-op, so the same code
-handles both without a special case. Vegetation type is time invariant, so it is read
-once in `precompute`.
+(`vegTypeCatalog`), not this process's. `f_pft` arrives as a scalar per pixel,
+since forcing without a time axis is unwrapped when the time step is read.
+Vegetation type is time invariant, so it is read once in `precompute`.
 
 *References*
 
@@ -66,6 +63,8 @@ once in `precompute`.
    `vegTypes` -> `vegClass`)
  - 7.0 on 12.09.2026 [skoirala]: process renamed again, `vegClassDynamics`
    -> `vegDynamics` (too easily confused with `vegClass`)
+ - 7.1 on 15.10.2026 [skoirala]: use `f_pft` directly as the forcing is now
+   unwrapped to a scalar at the time step
 
 *Created by*
  - skoirala
