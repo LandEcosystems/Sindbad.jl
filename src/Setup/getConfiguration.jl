@@ -338,6 +338,7 @@ const OPTIONAL_CONFIG_KEYS = (
     "optimization.observations.variables.*.*.data_path",
     "experiment.flags.run_lazy",
     "experiment.basics.config_files.parameters",
+    "model_structure.sindbad_models",
 )
 
 function isOptionalConfigKey(path_parts)
