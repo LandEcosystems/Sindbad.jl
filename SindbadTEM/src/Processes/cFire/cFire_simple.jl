@@ -29,7 +29,6 @@ function compute(params::cFire_simple, forcing, land, helpers)
         cEco ⇐ land.pools
         c_remain ⇐ land.states
         (c_flow_order, c_giver, c_taker, zix_cHeterotrophic) ⇐ land.cCycleBase
-        c_model ⇐ land.models
         z_zero ⇐ land.constants
     end
     # set c_fire_efflux and c_fire_mortality and cFireTotal to 0
@@ -68,8 +67,6 @@ function compute(params::cFire_simple, forcing, land, helpers)
         cFireTotal = totalS(c_fire_efflux)
     end
 
-    land = adjustPackPoolComponents(land, helpers, c_model)
-    
     ## pack land variables
     @pack_nt begin 
         # cEco ⇒ land.pools
