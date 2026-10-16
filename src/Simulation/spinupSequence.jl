@@ -56,6 +56,16 @@ function getSpinupSequence(::SequenceWithAge, spinup_config, loc_forcing, helper
 end
 
 
+function getSpinupSequence(::SequenceWithSpinupInput, spinup_config, loc_forcing, helpers_dates, aggregator_cache)
+    options = spinup_config.options
+    year_disturbance = getproperty(loc_forcing, Symbol(options.disturbance_variable))
+    steps = prepSequenceWithSpinupInput(Int(first(year_disturbance));
+        nrepeat_base=options.n_repeat_base,
+        year_start=year(first(helpers_dates.range)),
+        forcing_msc=options.forcing_msc)
+    return Tuple(getSpinupSequenceWithTypes(steps, helpers_dates, aggregator_cache, get(spinup_config, :models, nothing)))
+end
+
 """
     prepSequenceDefault(; nrepeat_base=200, forcing_msc="day_MSC")
 

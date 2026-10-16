@@ -32,8 +32,8 @@ sindbadDefaultOptions(::CMAEvolutionStrategyCMAES) = (; maxfevals = 50)
 sindbadDefaultOptions(::SpinupSequence) = (; n_repeat_base = 200, forcing_msc = "day_MSC")
 
 # invoke reaches the SpinupSequence method above, so this stays the shared defaults plus the
-# one option this method adds, rather than a second copy of them
-sindbadDefaultOptions(m::SequenceWithAge) = (; invoke(sindbadDefaultOptions, Tuple{SpinupSequence}, m)..., disturbance_variable = "f_dist_year")
+# one option these methods add, rather than a second copy of them
+sindbadDefaultOptions(m::Union{SequenceWithAge,SequenceWithSpinupInput}) =(; invoke(sindbadDefaultOptions, Tuple{SpinupSequence}, m)..., disturbance_variable = "f_dist_year")
 
 # this method builds nothing, it replays the steps authored in the settings, so none of the
 # shared options above apply to it

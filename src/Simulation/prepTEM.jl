@@ -84,7 +84,7 @@ of the spinup, depending on the specified `store_spinup_mode`.
 function addSpinupStore end
 
 function addSpinupStore(loc_land, sequence, ::DoStoreSpinup)
-    n_rows = 1 + sum(seq -> seq.n_repeat * spinupStoreSteps(seq), sequence)
+    n_rows = 1 + sum(seq -> seq.n_repeat * spinupStoreSteps(seq), sequence; init=0)
     spinup_cEco = getSpinupOutArray(loc_land.pools, :cEco, n_rows)
     spinup_TWS = getSpinupOutArray(loc_land.pools, :TWS, n_rows)
     spinup_step = [0]
@@ -316,12 +316,50 @@ location, with a spinup store sized to its own sequence.
   precompute step, so the variables set in the define step, e.g., soil properties
   from static forcing or values from parameters per location, would otherwise be
   those of the first location everywhere.
+- A `SpinupInput` step at the start of a sequence is run here once, see `getLocLand`,
+  so the returned spinup NTs are without it.
+
+# Returns:
+- a tuple of the land NT of every location
+- the spinup NT of every location
 """
 function getSpaceLand(space_selected_models, space_forcing, space_spinup, land_init, tem_info)
-    return Tuple(map(space_selected_models, space_forcing, space_spinup) do loc_models, loc_forcing, loc_spinup
-        # runTEMOne adds the spinup store for the sequence of this location
-        last(runTEMOne(loc_models, loc_forcing, deepcopy(land_init), tem_info, loc_spinup.sequence))
-    end)
+    space_land_spinup = map(space_selected_models, space_forcing, space_spinup) do loc_models, loc_forcing, loc_spinup
+        getLocLand(loc_models, loc_forcing, loc_spinup, land_init, tem_info)
+    end
+    return Tuple(first.(space_land_spinup)), last.(space_land_spinup)
+end
+
+"""
+    getLocLand(loc_models, loc_forcing, loc_spinup, land_init, tem_info)
+
+Builds the initial land NT of one location, and sets its pools from the forcing when
+its spinup sequence starts with a `SpinupInput` step.
+
+# Returns:
+- the land NT of the location
+- the spinup NT of the location, without the `SpinupInput` step
+
+# Notes:
+- The pools read from the forcing do not depend on the parameters, so they are set
+  once here instead of at the start of every spinup. The step is then dropped from
+  the sequence, and a location with no other step gets an empty sequence.
+- The precompute step of every run comes after this, so a precompute that changes
+  pools, e.g., the removal of water above the capacity of the soil layers, now acts
+  on the pools from the forcing.
+"""
+function getLocLand(loc_models, loc_forcing, loc_spinup, land_init, tem_info)
+    sequence = loc_spinup.sequence
+    has_input = !isempty(sequence) && first(sequence).spinup_mode isa SpinupInput
+    if has_input
+        loc_spinup = (; loc_spinup..., sequence=Base.tail(sequence))
+    end
+    # runTEMOne adds the spinup store for the sequence of this location
+    loc_forcing_t, loc_land = runTEMOne(loc_models, loc_forcing, deepcopy(land_init), tem_info, loc_spinup.sequence)
+    if has_input
+        loc_land = spinup(loc_models, nothing, loc_forcing_t, loc_land, tem_info, 1, SpinupInput())
+    end
+    return loc_land, loc_spinup
 end
 
 
@@ -607,7 +645,7 @@ function helpPrepTEM(selected_models, info, forcing::NamedTuple, output::NamedTu
     space_selected_models, parameters = getLocationModels(selected_models, forcing, space_ind)
 
     # the land of each location is built from its own models and forcing
-    space_land = getSpaceLand(space_selected_models, space_forcing, space_spinup, land_init, tem_info)
+    space_land, space_spinup = getSpaceLand(space_selected_models, space_forcing, space_spinup, land_init, tem_info)
 
     forcing_nt_array = nothing
 
@@ -653,7 +691,7 @@ function helpPrepTEM(selected_models, info, forcing::NamedTuple, output::NamedTu
     space_selected_models, parameters = getLocationModels(selected_models, forcing, space_ind)
 
     # the land of each location is built from its own models and forcing
-    space_land = getSpaceLand(space_selected_models, space_forcing, space_spinup, land_init, tem_info)
+    space_land, space_spinup = getSpaceLand(space_selected_models, space_forcing, space_spinup, land_init, tem_info)
 
     forcing_nt_array = nothing
 
