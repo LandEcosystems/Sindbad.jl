@@ -70,8 +70,15 @@ module Visualization
     # no matching method for this function — i.e. its extension (e.g. `SindbadPlotsExt`)
     # isn't actually loaded — so a mismatch between config and loaded packages degrades
     # gracefully to the info message instead of a `MethodError`.
+    #
+    # `hasmethod` alone is not enough: the untyped wrapper of the next arity also
+    # matches, e.g. `plotTimeSeries(out, cost_options)` accepts `(out_opti, backend)`.
+    # So the matched method must be typed on the backend argument.
     function _resolvedBackend(f, backend, args...)
-        hasmethod(f, Tuple{map(typeof, args)..., typeof(backend)}) ? backend : VisualizationTypes()
+        types = Tuple{map(typeof, args)..., typeof(backend)}
+        hasmethod(f, types) || return VisualizationTypes()
+        sig = Base.unwrap_unionall(which(f, types).sig)
+        return sig.parameters[end] === Any ? VisualizationTypes() : backend
     end
 
     function plotPerformanceHistograms(out_opti)
