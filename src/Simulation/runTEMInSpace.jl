@@ -60,6 +60,8 @@ Parallelizes the SINDBAD Terrestrial Ecosystem Model (TEM) across multiple locat
 - `parallelization_mode`: A type dispatch that determines the parallelization backend to use:
     - `ThreadsParallelization`: Uses Julia's `Threads.@threads` for parallel execution.
     - `QbmapParallelization`: Uses `qbmap` for parallel execution.
+- `show_progress`: keyword to show a progress bar that advances when a location is
+  done, `false` by default
 
 # Returns:
 - `nothing`: The function modifies `space_output` and `space_land` in place to store the results for each location.
@@ -87,18 +89,36 @@ julia> # parallelizeTEM!(space_selected_models, space_forcing, space_spinup, loc
 """
 function parallelizeTEM! end
 
-function parallelizeTEM!(space_selected_models::Vector, space_forcing, space_spinup, loc_forcing_t, space_output, space_restart, space_land, tem_info, ::ThreadsParallelization)
+function parallelizeTEM!(space_selected_models::Vector, space_forcing, space_spinup, loc_forcing_t, space_output, space_restart, space_land, tem_info, ::ThreadsParallelization; show_progress=false)
+    progress = getLocationProgress(space_forcing, show_progress)
     Threads.@threads for space_index ∈ eachindex(space_forcing)
         coreTEM!(space_selected_models[space_index], space_forcing[space_index], space_spinup[space_index], loc_forcing_t, space_output[space_index], space_restart[space_index], space_land[space_index], tem_info)
+        next!(progress)
     end
+    finish!(progress)
     return nothing
 end
 
-function parallelizeTEM!(space_selected_models::Vector, space_forcing, space_spinup, loc_forcing_t, space_output, space_restart, space_land, tem_info, ::QbmapParallelization)
+function parallelizeTEM!(space_selected_models::Vector, space_forcing, space_spinup, loc_forcing_t, space_output, space_restart, space_land, tem_info, ::QbmapParallelization; show_progress=false)
+    progress = getLocationProgress(space_forcing, show_progress)
     qbmap(eachindex(space_forcing)) do space_index
         coreTEM!(space_selected_models[space_index], space_forcing[space_index], space_spinup[space_index], loc_forcing_t, space_output[space_index], space_restart[space_index], space_land[space_index], tem_info)
+        next!(progress)
     end
+    finish!(progress)
     return nothing
+end
+
+"""
+    getLocationProgress(space_forcing, show_progress)
+
+Returns a progress bar over the locations of a run, which is disabled when
+`show_progress` is `false`. A disabled bar prints nothing and costs almost nothing to
+advance, so the parallel loops can always call `next!` on it.
+"""
+function getLocationProgress(space_forcing, show_progress)
+    n_locations = length(space_forcing)
+    return Progress(n_locations; desc="running TEM for $(n_locations) locations: ", color=:cyan, showspeed=true, enabled=show_progress)
 end
 
 """
@@ -130,6 +150,10 @@ Runs the SINDBAD Terrestrial Ecosystem Model (TEM) for all locations and time st
 
 4. **For the fourth variant**:
     - Same as the third variant, plus `space_restart`, the per-location views of the restart arrays from `prepTEM`, where the pools after the spinup step with `save_restart` are stored. The third variant passes `nothing` for every location, so the optimization and cost runs store no restart data.
+
+The third and fourth variants take the keyword `show_progress`, which shows a
+progress bar over the locations when it is `true`. It is `false` by default, so that
+the many runs of an optimization stay quiet.
 
 # Returns:
 - `output_array`: A preallocated array containing the simulation results for all locations and time steps.
@@ -172,14 +196,14 @@ function runTEM!(forcing::NamedTuple, info::NamedTuple)
     return run_helpers.output_array
 end
 
-function runTEM!(space_selected_models, space_forcing, space_spinup, loc_forcing_t, space_output, space_land, tem_info::NamedTuple)
+function runTEM!(space_selected_models, space_forcing, space_spinup, loc_forcing_t, space_output, space_land, tem_info::NamedTuple; show_progress=false)
     # one `nothing` per location, so no pools are stored for the restart file
     no_restart = Fill(nothing, length(space_forcing))
-    return runTEM!(space_selected_models, space_forcing, space_spinup, loc_forcing_t, space_output, no_restart, space_land, tem_info)
+    return runTEM!(space_selected_models, space_forcing, space_spinup, loc_forcing_t, space_output, no_restart, space_land, tem_info; show_progress=show_progress)
 end
 
-function runTEM!(space_selected_models, space_forcing, space_spinup, loc_forcing_t, space_output, space_restart, space_land, tem_info::NamedTuple)
-    parallelizeTEM!(space_selected_models, space_forcing, space_spinup, loc_forcing_t, space_output, space_restart, space_land, tem_info, tem_info.run.parallelization)
+function runTEM!(space_selected_models, space_forcing, space_spinup, loc_forcing_t, space_output, space_restart, space_land, tem_info::NamedTuple; show_progress=false)
+    parallelizeTEM!(space_selected_models, space_forcing, space_spinup, loc_forcing_t, space_output, space_restart, space_land, tem_info, tem_info.run.parallelization; show_progress=show_progress)
     return nothing
 end
 

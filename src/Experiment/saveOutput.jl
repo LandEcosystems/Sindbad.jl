@@ -26,6 +26,92 @@ end
 
 
 """
+    getSaveKwargs(out_format, compression)
+    getSaveKwargs(info)
+
+Returns the keyword arguments for `savedataset` that set the compression of an output
+file.
+
+# Arguments
+- `out_format`: format of the output file
+- `compression`: compression level of the output file, with -1 or 0 for no
+  compression and 1 to 9 for increasing compression. `nothing` uses the default of
+  the format, which is 4 for NetCDF and 5 for Zarr.
+- `info`: a SINDBAD NamedTuple with the output format and compression level in
+  `info.output.data_compression.level`
+
+# Notes
+- For NetCDF, the level is the deflate level of the variables.
+- For Zarr, the level is the `clevel` of the default Blosc compressor of Zarr.jl,
+  which uses lz4 with byte shuffle. A level of -1 or 0 writes the arrays without a
+  compressor.
+- Other formats get no keywords and keep the default compressor of their backend.
+"""
+function getSaveKwargs(out_format, compression)
+    out_format == "nc" && return (; compress=something(compression, 4))
+    if out_format == "zarr"
+        compression = something(compression, 5)
+        compressor = compression > 0 ? DataLoaders.Zarr.BloscCompressor(clevel=compression) : DataLoaders.Zarr.NoCompressor()
+        return (; compressor=compressor)
+    end
+    return (;)
+end
+getSaveKwargs(info) = getSaveKwargs(info.output.format, info.output.data_compression.level)
+
+
+"""
+    roundToDigits(data, digits)
+
+Rounds the values of an output array to keep a given number of significant decimal
+digits, so that the array compresses better when it is written to a file.
+
+# Arguments
+- `data`: output array to round
+- `digits`: number of significant decimal digits to keep, or `nothing` to keep full
+  precision
+
+# Returns
+- A rounded copy of `data`, or `data` itself when nothing needs rounding or `digits`
+  is `nothing`.
+
+# Notes
+- Each value is rounded to the nearest number with the fewest mantissa bits that hold
+  `digits` decimal digits, with ties to even. The rounded-off bits are zero, which
+  deflate and Blosc compress well.
+- The largest relative error is half the spacing of the kept bits, e.g., about 5e-7
+  for 6 digits and 3e-5 for 4 digits.
+- NaN and Inf values are kept as they are.
+- Arrays of other element types and arrays that already have fewer mantissa bits than
+  needed are returned unchanged.
+"""
+function roundToDigits(data::AbstractArray{T}, digits) where {T<:Base.IEEEFloat}
+    keep_bits = ceil(Int, digits * log2(10))
+    keep_bits >= Base.significand_bits(T) && return data
+    return roundToBits.(data, keep_bits)
+end
+
+roundToDigits(data, digits) = data
+
+roundToDigits(data::AbstractArray{<:Base.IEEEFloat}, ::Nothing) = data
+
+
+"""
+    roundToBits(x, keep_bits)
+
+Rounds a float to the nearest value with `keep_bits` mantissa bits, with ties to
+even.
+"""
+function roundToBits(x::T, keep_bits) where {T<:Base.IEEEFloat}
+    isfinite(x) || return x
+    U = Base.uinttype(T)
+    shift = Base.significand_bits(T) - keep_bits
+    ui = reinterpret(U, x)
+    ui += (one(U) << (shift - 1)) - one(U) + ((ui >> shift) & one(U))
+    return reinterpret(T, ui & ~((one(U) << shift) - one(U)))
+end
+
+
+"""
     getYaxForVariable(data_out, data_dim, variable_name, catalog_name, t_step)
 
 Processes YAXArray for a specific variable from simulation output.
@@ -64,6 +150,10 @@ saves the output variables from the run as one file
 - `var_pairs`: a tuple of pairs of sindbad variables to write including the field and subfield of land as the first and last element
 - `out_format`: format of the output file
 - `t_step`: a string for time step of the model run to be used in the units attribute of variables
+- `compression`: keyword for the compression level of NetCDF and Zarr files, with -1
+  for no compression. The default `nothing` uses 4 for NetCDF and 5 for Zarr.
+- `digits`: keyword for the number of significant decimal digits kept in the data.
+  The default `nothing` writes the data at full precision.
 - `<: OutputStrategy`: Dispatch type indicating file output mode with the following options:
     - `::DoSaveSingleFile`: single file with all the variables
     - `::DoNotSaveSingleFile`: single file per variable
@@ -83,37 +173,37 @@ julia> # saveOutCubes(data_path_base, global_metadata, var_pairs, data, data_dim
 """
 function saveOutCubes end
 
-function saveOutCubes(data_path_base, global_metadata, data, data_dims, var_pairs, out_format, t_step, ::DoSaveSingleFile)
+function saveOutCubes(data_path_base, global_metadata, data, data_dims, var_pairs, out_format, t_step, ::DoSaveSingleFile; compression=nothing, digits=nothing)
     print_info(saveOutCubes, @__FILE__, @__LINE__, "saving one file for all variables")
     catalog_names = getVarFull.(var_pairs)
     variable_names = getUniqueVarNames(var_pairs)
-    all_yax = Tuple(getYaxForVariable.(data, data_dims, variable_names, catalog_names, Ref(t_step)))
+    all_yax = Tuple(getYaxForVariable.(roundToDigits.(data, digits), data_dims, variable_names, catalog_names, Ref(t_step)))
     data_path = data_path_base * "_all_variables.$(out_format)"
     print_info(nothing, @__FILE__, @__LINE__, "saved all variables to `$(data_path)`", n_m=4)
     ds_new = DataLoaders.YAXArrays.Dataset(; (; zip(variable_names, all_yax)...)..., properties=global_metadata)
-    DataLoaders.YAXArrays.savedataset(ds_new, path=data_path, append=true, overwrite=true)
+    DataLoaders.YAXArrays.savedataset(ds_new; path=data_path, append=true, overwrite=true, getSaveKwargs(out_format, compression)...)
     return nothing
 end
 
-function saveOutCubes(data_path_base, global_metadata, data, data_dims, var_pairs, out_format, t_step, ::DoNotSaveSingleFile)
+function saveOutCubes(data_path_base, global_metadata, data, data_dims, var_pairs, out_format, t_step, ::DoNotSaveSingleFile; compression=nothing, digits=nothing)
     print_info(saveOutCubes, @__FILE__, @__LINE__, "saving one file per variable")
     catalog_names = getVarFull.(var_pairs)
     variable_names = getUniqueVarNames(var_pairs)
     for vn ∈ eachindex(var_pairs)
         catalog_name = catalog_names[vn]
         variable_name = variable_names[vn]
-        data_yax = getYaxForVariable(data[vn], data_dims[vn], variable_name, catalog_name, t_step)
+        data_yax = getYaxForVariable(roundToDigits(data[vn], digits), data_dims[vn], variable_name, catalog_name, t_step)
         data_path = data_path_base * "_$(variable_name).$(out_format)"
         print_info(nothing, @__FILE__, @__LINE__, "saved `$(variable_name)` to `$(data_path)`", n_m=4)
         ds_new = DataLoaders.YAXArrays.Dataset(; (variable_name => data_yax,)..., properties=global_metadata)
-        DataLoaders.YAXArrays.savedataset(ds_new, path=data_path, overwrite=true)
+        DataLoaders.YAXArrays.savedataset(ds_new; path=data_path, overwrite=true, getSaveKwargs(out_format, compression)...)
     end
     return nothing
 end
 
 
 function saveOutCubes(info, out_cubes, output_dims, output_vars)
-    saveOutCubes(info.output.file_info.file_prefix, info.output.file_info.global_metadata, out_cubes, output_dims, output_vars, info.output.format, info.experiment.basics.temporal_resolution, info.helpers.run.save_single_file)
+    saveOutCubes(info.output.file_info.file_prefix, info.output.file_info.global_metadata, out_cubes, output_dims, output_vars, info.output.format, info.experiment.basics.temporal_resolution, info.helpers.run.save_single_file; compression=info.output.data_compression.level, digits=info.output.data_compression.digits)
 end
 
 
@@ -148,7 +238,7 @@ function saveRestartCubes(info, restart)
     restart_metadata = getRestartMetadata(info, restart)
     restart_ds = getRestartDataset(info, restart, restart_metadata)
     print_info(nothing, @__FILE__, @__LINE__, "saving pools after the spinup step with save_restart to `$(data_path)`", n_m=4)
-    DataLoaders.YAXArrays.savedataset(restart_ds, path=data_path, overwrite=true)
+    DataLoaders.YAXArrays.savedataset(restart_ds; path=data_path, overwrite=true, getSaveKwargs(info)...)
     return nothing
 end
 
@@ -244,7 +334,7 @@ function saveSpinupCubes(info, spinup)
     end
     spinup_ds = DataLoaders.YAXArrays.Dataset(; zip(spinup.names, all_yax)..., properties=spinup_metadata)
     print_info(nothing, @__FILE__, @__LINE__, "saving pools at every stored spinup step to `$(data_path)`", n_m=4)
-    DataLoaders.YAXArrays.savedataset(spinup_ds, path=data_path, overwrite=true)
+    DataLoaders.YAXArrays.savedataset(spinup_ds; path=data_path, overwrite=true, getSaveKwargs(info)...)
     return nothing
 end
 
