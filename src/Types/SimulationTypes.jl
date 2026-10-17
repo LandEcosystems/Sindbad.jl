@@ -122,6 +122,7 @@ purpose(::Type{SpinupTypes}) = "Abstract type for model spinup related functions
 export SpinupMode
 export LoopTEM
 export SpinupInput
+export ClearanceA0
 export EtaScaleA0H
 export EtaScaleA0HCWD
 export EtaScaleAHCWD
@@ -140,6 +141,9 @@ export SSPSSRootfind
 
 abstract type SpinupMode <: SpinupTypes end
 purpose(::Type{SpinupMode}) = "Abstract type for model spinup modes in SINDBAD"
+
+struct ClearanceA0 <: SpinupMode end
+purpose(::Type{ClearanceA0}) = "cut the vegetation carbon pools down to c_remain, as EtaScaleA0H does without the scaling by ηH"
 
 struct EtaScaleA0H <: SpinupMode end
 purpose(::Type{EtaScaleA0H}) = "scale carbon pools using diagnostic scalars for ηH and c_remain"
@@ -225,6 +229,7 @@ export SpinupSequence
 export SequenceDefault
 export SequenceList
 export SequenceWithAge
+export SequenceWithSpinupInput
 
 abstract type SpinupSequence <: SpinupTypes end
 purpose(::Type{SpinupSequence}) = "Abstract type for methods that build the spinup sequence of a location in SINDBAD"
@@ -237,6 +242,9 @@ purpose(::Type{SequenceList}) = "use the explicit list of spinup sequences given
 
 struct SequenceWithAge <: SpinupSequence end
 purpose(::Type{SequenceWithAge}) = "build the spinup sequence from the disturbance year of the location so that the years since disturbance are replayed"
+
+struct SequenceWithSpinupInput <: SpinupSequence end
+purpose(::Type{SequenceWithSpinupInput}) = "build the spinup sequence with spinup input from previously saved cEco and TWS pools through forcing json"
 
 
 # ------------------------- spinup sequence and types ------------------------------------------------------------

@@ -723,17 +723,6 @@ function setupInfo(info::NamedTuple)
         info = setHybridInfo(info)
     end
 
-    if !isnothing(info.settings.experiment.exe_rules.longtuple_size)
-        longtuple_size = info.settings.experiment.exe_rules.longtuple_size
-        # Julia does not unroll `map` over a tuple of 32 or more elements, so it is not
-        # inferred and allocates. Every chunk of a long tuple must be shorter than that.
-        if longtuple_size >= 32
-            @warn "experiment.exe_rules.longtuple_size is $(longtuple_size). With 32 or more models in a chunk, setting parameters on the models is not type stable and allocates on every call, which slows down optimizations. Use a value from 16 to 31."
-        end
-        selected_approach_forward = to_longtuple(info.temp.models.forward, longtuple_size)
-        info = @set info.temp.models.forward = selected_approach_forward
-    end
-
     print_info(setupInfo, @__FILE__, @__LINE__, "Cleaning Info Fields...")
     exe_rules = info.settings.experiment.exe_rules
     info = drop_namedtuple_fields(info, (:model_structure, :experiment, :output, :pools))
@@ -741,6 +730,19 @@ function setupInfo(info::NamedTuple)
     info = set_namedtuple_subfield(info, :experiment, (:data_settings, data_settings))
     info = set_namedtuple_subfield(info, :experiment, (:exe_rules, exe_rules))
     info = drop_namedtuple_fields(info, (:temp, :settings,))
+
+    # Converted last because every NamedTuple rebuild above compiles anew for the type of
+    # info, and a LongTuple of all models makes that type very large.
+    if !isnothing(exe_rules.longtuple_size)
+        longtuple_size = exe_rules.longtuple_size
+        # Julia does not unroll `map` over a tuple of 32 or more elements, so it is not
+        # inferred and allocates. Every chunk of a long tuple must be shorter than that.
+        if longtuple_size >= 32
+            @warn "experiment.exe_rules.longtuple_size is $(longtuple_size). With 32 or more models in a chunk, setting parameters on the models is not type stable and allocates on every call, which slows down optimizations. Use a value from 16 to 31."
+        end
+        forward = to_longtuple(info.models.forward, longtuple_size)
+        return (; info..., models=(; info.models..., forward=forward), setup_input)
+    end
     return (; info..., setup_input)
 end
 

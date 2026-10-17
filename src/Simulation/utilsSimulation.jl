@@ -166,6 +166,13 @@ function getForcingV(v, _, ::ForcingWithoutTime)
     v
 end
 
+# A forcing with only spatial dimensions is a 0-dimensional array once sliced at a
+# location, so it is unwrapped here and processes receive a plain scalar. Forcings
+# that keep other dimensions, such as soil layers, are returned unchanged.
+function getForcingV(v::AbstractArray{<:Any,0}, _, ::ForcingWithoutTime)
+    v[]
+end
+
 """
     getLocData(forcing, output_array, loc_ind)
 

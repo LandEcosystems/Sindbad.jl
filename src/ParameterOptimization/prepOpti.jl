@@ -28,17 +28,10 @@ Calculates the size of the cost vector required for a specific optimization or s
 function getCostVectorSize end
 
 function getCostVectorSize(algo_options, parameter_vector, ::CMAEvolutionStrategyCMAES)
-    cost_vector_size = Threads.nthreads()
-    if hasproperty(algo_options, :multi_threading)
-        if algo_options.multi_threading
-            if hasproperty(algo_options, :popsize)
-                cost_vector_size = algo_options.popsize
-            else
-                cost_vector_size = 4 + floor(Int, 3 * log(length(parameter_vector)))
-            end
-        end
+    if hasproperty(algo_options, :popsize)
+        return algo_options.popsize
     end
-    return cost_vector_size
+    return 4 + floor(Int, 3 * log(length(parameter_vector)))
 end
 
 function getCostVectorSize(algo_options, __precompile__, ::GSAMorris)
@@ -145,7 +138,10 @@ function  prepOpti(forcing, observations, info, ::CostModelObsMT; algorithm_info
     
     space_index = 1 # the parallelization of cost computation only runs in single pixel runs
 
-    cost_function = x -> cost(x, opti_helpers.default_values, getCostModels(run_helpers, space_index), run_helpers.space_forcing[space_index], run_helpers.space_spinup[space_index], run_helpers.loc_forcing_t, run_helpers.output_array, run_helpers.space_output_mt, deepcopy(run_helpers.space_land[space_index]), run_helpers.tem_info, observations, opti_helpers.parameter_updater, opti_helpers.cost_options, info.optimization.run_options.multi_constraint_method, info.optimization.run_options.parameter_scaling, cost_vector, info.optimization.run_options.cost_method)
+    # a land per output buffer, so that parallel tasks never share one
+    space_land_mt = [deepcopy(run_helpers.space_land[space_index]) for _ in eachindex(run_helpers.space_output_mt)]
+
+    cost_function = x -> cost(x, opti_helpers.default_values, getCostModels(run_helpers, space_index), run_helpers.space_forcing[space_index], run_helpers.space_spinup[space_index], run_helpers.loc_forcing_t, run_helpers.output_array_mt, run_helpers.space_output_mt, space_land_mt, run_helpers.tem_info, observations, opti_helpers.parameter_updater, opti_helpers.cost_options, info.optimization.run_options.multi_constraint_method, info.optimization.run_options.parameter_scaling, info.optimization.run_options.cost_method)
 
     opti_helpers = (; opti_helpers..., cost_function=cost_function, cost_vector=cost_vector)
     return opti_helpers

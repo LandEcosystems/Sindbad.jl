@@ -329,10 +329,78 @@ function removeComments(inputDict::AbstractDict)
 end
 removeComments(input) = input
 
+# replace_info keys that may be missing from the configuration files, because the code
+# reads them only when they are set. `*` matches any one key, and keys below these are
+# not checked.
+const OPTIONAL_CONFIG_KEYS = (
+    "forcing.subset",
+    "forcing.variables.*.data_path",
+    "optimization.observations.variables.*.*.data_path",
+    "experiment.flags.run_lazy",
+    "experiment.basics.config_files.parameters",
+    "model_structure.sindbad_models",
+)
+
+function isOptionalConfigKey(path_parts)
+    return any(OPTIONAL_CONFIG_KEYS) do optional_key
+        optional_parts = split(optional_key, ".")
+        length(path_parts) >= length(optional_parts) || return false
+        all(o == "*" || o == k for (k, o) ∈ zip(path_parts, optional_parts))
+    end
+end
+
+# Walks `path_parts[depth:end]` from `config` and records in `missing_keys` every key
+# that does not exist in `config` at its level.
+function collectMissingConfigKeys!(missing_keys, config, path_parts, depth, value)
+    key = path_parts[depth]
+    if !haskey(config, key)
+        # only the optional key itself may be missing, not a level above it
+        isOptionalConfigKey(path_parts[1:depth]) && return missing_keys
+        push!(missing_keys, (join(path_parts, "."), join(path_parts[1:depth-1], "."), String.(collect(keys(config)))))
+        return missing_keys
+    end
+    next_config = config[key]
+    # an existing value that is not a dictionary is replaced whole, so nothing below it
+    # is checked
+    next_config isa AbstractDict || return missing_keys
+    if depth < length(path_parts)
+        return collectMissingConfigKeys!(missing_keys, next_config, path_parts, depth + 1, value)
+    end
+    # a dictionary value is merged into the existing dictionary, so its keys are checked
+    if value isa AbstractDict
+        for (sub_key, sub_value) ∈ value
+            collectMissingConfigKeys!(missing_keys, next_config, [path_parts; String(sub_key)], depth + 1, sub_value)
+        end
+    end
+    return missing_keys
+end
+
+"""
+    checkReplaceInfoKeys(info::AbstractDict, replace_dict::AbstractDict)
+
+Throws an error when a key of `replace_dict` does not exist in `info`, so that a
+mistyped key does not silently add a new field to the configuration. Every key is
+checked against the keys of `info` at the level it replaces, except the optional
+settings in `OPTIONAL_CONFIG_KEYS`.
+"""
+function checkReplaceInfoKeys(info::AbstractDict, replace_dict::AbstractDict)
+    missing_keys = []
+    for (full_key, value) ∈ replace_dict
+        collectMissingConfigKeys!(missing_keys, info, String.(split(full_key, ".")), 1, value)
+    end
+    isempty(missing_keys) && return nothing
+    msg = join(map(missing_keys) do (k, level, available)
+        level_text = isempty(level) ? "the top level" : "`$(level)`"
+        "  - `$(k)`: not found at $(level_text). Available keys there: $(join(sort(available), ", "))."
+    end, "\n")
+    error("replace_info has keys that do not exist in the configuration:\n$(msg)")
+end
+
 """
     replaceInfoFields(info::AbstractDict, replace_dict::AbstractDict)
 
-Replaces fields in the `info` dictionary with values from the `replace_dict`.
+Replaces fields in the `info` dictionary with values from the `replace_dict`, after
+checking with `checkReplaceInfoKeys` that every key exists.
 
 # Arguments:
 - `info::AbstractDict`: The original dictionary.
@@ -342,6 +410,7 @@ Replaces fields in the `info` dictionary with values from the `replace_dict`.
 - A new dictionary with the replaced fields.
 """
 function replaceInfoFields(info::AbstractDict, replace_dict::AbstractDict)
+    checkReplaceInfoKeys(info, replace_dict)
     nested_replace_dict = createNestedDict(replace_dict)
     info = deepMerge(Dict(info), nested_replace_dict)
     return info
