@@ -19,7 +19,9 @@ ready to use in the same way `getForcing` does for the forcing.
 - Otherwise a NamedTuple with:
   - `variables`: the names of the parameter variables
   - `data`: one YAXArray per variable on the spatial dimensions of the forcing, in the
-    units of the run, without NaN, and within the bounds of the parameter
+    units of the run, without NaN, and within the bounds of the parameter. It is lazy
+    in a lazy run, so a large forcing is only read where the run needs it, and in
+    memory otherwise.
   - `parameter_table`: a Table with one row per variable with the resolved settings:
     `model`, `name`, `name_full`, `model_approach`, `units`, `timescale_run`,
     `unit_factor`, `lower`, `upper`, `default`, `source_variable`, `data_path`, `n_nan`
@@ -44,8 +46,7 @@ ready to use in the same way `getForcing` does for the forcing.
   variables have one dimension named after the forcing variable `lookup_variable`,
   with one value per class. Each location takes the value of its class in that
   forcing variable, else of the `default` class, else the `default` of the parameter.
-  The result is a location map like any other, computed lazily, see
-  `getParameterValuesByClass`.
+  The result is a location map like any other, see `getParameterValuesByClass`.
 """
 function getParameters(info::NamedTuple, forcing_axes, forcing_cubes=nothing)
     parameter_input = get(info.experiment.data_settings, :parameters, nothing)
@@ -62,7 +63,8 @@ function getParameters(info::NamedTuple, forcing_axes, forcing_cubes=nothing)
     var_names, var_sources = listParameterVariables(parameter_input, open_files)
     lookup = getParameterLookup(parameter_input)
     lookup_cube = isnothing(lookup) ? nothing : getLookupCube(lookup, forcing_cubes, space_dims)
-    # a lazy class map is computed once for an eager run, which reads it per location
+    # the lazy cube of each parameter is computed once for an eager run, which reads
+    # it per location
     keep_lazy = info.helpers.run.run_lazy isa DoRunLazy
 
     table_rows = []
@@ -72,19 +74,17 @@ function getParameters(info::NamedTuple, forcing_axes, forcing_cubes=nothing)
         attributes = readVariableAttributes(dataset, var_source.source_variable, var_source.data_path)
         p_row = resolveParameterVariable(var_name, var_source, parameter_input, attributes, info)
         p_values = if isnothing(lookup)
-            yax = getParameterValuesByLocation(dataset[var_source.source_variable], forcing_axes, space_dims, var_name)
-            cleaned = cleanParameterValues(Array(yax), p_row, num_type)
-            # kept as a cube on the spatial dimensions and coordinates of the forcing,
-            # so a lazy run can map over it together with the forcing
-            (; cleaned..., data=YAXArray(forcing_space_dims, cleaned.data))
+            getParameterValuesByLocation(dataset[var_source.source_variable], forcing_axes, space_dims, p_row, num_type, var_name)
         else
             by_class = getParameterValuesByClass(dataset[var_source.source_variable], lookup, lookup_cube, p_row, num_type, var_name)
             push!(map_classes, by_class.classes)
-            keep_lazy ? by_class : (; by_class..., data=YAXArray(DD.dims(by_class.data), Array(by_class.data)))
+            by_class
         end
         push!(table_rows, (; p_row..., n_nan=p_values.n_nan, n_clamped=p_values.n_clamped))
         print_info(nothing, @__FILE__, @__LINE__, "`$(var_name)` = `$(p_row.name_full)` ($(p_row.units)) from `$(var_source.source_variable)` in `$(var_source.data_path)` * $(p_row.unit_factor)", n_m=4)
-        p_values.data
+        # kept as a cube on the spatial dimensions and coordinates of the forcing, so
+        # a lazy run can map over it together with the forcing
+        YAXArray(forcing_space_dims, keep_lazy ? p_values.data.data : Array(p_values.data.data))
     end
     if !isnothing(lookup)
         allequal(map_classes) || error("The variables of the class map by `$(lookup.lookup_variable)` have different classes. All need the same `$(lookup.lookup_variable)` coordinates.")
@@ -285,17 +285,24 @@ end
 
 
 """
-    getParameterValuesByLocation(yax, forcing_axes, space_dims, var_name)
+    getParameterValuesByLocation(yax, forcing_axes, space_dims, p_row, num_type, var_name)
 
-Returns the values of `yax` at the coordinates of the forcing, with the spatial
-dimensions of the forcing in its order.
+Returns the values of one variable of a location map at the locations of the forcing,
+ready to use.
+
+# Returns:
+- A NamedTuple with the `data` with the spatial dimensions of the forcing in its
+  order, and the `n_nan` and `n_clamped` of the values at the forcing locations.
 
 # Notes:
 - The coordinates are selected by value, so the file may have more locations than the
   forcing, in any order.
 - An error lists the coordinates of the forcing that are missing in the file.
+- The locations are selected as a view and the values are made ready by `map` with
+  `parameterCleaner`, so the `data` is computed only where it is read. The counts are
+  taken in one pass over the selected values, see `countReplacedValues`.
 """
-function getParameterValuesByLocation(yax, forcing_axes, space_dims, var_name)
+function getParameterValuesByLocation(yax, forcing_axes, space_dims, p_row, num_type, var_name)
     axes_values = Dict(Symbol(first(f_axis)) => last(f_axis) for f_axis ∈ forcing_axes)
     for s_dim ∈ space_dims
         haskey(axes_values, s_dim) || error("The forcing has no coordinates for the spatial dimension `$(s_dim)`.")
@@ -307,13 +314,16 @@ function getParameterValuesByLocation(yax, forcing_axes, space_dims, var_name)
             error("The parameter variable `$(var_name)` has no values for $(length(missing_values)) `$(s_dim)` of the forcing: $(missing_values).")
         end
         positions = [findfirst(==(v), file_values) for v ∈ forcing_values]
-        yax = yax[DD.Dim{s_dim}(positions)]
+        yax = view(yax, DD.Dim{s_dim}(positions))
     end
     extra_dims = setdiff(DD.name(DD.dims(yax)), space_dims)
     if !isempty(extra_dims)
         error("The parameter variable `$(var_name)` has the dimensions $(extra_dims) besides the spatial dimensions of the forcing. A parameters input only supports spatial parameters.")
     end
-    return permutedims(yax, getDimPermutation(DD.name(DD.dims(yax)), space_dims))
+    yax = permutedims(yax, getDimPermutation(DD.name(DD.dims(yax)), space_dims))
+    counts = countReplacedValues(yax.data, p_row, num_type)
+    warnReplacedValues(p_row, counts, "locations")
+    return (; data=map(parameterCleaner(p_row, num_type), yax), n_nan=counts.n_nan, n_clamped=counts.n_clamped)
 end
 
 """
@@ -387,7 +397,7 @@ function getParameterValuesByClass(yax, lookup, lookup_cube, p_row, num_type, va
     end
     classes = round.(Int, collect(DD.lookup(yax, lookup_variable)))
     allunique(classes) || error("The `$(lookup_variable)` dimension of `$(var_name)` has repeated classes: $(classes).")
-    class_values = cleanParameterValues(Array(yax), p_row, num_type)
+    class_values = cleanParameterValues(Array(yax), p_row, num_type; what="classes")
     value_of_class = Dict(zip(classes, class_values.data))
     if !isnothing(lookup.default) && !haskey(value_of_class, lookup.default)
         error("The `default` class $(lookup.default) of the class map by `$(lookup_variable)` is not one of its classes $(classes).")
@@ -434,40 +444,67 @@ end
 
 
 """
-    cleanParameterValues(values, p_row, num_type)
+    cleanParameterValues(values, p_row, num_type; what="locations")
 
-Returns the values of one parameter variable ready to use, and the counts of the
-replaced values.
+Returns the values of one parameter variable ready to use, see `parameterCleaner`,
+and the counts of the replaced values. One warning is printed for each kind of
+replaced values, counted in `what`, e.g., locations or classes.
+"""
+function cleanParameterValues(values, p_row, num_type; what="locations")
+    counts = countReplacedValues(values, p_row, num_type)
+    warnReplacedValues(p_row, counts, what)
+    return (; data=Array{num_type}(map(parameterCleaner(p_row, num_type), values)), n_nan=counts.n_nan, n_clamped=counts.n_clamped)
+end
+
+"""
+    parameterCleaner(p_row, num_type)
+
+Returns the function that makes one value of a parameter file ready to use.
 
 # Notes:
-- The values are converted to `num_type` and multiplied by the `unit_factor` of
+- The value is converted to `num_type` and multiplied by the `unit_factor` of
   `p_row`.
-- NaN and missing values are replaced by the `default` of `p_row`, and values outside
-  `[lower, upper]` are clamped.
-- One warning is printed for each kind of replaced values.
+- NaN and missing are replaced by the `default` of `p_row`, and a value outside
+  `[lower, upper]` is clamped.
+- The settings are taken out of `p_row` as values of `num_type`, so the function is
+  type stable inside `map`.
 """
-function cleanParameterValues(values, p_row, num_type)
-    n_nan = 0
-    n_clamped = 0
-    data = map(values) do value
-        p_value = (ismissing(value) || isnan(value)) ? num_type(NaN) : num_type(value) * p_row.unit_factor
-        if isnan(p_value)
-            n_nan += 1
-            return p_row.default
+function parameterCleaner(p_row, num_type)
+    default, lower, upper, factor = num_type(p_row.default), num_type(p_row.lower), num_type(p_row.upper), num_type(p_row.unit_factor)
+    return value -> (ismissing(value) || isnan(value)) ? default : clamp(oftype(factor, value) * factor, lower, upper)
+end
+
+"""
+    countReplacedValues(values, p_row, num_type)
+
+Returns the `n_nan` and `n_clamped` that `parameterCleaner` replaces in `values`, and
+their total `n_values`. A lazy array is read chunk by chunk.
+"""
+function countReplacedValues(values, p_row, num_type)
+    lower, upper, factor = num_type(p_row.lower), num_type(p_row.upper), num_type(p_row.unit_factor)
+    n_nan, n_clamped, n_values = 0, 0, 0
+    for chunk ∈ YAXArrays.Cubes.eachchunk(values)
+        for value ∈ values[chunk...]
+            n_values += 1
+            if ismissing(value) || isnan(value)
+                n_nan += 1
+            elseif !(lower <= oftype(factor, value) * factor <= upper)
+                n_clamped += 1
+            end
         end
-        if p_value < p_row.lower || p_value > p_row.upper
-            n_clamped += 1
-            return clamp(p_value, p_row.lower, p_row.upper)
-        end
-        return p_value
     end
-    if n_nan > 0
-        @warn "The parameter `$(p_row.name_full)` is NaN at $(n_nan) of $(length(values)) locations. The default $(p_row.default) is used there."
+    return (; n_nan, n_clamped, n_values)
+end
+
+# One warning for each kind of replaced values of a parameter.
+function warnReplacedValues(p_row, counts, what)
+    if counts.n_nan > 0
+        @warn "The parameter `$(p_row.name_full)` is NaN at $(counts.n_nan) of $(counts.n_values) $(what). The default $(p_row.default) is used there."
     end
-    if n_clamped > 0
-        @warn "The parameter `$(p_row.name_full)` is outside [$(p_row.lower), $(p_row.upper)] at $(n_clamped) of $(length(values)) locations. The values are clamped to the bounds."
+    if counts.n_clamped > 0
+        @warn "The parameter `$(p_row.name_full)` is outside [$(p_row.lower), $(p_row.upper)] at $(counts.n_clamped) of $(counts.n_values) $(what). The values are clamped to the bounds."
     end
-    return (; data=Array{num_type}(data), n_nan=n_nan, n_clamped=n_clamped)
+    return nothing
 end
 
 

@@ -182,7 +182,10 @@ function runTEMYax(selected_models, forcing::NamedTuple, info::NamedTuple)
     outcubes = outcubes isa YAXArray ? (outcubes,) : outcubes
     n_out = length(output)
     varnames = getUniqueVarNames(info.output.variables)
-    output_ds = Dataset(;zip(varnames, outcubes[1:n_out])...)
+    output_cubes = map(output, outcubes[1:n_out]) do out, o_cube
+        dropPaddedDimsYax(o_cube, setdiff(DD.name.(alloutdims), DD.name.(out.outaxes)))
+    end
+    output_ds = Dataset(;zip(varnames, output_cubes)...)
     restart_cubes = map(restart_output, outcubes[(n_out+1):end]) do r_out, r_cube
         dropPaddedDimsYax(r_cube, setdiff(DD.name.(alloutdims), DD.name.(r_out.outaxes)))
     end

@@ -206,6 +206,35 @@ function saveOutCubes(info, out_cubes, output_dims, output_vars)
     saveOutCubes(info.output.file_info.file_prefix, info.output.file_info.global_metadata, out_cubes, output_dims, output_vars, info.output.format, info.experiment.basics.temporal_resolution, info.helpers.run.save_single_file; compression=info.output.data_compression.level, digits=info.output.data_compression.digits)
 end
 
+# The output of a lazy run is a Dataset of cubes that already have their dimensions,
+# so only the attributes of each variable are added before saving. Saving computes
+# the cubes. The data are written at full precision, `digits` is not applied.
+function saveOutCubes(info, out_cubes::DataLoaders.YAXArrays.Dataset, output_dims, output_vars)
+    t_step = info.experiment.basics.temporal_resolution
+    out_format = info.output.format
+    data_path_base = info.output.file_info.file_prefix
+    save_kwargs = getSaveKwargs(out_format, info.output.data_compression.level)
+    variable_names = getUniqueVarNames(output_vars)
+    foreach(variable_names, getVarFull.(output_vars)) do variable_name, catalog_name
+        merge!(out_cubes.cubes[variable_name].properties, getVariableInfo(catalog_name, t_step))
+    end
+    global_metadata = info.output.file_info.global_metadata
+    if info.helpers.run.save_single_file isa DoSaveSingleFile
+        data_path = data_path_base * "_all_variables.$(out_format)"
+        ds_new = DataLoaders.YAXArrays.Dataset(; (v => out_cubes.cubes[v] for v ∈ variable_names)..., properties=global_metadata)
+        DataLoaders.YAXArrays.savedataset(ds_new; path=data_path, overwrite=true, save_kwargs...)
+        print_info(nothing, @__FILE__, @__LINE__, "saved all variables to `$(data_path)`", n_m=4)
+    else
+        for variable_name ∈ variable_names
+            data_path = data_path_base * "_$(variable_name).$(out_format)"
+            ds_new = DataLoaders.YAXArrays.Dataset(; (variable_name => out_cubes.cubes[variable_name],)..., properties=global_metadata)
+            DataLoaders.YAXArrays.savedataset(ds_new; path=data_path, overwrite=true, save_kwargs...)
+            print_info(nothing, @__FILE__, @__LINE__, "saved `$(variable_name)` to `$(data_path)`", n_m=4)
+        end
+    end
+    return nothing
+end
+
 
 """
     saveRestartCubes(info, restart)
