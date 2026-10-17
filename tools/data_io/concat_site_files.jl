@@ -12,22 +12,22 @@ using Sindbad.DataLoaders: DimensionalData
 #   experiment uses the default of the parameter there.
 # - restart files, combined with `concatRestartFiles`. The combined file can be added
 #   to the forcing of a multi-site experiment for the `SpinupInput` spinup mode.
+# - parameter files of optimizations of one class each, e.g., one PFT, combined with
+#   `concatLookupParameterFiles` into a class map with its json. Another experiment
+#   then takes the parameters of each location from its class in the forcing.
 #
 # The functions need Sindbad, so include this file from an environment that has it,
 # e.g.,
 # `include(joinpath(pkgdir(Sindbad), "tools", "data_io", "concat_site_files.jl"))`.
 
 """
-    concatSiteDatasets(paths; site_dim=:site, index_sites=false, check_attributes=("units",))
+    concatSiteDatasets(paths; site_dim=:site, check_attributes=("units",))
 
 Reads the files `paths` and concatenates every variable along `site_dim`.
 
 # Arguments:
 - `paths`: the paths of the zarr or netCDF files, one or more sites each
-- `site_dim`: the name of the site dimension
-- `index_sites`: when true, the site coordinate of the result is the index `1:n` and the
-  site names are in the `<site_dim>_name` variable, as in a parameter file. Otherwise
-  the site names are the coordinate, as in a restart or forcing file.
+- `site_dim`: the name of the site dimension, whose coordinates are the site names
 - `check_attributes`: the attributes of a variable that must be the same in every file
 
 # Returns:
@@ -38,8 +38,6 @@ Reads the files `paths` and concatenates every variable along `site_dim`.
 
 # Notes:
 - A site must be in only one file.
-- The site names are read from the `<site_dim>_name` variable when a file has it, else
-  from the site coordinate.
 - The other dimensions of a variable, e.g., the layers of a pool, must be the same in
   every file. A variable missing in a file is NaN for the sites of that file, and a
   warning is shown.
@@ -47,27 +45,16 @@ Reads the files `paths` and concatenates every variable along `site_dim`.
 - The global attributes are those of the files. An attribute with different values in
   the files gets the unique values joined by `, `.
 """
-function concatSiteDatasets(paths; site_dim=:site, index_sites=false, check_attributes=("units",))
+function concatSiteDatasets(paths; site_dim=:site, check_attributes=("units",))
     datasets = [open_dataset(p) for p ∈ paths]
-    name_var = Symbol(string(site_dim) * "_name")
-    site_values = map(datasets) do ds
-        haskey(ds.cubes, name_var) && return vec(Array(ds.cubes[name_var].data))
-        return collect(DimensionalData.lookup(first(values(ds.cubes)), site_dim))
-    end
+    site_values = map(ds -> collect(DimensionalData.lookup(first(values(ds.cubes)), site_dim)), datasets)
     all_sites = reduce(vcat, site_values)
     if length(unique(all_sites)) != length(all_sites)
         error("Some sites are in more than one file: $(unique(filter(s -> count(==(s), all_sites) > 1, all_sites)))")
     end
 
-    if index_sites
-        site_dims, name_cubes = getParameterFileDims([site_dim], Dict(site_dim => all_sites))
-        site_dim_new = only(site_dims)
-    else
-        site_dim_new = DimensionalData.Dim{site_dim}(all_sites)
-        name_cubes = Pair{Symbol,Any}[]
-    end
-
-    var_names = filter(!=(name_var), unique(reduce(vcat, [collect(keys(ds.cubes)) for ds ∈ datasets])))
+    site_dim_new = DimensionalData.Dim{site_dim}(all_sites)
+    var_names = unique(reduce(vcat, [collect(keys(ds.cubes)) for ds ∈ datasets]))
     all_yax = Pair{Symbol,Any}[]
     variable_attributes = Pair{String,Any}[]
     for var_name ∈ var_names
@@ -82,7 +69,7 @@ function concatSiteDatasets(paths; site_dim=:site, index_sites=false, check_attr
 
     properties = mergeGlobalProperties(datasets)
     properties["source_files"] = join(paths, ", ")
-    dataset = Dataset(; all_yax..., name_cubes..., properties=properties)
+    dataset = Dataset(; all_yax..., properties=properties)
     return (; dataset, variable_attributes, sites=all_sites)
 end
 
@@ -162,13 +149,13 @@ Concatenates the parameter files `param_paths` along `site_dim` and writes the r
 - A NamedTuple with the `out_path` of the combined file and its `json_path`.
 
 # Notes:
-- The combined file keeps the site names in `site_name` with an index as the site
-  coordinate, as `saveParameterCubes` does.
+- Write the combined file as zarr, like the parameter files of Sindbad, since netCDF
+  cannot keep the site names as coordinates reliably.
 - The `model`, `name`, `timescale_run` and `units` attributes of a parameter must be the
   same in every file. See `concatSiteDatasets` for the other rules.
 """
 function concatParameterFiles(param_paths, out_path; site_dim=:site)
-    combined = concatSiteDatasets(param_paths; site_dim=site_dim, index_sites=true, check_attributes=("model", "name", "timescale_run", "units"))
+    combined = concatSiteDatasets(param_paths; site_dim=site_dim, check_attributes=("model", "name", "timescale_run", "units"))
     params_ds = combined.dataset
     params_ds.properties["parameter_source"] = "concatenation"
     saveParameterDataset(params_ds, out_path)
@@ -176,6 +163,107 @@ function concatParameterFiles(param_paths, out_path; site_dim=:site)
     writeParameterInputJson(json_path, abspath(out_path), combined.variable_attributes)
     println("wrote $(length(combined.variable_attributes)) parameters for $(length(combined.sites)) sites to $(out_path) and $(json_path)")
     return (; out_path, json_path)
+end
+
+
+"""
+    concatLookupParameterFiles(paths_by_value, out_path; lookup_variable="f_pft", default_value=nothing, site_dim=:site)
+
+Combines the parameter files of optimizations of one class each into a class map, and
+writes it to `out_path` with its json next to it.
+
+# Arguments:
+- `paths_by_value`: `value => path` pairs of a value of the lookup variable, e.g., a
+  PFT, and the parameter file of the optimization of that value, e.g., from
+  `saveParameterCubes`
+- `out_path`: the path of the class map
+- `lookup_variable`: the forcing variable that gives the class of each location in
+  the experiments that use the class map. It names the dimension of the class map.
+- `default_value`: the class whose values the locations of other classes use, or
+  `nothing`, in which case they use the default of each parameter
+- `site_dim`: the name of the site dimension of the parameter files
+
+# Returns:
+- A NamedTuple with the `out_path` of the class map and its `json_path`.
+
+# Notes:
+- An optimization of several sites gives one value for all of them, so the value of a
+  class is the value of its sites. An error is raised when the sites differ.
+- Each parameter variable keeps the attributes of the first file, and the `model`,
+  `name`, `timescale_run` and `units` attributes must be the same in every file. A
+  parameter missing in a file is NaN for its class, and the experiment uses the
+  default of the parameter there.
+- The class map has an `n_sites` variable with the number of sites of each class. It
+  has no `model` and `name` attributes, so it is not read as a parameter.
+- The json has the `lookup_parameter_map` of `default_parameter_map`, see
+  `getParameters`, and no `variables`, since their settings are in the attributes.
+"""
+function concatLookupParameterFiles(paths_by_value, out_path; lookup_variable="f_pft", default_value=nothing, site_dim=:site)
+    paths_by_value = sort(collect(paths_by_value); by=first)
+    class_values = Int.(first.(paths_by_value))
+    allunique(class_values) || error("Some values of `$(lookup_variable)` have more than one file: $(class_values)")
+    if !isnothing(default_value) && default_value ∉ class_values
+        error("The default value $(default_value) of `$(lookup_variable)` has no parameter file. The values with one are $(class_values).")
+    end
+    paths = last.(paths_by_value)
+    datasets = [open_dataset(p) for p ∈ paths]
+    check_attributes = ("model", "name", "timescale_run", "units")
+
+    var_names = unique(reduce(vcat, [Sindbad.DataLoaders.listParameterVariablesInFile(ds) for ds ∈ datasets]))
+    lookup_dim = DimensionalData.Dim{Symbol(lookup_variable)}(class_values)
+    all_yax = Pair{Symbol,Any}[]
+    for var_name ∈ var_names
+        i_first = findfirst(ds -> haskey(ds.cubes, var_name), datasets)
+        attributes = Dict{String,Any}(string(k) => v for (k, v) ∈ datasets[i_first].cubes[var_name].properties if !startswith(string(k), "_"))
+        values_by_class = map(datasets, paths) do ds, path
+            haskey(ds.cubes, var_name) || return NaN
+            cube = ds.cubes[var_name]
+            for key ∈ check_attributes
+                if get(attributes, key, "") != get(cube.properties, key, "")
+                    error("The attribute `$(key)` of `$(var_name)` differs between the files: $(get(attributes, key, "")) in $(paths[i_first]) and $(get(cube.properties, key, "")) in $(path).")
+                end
+            end
+            return classValue(Array(cube.data), var_name, path)
+        end
+        missing_in = paths[isnan.(values_by_class)]
+        if !isempty(missing_in)
+            @warn "The parameter `$(var_name)` has no value in $(length(missing_in)) of $(length(paths)) files, so it is NaN for their classes: $(join(missing_in, ", "))"
+        end
+        push!(all_yax, var_name => YAXArray((lookup_dim,), values_by_class, attributes))
+    end
+    n_sites = [length(DimensionalData.lookup(first(ds.cubes[v] for v ∈ var_names if haskey(ds.cubes, v)), site_dim)) for ds ∈ datasets]
+    push!(all_yax, :n_sites => YAXArray((lookup_dim,), n_sites, Dict{String,Any}("description" => "number of sites of the optimization of the class")))
+
+    properties = mergeGlobalProperties(datasets)
+    properties["parameter_source"] = "class map by $(lookup_variable)"
+    properties["source_files"] = join(paths, ", ")
+    saveParameterDataset(Dataset(; all_yax..., properties=properties), out_path)
+
+    lookup_parameter_map = Sindbad.Setup.DataStructures.OrderedDict{String,Any}("lookup_variable" => string(lookup_variable))
+    isnothing(default_value) || (lookup_parameter_map["default"] = default_value)
+    default_map = Sindbad.Setup.DataStructures.OrderedDict{String,Any}("data_path" => abspath(out_path), "space_time_type" => "spatial", "lookup_parameter_map" => lookup_parameter_map)
+    json_path = first(splitext(rstrip(out_path, '/'))) * ".json"
+    open(json_path, "w") do io
+        write(io, Sindbad.Setup.json(Dict("default_parameter_map" => default_map); pretty=true))
+    end
+    println("wrote $(length(var_names)) parameters for the values $(class_values) of `$(lookup_variable)` to $(out_path) and $(json_path)")
+    return (; out_path, json_path)
+end
+
+"""
+    classValue(values, var_name, path)
+
+Returns the value of a parameter shared by all sites of a parameter file, NaN when no
+site has a value, and an error when the sites differ.
+"""
+function classValue(values, var_name, path)
+    site_values = filter(v -> !ismissing(v) && !isnan(v), vec(values))
+    isempty(site_values) && return NaN
+    v_first = Float64(first(site_values))
+    if any(v -> !isapprox(Float64(v), v_first; rtol=1e-6), site_values)
+        error("The sites of `$(var_name)` in $(path) have different values $(extrema(site_values)). A class map needs one value per file, as from an optimization of all its sites together.")
+    end
+    return v_first
 end
 
 
@@ -202,7 +290,7 @@ Concatenates the restart files `restart_paths` along `site_dim` and writes the r
   dates. `SpinupInput` does not read it.
 """
 function concatRestartFiles(restart_paths, out_path; site_dim=:site)
-    combined = concatSiteDatasets(restart_paths; site_dim=site_dim, index_sites=false, check_attributes=("units",))
+    combined = concatSiteDatasets(restart_paths; site_dim=site_dim, check_attributes=("units",))
     YAXArrays.savedataset(combined.dataset, path=out_path, overwrite=true)
     println("wrote $(length(combined.variable_attributes)) pools for $(length(combined.sites)) sites to $(out_path)")
     return out_path

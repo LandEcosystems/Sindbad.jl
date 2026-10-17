@@ -366,13 +366,12 @@ per parameter, and writes its `params.json` next to it.
 
 # Notes:
 - The file is in the optimization output directory, next to the csv of the optimized
-  parameters. Its name is `params_` followed by the base name of the output files, in
-  the output format, for example `params_<experiment>_<domain>.zarr`. The json has the
-  same name with a `.json` extension.
+  parameters. Its name is `params_` followed by the base name of the output files, for
+  example `params_<experiment>_<domain>.zarr`, see `getParameterFilePath`. The json has
+  the same name with a `.json` extension.
 - Each variable is named `<model>__<parameter>`, see `parameterVariableName`, and has the
-  spatial dimensions of the forcing without time. A spatial dimension whose coordinates
-  are not numbers, e.g., `site`, has the index `1:n` as coordinate, and the site names
-  are in the `site_name` variable, see `getParameterFileDims`.
+  spatial dimensions and coordinates of the forcing without time, e.g., the site
+  names.
 - The optimization gives one value for the whole domain, so every location has the
   same value.
 - The attributes of each variable are the columns of the parameter table, see
@@ -386,7 +385,7 @@ function saveParameterCubes(info, parameter_table, forcing_helpers)
     data_path = getParameterFilePath(info)
     space_dims = Symbol.(forcing_helpers.dimensions.space)
     axes_values = Dict(Symbol(first(f_axis)) => last(f_axis) for f_axis ∈ forcing_helpers.axes)
-    yax_dims, name_cubes = DataLoaders.getParameterFileDims(space_dims, axes_values)
+    yax_dims = Tuple(DataLoaders.DD.Dim{s_dim}(collect(axes_values[s_dim])) for s_dim ∈ space_dims)
     space_sizes = Tuple(forcing_helpers.sizes[s_dim] for s_dim ∈ space_dims)
 
     variable_attributes = Pair{String,Any}[]
@@ -409,7 +408,7 @@ function saveParameterCubes(info, parameter_table, forcing_helpers)
     param_metadata["experiment_name"] = info.experiment.basics.name
     param_metadata["experiment_domain"] = info.experiment.basics.domain
     param_metadata["temporal_resolution"] = info.experiment.basics.temporal_resolution
-    params_ds = DataLoaders.YAXArrays.Dataset(; all_yax..., name_cubes..., properties=param_metadata)
+    params_ds = DataLoaders.YAXArrays.Dataset(; all_yax..., properties=param_metadata)
     print_info(saveParameterCubes, @__FILE__, @__LINE__, "saving the optimized parameters to the parameter file `$(data_path)`", n_m=4)
     DataLoaders.saveParameterDataset(params_ds, data_path)
 
@@ -429,11 +428,13 @@ files with `params_` added in front.
 # Notes:
 - Without an optimization output directory, e.g., in a run that does not optimize, the
   file is in the data output directory.
+- The parameter file is always a zarr store, whatever the output format. NetCDF.jl
+  cannot read string coordinates such as site names reliably.
 """
 function getParameterFilePath(info)
     file_prefix = info.output.file_info.file_prefix
     param_dir = hasproperty(info.output.dirs, :optimization) ? info.output.dirs.optimization : dirname(file_prefix)
-    return joinpath(param_dir, "params_" * basename(file_prefix)) * ".$(info.output.format)"
+    return joinpath(param_dir, "params_" * basename(file_prefix)) * ".zarr"
 end
 
 
