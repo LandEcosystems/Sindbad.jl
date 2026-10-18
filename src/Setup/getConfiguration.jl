@@ -337,6 +337,7 @@ const OPTIONAL_CONFIG_KEYS = (
     "forcing.variables.*.data_path",
     "optimization.observations.variables.*.*.data_path",
     "experiment.flags.run_lazy",
+    "experiment.model_output.plot_resolution",
     "experiment.basics.config_files.parameters",
     "model_structure.sindbad_models",
 )

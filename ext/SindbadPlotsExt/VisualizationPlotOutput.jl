@@ -7,9 +7,27 @@ import Dates
 # shared figure style
 # ------------------------------------------------------------------
 
+# The dots per inch of the saved figures. Every plot function that gets the experiment
+# info sets it from `info.output.plot_resolution` with `_setFigureResolution!`, so the
+# helpers below that only get a file path use the resolution of the current experiment.
+const _fig_dpi = Ref(100)
+
+"""
+    _setFigureResolution!(info)
+
+Sets the dots per inch of the saved figures to `info.output.plot_resolution`. An info
+without that field, e.g., one saved before the option existed, keeps the current value.
+"""
+function _setFigureResolution!(info)
+    if hasproperty(info, :output) && hasproperty(info.output, :plot_resolution)
+        _fig_dpi[] = info.output.plot_resolution
+    end
+    return nothing
+end
+
 # The figures have no top and right axis lines, a thin grid, dark grey labels and
-# ticks, and are saved at 300 dpi.
-_figStyle() = (; framestyle=:axes, gridalpha=0.25, gridlinewidth=0.4, guidefontcolor=:grey25, tickfontcolor=:grey25, titlefontsize=12, guidefontsize=10, tickfontsize=8, legendfontsize=9, foreground_color_legend=nothing, dpi=300, size=(1200, 500), left_margin=5plots_mm, bottom_margin=4plots_mm)
+# ticks, and are saved at the resolution of `_fig_dpi`.
+_figStyle() = (; framestyle=:axes, gridalpha=0.25, gridlinewidth=0.4, guidefontcolor=:grey25, tickfontcolor=:grey25, titlefontsize=12, guidefontsize=10, tickfontsize=8, legendfontsize=9, foreground_color_legend=nothing, dpi=_fig_dpi[], size=(1200, 500), left_margin=5plots_mm, bottom_margin=4plots_mm)
 
 # the colour of a single or default model output, a medium blue that stays apart from
 # the black observations
@@ -175,14 +193,14 @@ function _plotTimeSeriesWithCycles(x_data, series, fig_path; title, ylabel, lege
 
     labelled = [s for s ∈ series if !isempty(string(get(s.kw, :label, "")))]
     if isempty(labelled)
-        fig = plots_plot(panels; size=(1500, 480), dpi=300, left_margin=8plots_mm, bottom_margin=6plots_mm)
+        fig = plots_plot(panels; size=(1500, 480), dpi=_fig_dpi[], left_margin=8plots_mm, bottom_margin=6plots_mm)
     else
         # a legend without axes: every labelled series drawn with no data
         p_legend = plots_plot(; framestyle=:none, grid=false, xticks=false, yticks=false, legend=:top, legendcolumns=min(legend_columns, length(labelled)), legendfontsize=9, foreground_color_legend=nothing, background_color_legend=nothing)
         for s ∈ labelled
             plots_plot!(p_legend, [NaN], [NaN]; s.kw...)
         end
-        fig = plots_plot(panels, p_legend; layout=plots_grid(2, 1; heights=[0.88, 0.12]), size=(1500, 540), dpi=300, left_margin=8plots_mm, bottom_margin=6plots_mm)
+        fig = plots_plot(panels, p_legend; layout=plots_grid(2, 1; heights=[0.88, 0.12]), size=(1500, 540), dpi=_fig_dpi[], left_margin=8plots_mm, bottom_margin=6plots_mm)
     end
     plots_savefig(fig, fig_path)
     return nothing
@@ -229,6 +247,7 @@ function plotPerformanceHistograms(out_opti, ::VisualizationPlots)
     def_dat = out_opti.output.default
     obs_array = out_opti.observation
     info = out_opti.info
+    _setFigureResolution!(info)
     run_helpers = out_opti.run_helpers
 
     domain = info.experiment.basics.domain
@@ -266,7 +285,7 @@ function plotPerformanceHistograms(out_opti, ::VisualizationPlots)
     end
     n_cols = min(2, length(panels))
     n_rows = cld(length(panels), n_cols)
-    fig = plots_plot(panels...; layout=(n_rows, n_cols), size=(550 * n_cols, 320 * n_rows), dpi=300, plot_title="$(domain): $(info.experiment.basics.name), dashed lines are the metric of all locations", plot_titlefontsize=11, left_margin=6plots_mm, bottom_margin=4plots_mm)
+    fig = plots_plot(panels...; layout=(n_rows, n_cols), size=(550 * n_cols, 320 * n_rows), dpi=_fig_dpi[], plot_title="$(domain): $(info.experiment.basics.name), dashed lines are the metric of all locations", plot_titlefontsize=11, left_margin=6plots_mm, bottom_margin=4plots_mm)
     plots_savefig(fig, fig_path)
     return nothing
 end
@@ -383,7 +402,7 @@ function _plotComparisonAllVariables(info, obs_array, cost_options, def_dat, fig
         push!(panels, p_ts, p_msc)
     end
     n_rows = length(cost_options)
-    fig = plots_plot(panels...; layout=plots_grid(n_rows, 2; widths=[0.78, 0.22]), size=(1500, 230 * n_rows + 60), dpi=300, plot_title="$(info.experiment.basics.domain): $(info.experiment.basics.name)", plot_titlefontsize=12, left_margin=8plots_mm, bottom_margin=2plots_mm)
+    fig = plots_plot(panels...; layout=plots_grid(n_rows, 2; widths=[0.78, 0.22]), size=(1500, 230 * n_rows + 60), dpi=_fig_dpi[], plot_title="$(info.experiment.basics.domain): $(info.experiment.basics.name)", plot_titlefontsize=12, left_margin=8plots_mm, bottom_margin=2plots_mm)
     plots_savefig(fig, fig_path)
     return nothing
 end
@@ -483,6 +502,7 @@ plots them against time using Plots.jl. Debugging figures are saved in a directo
 specified by `info.output.dirs.figure`.
 """
 function plotTimeSeries(info, opt_dat, def_dat, ::VisualizationPlots; forcing_helpers=nothing)
+    _setFigureResolution!(info)
     space = _spaceInfo(forcing_helpers)
     if _isSpatial(space)
         has_opt = !isnothing(opt_dat)
@@ -519,6 +539,7 @@ end
 # Visualization.jl for why it doesn't get its own `::VisualizationTypes` fallback there,
 # except where needed to back the legacy `plotTimeSeriesWithObs(out, obs_array, cost_options)` alias).
 function plotTimeSeries(info, obs_array, cost_options, def_dat, ::VisualizationPlots; forcing_helpers=nothing)
+    _setFigureResolution!(info)
     space = _spaceInfo(forcing_helpers)
     if _isSpatial(space)
         foreach(cost_options) do var_row
@@ -538,6 +559,7 @@ end
 # public entry point (see Visualization.jl). A spatial run compares only the
 # optimized output with the observations, see `_plotComparisonSpatial`.
 function plotTimeSeries(info, obs_array, cost_options, def_dat, opt_dat, ::VisualizationPlots; forcing_helpers=nothing)
+    _setFigureResolution!(info)
     space = _spaceInfo(forcing_helpers)
     if _isSpatial(space)
         foreach(cost_options) do var_row

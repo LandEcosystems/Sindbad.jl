@@ -154,6 +154,33 @@ function getOutputCompression(model_output)
 end
 
 """
+    getPlotResolution(model_output)
+
+Returns the resolution of the saved figures in dots per inch from the `model_output`
+settings of the experiment.
+
+# Arguments:
+- `model_output`: the `model_output` settings of the experiment
+
+# Returns:
+- The dots per inch as an `Int`, 100 when `plot_resolution` is not set or is `null`.
+
+# Notes:
+- A high resolution, e.g., 300 for print, makes the figures of a run with many
+  variables slow to save. 100 is enough to look at the figures on a screen.
+- The resolution applies to the raster figures, e.g., png. Vector figures such as pdf
+  do not depend on it.
+"""
+function getPlotResolution(model_output)
+    plot_resolution = hasproperty(model_output, :plot_resolution) ? model_output.plot_resolution : nothing
+    isnothing(plot_resolution) && return 100
+    if !(plot_resolution isa Integer) || plot_resolution < 1
+        error("model_output.plot_resolution must be a positive integer of dots per inch, got `$(plot_resolution)`")
+    end
+    return Int(plot_resolution)
+end
+
+"""
     getPoolSize(info_pools::NamedTuple, pool_name::Symbol)
 
 Retrieves the size of a pool variable from the model structure settings.
@@ -353,7 +380,7 @@ function setExperimentOutput(info)
         push!(sub_output, "optimization")
     end
     model_output = info.settings.experiment.model_output
-    out_info = (; dirs=(;), format=model_output.format, data_compression=getOutputCompression(model_output))
+    out_info = (; dirs=(;), format=model_output.format, data_compression=getOutputCompression(model_output), plot_resolution=getPlotResolution(model_output))
     for s_o ∈ sub_output
         if s_o == "root"
             out_info = set_namedtuple_subfield(out_info, :dirs, (Symbol(s_o), path_output_full))

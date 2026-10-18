@@ -229,7 +229,7 @@ function _plotComparisonSpaceTime(x_data, obs_tl, mod_tl, space, title, model_la
     p_obs = _spaceTimePanel(x_data, obs_tl, space; title="obs", units=units, lims=lims, xlabel="")
     p_mod = _spaceTimePanel(x_data, mod_tl, space; title=model_label, units=units, lims=lims, xlabel="")
     p_diff = _spaceTimePanel(x_data, diff_tl, space; title="$(model_label) - obs", units=units, lims=_symmetricLims(vec(diff_tl)), cmap=:RdBu)
-    fig = plots_plot(p_obs, p_mod, p_diff; layout=(3, 1), size=(1500, 1500), plot_title=title, plot_titlefontsize=12, dpi=300, left_margin=8plots_mm, bottom_margin=4plots_mm)
+    fig = plots_plot(p_obs, p_mod, p_diff; layout=(3, 1), size=(1500, 1500), plot_title=title, plot_titlefontsize=12, dpi=_fig_dpi[], left_margin=8plots_mm, bottom_margin=4plots_mm)
     plots_savefig(fig, fig_path)
     return nothing
 end
@@ -264,7 +264,7 @@ function _plotComparisonMean(space, obs_tl, mod_tl, title, model_label, units, f
     p_obs = _spatialPanel(space, obs_mean; title="obs", lims=lims, units=units)
     p_mod = _spatialPanel(space, mod_mean; title=model_label, lims=lims, units=units)
     p_diff = _spatialPanel(space, diff_mean; title="$(model_label) - obs", lims=_symmetricLims(diff_mean), cmap=:RdBu, units=units)
-    fig = plots_plot(p_obs, p_mod, p_diff; layout=(1, 3), size=(1650, 480), plot_title=title, plot_titlefontsize=12, dpi=300, left_margin=6plots_mm, bottom_margin=8plots_mm)
+    fig = plots_plot(p_obs, p_mod, p_diff; layout=(1, 3), size=(1650, 480), plot_title=title, plot_titlefontsize=12, dpi=_fig_dpi[], left_margin=6plots_mm, bottom_margin=8plots_mm)
     plots_savefig(fig, fig_path)
     return nothing
 end

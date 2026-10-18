@@ -28,6 +28,7 @@ Saves figures of every forcing variable.
   the forcing settings.
 """
 function plotForcing(info, forcing, ::VisualizationPlots)
+    _setFigureResolution!(info)
     space = _spaceInfo(forcing.helpers)
     _isSpatial(space) && return _plotForcingSpatial(info, forcing, space)
     domain = info.experiment.basics.domain
@@ -78,6 +79,7 @@ panel per layer, and saves one figure per pool.
   in the title.
 """
 function plotSpinup(info, spinup, ::VisualizationPlots; loc_index=1, output=nothing)
+    _setFigureResolution!(info)
     if isnothing(spinup)
         print_info(plotSpinup, @__FILE__, @__LINE__, "no stored spinup to plot. Set `store_spinup` to true in the flags of the experiment.", n_f=4)
         return nothing
@@ -131,7 +133,7 @@ function plotSpinup(info, spinup, ::VisualizationPlots; loc_index=1, output=noth
             _labelSpinupPeriods!(p, period_mids, period_names, has_forward ? vcat(loc_data[:, l], fwd_data[:, l]) : loc_data[:, l])
             p
         end
-        fig = plots_plot(panels...; layout=(n_rows_fig, n_cols), size=(430 * n_cols, fig_height), plot_title="$(loc_name): $(title_pools) $(pool_name) [$(pool_units)]\n" * join(title_steps, "  |  "), plot_titlefontsize=10, plot_titlevspan=110 / fig_height, dpi=300, left_margin=12plots_mm, bottom_margin=8plots_mm, right_margin=3plots_mm)
+        fig = plots_plot(panels...; layout=(n_rows_fig, n_cols), size=(430 * n_cols, fig_height), plot_title="$(loc_name): $(title_pools) $(pool_name) [$(pool_units)]\n" * join(title_steps, "  |  "), plot_titlefontsize=10, plot_titlevspan=110 / fig_height, dpi=_fig_dpi[], left_margin=12plots_mm, bottom_margin=8plots_mm, right_margin=3plots_mm)
         plots_savefig(fig, fig_prefix * "_$(pool_name).png")
     end
     return nothing
