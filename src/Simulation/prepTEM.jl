@@ -347,6 +347,8 @@ its spinup sequence starts with a `SpinupInput` step.
 - The precompute step of every run comes after this, so a precompute that changes
   pools, e.g., the removal of water above the capacity of the soil layers, now acts
   on the pools from the forcing.
+- With `spinup_TEM` false, the `SpinupInput` step is skipped like every other spinup
+  step, and the land keeps the initial pools, the same as in a lazy run.
 """
 function getLocLand(loc_models, loc_forcing, loc_spinup, land_init, tem_info)
     sequence = loc_spinup.sequence
@@ -356,7 +358,7 @@ function getLocLand(loc_models, loc_forcing, loc_spinup, land_init, tem_info)
     end
     # runTEMOne adds the spinup store for the sequence of this location
     loc_forcing_t, loc_land = runTEMOne(loc_models, loc_forcing, deepcopy(land_init), tem_info, loc_spinup.sequence)
-    if has_input
+    if has_input && tem_info.run.spinup_TEM isa DoSpinupTEM
         loc_land = spinup(loc_models, nothing, loc_forcing_t, loc_land, tem_info, 1, SpinupInput())
     end
     return loc_land, loc_spinup
@@ -917,12 +919,21 @@ run the SINDBAD TEM for one time step
 # Returns:
 - `loc_forcing_t`: the forcing NT for the current time step
 - `loc_land`: the SINDBAD land NT after a run of model for one time step. This contains all the variables from the selected models and their structure and type will remain the same across the experiment.
+
+# Notes:
+- The time step is run to fill every field of the land, but its pools are set back to
+  their values before the step. The land is the start of the runs of eager
+  experiments, see `getLocLand`, so otherwise the first time step would change the
+  pools twice, unlike in a lazy run.
 """
 function runTEMOne(selected_models, loc_forcing, land_init, tem, spinup_sequence)
     loc_forcing_t = getForcingForTimeStep(loc_forcing, loc_forcing, 1, tem.vals.forcing_types)
     loc_land = definePrecomputeTEM(selected_models, loc_forcing_t, land_init,
         tem.model_helpers)
+    # copied, since the step can update the pool arrays in place
+    pools_before = deepcopy(loc_land.pools)
     loc_land = computeTEM(selected_models, loc_forcing_t, loc_land, tem.model_helpers)
+    loc_land = (; loc_land..., pools=pools_before)
     # loc_land = drop_empty_namedtuple_fields(loc_land)
     loc_land = addSpinupStore(loc_land, spinup_sequence, tem.run.store_spinup)
     checkSpinupInput(loc_land, loc_forcing_t, spinup_sequence)
