@@ -34,10 +34,14 @@ function compute(params::cCycleDisturbance_simple, forcing, land, helpers)
             c_fire_mortality, c_fire_efflux, c_fire_flow,
         ) ⇐ land.diagnostics
     end
+    # a vegetation pool loses its mortality, which is its efflux out of the system plus
+    # its flow to the takers, so its efflux is not removed again. The other pools have
+    # no mortality and lose only their efflux.
+    zix_cVeg = helpers.pools.zix.cVeg
     for cl ∈ eachindex(cEco)
-        δDisturbance = (c_fire_flow[cl] + c_disturbance_flow[cl]) - 
-            (c_disturbance_mortality[cl] + c_fire_mortality[cl]) -
-            (c_disturbance_efflux[cl] + c_fire_efflux[cl])
+        c_loss = cl ∈ zix_cVeg ? c_disturbance_mortality[cl] + c_fire_mortality[cl] :
+            c_disturbance_efflux[cl] + c_fire_efflux[cl]
+        δDisturbance = (c_fire_flow[cl] + c_disturbance_flow[cl]) - c_loss
         cEco_cl = cEco[cl] + δDisturbance
         @rep_elem cEco_cl ⇒ (cEco, cl)
     end
