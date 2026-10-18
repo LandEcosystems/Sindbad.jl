@@ -53,17 +53,19 @@ function precompute(params::soilWBase_soilDepth, forcing, land, helpers)
         idx_soilW_end ⇐ land.properties
         soilW ⇐ land.pools
         soil_depths = soilW ⇐ helpers.pools.layer_thickness
-        tolerance ⇐ helpers.numbers
     end
 
     # soil depth of the location in mm
     depth_in = f_soil_depth
     column_depth = sum(soil_depths)
+    # a missing or non-positive soil depth keeps only the first layer. A soil depth
+    # deeper than the soil column keeps all layers.
     if !(isfinite(depth_in) && depth_in > zero(depth_in))
-        error("soilWBase_soilDepth: invalid f_soil_depth = $(depth_in) mm. Soil depth must be finite and positive.")
+        print_info_once(nothing, @__FILE__, @__LINE__, "soilWBase_soilDepth: invalid f_soil_depth = $(depth_in) mm. Only the first soil layer is used where the soil depth is not finite and positive. This message is shown once.", n_m=4)
+        depth_in = soil_depths[1]
     end
-    if depth_in > column_depth * (one(column_depth) + tolerance)
-        error("soilWBase_soilDepth: f_soil_depth = $(depth_in) mm is deeper than the soil column of $(column_depth) mm set in pools.water.components.soilW of model_structure.json.")
+    if depth_in > column_depth
+        print_info_once(nothing, @__FILE__, @__LINE__, "soilWBase_soilDepth: f_soil_depth = $(depth_in) mm is deeper than the soil column of $(column_depth) mm set in pools.water.components.soilW of model_structure.json. All soil layers are used with their full thickness. This message is shown once.", n_m=4)
     end
     soil_depth = convert(eltype(soil_layer_thickness), min(depth_in, column_depth))
     z_zero_sd = zero(soil_depth)
@@ -154,8 +156,10 @@ The index of the deepest layer with non-zero thickness is saved as
 idx_soilW_end. Drainage, capillary flow and the exchange with groundwater use
 it as the bottom of the soil column.
 
-f_soil_depth must be finite, positive and not deeper than the total thickness of
-the soil layers, otherwise an error is thrown.
+Where f_soil_depth is not finite or not positive, only the first layer is used
+with its full thickness, and a message is shown once. Where f_soil_depth is deeper
+than the total thickness of the soil layers, all layers are used with their full
+thickness, and a message is shown once.
 
 *References*
 
@@ -164,6 +168,9 @@ the soil layers, otherwise an error is thrown.
    depth from forcing
  - 1.1 on 15.10.2026 [skoirala]: use `f_soil_depth` directly as the forcing is
    now unwrapped to a scalar at the time step
+ - 1.2 on 18.10.2026 [skoirala]: use the first layer for an invalid soil depth
+   and all layers for a soil depth deeper than the soil column instead of
+   throwing an error
 
 *Created by*
  - skoirala | @dr-ko
