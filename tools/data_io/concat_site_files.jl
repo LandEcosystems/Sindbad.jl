@@ -197,6 +197,9 @@ writes it to `out_path` with its json next to it.
   has no `model` and `name` attributes, so it is not read as a parameter.
 - The json has the `lookup_parameter_map` of `default_parameter_map`, see
   `getParameters`, and no `variables`, since their settings are in the attributes.
+- The `default` of `lookup_parameter_map` is always written, as `null` when
+  `default_value` is `nothing`, so that the option is visible in the json. A `null`
+  default makes the locations of other classes use the default of each parameter.
 """
 function concatLookupParameterFiles(paths_by_value, out_path; lookup_variable="f_pft", default_value=nothing, site_dim=:site)
     paths_by_value = sort(collect(paths_by_value); by=first)
@@ -239,8 +242,8 @@ function concatLookupParameterFiles(paths_by_value, out_path; lookup_variable="f
     properties["source_files"] = join(paths, ", ")
     saveParameterDataset(Dataset(; all_yax..., properties=properties), out_path)
 
-    lookup_parameter_map = Sindbad.Setup.DataStructures.OrderedDict{String,Any}("lookup_variable" => string(lookup_variable))
-    isnothing(default_value) || (lookup_parameter_map["default"] = default_value)
+    # nothing is written as null, so the default option shows in the json
+    lookup_parameter_map = Sindbad.Setup.DataStructures.OrderedDict{String,Any}("lookup_variable" => string(lookup_variable), "default" => default_value)
     default_map = Sindbad.Setup.DataStructures.OrderedDict{String,Any}("data_path" => abspath(out_path), "space_time_type" => "spatial", "lookup_parameter_map" => lookup_parameter_map)
     json_path = first(splitext(rstrip(out_path, '/'))) * ".json"
     open(json_path, "w") do io
