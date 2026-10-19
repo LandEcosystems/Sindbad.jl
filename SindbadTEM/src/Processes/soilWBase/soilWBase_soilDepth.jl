@@ -61,11 +61,11 @@ function precompute(params::soilWBase_soilDepth, forcing, land, helpers)
     # a missing or non-positive soil depth keeps only the first layer. A soil depth
     # deeper than the soil column keeps all layers.
     if !(isfinite(depth_in) && depth_in > zero(depth_in))
-        print_info_once(nothing, @__FILE__, @__LINE__, "soilWBase_soilDepth: invalid f_soil_depth = $(depth_in) mm. Only the first soil layer is used where the soil depth is not finite and positive. This message is shown once.", n_m=4)
+        print_info_once(nothing, @__FILE__, @__LINE__, "soilWBase_soilDepth: invalid f_soil_depth = $(depth_in) mm. Only the first soil layer is used where the soil depth is not finite and positive.", n_m=4)
         depth_in = soil_depths[1]
     end
     if depth_in > column_depth
-        print_info_once(nothing, @__FILE__, @__LINE__, "soilWBase_soilDepth: f_soil_depth = $(depth_in) mm is deeper than the soil column of $(column_depth) mm set in pools.water.components.soilW of model_structure.json. All soil layers are used with their full thickness. This message is shown once.", n_m=4)
+        print_info_once(nothing, @__FILE__, @__LINE__, "soilWBase_soilDepth: f_soil_depth = $(depth_in) mm is deeper than the soil column of $(column_depth) mm set in pools.water.components.soilW of model_structure.json. All soil layers are used with their full thickness.", n_m=4)
     end
     soil_depth = convert(eltype(soil_layer_thickness), min(depth_in, column_depth))
     z_zero_sd = zero(soil_depth)

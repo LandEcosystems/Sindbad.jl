@@ -38,9 +38,8 @@ The raw vegetation-type class code is taken from the `f_pft` forcing variable an
 published, unchanged, as `land.states.veg_type` -- no catalog interpretation
 happens here, so one approach covers every `vegClass_MODIS_*` source legend: which
 legend the code is drawn from is entirely a `vegClass`-side concern
-(`vegTypeCatalog`), not this process's. `f_pft` arrives as a scalar per pixel,
-since forcing without a time axis is unwrapped when the time step is read.
-Vegetation type is time invariant, so it is read once in `precompute`.
+(`vegTypeCatalog`), not this process's.
+Vegetation type is assumed time invariant, so it is read once in `precompute`.
 
 *References*
 
