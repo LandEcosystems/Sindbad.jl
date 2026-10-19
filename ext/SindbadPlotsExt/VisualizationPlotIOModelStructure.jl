@@ -86,7 +86,6 @@ function plotIOModelStructure(info, which_function, which_field, ::Visualization
     unique_variables_names = string.(["$i. $(first(unique_variable)).$(last(unique_variable))" for (i, unique_variable) in enumerate(unique_variables)])
 
     model_names_str = ["$(i). $(string(model_name))" for (i, model_name) in enumerate(model_names)]
-    plots_default(titlefont=(20, "times"), legendfontsize=18, tickfont=(15, :blue))
     
     n_grid_lines = 5
     grid_lines_color = :dimgray
@@ -100,7 +99,9 @@ function plotIOModelStructure(info, which_function, which_field, ::Visualization
 
 
     title_str = "IO Visualization: $which_field of $(which_function) of Models in $(info.experiment.basics.id)"
-    plots_vline([0], color=grid_lines_color, linewidth=1.5, title=title_str, label="")
+    # the fonts are set on this figure and not as global defaults, which would change
+    # every figure drawn after it
+    plots_vline([0], color=grid_lines_color, linewidth=1.5, title=title_str, label="", titlefont=(20, "times"), legendfontsize=18, tickfont=(15, :blue))
     plots_vline!([xtick_locs[xi] for xi in n_grid_lines:n_grid_lines:length(xtick_locs)], color=grid_lines_color, linewidth=0.9, label="")
     plots_hline!([ytick_locs[xi] for xi in n_grid_lines:n_grid_lines:length(ytick_locs)], color=grid_lines_color, linewidth=0.9, label="")
     plots_hline!([0], color=grid_lines_color, linewidth=1.5, label="")

@@ -28,7 +28,7 @@ function define(params::soilWBase_smax2fRD4, forcing, land, helpers)
     soil_layer_thickness = helpers.pools.layer_thickness.soilW
     # check if the number of soil layers and number of elements in soil thickness arrays are the same & are equal to 2 
     if n_soilW != 2
-        print_info(nothing, @__FILE__, @__LINE__, "soilWBase_smax2fRD4 approach needs exactly 2 soil layers in model_structure.json, but model has $n_soilW layers. This approach will just update the first two layers of soil water properties. Please check your model structure.", n_m=4)
+        print_info_once(nothing, @__FILE__, @__LINE__, "soilWBase_smax2fRD4 approach needs exactly 2 soil layers in model_structure.json, but model has $n_soilW layers. This approach will just update the first two layers of soil water properties. Please check your model structure.", n_m=4)
     end
 
     ## Instantiate variables
@@ -60,9 +60,9 @@ function compute(params::soilWBase_smax2fRD4, forcing, land, helpers)
 
     ## calculate variables
     # get the rooting depth data & scale them
-    rootwater_capacities = repElem(rootwater_capacities, f_RDmax[1] * scalar_Fan, 1)
-    rootwater_capacities = repElem(rootwater_capacities, f_RDeff[1] * scalar_Yang, 2)
-    rootwater_capacities = repElem(rootwater_capacities, f_SWCmax[1] * scalar_Wang, 3)
+    rootwater_capacities = repElem(rootwater_capacities, f_RDmax * scalar_Fan, 1)
+    rootwater_capacities = repElem(rootwater_capacities, f_RDeff * scalar_Yang, 2)
+    rootwater_capacities = repElem(rootwater_capacities, f_SWCmax * scalar_Wang, 3)
     AWC_tmp = is_invalid_number(f_AWC) ? smax_Tian : f_AWC
     rootwater_capacities = repElem(rootwater_capacities, AWC_tmp * scalar_Tian, 4)
 
@@ -101,6 +101,8 @@ $(getModelDocString(soilWBase_smax2fRD4))
 
 *Versions*
  - 1.0 on 10.02.2020 [ttraut]
+ - 1.1 on 15.10.2026 [skoirala]: use the spatial forcings directly as they are scalars
+   at the time step
 
 *Created by*
  - ttraut

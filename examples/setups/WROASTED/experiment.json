@@ -44,7 +44,7 @@
     "format": "zarr",
     "output_array_type": "array",
     "path": null,
-    "plot_model_output": false,
+    "plot_resolution": 100,
     "save_single_file": true,
     "variables": {
       "diagnostics.auto_respiration_f_airT": null,
