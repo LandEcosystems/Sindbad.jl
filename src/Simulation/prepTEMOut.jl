@@ -123,7 +123,7 @@ function getOutDims(info, forcing_helpers, ::OutputYAXArray)
         backend = outformat == "nc" ? :netcdf : :zarr
         out_dim = YAXArrays.XOutput(vdims...)#=;
         properties = _properties,
-        path=info.output.file_info.file_prefix * "_$(vname).$(outformat)",
+        path=joinpath(info.output.dirs.data, "$(vname).$(outformat)"),
         backend=backend,
         overwrite=true)=#
         v_index += 1

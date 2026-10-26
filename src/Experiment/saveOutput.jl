@@ -137,13 +137,13 @@ end
 
 
 """
-    saveOutCubes(data_path_base, global_metadata, var_pairs, data, data_dims, out_format, t_step, <: OutputStrategy)
+    saveOutCubes(data_dir, global_metadata, var_pairs, data, data_dims, out_format, t_step, <: OutputStrategy)
     saveOutCubes(info, out_cubes, output_dims, output_vars)
 
 saves the output variables from the run as one file
 
 # Arguments:
-- `data_path_base`: base path of the output file including the directory and file prefix
+- `data_dir`: directory of the output files, which are named after the variables
 - `global_metadata`: a collection of  global metadata information to write to the output file
 - `data`: data to be written to file
 - `data_dims`: a vector of dimension of data for each variable to be written to a file
@@ -168,24 +168,24 @@ julia> # Save output cubes (shorthand version)
 julia> # saveOutCubes(info, out_cubes, output_dims, output_vars)
 
 julia> # Save to single file
-julia> # saveOutCubes(data_path_base, global_metadata, var_pairs, data, data_dims, "nc", t_step, DoSaveSingleFile())
+julia> # saveOutCubes(data_dir, global_metadata, var_pairs, data, data_dims, "nc", t_step, DoSaveSingleFile())
 ```
 """
 function saveOutCubes end
 
-function saveOutCubes(data_path_base, global_metadata, data, data_dims, var_pairs, out_format, t_step, ::DoSaveSingleFile; compression=nothing, digits=nothing)
+function saveOutCubes(data_dir, global_metadata, data, data_dims, var_pairs, out_format, t_step, ::DoSaveSingleFile; compression=nothing, digits=nothing)
     print_info(saveOutCubes, @__FILE__, @__LINE__, "saving one file for all variables")
     catalog_names = getVarFull.(var_pairs)
     variable_names = getUniqueVarNames(var_pairs)
     all_yax = Tuple(getYaxForVariable.(roundToDigits.(data, digits), data_dims, variable_names, catalog_names, Ref(t_step)))
-    data_path = data_path_base * "_all_variables.$(out_format)"
+    data_path = joinpath(data_dir, "all_variables.$(out_format)")
     print_info(nothing, @__FILE__, @__LINE__, "saved all variables to `$(data_path)`", n_m=4)
     ds_new = DataLoaders.YAXArrays.Dataset(; (; zip(variable_names, all_yax)...)..., properties=global_metadata)
     DataLoaders.YAXArrays.savedataset(ds_new; path=data_path, append=true, overwrite=true, getSaveKwargs(out_format, compression)...)
     return nothing
 end
 
-function saveOutCubes(data_path_base, global_metadata, data, data_dims, var_pairs, out_format, t_step, ::DoNotSaveSingleFile; compression=nothing, digits=nothing)
+function saveOutCubes(data_dir, global_metadata, data, data_dims, var_pairs, out_format, t_step, ::DoNotSaveSingleFile; compression=nothing, digits=nothing)
     print_info(saveOutCubes, @__FILE__, @__LINE__, "saving one file per variable")
     catalog_names = getVarFull.(var_pairs)
     variable_names = getUniqueVarNames(var_pairs)
@@ -193,7 +193,7 @@ function saveOutCubes(data_path_base, global_metadata, data, data_dims, var_pair
         catalog_name = catalog_names[vn]
         variable_name = variable_names[vn]
         data_yax = getYaxForVariable(roundToDigits(data[vn], digits), data_dims[vn], variable_name, catalog_name, t_step)
-        data_path = data_path_base * "_$(variable_name).$(out_format)"
+        data_path = joinpath(data_dir, "$(variable_name).$(out_format)")
         print_info(nothing, @__FILE__, @__LINE__, "saved `$(variable_name)` to `$(data_path)`", n_m=4)
         ds_new = DataLoaders.YAXArrays.Dataset(; (variable_name => data_yax,)..., properties=global_metadata)
         DataLoaders.YAXArrays.savedataset(ds_new; path=data_path, overwrite=true, getSaveKwargs(out_format, compression)...)
@@ -203,7 +203,7 @@ end
 
 
 function saveOutCubes(info, out_cubes, output_dims, output_vars)
-    saveOutCubes(info.output.file_info.file_prefix, info.output.file_info.global_metadata, out_cubes, output_dims, output_vars, info.output.format, info.experiment.basics.temporal_resolution, info.helpers.run.save_single_file; compression=info.output.data_compression.level, digits=info.output.data_compression.digits)
+    saveOutCubes(info.output.dirs.data, info.output.file_info.global_metadata, out_cubes, output_dims, output_vars, info.output.format, info.experiment.basics.temporal_resolution, info.helpers.run.save_single_file; compression=info.output.data_compression.level, digits=info.output.data_compression.digits)
 end
 
 # The output of a lazy run is a Dataset of cubes that already have their dimensions,
@@ -212,7 +212,7 @@ end
 function saveOutCubes(info, out_cubes::DataLoaders.YAXArrays.Dataset, output_dims, output_vars)
     t_step = info.experiment.basics.temporal_resolution
     out_format = info.output.format
-    data_path_base = info.output.file_info.file_prefix
+    data_dir = info.output.dirs.data
     save_kwargs = getSaveKwargs(out_format, info.output.data_compression.level)
     variable_names = getUniqueVarNames(output_vars)
     foreach(variable_names, getVarFull.(output_vars)) do variable_name, catalog_name
@@ -220,13 +220,13 @@ function saveOutCubes(info, out_cubes::DataLoaders.YAXArrays.Dataset, output_dim
     end
     global_metadata = info.output.file_info.global_metadata
     if info.helpers.run.save_single_file isa DoSaveSingleFile
-        data_path = data_path_base * "_all_variables.$(out_format)"
+        data_path = joinpath(data_dir, "all_variables.$(out_format)")
         ds_new = DataLoaders.YAXArrays.Dataset(; (v => out_cubes.cubes[v] for v ∈ variable_names)..., properties=global_metadata)
         DataLoaders.YAXArrays.savedataset(ds_new; path=data_path, overwrite=true, save_kwargs...)
         print_info(nothing, @__FILE__, @__LINE__, "saved all variables to `$(data_path)`", n_m=4)
     else
         for variable_name ∈ variable_names
-            data_path = data_path_base * "_$(variable_name).$(out_format)"
+            data_path = joinpath(data_dir, "$(variable_name).$(out_format)")
             ds_new = DataLoaders.YAXArrays.Dataset(; (variable_name => out_cubes.cubes[variable_name],)..., properties=global_metadata)
             DataLoaders.YAXArrays.savedataset(ds_new; path=data_path, overwrite=true, save_kwargs...)
             print_info(nothing, @__FILE__, @__LINE__, "saved `$(variable_name)` to `$(data_path)`", n_m=4)
@@ -249,8 +249,8 @@ the restart file. That is the last step unless the settings mark another one.
     - a NamedTuple with the restart `Dataset` and `variables` of a lazy run (`runTEMYax`)
 
 # Notes:
-- The file is `restart_` followed by the base name of the output files, in the output
-  format, for example `restart_<experiment>_<domain>.zarr`.
+- The file is `restart` in the data output directory, in the output format, for
+  example `restart.zarr`.
 - It is always one file with all variables, whatever `save_single_file` is set to.
 - The variables have no time dimension. A variable with more than one layer has a
   layer dimension followed by the spatial dimensions, and all other variables have the
@@ -274,12 +274,11 @@ end
 """
     getRestartFilePath(info)
 
-Returns the path of the restart file, which is the output file prefix with `restart_`
-added in front of its base name.
+Returns the path of the restart file, `restart` in the data output directory with the
+extension of the output format.
 """
 function getRestartFilePath(info)
-    file_prefix = info.output.file_info.file_prefix
-    return joinpath(dirname(file_prefix), "restart_" * basename(file_prefix)) * ".$(info.output.format)"
+    return joinpath(info.output.dirs.data, "restart.$(info.output.format)")
 end
 
 """
@@ -339,8 +338,8 @@ Saves `cEco` and `TWS` at every stored step of the spinup to the spinup file.
   which case no file is written
 
 # Notes:
-- The file is `spinup_` followed by the base name of the output files, in the output
-  format, for example `spinup_<experiment>_<domain>.zarr`.
+- The file is `spinup` in the data output directory, in the output format, for
+  example `spinup.zarr`.
 - The variables and their dimensions are described in `prepSpinupOut`.
 - The `spinup_sequence_method` global attribute is the name of the spinup sequence
   method, and `spinup_sequence` lists the steps of the sequence of the first
@@ -370,12 +369,11 @@ end
 """
     getSpinupFilePath(info)
 
-Returns the path of the spinup file, which is the output file prefix with `spinup_`
-added in front of its base name.
+Returns the path of the spinup file, `spinup` in the data output directory with the
+extension of the output format.
 """
 function getSpinupFilePath(info)
-    file_prefix = info.output.file_info.file_prefix
-    return joinpath(dirname(file_prefix), "spinup_" * basename(file_prefix)) * ".$(info.output.format)"
+    return joinpath(info.output.dirs.data, "spinup.$(info.output.format)")
 end
 
 
@@ -395,9 +393,8 @@ per parameter, and writes its `params.json` next to it.
 
 # Notes:
 - The file is in the optimization output directory, next to the csv of the optimized
-  parameters. Its name is `params_` followed by the base name of the output files, for
-  example `params_<experiment>_<domain>.zarr`, see `getParameterFilePath`. The json has
-  the same name with a `.json` extension.
+  parameters. Its name is `params.zarr`, see `getParameterFilePath`. The json has the
+  same name with a `.json` extension.
 - Each variable is named `<model>__<parameter>`, see `parameterVariableName`, and has the
   spatial dimensions and coordinates of the forcing without time, e.g., the site
   names.
@@ -451,8 +448,7 @@ end
     getParameterFilePath(info)
 
 Returns the path of the parameter file. It is in the optimization output directory, next
-to the csv of the optimized parameters, and its name is the base name of the output
-files with `params_` added in front.
+to the csv of the optimized parameters, and its name is `params.zarr`.
 
 # Notes:
 - Without an optimization output directory, e.g., in a run that does not optimize, the
@@ -461,9 +457,8 @@ files with `params_` added in front.
   cannot read string coordinates such as site names reliably.
 """
 function getParameterFilePath(info)
-    file_prefix = info.output.file_info.file_prefix
-    param_dir = hasproperty(info.output.dirs, :optimization) ? info.output.dirs.optimization : dirname(file_prefix)
-    return joinpath(param_dir, "params_" * basename(file_prefix)) * ".zarr"
+    param_dir = hasproperty(info.output.dirs, :optimization) ? info.output.dirs.optimization : info.output.dirs.data
+    return joinpath(param_dir, "params.zarr")
 end
 
 
@@ -472,7 +467,7 @@ end
 
 Saves the performance of the default and the optimized output for every observation
 constraint of the cost, in every metric of ErrorMetrics, to
-`performance_<name>_<domain>.csv` next to the csv of the optimized parameters, see
+`performance.csv` next to the csv of the optimized parameters, see
 `getPerformanceFilePath`. Returns the path.
 
 # Arguments:
@@ -548,11 +543,9 @@ meanOrNaN(x) = isempty(x) ? NaN : sum(x) / length(x)
     getPerformanceFilePath(info)
 
 Returns the path of the performance file of `savePerformanceMetrics`. It is next to
-the csv of the optimized parameters, and its name is the base name of the output files
-with `performance_` added in front.
+the csv of the optimized parameters, and its name is `performance.csv`.
 """
 function getPerformanceFilePath(info)
-    file_prefix = info.output.file_info.file_prefix
-    performance_dir = hasproperty(info.output.dirs, :optimization) ? info.output.dirs.optimization : dirname(file_prefix)
-    return joinpath(performance_dir, "performance_" * basename(file_prefix) * ".csv")
+    performance_dir = hasproperty(info.output.dirs, :optimization) ? info.output.dirs.optimization : info.output.dirs.data
+    return joinpath(performance_dir, "performance.csv")
 end

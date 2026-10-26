@@ -228,7 +228,7 @@ Generate performance histograms based on optimization output data.
 - `out_opti`: ParameterOptimization output data structure containing model outputs and information
 
 # Description
-Saves one figure, `comparison_histograms_<name>_<domain>.png`, with a panel per
+Saves one figure, `comparison_histograms.png`, with a panel per
 observation constraint of the cost in two columns: the histograms of the metric per
 location of the default and the optimized output, and the metric of all locations as
 dashed lines, with its values in the title of the panel. The metric is the cost metric,
@@ -251,7 +251,7 @@ function plotPerformanceHistograms(out_opti, ::VisualizationPlots)
     run_helpers = out_opti.run_helpers
 
     domain = info.experiment.basics.domain
-    fig_path = joinpath(info.output.dirs.figure, "comparison_histograms_" * info.experiment.basics.name * "_" * domain * ".png")
+    fig_path = joinpath(info.output.dirs.figure, "comparison_histograms.png")
     b_range = range(-1, 1, length=50)
     panels = map(enumerate(out_opti.cost_options)) do (i, var_row)
         println("plot performance comparison:: $(var_row.variable)")
@@ -432,7 +432,7 @@ Generate time series plots comparing optimized and default model outputs with ob
 - `out_opti`: ParameterOptimization output data structure containing model outputs and information
 
 # Description
-Saves one figure, `comparison_time_series_<name>_<domain>.png`, with a row per
+Saves one figure, `comparison_time_series.png`, with a row per
 observation constraint of the cost: the observations as points, the default and the
 optimized outputs as lines, and their monthly mean seasonal cycle next to it. The title
 of a row gives the cost metric of the constraint and the bias of both outputs. See
@@ -465,7 +465,7 @@ Generate time series plots comparing a single model output against observations 
 - `cost_options`: cost-option rows (one per variable) used to select and evaluate each series
 
 # Description
-Saves one figure, `time_series_single_<name>_<domain>.png`, with a row per variable in
+Saves one figure, `time_series_single.png`, with a row per variable in
 `cost_options`: the observations as points and the model output as a line, with their
 monthly mean seasonal cycle next to it and the cost metric and bias in the title.
 """
@@ -493,8 +493,8 @@ outputs for each variable specified in the experiment's output variables list. W
 plotted.
 
 For a spatial run, i.e. with `forcing_helpers` given and more than one location, the
-figures are `debug_timeseries_*` and `debug_spacetime_*` of the optimized output, or
-of the default output without an optimized one, and `debug_mean_*` for a grid. See
+figures are `debug_*_timeseries` and `debug_*_spacetime` of the optimized output, or
+of the default output without an optimized one, and `debug_*_mean` for a grid. See
 `_plotDebugSpatial`.
 
 For one location, it calculates the mean of the model outputs across layers and then
@@ -514,7 +514,7 @@ function plotTimeSeries(info, opt_dat, def_dat, ::VisualizationPlots; forcing_he
     output_vars = info.output.variables
 
     domain = info.experiment.basics.domain
-    fig_prefix = joinpath(info.output.dirs.figure, "debug_" * info.experiment.basics.name * "_" * domain)
+    fig_prefix = joinpath(info.output.dirs.figure, "debug")
     for (o, v) in enumerate(output_vars)
         def_var = mean(output_array_def[o], dims=3)[:, :, 1]
         opt_var = has_opt ? mean(output_array_opt[o], dims=3)[:, :, 1] : nothing
@@ -549,7 +549,7 @@ function plotTimeSeries(info, obs_array, cost_options, def_dat, ::VisualizationP
         end
         return nothing
     end
-    fig_path = joinpath(info.output.dirs.figure, "time_series_single_" * info.experiment.basics.name * "_" * info.experiment.basics.domain * ".png")
+    fig_path = joinpath(info.output.dirs.figure, "time_series_single.png")
     _plotComparisonAllVariables(info, obs_array, cost_options, def_dat, fig_path)
     return nothing
 end
@@ -569,7 +569,7 @@ function plotTimeSeries(info, obs_array, cost_options, def_dat, opt_dat, ::Visua
         end
         return nothing
     end
-    fig_path = joinpath(info.output.dirs.figure, "comparison_time_series_" * info.experiment.basics.name * "_" * info.experiment.basics.domain * ".png")
+    fig_path = joinpath(info.output.dirs.figure, "comparison_time_series.png")
     _plotComparisonAllVariables(info, obs_array, cost_options, def_dat, fig_path; opt_dat=opt_dat)
     return nothing
 end

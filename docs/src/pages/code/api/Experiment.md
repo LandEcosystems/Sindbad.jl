@@ -90,9 +90,9 @@ function runExperiment(info::NamedTuple, forcing::NamedTuple, ::DoRunOptimizatio
         print_info(runExperiment, @__FILE__, @__LINE__, "run optimization for spatial domain...")
         obs_array = [Array(_o) for _o in observations.data]; # TODO: necessary now for performance because view of keyedarray is slow
         optim_params = optimizeTEM(forcing, obs_array, info)
-        optim_file_prefix = joinpath(info.output.dirs.optimization, info.experiment.basics.name * "_" * info.experiment.basics.domain)
-        print_info(runExperiment, @__FILE__, @__LINE__, "saving optimized parameters to file: $(optim_file_prefix)_model_parameters_optimized.csv")
-        CSV.write(optim_file_prefix * "_model_parameters_optimized.csv", optim_params)
+        optim_file = joinpath(info.output.dirs.optimization, "model_parameters_optimized.csv")
+        print_info(runExperiment, @__FILE__, @__LINE__, "saving optimized parameters to file: $(optim_file)")
+        CSV.write(optim_file, optim_params)
         saveParameterCubes(info, optim_params, forcing.helpers)
         run_output = optim_params
     end
@@ -454,31 +454,31 @@ saveOutCubes
 ```julia
 function saveOutCubes end
 
-function saveOutCubes(data_path_base, global_metadata, data, data_dims, var_pairs, out_format, t_step, ::DoSaveSingleFile)
+function saveOutCubes(data_dir, global_metadata, data, data_dims, var_pairs, out_format, t_step, ::DoSaveSingleFile)
     print_info(saveOutCubes, @__FILE__, @__LINE__, "saving one file for all variables")
     catalog_names = getVarFull.(var_pairs)
     variable_names = getUniqueVarNames(var_pairs)
     all_yax = Tuple(getYaxForVariable.(data, data_dims, variable_names, catalog_names, Ref(t_step)))
-    data_path = data_path_base * "_all_variables.$(out_format)"
+    data_path = joinpath(data_dir, "all_variables.$(out_format)")
     print_info(nothing, @__FILE__, @__LINE__, "saved all variables to `$(data_path)`", n_m=4)
     ds_new = DataLoaders.YAXArrays.Dataset(; (; zip(variable_names, all_yax)...)..., properties=global_metadata)
     DataLoaders.YAXArrays.savedataset(ds_new, path=data_path, append=true, overwrite=true)
     return nothing
 end
 
-function saveOutCubes(data_path_base, global_metadata, data, data_dims, var_pairs, out_format, t_step, ::DoSaveSingleFile)
+function saveOutCubes(data_dir, global_metadata, data, data_dims, var_pairs, out_format, t_step, ::DoSaveSingleFile)
     print_info(saveOutCubes, @__FILE__, @__LINE__, "saving one file for all variables")
     catalog_names = getVarFull.(var_pairs)
     variable_names = getUniqueVarNames(var_pairs)
     all_yax = Tuple(getYaxForVariable.(data, data_dims, variable_names, catalog_names, Ref(t_step)))
-    data_path = data_path_base * "_all_variables.$(out_format)"
+    data_path = joinpath(data_dir, "all_variables.$(out_format)")
     print_info(nothing, @__FILE__, @__LINE__, "saved all variables to `$(data_path)`", n_m=4)
     ds_new = DataLoaders.YAXArrays.Dataset(; (; zip(variable_names, all_yax)...)..., properties=global_metadata)
     DataLoaders.YAXArrays.savedataset(ds_new, path=data_path, append=true, overwrite=true)
     return nothing
 end
 
-function saveOutCubes(data_path_base, global_metadata, data, data_dims, var_pairs, out_format, t_step, ::DoNotSaveSingleFile)
+function saveOutCubes(data_dir, global_metadata, data, data_dims, var_pairs, out_format, t_step, ::DoNotSaveSingleFile)
     print_info(saveOutCubes, @__FILE__, @__LINE__, "saving one file per variable")
     catalog_names = getVarFull.(var_pairs)
     variable_names = getUniqueVarNames(var_pairs)
@@ -486,7 +486,7 @@ function saveOutCubes(data_path_base, global_metadata, data, data_dims, var_pair
         catalog_name = catalog_names[vn]
         variable_name = variable_names[vn]
         data_yax = getYaxForVariable(data[vn], data_dims[vn], variable_name, catalog_name, t_step)
-        data_path = data_path_base * "_$(variable_name).$(out_format)"
+        data_path = joinpath(data_dir, "$(variable_name).$(out_format)")
         print_info(nothing, @__FILE__, @__LINE__, "saved `$(variable_name)` to `$(data_path)`", n_m=4)
         ds_new = DataLoaders.YAXArrays.Dataset(; (variable_name => data_yax,)..., properties=global_metadata)
         DataLoaders.YAXArrays.savedataset(ds_new, path=data_path, overwrite=true)
@@ -495,7 +495,7 @@ function saveOutCubes(data_path_base, global_metadata, data, data_dims, var_pair
 end
 
 function saveOutCubes(info, out_cubes, output_dims, output_vars)
-    saveOutCubes(info.output.file_info.file_prefix, info.output.file_info.global_metadata, out_cubes, output_dims, output_vars, info.output.format, info.experiment.basics.temporal_resolution, info.helpers.run.save_single_file)
+    saveOutCubes(info.output.dirs.data, info.output.file_info.global_metadata, out_cubes, output_dims, output_vars, info.output.format, info.experiment.basics.temporal_resolution, info.helpers.run.save_single_file)
 end
 ```
 

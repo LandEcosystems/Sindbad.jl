@@ -49,9 +49,9 @@ Parses and saves the code and structs of the selected model structure for the gi
 function parseSaveCode(info)
     print_info(parseSaveCode, @__FILE__, @__LINE__, "saving Selected Models Code...")
     models = info.temp.models.forward
-    outfile_define = joinpath(info.output.dirs.code, info.temp.experiment.basics.name * "_" * info.temp.experiment.basics.domain * "_model_definitions.jl")
-    outfile_code = joinpath(info.output.dirs.code, info.temp.experiment.basics.name * "_" * info.temp.experiment.basics.domain * "_model_functions.jl")
-    outfile_struct = joinpath(info.output.dirs.code, info.temp.experiment.basics.name * "_" * info.temp.experiment.basics.domain * "_model_structs.jl")
+    outfile_define = joinpath(info.output.dirs.code, "model_definitions.jl")
+    outfile_code = joinpath(info.output.dirs.code, "model_functions.jl")
+    outfile_struct = joinpath(info.output.dirs.code, "model_structs.jl")
     fallback_code_define = nothing
     fallback_code_precompute = nothing
     fallback_code_compute = nothing

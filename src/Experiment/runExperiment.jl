@@ -165,9 +165,9 @@ function runExperiment(info::NamedTuple, forcing::NamedTuple, ::DoRunOptimizatio
         print_info(runExperiment, @__FILE__, @__LINE__, "run optimization for spatial domain...")
         obs_array = [Array(_o) for _o in observations.data]; # TODO: necessary now for performance because view of keyedarray is slow
         optim_params = optimizeTEM(forcing, obs_array, info)
-        optim_file_prefix = joinpath(info.output.dirs.optimization, info.experiment.basics.name * "_" * info.experiment.basics.domain)
-        print_info(runExperiment, @__FILE__, @__LINE__, "saving optimized parameters to file: $(optim_file_prefix)_model_parameters_optimized.csv")
-        CSV.write(optim_file_prefix * "_model_parameters_optimized.csv", optim_params)
+        optim_file = joinpath(info.output.dirs.optimization, "model_parameters_optimized.csv")
+        print_info(runExperiment, @__FILE__, @__LINE__, "saving optimized parameters to file: $(optim_file)")
+        CSV.write(optim_file, optim_params)
         saveParameterCubes(info, optim_params, forcing.helpers)
         run_output = optim_params
     end

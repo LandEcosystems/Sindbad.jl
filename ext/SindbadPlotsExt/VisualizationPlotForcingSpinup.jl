@@ -18,7 +18,7 @@ Saves figures of every forcing variable.
 - `forcing`: the forcing NamedTuple with the `variables` and their `data`
 
 # Notes
-- For one location, the figure is `forcing_<experiment>_<domain>_<variable>.png` in
+- For one location, the figure is `forcing_<variable>.png` in
   `info.output.dirs.figure`. Every dimension after time, e.g. layers, gives one line,
   the x axis has the dates of the time coordinates of the forcing, see `_timeAxis`,
   and the cycles of the time series are drawn next to it, see
@@ -32,7 +32,7 @@ function plotForcing(info, forcing, ::VisualizationPlots)
     space = _spaceInfo(forcing.helpers)
     _isSpatial(space) && return _plotForcingSpatial(info, forcing, space)
     domain = info.experiment.basics.domain
-    fig_prefix = joinpath(info.output.dirs.figure, "forcing_" * info.experiment.basics.name * "_" * domain)
+    fig_prefix = joinpath(info.output.dirs.figure, "forcing")
     forcing_settings = _getSetting(info.experiment.data_settings.forcing, :variables)
     for (f_i, (v, f_data)) in enumerate(zip(forcing.variables, forcing.data))
         println("plot forcing::", v)
@@ -69,8 +69,8 @@ panel per layer, and saves one figure per pool.
 # Notes
 - The spinup is only stored with `store_spinup` set to true. Without it, `spinup` is
   `nothing` and nothing is plotted.
-- The figures are `spinup_<experiment>_<domain>_<pool>.png` in
-  `info.output.dirs.figure`, with `_loc<loc_index>` after the domain when there is
+- The figures are `spinup_<pool>.png` in
+  `info.output.dirs.figure`, with `_loc<loc_index>` after the pool when there is
   more than one location.
 - The x axis is in years since the start of the spinup. A `LoopTEM` step moves one
   time step of the run, and the other spinup modes change the pools without moving in
@@ -87,7 +87,8 @@ function plotSpinup(info, spinup, ::VisualizationPlots; loc_index=1, output=noth
     domain = info.experiment.basics.domain
     is_multi_loc = length(spinup.sequences) > 1
     loc_name = is_multi_loc ? "$(domain) loc $(loc_index)" : domain
-    fig_prefix = joinpath(info.output.dirs.figure, "spinup_" * info.experiment.basics.name * "_" * domain * (is_multi_loc ? "_loc$(loc_index)" : ""))
+    fig_dir = info.output.dirs.figure
+    loc_tag = is_multi_loc ? "_loc$(loc_index)" : ""
     loc_ind = spinup.space_ind[loc_index]
     sequence = spinup.sequences[loc_index]
 
@@ -134,7 +135,7 @@ function plotSpinup(info, spinup, ::VisualizationPlots; loc_index=1, output=noth
             p
         end
         fig = plots_plot(panels...; layout=(n_rows_fig, n_cols), size=(430 * n_cols, fig_height), plot_title="$(loc_name): $(title_pools) $(pool_name) [$(pool_units)]\n" * join(title_steps, "  |  "), plot_titlefontsize=10, plot_titlevspan=110 / fig_height, dpi=_fig_dpi[], left_margin=12plots_mm, bottom_margin=8plots_mm, right_margin=3plots_mm)
-        plots_savefig(fig, fig_prefix * "_$(pool_name).png")
+        plots_savefig(fig, joinpath(fig_dir, "spinup_$(pool_name)$(loc_tag).png"))
     end
     return nothing
 end

@@ -131,10 +131,10 @@ function plotIOModelStructure(info, which_function, which_field, ::Visualization
         ax = plots_scatter([0.0], [0.0], markersize=0, label="", legend=false, grid=false,
                            size=(900, 400), title=title_str, xlims=(-1, 1), ylims=(-1, 1), widen=false)
         plots_annotate!(ax, (0.0, 0.0, plots_text("No variables to plot", :gray30, :center, 12)))
-        plots_savefig(joinpath(info.output.dirs.figure, "$(field_tag)_variables_$(info.experiment.basics.id)_$(which_function).pdf"))
+        plots_savefig(joinpath(info.output.dirs.figure, "$(field_tag)_variables_$(which_function).pdf"))
         return nothing
     end
 
-    plots_savefig(joinpath(info.output.dirs.figure, "$(which_field)_variables_$(info.experiment.basics.id)_$(which_function).pdf"))
+    plots_savefig(joinpath(info.output.dirs.figure, "$(which_field)_variables_$(which_function).pdf"))
     return nothing
 end

@@ -391,8 +391,7 @@ function setExperimentOutput(info)
         end
     end
     global_metadata = getGlobalAttributesForOutCubes(info)
-    file_prefix = joinpath(out_info.dirs.data, info.temp.experiment.basics.name * "_" * info.temp.experiment.basics.domain)
-    out_file_info = (; global_metadata=global_metadata, file_prefix=file_prefix)
+    out_file_info = (; global_metadata=global_metadata)
     out_info = (; out_info..., file_info=out_file_info)  
     info = set_namedtuple_field(info, (:output, out_info))
     print_info(nothing, @__FILE__, @__LINE__, "→→→    output directory set to: `$(info.output.dirs.root)`")
