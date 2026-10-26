@@ -2533,7 +2533,7 @@ fAPAR_LAIBareFrac
 
 ```julia
 Inputs: :states => :LAI, :states => :frac_vegetation
-Outputs: Symbol("states # TODO: now use fAPAR_bare as the output for the cost function!") => :fAPAR_bare, Symbol("states # TODO: now use fAPAR_bare as the output for the cost function!") => :fAPAR
+Outputs: Symbol("states # TODO: now use fAPAR_grid as the output for the cost function!") => :fAPAR_grid, Symbol("states # TODO: now use fAPAR_grid as the output for the cost function!") => :fAPAR
 ```
 
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/fAPAR/fAPAR_LAIBareFrac.jl)
@@ -2561,7 +2561,7 @@ fAPAR_cVegLeafBareFrac
 
 ```julia
 Inputs: :pools => :cEco, :states => :frac_vegetation
-Outputs: Symbol("states # TODO: now use fAPAR_bare as the output for the cost function!") => :fAPAR_bare, Symbol("states # TODO: now use fAPAR_bare as the output for the cost function!") => :fAPAR
+Outputs: Symbol("states # TODO: now use fAPAR_grid as the output for the cost function!") => :fAPAR_grid, Symbol("states # TODO: now use fAPAR_grid as the output for the cost function!") => :fAPAR
 ```
 
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/fAPAR/fAPAR_cVegLeafBareFrac.jl)
