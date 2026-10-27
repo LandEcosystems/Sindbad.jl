@@ -120,13 +120,13 @@ end
 """
     filterNanPixels(forcing, loc_space_maps, filter_nan_pixels_mode)
 
-Filters out spatial pixels where all timesteps contain NaN values, based on the specified filtering mode.
+Filters out spatial pixels that have an invalid value, i.e., `nothing`, `missing`, `NaN` or `Inf`, in any forcing variable at any time step, based on the specified filtering mode. The model is not run for these pixels.
 
 # Arguments:
 - `forcing`: A forcing NamedTuple containing the time series of environmental drivers for all locations.
 - `loc_space_maps`: A collection of local spatial coordinates for all input points.
 - `filter_nan_pixels_mode`: A type dispatch that determines whether to filter NaN-only pixels:
-    - `DoFilterNanPixels`: Filters out pixels where all timesteps are NaN. Set `filter_nan_pixels` to true in flag section of experiment_json.
+    - `DoFilterNanPixels`: Filters out pixels with an invalid value in any forcing variable at any time step. Set `filter_nan_pixels` to true in flag section of experiment_json.
     - `DoNotFilterNanPixels`: Does not filter any pixels, returning the input `loc_space_maps` unchanged. Set `filter_nan_pixels` to false in flag section of experiment_json.
 
 # Returns:
@@ -134,8 +134,10 @@ Filters out spatial pixels where all timesteps contain NaN values, based on the 
 
 # Notes:
 - When `DoFilterNanPixels` is used:
-    - The function iterates through all spatial locations and checks if all timesteps for a given location are NaN. NOTE THAT THIS WILL BE SLOW FOR LARGE DATASETS AS ALL LAZILY-LOADED DATA ARE STORED IN MEMORY.
-    - Locations with all NaN values are excluded from the returned `loc_space_maps`.
+    - The function checks every forcing variable of every location. NOTE THAT THIS WILL BE SLOW FOR LARGE DATASETS AS ALL LAZILY-LOADED DATA ARE STORED IN MEMORY.
+    - Invalid values of the forcing are not filled when it is loaded, see `cleanData`, so they are seen here.
+    - Locations with an invalid value in any variable at any time step are excluded from the returned `loc_space_maps`, and their output stays NaN.
+    - An error is thrown when no location is left.
 - When `DoNotFilterNanPixels` is used, the function simply returns the input `loc_space_maps` without any modifications.
 
 # Examples:
@@ -162,14 +164,29 @@ end
 
 function filterNanPixels(forcing, loc_space_maps, ::DoFilterNanPixels)
     forcing_nt_array = namedtuple_from_names_values(forcing.data, forcing.variables)
-    allNans = Bool[]
-    for i ∈ eachindex(loc_space_maps)
-        loc_ind = Tuple(last.(loc_space_maps[i]))
-        loc_forcing = getLocData(forcing_nt_array, loc_ind)
-        push!(allNans, all(isnan, loc_forcing[1]))
+    # a value of a variable without a time dimension is a number, otherwise an array
+    hasInvalid(v) = v isa Number ? is_invalid_number(v) : any(is_invalid_number, v)
+    # one row per pixel and one column per forcing variable, true where the variable
+    # has an invalid value at some time step of the pixel
+    invalid_by_var = map(loc_space_maps) do loc_space_map
+        loc_forcing = getLocData(forcing_nt_array, Tuple(last.(loc_space_map)))
+        map(hasInvalid, Tuple(loc_forcing))
     end
-    loc_space_maps = loc_space_maps[allNans.==false]
-    return loc_space_maps
+    has_invalid = map(any, invalid_by_var)
+    n_pixels = length(loc_space_maps)
+    n_invalid = count(has_invalid)
+    print_info(filterNanPixels, @__FILE__, @__LINE__,
+        "filtered out $(n_invalid) of $(n_pixels) pixels with an invalid value in any forcing variable at any time step, $(n_pixels - n_invalid) pixels are run", n_f=6)
+    # the pixels with an invalid value of each variable, which can add up to more than
+    # the filtered pixels when a pixel has invalid values in several variables
+    for (v_index, v_name) ∈ enumerate(forcing.variables)
+        n_var = count(p -> p[v_index], invalid_by_var)
+        n_var > 0 || continue
+        print_info(nothing, @__FILE__, @__LINE__,
+            "→→→    `$(v_name)`: $(n_var) pixels with an invalid value", n_m=8)
+    end
+    n_invalid == n_pixels && error("every pixel has an invalid value in a forcing variable at some time step, so no pixel is left to run. Fill the gaps of the forcing before running the simulation.")
+    return loc_space_maps[.!collect(has_invalid)]
 end
 
 
