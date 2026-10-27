@@ -271,10 +271,28 @@ Calculate cost for a given experiment through the `runExperiment` function in `D
 - A NamedTuple containing the experiment results including cost calculations
 """
 function runExperimentCost(sindbad_experiment::String; replace_info=Dict(), log_level=:info)
+    # set_log_level(log_level)
+    # setExperimentMode!(replace_info, :cost)
+    # info, forcing = prepExperiment(sindbad_experiment; replace_info=replace_info)
+    # cost_output = runExperiment(info, forcing, info.helpers.run.calc_cost)
+
+
+    # set_log_level()
+
     set_log_level(log_level)
-    setExperimentMode!(replace_info, :cost)
+    replace_info["experiment.flags.run_optimization"] = false
+    replace_info["experiment.flags.calc_cost"] = true
+    replace_info["experiment.flags.run_forward"] = true
     info, forcing = prepExperiment(sindbad_experiment; replace_info=replace_info)
     cost_output = runExperiment(info, forcing, info.helpers.run.calc_cost)
+    cost_options = prepCostOptions(cost_output.observation, info.optimization.cost_options)
+    loss_vector = cost_output.loss
+    loss_table = Table((; variable=cost_options.variable, metric=cost_options.cost_metric, loss_opt=loss_vector))
+    display(loss_table)
+    loss_table_output_file = joinpath(info.output.dirs.data, "$(info.experiment.basics.name)_$(info.experiment.basics.domain)_Loss_cost.csv")
+    print_info(runExperimentForward, @__FILE__, @__LINE__, "saving flux cost output to file: `$(loss_table_output_file)`", n_m=1)
+    CSV.write(loss_table_output_file, loss_table)
+
     set_log_level()
     return cost_output
 end
@@ -294,11 +312,32 @@ Run forward simulation for a given experiment through the `runExperiment` functi
 - A NamedTuple containing the experiment results including model outputs
 """
 function runExperimentForward(sindbad_experiment::String; replace_info=Dict(), log_level=:info)
+    # print_info_separator(sep_text="Forward Simulation")
+    # set_log_level(log_level)
+    # setExperimentMode!(replace_info, :forward)
+    # info, forcing = prepExperiment(sindbad_experiment; replace_info=replace_info)
+    # run_output = runExperiment(info, forcing, info.helpers.run.run_forward)
+    # output_dims = getOutDims(info, forcing.helpers)
+    # saveOutCubes(info, values(run_output.output), output_dims, info.output.variables)
+    # set_log_level()
+
     print_info_separator(sep_text="Forward Simulation")
     set_log_level(log_level)
-    setExperimentMode!(replace_info, :forward)
+    replace_info["experiment.flags.run_forward"] = true
+    replace_info["experiment.flags.run_optimization"] = false
+    replace_info["experiment.flags.calc_cost"] = true
     info, forcing = prepExperiment(sindbad_experiment; replace_info=replace_info)
     run_output = runExperiment(info, forcing, info.helpers.run.run_forward)
+
+    cost_output = runExperiment(info, forcing, info.helpers.run.calc_cost)
+    cost_options = prepCostOptions(cost_output.observation, info.optimization.cost_options)
+    loss_vector = cost_output.loss
+    loss_table = Table((; variable=cost_options.variable, metric=cost_options.cost_metric, loss_opt=loss_vector))
+    display(loss_table)
+    loss_table_output_file = joinpath(info.output.dirs.data, "$(info.experiment.basics.name)_$(info.experiment.basics.domain)_Loss_default.csv")
+    print_info(runExperimentForward, @__FILE__, @__LINE__, "saving flux cost output to file: `$(loss_table_output_file)`", n_m=1)
+    CSV.write(loss_table_output_file, loss_table)
+
     output_dims = getOutDims(info, forcing.helpers)
     saveOutCubes(info, values(run_output.output), output_dims, info.output.variables)
     set_log_level()
@@ -322,25 +361,48 @@ Run forward simulation of the model with default as well as modified settings wi
 - A NamedTuple containing both default and optimized model outputs
 """
 function runExperimentForwardParams(params_vector::Vector, sindbad_experiment::String; replace_info=Dict(), log_level=:info)
+    # print_info_separator(sep_text="Forward Simulation with Input/Optimized Parameters")
+    # set_log_level(log_level)
+    # print_info(runExperimentForwardParams, @__FILE__, @__LINE__, "running forward simulation with input/optimized parameters...", n_m=1)
+    # replace_info = deepcopy(replace_info)
+    # setExperimentMode!(replace_info, :cost)
+    # info, forcing = prepExperiment(sindbad_experiment; replace_info=replace_info)
+
+    # default_models = info.models.forward;
+
+    # default_output = runForward(default_models, forcing, info, DoNotRunLazy())
+
+    # parameter_table = info.optimization.parameter_table;
+    # optimized_models = updateModelParameters(parameter_table, default_models, params_vector)
+    # optimized_output = runForward(optimized_models, forcing, info, DoNotRunLazy())
+
+    # output_dims = getOutDims(info, forcing.helpers)
+    # saveOutCubes(info, values(optimized_output), output_dims, info.output.variables)
+
+    # forward_output = (; optimized=optimized_output, default=default_output)
+    # set_log_level()
+
     print_info_separator(sep_text="Forward Simulation with Input/Optimized Parameters")
     set_log_level(log_level)
     print_info(runExperimentForwardParams, @__FILE__, @__LINE__, "running forward simulation with input/optimized parameters...", n_m=1)
     replace_info = deepcopy(replace_info)
-    setExperimentMode!(replace_info, :cost)
+    replace_info["experiment.flags.run_optimization"] = false
+    replace_info["experiment.flags.calc_cost"] = true
+    replace_info["experiment.flags.run_forward"] = true
     info, forcing = prepExperiment(sindbad_experiment; replace_info=replace_info)
 
     default_models = info.models.forward;
 
-    default_output = runForward(default_models, forcing, info, DoNotRunLazy())
+    default_output = runTEM!(default_models, forcing, info)
 
     parameter_table = info.optimization.parameter_table;
     optimized_models = updateModelParameters(parameter_table, default_models, params_vector)
-    optimized_output = runForward(optimized_models, forcing, info, DoNotRunLazy())
+    optimized_output = runTEM!(optimized_models, forcing, info)
 
     output_dims = getOutDims(info, forcing.helpers)
-    saveOutCubes(info, values(optimized_output), output_dims, info.output.variables)
-
-    forward_output = (; optimized=optimized_output, default=default_output)
+    saveOutCubes(info, optimized_output, output_dims, info.output.variables)
+    
+    forward_output = (; optimized=(; Pair.(getUniqueVarNames(info.output.variables), optimized_output)...), default=(; Pair.(getUniqueVarNames(info.output.variables), default_output)...))
     set_log_level()
     return (; forcing, info, output=forward_output)
 end
@@ -360,15 +422,31 @@ Run forward simulation of the model through `runExperiment` function in `DoRunFo
 - A NamedTuple containing the complete model outputs
 """
 function runExperimentFullOutput(sindbad_experiment::String; replace_info=Dict(), log_level=:info)
+    # print_info_separator(sep_text="Forward Simulation + Output of All Variables")
+    # set_log_level(log_level)
+    # replace_info = deepcopy(replace_info)
+    # setExperimentMode!(replace_info, :forward)
+    # info, forcing = prepExperiment(sindbad_experiment; replace_info=replace_info)
+    # info = @set info.helpers.run.land_output_type = PreAllocArrayAll()
+    # run_helpers = prepTEM(info.models.forward, forcing, info)
+    # info = @set info.output.variables = run_helpers.output_vars
+    # runTEM!(run_helpers.space_selected_models, run_helpers.space_forcing, run_helpers.space_spinup, run_helpers.loc_forcing_t, run_helpers.space_output, run_helpers.space_land, run_helpers.tem_info)
+    # output_dims = run_helpers.output_dims
+    # run_output = run_helpers.output_array
+    # saveOutCubes(info, run_output, output_dims, run_helpers.output_vars)
+    # set_log_level()
+
     print_info_separator(sep_text="Forward Simulation + Output of All Variables")
     set_log_level(log_level)
     replace_info = deepcopy(replace_info)
-    setExperimentMode!(replace_info, :forward)
+    replace_info["experiment.flags.run_forward"] = true
+    replace_info["experiment.flags.run_optimization"] = false
+    replace_info["experiment.flags.calc_cost"] = false
     info, forcing = prepExperiment(sindbad_experiment; replace_info=replace_info)
     info = @set info.helpers.run.land_output_type = PreAllocArrayAll()
     run_helpers = prepTEM(info.models.forward, forcing, info)
     info = @set info.output.variables = run_helpers.output_vars
-    runTEM!(run_helpers.space_selected_models, run_helpers.space_forcing, run_helpers.space_spinup, run_helpers.loc_forcing_t, run_helpers.space_output, run_helpers.space_land, run_helpers.tem_info)
+    runTEM!(run_helpers.space_selected_models, run_helpers.space_forcing, run_helpers.space_spinup_forcing, run_helpers.loc_forcing_t, run_helpers.space_output, run_helpers.space_land, run_helpers.tem_info)
     output_dims = run_helpers.output_dims
     run_output = run_helpers.output_array
     saveOutCubes(info, run_output, output_dims, run_helpers.output_vars)
@@ -393,25 +471,25 @@ Run optimization experiment through `runExperiment` function in `DoRunOptimizati
 function runExperimentOpti(sindbad_experiment::String; replace_info=Dict(), log_level=:warn)
     print_info_separator(sep_text="ParameterOptimization Experiment")
     set_log_level(log_level)
-    setExperimentMode!(replace_info, :optimization)
+    replace_info["experiment.flags.run_optimization"] = true
+    replace_info["experiment.flags.calc_cost"] = false
+    replace_info["experiment.flags.run_forward"] = false
     info, forcing = prepExperiment(sindbad_experiment; replace_info=replace_info)
+
     run_helpers = prepTEM(info.models.forward, forcing, info)
     opti_output = runExperiment(info, forcing, info.helpers.run.run_optimization)
     set_log_level(:info)
     fp_output = runExperimentForwardParams(opti_output.parameters.optimized, sindbad_experiment; replace_info=replace_info)
-    print_info_separator()
     cost_options = prepCostOptions(opti_output.observation, info.optimization.cost_options)
     loss_vector = metricVector(fp_output.output.optimized, opti_output.observation, cost_options)
     loss_vector_def = metricVector(fp_output.output.default, opti_output.observation, cost_options)
     loss_table = Table((; variable=cost_options.variable, metric=cost_options.cost_metric, loss_opt=loss_vector, loss_def=loss_vector_def))
-    println("Total loss:: optimized: $(sum(loss_vector)), default: $(sum(loss_vector_def))")
     display(loss_table)
 
     loss_table_output_file = joinpath(info.output.dirs.data, "$(info.experiment.basics.name)_$(info.experiment.basics.domain)_Loss_Table.csv")
     print_info(runExperimentOpti, @__FILE__, @__LINE__, "saving training process to file: `$(loss_table_output_file)`", n_m=1)
     CSV.write(loss_table_output_file, loss_table)
-    parameters_nt = convertParametersToNamedTuple(opti_output.parameters, :model, :name)
-    return (; forcing, cost_options, run_helpers, info=fp_output.info, loss=loss_table, observation=opti_output.observation, output=fp_output.output, parameters=opti_output.parameters, parameters_nt=parameters_nt)
+    return (; forcing, cost_options, run_helpers, info=fp_output.info, loss=loss_table, observation=opti_output.observation, output=fp_output.output, parameters=opti_output.parameters)
 end
 
 
@@ -432,7 +510,9 @@ Run sensitivity analysis for a given experiment.
 """
 function runExperimentSensitivity(sindbad_experiment::String; replace_info=Dict(), batch=true, log_level=:warn)
     print_info_separator(sep_text="Sensitivity Analysis Experiment")
-    setExperimentMode!(replace_info, :optimization)
+    replace_info["experiment.flags.run_optimization"] = true
+    replace_info["experiment.flags.calc_cost"] = false
+    replace_info["experiment.flags.run_forward"] = false
     info, forcing = prepExperiment(sindbad_experiment; replace_info=replace_info)
     observations = getObservation(info, forcing.helpers)
 

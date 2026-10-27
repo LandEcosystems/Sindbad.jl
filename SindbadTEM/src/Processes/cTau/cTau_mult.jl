@@ -25,11 +25,10 @@ function compute(params::cTau_mult, forcing, land, helpers)
         c_eco_k_base ⇐ land.diagnostics
         c_eco_k ⇐ land.diagnostics
     end
-    for i ∈ eachindex(c_eco_k)
+    c_eco_k = repElems(c_eco_k) do i
         # tmp = c_eco_k_base[i] * c_eco_k_f_LAI[i] * c_eco_k_f_soil_props[i] * c_eco_k_f_veg_props[i] * c_eco_k_f_soilT * c_eco_k_f_soilW[i]
         tmp = c_eco_k_base[i] * c_eco_k_f_soil_props[i] * c_eco_k_f_veg_props[i] * c_eco_k_f_soilT * c_eco_k_f_soilW[i]
-        tmp = clamp_zero_one(tmp)
-        @rep_elem tmp ⇒ (c_eco_k, i)
+        clamp_zero_one(tmp)
     end
 
     ## pack land variables

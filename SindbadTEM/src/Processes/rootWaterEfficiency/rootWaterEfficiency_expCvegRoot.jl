@@ -65,9 +65,8 @@ function compute(params::rootWaterEfficiency_expCvegRoot, forcing, land, helpers
     tmp_rootEff = max_root_water_efficiency -
                   (max_root_water_efficiency - min_root_water_efficiency) * (exp(-k_efficiency_cVegRoot * totalS_indices(cEco, helpers.pools.zix.cVegRoot))) # root fraction/efficiency as a function of total carbon in root pools
 
-    for sl ∈ eachindex(soilW)
-        root_water_efficiency_sl = root_over[sl] * tmp_rootEff
-        @rep_elem root_water_efficiency_sl ⇒ (root_water_efficiency, sl)
+    root_water_efficiency = repElems(root_water_efficiency) do sl
+        root_over[sl] * tmp_rootEff
     end
     ## pack land variables
     @pack_nt root_water_efficiency ⇒ land.diagnostics

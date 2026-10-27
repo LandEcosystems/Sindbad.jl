@@ -94,9 +94,10 @@ function cost(parameter_matrix, _, selected_models, space_forcing, space_spinup,
     Threads.@threads for parameter_index in eachindex(1:parameter_set_size)
         idx = Threads.threadid()
         parameter_vector = parameter_matrix[:, parameter_index]
+        local_land = deepcopy(space_land)
         @debug parameter_vector
         updated_models = updateModels(parameter_vector, parameter_updater, parameter_scaling_type, selected_models)
-        coreTEM!(updated_models, space_forcing, space_spinup, loc_forcing_t, space_output[idx], space_land, tem_info)
+        coreTEM!(updated_models, space_forcing, space_spinup, loc_forcing_t, space_output[idx], local_land, tem_info)
         cost_vector = metricVector(space_output[idx], observations, cost_options)
         cost_metric = combineMetric(cost_vector, multi_constraint_method)
         cost_out[parameter_index] = cost_metric

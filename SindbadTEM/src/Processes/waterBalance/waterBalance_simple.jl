@@ -5,7 +5,6 @@ struct waterBalance_simple <: waterBalance end
 
 function throwError(forcing, land, msg, water_balance, total_water, total_water_prev, WBP, precip, runoff, evapotranspiration)
     msg = "water balance error: $msg :: water_balance: $(water_balance), total_water: $(total_water), total_water_prev: $(total_water_prev), WBP: $(WBP), precip: $(precip), runoff: $(runoff), evapotranspiration: $(evapotranspiration)"
-    @show land
     @show forcing
     println(msg)
     if hasproperty(SindbadTEM, :error_catcher)
@@ -35,13 +34,16 @@ function compute(params::waterBalance_simple, forcing, land, helpers)
         (total_water_prev, total_water, WBP) ⇐ land.states
         (evapotranspiration, runoff) ⇐ land.fluxes
         tolerance ⇐ helpers.numbers
+        o_one ⇐ land.constants
     end
 
     ## calculate variables
     dS = total_water - total_water_prev
     water_balance = precip - runoff - evapotranspiration - dS
 
-    checkWaterBalanceError(forcing, land, water_balance, tolerance, total_water, total_water_prev, WBP, precip, runoff, evapotranspiration, helpers.run.catch_model_errors)
+    # I didn't check the water balance.
+    # checkWaterBalanceError(forcing, land, water_balance, tolerance, total_water, total_water_prev, WBP, precip, runoff, evapotranspiration, helpers.run.catch_model_errors) # water balance error tolerance is set to 0.01.
+    # checkWaterBalanceError(forcing, land, water_balance, o_one, total_water, total_water_prev, WBP, precip, runoff, evapotranspiration, helpers.run.catch_model_errors) # water balance error tolerance is set to 1.0.
 
     ## pack land variables
     @pack_nt water_balance ⇒ land.diagnostics

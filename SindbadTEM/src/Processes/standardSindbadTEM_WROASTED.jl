@@ -1,20 +1,12 @@
-export standard_sindbad_model
-export all_available_sindbad_model
-
-
-# List all models of SINDBAD in the order they would be normally be called. 
-# ? Let's not do this ? And better be consistent and get the order from the model_structure.json file
-# ? But, if we most then, some guidelines of where to include new ones would be helpful.
-# When adding a new process, create a new copy of this jl file to work with.
-# ? Relying on this hinders the addition of new processes at will by new users.
+export standard_sindbad_model_WROASTED
 
 """
-    standard_sindbad_model
+    standard_sindbad_model_WROASTED
 
 
-Default ordered list of SINDBAD models
+WROASTED-specific ordered list of SINDBAD models.
 """
-standard_sindbad_model = (:constants, 
+const standard_sindbad_model_WROASTED = (:constants,
     :wCycleBase,
     :rainSnow,
     :rainIntensity,
@@ -24,18 +16,20 @@ standard_sindbad_model = (:constants,
     :soilTexture,
     :soilProperties,
     :soilWBase,
-    :rootMaximumDepth,
-    :rootWaterEfficiency,
-    :PFT,
-    :plantForm,
-    :treeFraction,
+    :vegDynamics,
+    :vegClass,
+    :vegQualityTraits,
     :EVI,
-    :vegFraction,
     :LAI,
-    :fAPAR,
     :NDVI,
     :NIRv,
     :NDWI,
+    :frozenFraction,
+    :vegFraction,
+    :treeFraction,
+    :fAPAR,
+    :rootMaximumDepth,
+    :rootWaterEfficiency,
     :snowFraction,
     :sublimation,
     :snowMelt,
@@ -57,8 +51,6 @@ standard_sindbad_model = (:constants,
     :transpirationDemand,
     :vegAvailableWater,
     :transpirationSupply,
-    :rootSurfaceArea,
-    :rwuPotential,
     :gppPotential,
     :gppDiffRadiation,
     :gppDirRadiation,
@@ -70,12 +62,29 @@ standard_sindbad_model = (:constants,
     :gpp,
     :transpiration,
     :rootWaterUptake,
-    :cVegetationDieOff,
     :cCycleBase,
+    :cVegetationDieOff,
+    :cFireBurnedArea,
+    :cFireCombustionCompleteness,
+    :cFireMortality,
+    :cFire,
+    :cMicrobialEfficiencycLit,
+    :cMicrobialEfficiencycMic,
+    :cMicrobialEfficiencycSoil,
+    :cMicrobialEfficiency,
+    :cQualityPartitioncVeg,
+    :cQualityPartitioncLit,
+    :cQualityPartitioncMic,
+    :cQualityPartitioncSoil,
+    :cQualityPartition,
     :cCycleDisturbance,
+    :cCropHarvestIntensity,
+    :cCropHarvestEfficiency,
+    :cForestryHarvestIntensity,
+    :cForestryHarvestEfficiency,
+    :cCycleManagement,
     :cTauSoilT,
     :cTauSoilW,
-    :cTauLAI,
     :cTauSoilProperties,
     :cTauVegProperties,
     :cTau,
@@ -88,8 +97,9 @@ standard_sindbad_model = (:constants,
     :cAllocation,
     :cAllocationTreeFraction,
     :autoRespiration,
-    :cFlowSoilProperties,
-    :cFlowVegProperties,
+    :cFlowStress,
+    :cFlowLitterfall,
+    :cFlowReserves,
     :cFlow,
     :cCycleConsistency,
     :cCycle,
@@ -98,56 +108,6 @@ standard_sindbad_model = (:constants,
     :wCycle,
     :waterBalance,
     :cBiomass,
-    :deriveVariables)
-
-"""
-a tuple of all available SINDBAD models
-"""
-all_available_sindbad_model = Tuple(subtypes(LandEcosystem))
-
-
-
-"""
-    getSindbadModelOrder(model_name; all_models=standard_sindbad_model)
-
-Return the default order of a SINDBAD model in the model list.
-
-# Arguments
-- `model_name`: Name of the model
-- `all_models`: The list of all models (default: `standard_sindbad_model`)
-
-# Examples
-```jldoctest
-julia> # Get the order of a model
-julia> # getSindbadModelOrder(:gpp)
-```
-"""
-function getSindbadModelOrder(model_name; all_models=standard_sindbad_model)
-    mo = findall(x -> x == model_name, all_models)[1]
-    println("The order [default] of $(model_name) in models.jl of core SINDBAD is $(mo)")
-end
-
-"""
-    getSindbadModels(; all_models=standard_sindbad_model)
-
-Return a dictionary of SINDBAD models and their approaches.
-
-# Arguments
-- `all_models`: The list of all models (default: `standard_sindbad_model`)
-
-# Returns
-- An `OrderedDict` mapping model names to lists of approach names
-
-# Examples
-```jldoctest
-julia> # Get all models and approaches
-julia> # models_dict = getSindbadModels()
-```
-"""
-function getSindbadModels(; all_models=standard_sindbad_model)
-    approaches = []
-    for _md ∈ all_models
-        push!(approaches, Pair(_md, [nameof(_x) for _x in subtypes(getfield(SindbadTEM.Processes, _md))]))
-    end
-    return DataStructures.OrderedDict(approaches)
-end
+    :deriveVariables,
+    # :vegDynamics,
+)

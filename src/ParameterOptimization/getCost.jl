@@ -192,11 +192,12 @@ function metricVector(model_output, observations, cost_options)
         if isnan(metr)
             metr = oftype(metr, 1e19)
         end
-        ### if the absolute ŷ (carbon and water fluxes) is very small, then set the metric to be 1e5 as a penalty, because the model is not working properly
-        tol = oftype(metr, 1e-5)
-        if all(x -> abs(x) < tol, ŷ)
-            metr = oftype(metr, 1e5)
-        end
+        ### Optional >> it affects the optimization.
+        # ### if the absolute ŷ (carbon and water fluxes) is very small, then set the metric to be 1e5 as a penalty, because the model is not working properly
+        # tol = oftype(metr, 1e-5)
+        # if all(x -> abs(x) < tol, ŷ)
+        #     metr = oftype(metr, 1e5)
+        # end
         @debug "$(cost_option.variable) => $(nameof(typeof(lossMetric))): $(metr)"
         metr
     end

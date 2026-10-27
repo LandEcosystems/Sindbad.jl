@@ -2,7 +2,7 @@ export rootSurfaceArea_Biomass
 
 #! format: off
 @bounds @describe @units @timescale @with_kw struct rootSurfaceArea_Biomass{T1} <: rootSurfaceArea
-    min_Rsf::T1 = 0.3 | (0.03, 3) | "minimum root surface area" | "m2/m2" | "could use root:shoot ratio as a constraint"
+    min_Rsf::T1 = 0.3 | (0.03, 3) | "minimum root surface area, could use root:shoot ratio as a constraint?" | "m2/m2" | ""
 end
 #! format: on
 
@@ -22,17 +22,17 @@ function define(params::rootSurfaceArea_Biomass, forcing, land, helpers)
     root_surface_area_fraction = zero(soilW)
 
     if plant_form == :tree
-        a = 50 * o_one # "specific root surface area" | "m2/kg" | "convert biomass to area, obtain from Niu et al., JAMES, 2020, Table 1"
-        alpha = 3.9 * o_one # "root distribution index" | "dimensionless" | "obtain from Arora and Boer, AMS, 2003, Table 3"
+        a = oftype(o_one, 50) # "specific root surface area" | "m2/kg" | "convert biomass to area, obtain from Niu et al., JAMES, 2020, Table 1"
+        alpha = oftype(o_one, 3.9) # "root distribution index" | "dimensionless" | "obtain from Arora and Boer, AMS, 2003, Table 3"
     elseif plant_form == :shrub
-        a = 100 * o_one
-        alpha = 3.8 * o_one
+        a = oftype(o_one, 100)
+        alpha = oftype(o_one, 3.8)
     elseif plant_form == :herb
-        a = 200 * o_one
-        alpha = 4.3 * o_one
+        a = oftype(o_one, 200)
+        alpha = oftype(o_one, 4.3)
     else
-        a = 50 * o_one
-        alpha = 3 * o_one
+        a = oftype(o_one, 50)
+        alpha = oftype(o_one, 3)
     end
 
     ## pack land variables
@@ -87,17 +87,12 @@ function compute(params::rootSurfaceArea_Biomass, forcing, land, helpers)
     root_area_scale = a * totalS(cVegRoot) * oftype(a, 1.0e-3)
 
     # root surface area in each layer
-    @inbounds for sl ∈ eachindex(soilW)
-
+    root_surface_area = repElems(root_surface_area) do sl
         if sl < root_layer
-            area_from_layer = root_area_scale * root_surface_area_fraction[sl] # m2/m2
-            # area_from_layer = max(area_from_layer, min_Rsf)
+            root_area_scale * root_surface_area_fraction[sl] # m2/m2
         else
-            area_from_layer = z_zero
+            z_zero
         end
-
-        @rep_elem area_from_layer ⇒ (root_surface_area, sl, :soilW)
-
     end
 
     # pack land variables

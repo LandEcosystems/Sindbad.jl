@@ -6,14 +6,14 @@ export groundWSoilWInteraction_VanDijk2010
 end
 #! format: on
 
-function define(params::groundWSoilWInteraction_VanDijk2010, forcing, land, helpers)
-    ## in case groundWReacharge is not selected in the model structure, instantiate the variable with zero
-    @unpack_groundWSoilWInteraction_VanDijk2010 params
-    gw_recharge = zero(max_fraction)
-    ## pack land variables
-    @pack_nt gw_recharge ⇒ land.fluxes
-    return land
-end
+# function define(params::groundWSoilWInteraction_VanDijk2010, forcing, land, helpers)
+#     ## in case groundWReacharge is not selected in the model structure, instantiate the variable with zero
+#     @unpack_groundWSoilWInteraction_VanDijk2010 params
+#     gw_recharge = zero(max_fraction)
+#     ## pack land variables
+#     @pack_nt gw_recharge ⇒ land.fluxes
+#     return land
+# end
 
 function compute(params::groundWSoilWInteraction_VanDijk2010, forcing, land, helpers)
     ## unpack parameters

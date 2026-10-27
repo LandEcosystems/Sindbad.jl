@@ -10,7 +10,7 @@
         base = [1.0, 2.0, 3.0, 4.0, 5.0]
         for i in eachindex(base)
             v_vec = copy(base)
-            v_svec = SVector{5,Float64}(base)
+            v_svec = SVector{5,Float64}(Tuple(base))
             elem = 100.0 + i
 
             result_vec = callRepElem(v_vec, elem, i)

@@ -6,15 +6,15 @@ function compute(params::gpp_PHS, forcing, land, helpers)
     @unpack_nt begin
         f_PAR ⇐ forcing
         fAPAR ⇐ land.states
-        (gpp_farquhar, Ac, Aj) ⇐ land.diagnostics
+        (gpp_farquhar, Ac_gC, Aj_gC) ⇐ land.diagnostics
         z_zero ⇐ land.constants
     end
 
     gpp = gpp_farquhar
 
     # supply and demand should be Aj and Ac.
-    gpp_s = Ac
-    gpp_d = Aj
+    gpp_s = Ac_gC
+    gpp_d = Aj_gC
     delta_gpp = gpp_d - gpp_s
 
     APAR = fAPAR * f_PAR

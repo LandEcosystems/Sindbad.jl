@@ -6,11 +6,11 @@ function compute(params::transpiration_PHS, forcing, land, helpers)
 
     ## unpack land variables
     @unpack_nt begin
-        phs_transpiration ⇐ land.diagnostics
+        (phs_transpiration, tran_gs) ⇐ land.diagnostics
+        root_water_uptake ⇐ land.fluxes
     end
-    # At convergence the layer uptake sum equals the hydraulically attenuated
-    # transpiration returned by plantHydraulics_PHS.
-    transpiration = phs_transpiration
+    
+    transpiration = min(tran_gs, totalS(root_water_uptake))
 
     ## pack land variables
     @pack_nt transpiration ⇒ land.fluxes

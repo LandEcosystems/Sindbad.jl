@@ -25,6 +25,33 @@ function fillLocOutput!(ar::T, val::T1, ts::T2) where {T, T1, T2<:Int}
     data_ts .= val
     return nothing
 end
+
+# Hot paths for eager simulations.  The generic fallback above creates a
+# `SubArray` and launches broadcast once for every output variable and time
+# step.  A full-output, multi-decadal optimization performs millions of these
+# tiny broadcasts per function evaluation.  Direct indexed stores preserve the
+# same values while avoiding the view/broadcast machinery.
+@inline function fillLocOutput!(ar::AbstractVector, val::Real, ts::Int)
+    @inbounds ar[ts] = val
+    return nothing
+end
+
+@inline function fillLocOutput!(ar::AbstractMatrix, val::Real, ts::Int)
+    @inbounds for column in axes(ar, 2)
+        ar[ts, column] = val
+    end
+    return nothing
+end
+
+
+@inline function fillLocOutput!(ar::AbstractMatrix, val::AbstractVector, ts::Int)
+    @boundscheck size(ar, 2) == length(val) ||
+        throw(DimensionMismatch("output width ($(size(ar, 2))) != value length ($(length(val)))"))
+    @inbounds for column in eachindex(val)
+        ar[ts, column] = val[column]
+    end
+    return nothing
+end
 #### ABOVE IS THE LEGACY CODE THAT COMPILES WELL IN JULIA 1.11 BUT NOT 1.12
 
 # # TENTATIVE CHANGES THAT PARTIALLY WORKS IN 1.12 BUT ONLY WHEN THE FUNCTION IS FORCE GENERATED AFTER COMPILATION BY INTRODUCING ERROR
@@ -67,53 +94,19 @@ Get forcing values for a specific time step based on the forcing type.
 - `forc_with_type`: Value type parameter specifying the forcing type
 """
 @generated function getForcingForTimeStep(forcing, loc_forcing_t, ts, ::Val{forc_with_type}) where {forc_with_type}
-    # if @generated
-        gen_output = quote end
-        foreach(forc_with_type) do forc_pair
-            forc = first(forc_pair)
-            forc_type=last(forc_pair)
-            push!(gen_output.args, Expr(:(=), :d, Expr(:call, :getForcingV, Expr(:., :forcing, QuoteNode(forc)), :ts, forc_type)))
-            push!(gen_output.args,
-                Expr(:(=),
-                    :loc_forcing_t,
-                    Expr(:macrocall,
-                        Symbol("@set"),
-                        :(),
-                        Expr(:(=), Expr(:., :loc_forcing_t, QuoteNode(forc)), :d)))) #= none:1 =#
-        end
-        return gen_output
-    # else
-    #     map(forc_with_type) do forc_pair
-    #         forc = first(forc_pair)
-    #         forc_type=last(forc_pair)
-    #         getForcingV(forcing[forc], ts, forc_type)
-    #     end
-    # end
+    # Construct the complete timestep forcing in one operation.  The former
+    # implementation applied `@set` once per forcing variable, rebuilding the
+    # full NamedTuple at every assignment.  In a daily multi-decadal run that
+    # produced millions of large temporary tuples per functional evaluation.
+    names = Tuple(first.(forc_with_type))
+    value_exprs = map(forc_with_type) do forc_pair
+        forc = first(forc_pair)
+        forc_type = last(forc_pair)
+        :(getForcingV(getfield(forcing, $(QuoteNode(forc))), ts, $forc_type))
+    end
+    values_expr = Expr(:tuple, value_exprs...)
+    return :(NamedTuple{$names}($values_expr))
 end
-#### ABOVE IS THE LEGACY CODE THAT COMPILES WELL IN JULIA 1.11 BUT NOT 1.12
-
-# TENTATIVE CHANGES THAT PARTIALLY WORKS IN 1.12 BUT ONLY WHEN THE FUNCTION IS FORCE GENERATED AFTER COMPILATION BY INTRODUCING ERROR
-# @generated function getForcingForTimeStep(forcing, loc_forcing_t, ts, ::Val{forc_with_type}) where {forc_with_type}
-#     # Build the timestep forcing NamedTuple in one shot to avoid repeatedly
-#     # rebuilding it via `@set` (which allocates once per forcing variable).
-#     names = Tuple(first.(forc_with_type))
-#     vals_exprs = Any[]
-#     for forc_pair in forc_with_type
-#         forc = first(forc_pair)
-#         forc_type = last(forc_pair)
-#         push!(
-#             vals_exprs,
-#             Expr(
-#                 :call,
-#                 :getForcingV,
-#                 Expr(:call, :getfield, :forcing, QuoteNode(forc)),
-#                 :ts,
-#                 forc_type,
-#             ),
-#         )
-#     end
-#     return :(NamedTuple{$(names)}(($(vals_exprs...),)))
-# end
 
 
 

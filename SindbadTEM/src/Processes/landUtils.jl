@@ -8,7 +8,7 @@ export getQPEqual
 export getVectorOfType
 export getZix
 export processPackNT, processUnpackNT
-export repElem, repVec
+export repElem, repElems, repVec
 export allocateToPools
 export setComponentFromMainPool, setFlowValue, setMainFromComponentPool
 export totalS
@@ -89,7 +89,8 @@ function addToElem(v::SVector{N}, Δv, ind::Int) where {N}
     # instead of masking v with a zero/one vector, since `0 * Inf` and `0 * NaN`
     # are themselves NaN. N is static, so this unrolls to plain scalar selects
     # with no heap allocation.
-    return SVector(ntuple(i -> i == ind ? v[i] + Δv : v[i], Val(N)))
+    T = eltype(v)
+    return SVector{N,T}(ntuple(i -> i == ind ? convert(T, v[i] + Δv) : v[i], Val(N)))
 end
 
 function addToElem(v::AbstractVector, Δv, ind::Int)
@@ -211,6 +212,127 @@ end
 
 function getZix(dat::SVector, zixhelpersPool)
     return zixhelpersPool
+end
+
+export MutableLandNamedTuple
+export mutable_land
+
+"""
+    MutableLandNamedTuple
+
+A type-stable, mutable runtime representation of a `NamedTuple`. Field names
+remain type parameters and every value is held in a typed `Ref`, so literal
+property access remains inferable while time-step updates avoid rebuilding the
+complete immutable land state.
+
+This container is intentionally used only after model definition and
+precomputation. Setup and consistency scanning continue to use ordinary
+`NamedTuple`s.
+"""
+struct MutableLandNamedTuple{names,Refs<:Tuple}
+    refs::Refs
+end
+
+@inline function MutableLandNamedTuple(nt::NamedTuple)
+    refs = map(Ref, values(nt))
+    return MutableLandNamedTuple{keys(nt),typeof(refs)}(refs)
+end
+
+@generated function _land_property_ref(
+        land::MutableLandNamedTuple{names},
+        ::Val{name},
+    ) where {names,name}
+    index = findfirst(==(name), names)
+    index === nothing && return :(throw(ArgumentError("unknown land field: $name")))
+    return :(getfield(getfield(land, :refs), $index))
+end
+
+@inline function Base.getproperty(land::MutableLandNamedTuple, name::Symbol)
+    return _land_property_ref(land, Val(name))[]
+end
+
+@inline function Base.setproperty!(
+        land::MutableLandNamedTuple,
+        name::Symbol,
+        value,
+    )
+    _land_property_ref(land, Val(name))[] = value
+    return value
+end
+
+@inline Base.propertynames(::MutableLandNamedTuple{names}) where {names} = names
+@inline Base.keys(::MutableLandNamedTuple{names}) where {names} = names
+@inline Base.values(land::MutableLandNamedTuple{names}) where {names} =
+    ntuple(i -> getfield(getfield(land, :refs), i)[], length(names))
+
+"""
+    mutable_land(land::NamedTuple)
+
+Convert the top-level land tuple and each of its first-level NamedTuple
+containers to a mutable, type-stable runtime representation. Values below the
+first level (including static arrays and metadata NamedTuples) are preserved.
+"""
+@inline _mutable_land_subfield(value::NamedTuple) = MutableLandNamedTuple(value)
+@inline _mutable_land_subfield(value) = value
+
+function mutable_land(land::NamedTuple)
+    runtime_values = map(_mutable_land_subfield, values(land))
+    runtime_refs = map(Ref, runtime_values)
+    return MutableLandNamedTuple{keys(land),typeof(runtime_refs)}(runtime_refs)
+end
+
+@inline function _pack_land_fields(
+        target::NamedTuple,
+        ::Val{names},
+        packed_values::Tuple,
+    ) where {names}
+    return merge(target, NamedTuple{names}(packed_values))
+end
+
+@generated function _pack_land_fields(
+        target::MutableLandNamedTuple{target_names},
+        ::Val{names},
+        packed_values::Tuple,
+    ) where {target_names,names}
+    assignments = Expr[]
+    for (value_index, name) in enumerate(names)
+        target_index = findfirst(==(name), target_names)
+        target_index === nothing &&
+            error("cannot pack unknown mutable land field: $name")
+        push!(
+            assignments,
+            :(
+                getfield(getfield(target, :refs), $target_index)[] =
+                    getfield(packed_values, $value_index)
+            ),
+        )
+    end
+    return Expr(:block, assignments..., :(target))
+end
+
+@inline function _pack_nested_land_fields(
+        land::NamedTuple,
+        ::Val{field},
+        names::Val,
+        packed_values::Tuple,
+    ) where {field}
+    updated = _pack_land_fields(getproperty(land, field), names, packed_values)
+    return merge(land, NamedTuple{(field,)}((updated,)))
+end
+
+@generated function _pack_nested_land_fields(
+        land::MutableLandNamedTuple{land_names},
+        ::Val{field},
+        names::Val,
+        packed_values::Tuple,
+    ) where {land_names,field}
+    field_index = findfirst(==(field), land_names)
+    field_index === nothing && error("cannot pack unknown land container: $field")
+    return quote
+        target = getfield(getfield(land, :refs), $field_index)[]
+        _pack_land_fields(target, names, packed_values)
+        land
+    end
 end
 
 """
@@ -706,13 +828,44 @@ function repElem(v::AbstractVector, v_elem, ind::Int)
     return v
 end
 
-function repElem(v::SVector{N}, v_elem, ind::Int) where {N}
-    # Written as a per-element tuple selection (rather than a zero/one mask
-    # multiplied into v) because that arithmetic is not exact when v holds NaN or
-    # Inf: `0 * Inf` and `0 * NaN` are themselves NaN, so the mask poisons every
-    # position of v, not just the one being replaced. N is static, so this unrolls
-    # to plain scalar selects with no heap allocation.
-    return SVector(ntuple(i -> i == ind ? v_elem : v[i], Val(N)))
+@inline function repElem(v::SVector{N,T}, v_elem, ind::Int) where {N,T}
+    # The element is converted to the element type of the container (the land field type). The
+    # result is stored back into the land with this type in any case, and keeping it here avoids
+    # promoting e.g. a Float32 SVector to Float64 on the first replacement, which makes the
+    # container type unstable in the loops of the models and allocates in the daily model loop.
+    # Written as a tuple `setindex` (rather than a zero/one mask multiplied into v) because that
+    # arithmetic is not exact when v holds NaN or Inf: `0 * Inf` and `0 * NaN` are themselves NaN.
+    return SVector{N,T}(Base.setindex(Tuple(v), convert(T, v_elem), ind))
+end
+
+"""
+    repElems(f, v)
+
+Replace every element `i` of `v` with `f(i)`.
+
+For an `SVector` the new vector is built in one unrolled pass (converted to the element type of `v`), instead of rebuilding the whole vector once per element as repeated `@rep_elem` calls in a loop do. For other vectors, the elements are replaced in place.
+
+# Examples
+```jldoctest
+julia> using StaticArraysCore: SVector
+julia> repElems(i -> 2.0 * i, SVector(0.0, 0.0, 0.0))
+3-element SVector{3, Float64} with indices SOneTo(3):
+ 2.0
+ 4.0
+ 6.0
+```
+"""
+function repElems end
+
+@inline function repElems(f::F, v::SVector{N,T}) where {F,N,T}
+    return SVector{N,T}(ntuple(i -> convert(T, f(i)), Val(N)))
+end
+
+function repElems(f::F, v::AbstractVector) where {F}
+    for i ∈ eachindex(v)
+        v[i] = f(i)
+    end
+    return v
 end
 
 """
@@ -824,15 +977,16 @@ Set component pool values using values from the main pool.
 
             c_ix += 1
         end
+        # Use the shared packing path so this works for both the setup-time
+        # immutable NamedTuple and the inline-update MutableLandNamedTuple.
         push!(gen_output.args, Expr(:(=),
             :land,
-            Expr(:tuple,
-                Expr(:(...), :land),
-                Expr(:(=),
-                    :pools,
-                    (Expr(:tuple,
-                        Expr(:parameters, Expr(:(...), :(land.pools)),
-                            Expr(:kw, s_comp, s_comp))))))))
+            Expr(:call,
+                _pack_nested_land_fields,
+                :land,
+                Expr(:call, Val, QuoteNode(:pools)),
+                Expr(:call, Val, QuoteNode((s_comp,))),
+                Expr(:tuple, s_comp))))
     end
     return gen_output
 end
@@ -879,15 +1033,16 @@ Set main pool values from component pool values.
             c_ix += 1
         end
     end
+    # Keep the immutable and inline-update land representations on the same
+    # packing API; splatting MutableLandNamedTuple is intentionally unsupported.
     push!(gen_output.args, Expr(:(=),
         :land,
-        Expr(:tuple,
-            Expr(:(...), :land),
-            Expr(:(=),
-                :pools,
-                (Expr(:tuple,
-                    Expr(:parameters, Expr(:(...), :(land.pools)),
-                        Expr(:kw, s_main, s_main))))))))
+        Expr(:call,
+            _pack_nested_land_fields,
+            :land,
+            Expr(:call, Val, QuoteNode(:pools)),
+            Expr(:call, Val, QuoteNode((s_main,))),
+            Expr(:tuple, s_main))))
     return gen_output
 end
 

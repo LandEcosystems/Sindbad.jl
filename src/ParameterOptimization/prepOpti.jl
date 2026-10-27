@@ -143,7 +143,7 @@ function  prepOpti(forcing, observations, info, ::CostModelObsMT; algorithm_info
     
     space_index = 1 # the parallelization of cost computation only runs in single pixel runs
 
-    cost_function = x -> cost(x, opti_helpers.default_values, info.models.forward, run_helpers.space_forcing[space_index], run_helpers.space_spinup[space_index], run_helpers.loc_forcing_t, run_helpers.output_array, run_helpers.space_output_mt, deepcopy(run_helpers.space_land[space_index]), run_helpers.tem_info, observations, opti_helpers.parameter_table, opti_helpers.cost_options, info.optimization.run_options.multi_constraint_method, info.optimization.run_options.parameter_scaling, cost_vector, info.optimization.run_options.cost_method)
+    cost_function = x -> cost(x, opti_helpers.default_values, info.models.forward, run_helpers.space_forcing[space_index], run_helpers.space_spinup[space_index], run_helpers.loc_forcing_t, run_helpers.output_array, run_helpers.space_output_mt, run_helpers.space_land[space_index], run_helpers.tem_info, observations, opti_helpers.parameter_table, opti_helpers.cost_options, info.optimization.run_options.multi_constraint_method, info.optimization.run_options.parameter_scaling, cost_vector, info.optimization.run_options.cost_method)
 
     opti_helpers = (; opti_helpers..., cost_function=cost_function, cost_vector=cost_vector)
     return opti_helpers
@@ -158,6 +158,43 @@ function  prepOpti(forcing, observations, info, ::CostModelObsLandTS)
     opti_helpers = (; opti_helpers..., cost_function=cost_function)
     
     return opti_helpers
+end
+
+"""
+    OutputBufferPool(output_array, space_output, make_buffer)
+
+A thread-safe pool of model output buffers (`(output_array, space_output)` pairs) for concurrent cost evaluations. The pool starts with the original buffers and creates additional ones with `make_buffer` only when more evaluations run at the same time than buffers are available. Buffers are returned to the pool after use, so a sequential optimization only ever uses the original buffers.
+"""
+struct OutputBufferPool{B,F}
+    buffers::Vector{B}
+    lock::ReentrantLock
+    make_buffer::F
+end
+
+function OutputBufferPool(output_array, space_output, make_buffer)
+    buffer = (output_array, space_output)
+    return OutputBufferPool{typeof(buffer),typeof(make_buffer)}([buffer], ReentrantLock(), make_buffer)
+end
+
+"""
+    withOutputBuffer(f, pool::OutputBufferPool)
+
+Run `f(buffer)` with an output buffer taken exclusively from the `pool`, and return the buffer to the pool afterwards.
+"""
+function withOutputBuffer(f, pool::OutputBufferPool)
+    buffer = lock(pool.lock) do
+        isempty(pool.buffers) ? nothing : pop!(pool.buffers)
+    end
+    if isnothing(buffer)
+        buffer = pool.make_buffer()
+    end
+    try
+        return f(buffer)
+    finally
+        lock(pool.lock) do
+            push!(pool.buffers, buffer)
+        end
+    end
 end
 
 function init_history_file(info)
@@ -180,14 +217,27 @@ function  prepOpti(forcing, observations, info, cost_method::CostModelObs)
 
     cost_options = prepCostOptions(observations, info.optimization.cost_options, cost_method)
 
+    # optimizers may evaluate the cost function from several threads at once (e.g. the `multi_threading` option of CMAEvolutionStrategy). Each concurrent evaluation needs its own output arrays, otherwise the simulations overwrite each other's output before the cost is calculated.
+    output_buffers = OutputBufferPool(run_helpers.output_array, run_helpers.space_output, () -> begin
+        output_array = deepcopy(run_helpers.output_array)
+        space_output = map([run_helpers.space_ind...]) do lsi
+            getLocData(output_array, lsi)
+        end
+        (output_array, space_output)
+    end)
+
     if info.helpers.run.store_history isa DoStoreHistory
         history_file = init_history_file(info)
         print_info(prepOpti, @__FILE__, @__LINE__, "saving training history to file: $history_file")
-        cost_function = x -> cost(x, default_values, info.models.forward, run_helpers.space_forcing, run_helpers.space_spinup_forcing, run_helpers.loc_forcing_t, run_helpers.output_array, run_helpers.space_output, deepcopy(run_helpers.space_land), run_helpers.tem_info, observations, parameter_table, cost_options, info.optimization.run_options.multi_constraint_method, info.optimization.run_options.parameter_scaling, history_file, info, cost_method)
+        cost_function = x -> withOutputBuffer(output_buffers) do (output_array, space_output)
+            cost(x, default_values, info.models.forward, run_helpers.space_forcing, run_helpers.space_spinup, run_helpers.loc_forcing_t, output_array, space_output, deepcopy(run_helpers.space_land), run_helpers.tem_info, observations, parameter_table, cost_options, info.optimization.run_options.multi_constraint_method, info.optimization.run_options.parameter_scaling, history_file, info, cost_method)
+        end
     
     elseif  info.helpers.run.store_history isa DoNotStoreHistory
         print_info(prepOpti, @__FILE__, @__LINE__, "History file will not be stored as 'store_history' flag is set to false.")
-        cost_function = x -> cost(x, default_values, info.models.forward, run_helpers.space_forcing, run_helpers.space_spinup, run_helpers.loc_forcing_t, run_helpers.output_array, run_helpers.space_output, deepcopy(run_helpers.space_land), run_helpers.tem_info, observations, parameter_table, cost_options, info.optimization.run_options.multi_constraint_method, info.optimization.run_options.parameter_scaling, cost_method)
+        cost_function = x -> withOutputBuffer(output_buffers) do (output_array, space_output)
+            cost(x, default_values, info.models.forward, run_helpers.space_forcing, run_helpers.space_spinup, run_helpers.loc_forcing_t, output_array, space_output, deepcopy(run_helpers.space_land), run_helpers.tem_info, observations, parameter_table, cost_options, info.optimization.run_options.multi_constraint_method, info.optimization.run_options.parameter_scaling, cost_method)
+        end
     end
 
     opti_helpers = (; parameter_table=parameter_table, cost_function=cost_function, cost_options=cost_options, default_values=default_values, lower_bounds=lower_bounds, upper_bounds=upper_bounds, run_helpers=run_helpers)

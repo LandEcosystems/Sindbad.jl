@@ -24,7 +24,7 @@ function compute(params::rootWaterUptake_PHS, forcing, land, helpers)
     end
 
     for sl ∈ eachindex(land.pools.soilW)
-        uptake = _non_negative_Finite(phs_root_water_uptake[sl])
+        uptake = _non_negative_Finite(phs_root_water_uptake[sl]) # phs_root_water_uptake is limited by the available water
         @rep_elem uptake ⇒ (root_water_uptake, sl, :soilW)
         @add_to_elem -uptake ⇒ (ΔsoilW, sl, :soilW)
     end

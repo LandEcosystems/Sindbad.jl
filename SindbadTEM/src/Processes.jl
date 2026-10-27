@@ -393,9 +393,10 @@ module Processes
         include(model_path)
     end
 
-    # now having this ordered list is independent from the step including the models into this `module`.
-    ### TODO: I am think about how to use different order of models for different experiments. For example, the order of models in the `standardSindbadTEM.jl` is different from the order of models in the `standardSindbadTEM_WROASTED.jl`. So, I will keep this ordered list in a separate file, and include it here.
+    # Load all supported process orders once. An experiment can select an order
+    # through `model_structure.sindbad_models` in `replace_info`.
     include(joinpath(@__DIR__, "Processes/standardSindbadTEM.jl"))
+    include(joinpath(@__DIR__, "Processes/standardSindbadTEM_WROASTED.jl"))
     
     # include the run functions for the methods of the TEM processes
     include(joinpath(@__DIR__, "Methods.jl"))

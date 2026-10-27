@@ -111,6 +111,16 @@ function createForcingNamedTuple(incubes, f_sizes, f_dimensions, info)
     forcing_vars = keys(info.experiment.data_settings.forcing.variables)
     f_helpers = collectForcingHelpers(info, f_sizes, f_dimensions)
     typed_cubes = getInputArrayOfType(incubes, info.helpers.run.input_array_type)
+    # Some NetCDF variables are exposed by DiskArrays/YAXArrays with `Any`
+    # element type even though `cleanData` has already converted every value to
+    # the configured model number type.  Letting those arrays reach the daily
+    # model loop boxes every lookup and makes all downstream arithmetic type
+    # unstable.  Materialise only such cubes into the requested numeric type;
+    # already-typed forcing arrays are left untouched.
+    num_type = info.helpers.numbers.num_type
+    typed_cubes = map(typed_cubes) do cube
+        eltype(cube) === num_type ? cube : map(num_type, cube)
+    end
     data_ts_type=[]
     time_dim_name = Symbol(info.experiment.data_settings.forcing.data_dimension.time)
     for incube in typed_cubes

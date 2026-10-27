@@ -36,6 +36,10 @@ checks below are always performed, whether or not a plot is ever produced.
 """
 function checkIOModelStructure(info; model_funcs=(:define, :precompute, :compute))
     models = info.models.forward
+    # I/O inspection uses Julia's generic iteration/collection APIs, while LongTuple
+    # deliberately exposes only chunk-aware map/fold operations.  Flatten only for
+    # this setup-time audit; the model run keeps the compiler-friendly LongTuple.
+    models = models isa LongTuple ? to_tuple(models) : models
     model_names = [Symbol(nameof(supertype(typeof(m)))) for m in models]
     # `getInOutModel`/`getInOutModels` (SindbadTEM.Utils) unconditionally println progress for
     # every model/function combination; that's fine for interactive/ad hoc use but far too noisy
@@ -138,10 +142,11 @@ function getExperimentInfo(sindbad_experiment::String; replace_info=Dict())
         Base.moduleroot(@__MODULE__).Visualization.plotIOModelStructure(info, model_func)
     end
 
-    carbon_cycle_index = findfirst(m -> nameof(supertype(typeof(m))) === :cCycleBase, info.models.forward)
+    models_for_inspection = info.models.forward isa LongTuple ? to_tuple(info.models.forward) : info.models.forward
+    carbon_cycle_index = findfirst(m -> nameof(supertype(typeof(m))) === :cCycleBase, models_for_inspection)
     if !isnothing(carbon_cycle_index)
         print_info(getExperimentInfo, @__FILE__, @__LINE__, "plotting the carbon flow matrix of the selected carbon cycle model...", n_m=1)
-        Base.moduleroot(@__MODULE__).Visualization.plotCarbonFlows(info, info.models.forward[carbon_cycle_index])
+        Base.moduleroot(@__MODULE__).Visualization.plotCarbonFlows(info, models_for_inspection[carbon_cycle_index])
     end
 
     saveInfo(info, info.helpers.run.save_info)

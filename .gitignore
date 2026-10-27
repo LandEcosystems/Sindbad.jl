@@ -79,3 +79,7 @@ package-lock.json
 !logo_mpi_grey.png
 !.github
 .qodo
+
+*.yml
+*.md
+*.mts
