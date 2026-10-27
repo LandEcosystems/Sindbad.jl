@@ -94,7 +94,7 @@
       "diagnostics.c_flow_A_vec": 11,
       "states.aboveground_biomass": null,
       "states.fAPAR": null,
-      "states.fAPAR_veg": null,
+      "states.fAPAR_grid": null,
       "states.frac_snow": null,
       "states.PAW": "d_soil",
       "diagnostics.root_water_efficiency": "d_soil",
