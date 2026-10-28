@@ -317,7 +317,7 @@ function findSiteFiles(path_output, prefix; exclude=String[])
 end
 
 """
-    findExperimentSiteFiles(path_output, exp_name, sub_dir, prefix)
+    findExperimentSiteFiles(path_output, exp_name, sub_dir, file_name)
 
 Returns the files of the single-site runs of `exp_name` under `path_output`, one per
 site, and the sites without one.
@@ -327,8 +327,8 @@ site, and the sites without one.
 - `exp_name`: the experiment name, which names the directories
   `output_<site>_<exp_name>`
 - `sub_dir`: the directory of the file in the output directory, e.g., `data`
-- `prefix`: the start of the file name, e.g., `restart`. The file is
-  `<prefix>_<exp_name>_<site>.nc` or `.zarr`.
+- `file_name`: the file name without extension, e.g., `restart`. The file is
+  `<file_name>.nc` or `.zarr`.
 
 # Returns:
 - A NamedTuple with the `paths` of the files and the `sites_without` a file.
@@ -337,7 +337,7 @@ site, and the sites without one.
 - The directory name must end with the full experiment name, so `WR_DD` does not match
   the directories of `WR_DD_MT`.
 """
-function findExperimentSiteFiles(path_output, exp_name, sub_dir, prefix)
+function findExperimentSiteFiles(path_output, exp_name, sub_dir, file_name)
     site_pattern = Regex("^output_(.+)_\\Q" * exp_name * "\\E\$")
     paths = String[]
     sites_without = String[]
@@ -345,7 +345,7 @@ function findExperimentSiteFiles(path_output, exp_name, sub_dir, prefix)
         m = match(site_pattern, dir_name)
         (isnothing(m) || !isdir(joinpath(path_output, dir_name))) && continue
         site = m.captures[1]
-        candidates = [joinpath(path_output, dir_name, sub_dir, "$(prefix)_$(exp_name)_$(site).$(ext)") for ext ∈ ("nc", "zarr")]
+        candidates = [joinpath(path_output, dir_name, sub_dir, "$(file_name).$(ext)") for ext ∈ ("nc", "zarr")]
         i_found = findfirst(ispath, candidates)
         isnothing(i_found) ? push!(sites_without, site) : push!(paths, candidates[i_found])
     end
