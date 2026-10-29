@@ -76,10 +76,11 @@ end
 function runExperiment(info::NamedTuple, forcing::NamedTuple, ::Union{DoRunForward, DoNotRunOptimization})
     run_output = runForward(forcing, info, info.helpers.run.run_lazy)
     set_log_level()
-    return (; forcing, info, output=run_output.output, restart=run_output.restart)
+    return (; forcing, info, output=run_output.output, restart=run_output.restart, spinup=run_output.spinup)
 end
 
 function runExperiment(info::NamedTuple, forcing::NamedTuple, ::DoRunOptimization)
+    info = withoutSpinupStore(info)
     observations = getObservation(info, forcing.helpers)
     additionaldims = setdiff(keys(forcing.helpers.sizes), info.experiment.data_settings.forcing.data_dimension.time)
     run_output = nothing
@@ -118,6 +119,10 @@ function runExperimentForward(sindbad_experiment::String; replace_info=Dict(), l
     output_dims = getOutDims(info, forcing.helpers)
     saveOutCubes(info, values(run_output.output), output_dims, info.output.variables)
     saveRestartCubes(info, run_output.restart)
+    saveSpinupCubes(info, run_output.spinup)
+    # the figures need the forcing and output in memory, which a lazy run does not
+    # have
+    info.helpers.run.run_lazy isa DoRunLazy || plotForwardRun(info, forcing, run_output.output, run_output.spinup)
     set_log_level()
     return run_output
 end
@@ -142,10 +147,12 @@ function runExperimentForwardParams(params_vector::Vector, sindbad_experiment::S
     output_dims = getOutDims(info, forcing.helpers)
     saveOutCubes(info, values(optimized_output), output_dims, info.output.variables)
     saveRestartCubes(info, optimized_run.restart)
+    saveSpinupCubes(info, optimized_run.spinup)
+    plotForwardRun(info, forcing, default_output, optimized_run.spinup; opt_output=optimized_output)
 
     forward_output = (; optimized=optimized_output, default=default_output)
     set_log_level()
-    return (; forcing, info, output=forward_output)
+    return (; forcing, info, output=forward_output, spinup=optimized_run.spinup)
 end
 
 function runExperimentFullOutput(sindbad_experiment::String; replace_info=Dict(), log_level=:info)
@@ -157,13 +164,17 @@ function runExperimentFullOutput(sindbad_experiment::String; replace_info=Dict()
     info = @set info.helpers.run.land_output_type = PreAllocArrayAll()
     run_helpers = prepTEM(info.models.forward, forcing, info)
     info = @set info.output.variables = run_helpers.output_vars
-    runTEM!(run_helpers.space_selected_models, run_helpers.space_forcing, run_helpers.space_spinup, run_helpers.loc_forcing_t, run_helpers.space_output, run_helpers.space_restart, run_helpers.space_land, run_helpers.tem_info)
+    runTEM!(run_helpers.space_selected_models, run_helpers.space_forcing, run_helpers.space_spinup, run_helpers.loc_forcing_t, run_helpers.space_output, run_helpers.space_restart, run_helpers.space_land, run_helpers.tem_info; show_progress=true)
     output_dims = run_helpers.output_dims
     run_output = run_helpers.output_array
     saveOutCubes(info, run_output, output_dims, run_helpers.output_vars)
     saveRestartCubes(info, run_helpers.restart)
+    spinup = prepSpinupOut(info, run_helpers)
+    saveSpinupCubes(info, spinup)
+    full_output = (; Pair.(getUniqueVarNames(run_helpers.output_vars), run_output)...)
+    plotForwardRun(info, forcing, full_output, spinup)
     set_log_level()
-    return (; forcing, info, output=(; Pair.(getUniqueVarNames(run_helpers.output_vars), run_output)...))
+    return (; forcing, info, output=full_output, spinup)
 end
 
 function runExperimentOpti(sindbad_experiment::String; replace_info=Dict(), log_level=:warn)
@@ -171,6 +182,9 @@ function runExperimentOpti(sindbad_experiment::String; replace_info=Dict(), log_
     set_log_level(log_level)
     setExperimentMode!(replace_info, :optimization)
     info, forcing = prepExperiment(sindbad_experiment; replace_info=replace_info)
+    # the final forward run in runExperimentForwardParams prepares its own info, so
+    # it stores the spinup when the experiment says so
+    info = withoutSpinupStore(info)
     run_helpers = prepTEM(info.models.forward, forcing, info)
     opti_output = runExperiment(info, forcing, info.helpers.run.run_optimization)
     set_log_level(:info)
@@ -182,14 +196,21 @@ function runExperimentOpti(sindbad_experiment::String; replace_info=Dict(), log_
     loss_table = Table((; variable=cost_options.variable, metric=cost_options.cost_metric, loss_opt=loss_vector, loss_def=loss_vector_def))
     println("Total loss:: optimized: $(sum(loss_vector)), default: $(sum(loss_vector_def))")
     display(loss_table)
+    savePerformanceMetrics(fp_output.info, cost_options, opti_output.observation, fp_output.output.default, fp_output.output.optimized)
     parameters_nt = convertParametersToNamedTuple(opti_output.parameters, :model, :name)
-    return (; forcing, cost_options, run_helpers, info=fp_output.info, loss=loss_table, observation=opti_output.observation, output=fp_output.output, parameters=opti_output.parameters, parameters_nt=parameters_nt)
+    out_opti = (; forcing, cost_options, run_helpers, info=fp_output.info, loss=loss_table, observation=opti_output.observation, output=fp_output.output, spinup=fp_output.spinup, parameters=opti_output.parameters, parameters_nt=parameters_nt)
+    # the forcing, debug and spinup figures of the final forward run come from
+    # runExperimentForwardParams
+    plotTimeSeries(out_opti)
+    plotPerformanceHistograms(out_opti)
+    return out_opti
 end
 
 function runExperimentSensitivity(sindbad_experiment::String; replace_info=Dict(), batch=true, log_level=:warn)
     print_info_separator(sep_text="Sensitivity Analysis Experiment")
     setExperimentMode!(replace_info, :optimization)
     info, forcing = prepExperiment(sindbad_experiment; replace_info=replace_info)
+    info = withoutSpinupStore(info)
     observations = getObservation(info, forcing.helpers)
 
     obs_array = [Array(_o) for _o in observations.data]; # TODO: necessary now for performance because view of keyedarray is slow
@@ -260,6 +281,10 @@ function runExperimentForward(sindbad_experiment::String; replace_info=Dict(), l
     output_dims = getOutDims(info, forcing.helpers)
     saveOutCubes(info, values(run_output.output), output_dims, info.output.variables)
     saveRestartCubes(info, run_output.restart)
+    saveSpinupCubes(info, run_output.spinup)
+    # the figures need the forcing and output in memory, which a lazy run does not
+    # have
+    info.helpers.run.run_lazy isa DoRunLazy || plotForwardRun(info, forcing, run_output.output, run_output.spinup)
     set_log_level()
     return run_output
 end
@@ -284,10 +309,12 @@ function runExperimentForwardParams(params_vector::Vector, sindbad_experiment::S
     output_dims = getOutDims(info, forcing.helpers)
     saveOutCubes(info, values(optimized_output), output_dims, info.output.variables)
     saveRestartCubes(info, optimized_run.restart)
+    saveSpinupCubes(info, optimized_run.spinup)
+    plotForwardRun(info, forcing, default_output, optimized_run.spinup; opt_output=optimized_output)
 
     forward_output = (; optimized=optimized_output, default=default_output)
     set_log_level()
-    return (; forcing, info, output=forward_output)
+    return (; forcing, info, output=forward_output, spinup=optimized_run.spinup)
 end
 ```
 
@@ -324,10 +351,12 @@ function runExperimentForwardParams(params_vector::Vector, sindbad_experiment::S
     output_dims = getOutDims(info, forcing.helpers)
     saveOutCubes(info, values(optimized_output), output_dims, info.output.variables)
     saveRestartCubes(info, optimized_run.restart)
+    saveSpinupCubes(info, optimized_run.spinup)
+    plotForwardRun(info, forcing, default_output, optimized_run.spinup; opt_output=optimized_output)
 
     forward_output = (; optimized=optimized_output, default=default_output)
     set_log_level()
-    return (; forcing, info, output=forward_output)
+    return (; forcing, info, output=forward_output, spinup=optimized_run.spinup)
 end
 ```
 
@@ -353,13 +382,17 @@ function runExperimentFullOutput(sindbad_experiment::String; replace_info=Dict()
     info = @set info.helpers.run.land_output_type = PreAllocArrayAll()
     run_helpers = prepTEM(info.models.forward, forcing, info)
     info = @set info.output.variables = run_helpers.output_vars
-    runTEM!(run_helpers.space_selected_models, run_helpers.space_forcing, run_helpers.space_spinup, run_helpers.loc_forcing_t, run_helpers.space_output, run_helpers.space_restart, run_helpers.space_land, run_helpers.tem_info)
+    runTEM!(run_helpers.space_selected_models, run_helpers.space_forcing, run_helpers.space_spinup, run_helpers.loc_forcing_t, run_helpers.space_output, run_helpers.space_restart, run_helpers.space_land, run_helpers.tem_info; show_progress=true)
     output_dims = run_helpers.output_dims
     run_output = run_helpers.output_array
     saveOutCubes(info, run_output, output_dims, run_helpers.output_vars)
     saveRestartCubes(info, run_helpers.restart)
+    spinup = prepSpinupOut(info, run_helpers)
+    saveSpinupCubes(info, spinup)
+    full_output = (; Pair.(getUniqueVarNames(run_helpers.output_vars), run_output)...)
+    plotForwardRun(info, forcing, full_output, spinup)
     set_log_level()
-    return (; forcing, info, output=(; Pair.(getUniqueVarNames(run_helpers.output_vars), run_output)...))
+    return (; forcing, info, output=full_output, spinup)
 end
 ```
 
@@ -381,6 +414,9 @@ function runExperimentOpti(sindbad_experiment::String; replace_info=Dict(), log_
     set_log_level(log_level)
     setExperimentMode!(replace_info, :optimization)
     info, forcing = prepExperiment(sindbad_experiment; replace_info=replace_info)
+    # the final forward run in runExperimentForwardParams prepares its own info, so
+    # it stores the spinup when the experiment says so
+    info = withoutSpinupStore(info)
     run_helpers = prepTEM(info.models.forward, forcing, info)
     opti_output = runExperiment(info, forcing, info.helpers.run.run_optimization)
     set_log_level(:info)
@@ -392,8 +428,14 @@ function runExperimentOpti(sindbad_experiment::String; replace_info=Dict(), log_
     loss_table = Table((; variable=cost_options.variable, metric=cost_options.cost_metric, loss_opt=loss_vector, loss_def=loss_vector_def))
     println("Total loss:: optimized: $(sum(loss_vector)), default: $(sum(loss_vector_def))")
     display(loss_table)
+    savePerformanceMetrics(fp_output.info, cost_options, opti_output.observation, fp_output.output.default, fp_output.output.optimized)
     parameters_nt = convertParametersToNamedTuple(opti_output.parameters, :model, :name)
-    return (; forcing, cost_options, run_helpers, info=fp_output.info, loss=loss_table, observation=opti_output.observation, output=fp_output.output, parameters=opti_output.parameters, parameters_nt=parameters_nt)
+    out_opti = (; forcing, cost_options, run_helpers, info=fp_output.info, loss=loss_table, observation=opti_output.observation, output=fp_output.output, spinup=fp_output.spinup, parameters=opti_output.parameters, parameters_nt=parameters_nt)
+    # the forcing, debug and spinup figures of the final forward run come from
+    # runExperimentForwardParams
+    plotTimeSeries(out_opti)
+    plotPerformanceHistograms(out_opti)
+    return out_opti
 end
 ```
 
@@ -414,6 +456,7 @@ function runExperimentSensitivity(sindbad_experiment::String; replace_info=Dict(
     print_info_separator(sep_text="Sensitivity Analysis Experiment")
     setExperimentMode!(replace_info, :optimization)
     info, forcing = prepExperiment(sindbad_experiment; replace_info=replace_info)
+    info = withoutSpinupStore(info)
     observations = getObservation(info, forcing.helpers)
 
     obs_array = [Array(_o) for _o in observations.data]; # TODO: necessary now for performance because view of keyedarray is slow
@@ -454,48 +497,74 @@ saveOutCubes
 ```julia
 function saveOutCubes end
 
-function saveOutCubes(data_dir, global_metadata, data, data_dims, var_pairs, out_format, t_step, ::DoSaveSingleFile)
+function saveOutCubes(data_dir, global_metadata, data, data_dims, var_pairs, out_format, t_step, ::DoSaveSingleFile; compression=nothing, digits=nothing)
     print_info(saveOutCubes, @__FILE__, @__LINE__, "saving one file for all variables")
     catalog_names = getVarFull.(var_pairs)
     variable_names = getUniqueVarNames(var_pairs)
-    all_yax = Tuple(getYaxForVariable.(data, data_dims, variable_names, catalog_names, Ref(t_step)))
+    all_yax = Tuple(getYaxForVariable.(roundToDigits.(data, digits), data_dims, variable_names, catalog_names, Ref(t_step)))
     data_path = joinpath(data_dir, "all_variables.$(out_format)")
     print_info(nothing, @__FILE__, @__LINE__, "saved all variables to `$(data_path)`", n_m=4)
     ds_new = DataLoaders.YAXArrays.Dataset(; (; zip(variable_names, all_yax)...)..., properties=global_metadata)
-    DataLoaders.YAXArrays.savedataset(ds_new, path=data_path, append=true, overwrite=true)
+    DataLoaders.YAXArrays.savedataset(ds_new; path=data_path, append=true, overwrite=true, getSaveKwargs(out_format, compression)...)
     return nothing
 end
 
-function saveOutCubes(data_dir, global_metadata, data, data_dims, var_pairs, out_format, t_step, ::DoSaveSingleFile)
+function saveOutCubes(data_dir, global_metadata, data, data_dims, var_pairs, out_format, t_step, ::DoSaveSingleFile; compression=nothing, digits=nothing)
     print_info(saveOutCubes, @__FILE__, @__LINE__, "saving one file for all variables")
     catalog_names = getVarFull.(var_pairs)
     variable_names = getUniqueVarNames(var_pairs)
-    all_yax = Tuple(getYaxForVariable.(data, data_dims, variable_names, catalog_names, Ref(t_step)))
+    all_yax = Tuple(getYaxForVariable.(roundToDigits.(data, digits), data_dims, variable_names, catalog_names, Ref(t_step)))
     data_path = joinpath(data_dir, "all_variables.$(out_format)")
     print_info(nothing, @__FILE__, @__LINE__, "saved all variables to `$(data_path)`", n_m=4)
     ds_new = DataLoaders.YAXArrays.Dataset(; (; zip(variable_names, all_yax)...)..., properties=global_metadata)
-    DataLoaders.YAXArrays.savedataset(ds_new, path=data_path, append=true, overwrite=true)
+    DataLoaders.YAXArrays.savedataset(ds_new; path=data_path, append=true, overwrite=true, getSaveKwargs(out_format, compression)...)
     return nothing
 end
 
-function saveOutCubes(data_dir, global_metadata, data, data_dims, var_pairs, out_format, t_step, ::DoNotSaveSingleFile)
+function saveOutCubes(data_dir, global_metadata, data, data_dims, var_pairs, out_format, t_step, ::DoNotSaveSingleFile; compression=nothing, digits=nothing)
     print_info(saveOutCubes, @__FILE__, @__LINE__, "saving one file per variable")
     catalog_names = getVarFull.(var_pairs)
     variable_names = getUniqueVarNames(var_pairs)
     for vn ∈ eachindex(var_pairs)
         catalog_name = catalog_names[vn]
         variable_name = variable_names[vn]
-        data_yax = getYaxForVariable(data[vn], data_dims[vn], variable_name, catalog_name, t_step)
+        data_yax = getYaxForVariable(roundToDigits(data[vn], digits), data_dims[vn], variable_name, catalog_name, t_step)
         data_path = joinpath(data_dir, "$(variable_name).$(out_format)")
         print_info(nothing, @__FILE__, @__LINE__, "saved `$(variable_name)` to `$(data_path)`", n_m=4)
         ds_new = DataLoaders.YAXArrays.Dataset(; (variable_name => data_yax,)..., properties=global_metadata)
-        DataLoaders.YAXArrays.savedataset(ds_new, path=data_path, overwrite=true)
+        DataLoaders.YAXArrays.savedataset(ds_new; path=data_path, overwrite=true, getSaveKwargs(out_format, compression)...)
     end
     return nothing
 end
 
 function saveOutCubes(info, out_cubes, output_dims, output_vars)
-    saveOutCubes(info.output.dirs.data, info.output.file_info.global_metadata, out_cubes, output_dims, output_vars, info.output.format, info.experiment.basics.temporal_resolution, info.helpers.run.save_single_file)
+    saveOutCubes(info.output.dirs.data, info.output.file_info.global_metadata, out_cubes, output_dims, output_vars, info.output.format, info.experiment.basics.temporal_resolution, info.helpers.run.save_single_file; compression=info.output.data_compression.level, digits=info.output.data_compression.digits)
+end
+
+function saveOutCubes(info, out_cubes::DataLoaders.YAXArrays.Dataset, output_dims, output_vars)
+    t_step = info.experiment.basics.temporal_resolution
+    out_format = info.output.format
+    data_dir = info.output.dirs.data
+    save_kwargs = getSaveKwargs(out_format, info.output.data_compression.level)
+    variable_names = getUniqueVarNames(output_vars)
+    foreach(variable_names, getVarFull.(output_vars)) do variable_name, catalog_name
+        merge!(out_cubes.cubes[variable_name].properties, getVariableInfo(catalog_name, t_step))
+    end
+    global_metadata = info.output.file_info.global_metadata
+    if info.helpers.run.save_single_file isa DoSaveSingleFile
+        data_path = joinpath(data_dir, "all_variables.$(out_format)")
+        ds_new = DataLoaders.YAXArrays.Dataset(; (v => out_cubes.cubes[v] for v ∈ variable_names)..., properties=global_metadata)
+        DataLoaders.YAXArrays.savedataset(ds_new; path=data_path, overwrite=true, save_kwargs...)
+        print_info(nothing, @__FILE__, @__LINE__, "saved all variables to `$(data_path)`", n_m=4)
+    else
+        for variable_name ∈ variable_names
+            data_path = joinpath(data_dir, "$(variable_name).$(out_format)")
+            ds_new = DataLoaders.YAXArrays.Dataset(; (variable_name => out_cubes.cubes[variable_name],)..., properties=global_metadata)
+            DataLoaders.YAXArrays.savedataset(ds_new; path=data_path, overwrite=true, save_kwargs...)
+            print_info(nothing, @__FILE__, @__LINE__, "saved `$(variable_name)` to `$(data_path)`", n_m=4)
+        end
+    end
+    return nothing
 end
 ```
 
@@ -516,7 +585,7 @@ function saveParameterCubes(info, parameter_table, forcing_helpers)
     data_path = getParameterFilePath(info)
     space_dims = Symbol.(forcing_helpers.dimensions.space)
     axes_values = Dict(Symbol(first(f_axis)) => last(f_axis) for f_axis ∈ forcing_helpers.axes)
-    yax_dims, name_cubes = DataLoaders.getParameterFileDims(space_dims, axes_values)
+    yax_dims = Tuple(DataLoaders.DD.Dim{s_dim}(collect(axes_values[s_dim])) for s_dim ∈ space_dims)
     space_sizes = Tuple(forcing_helpers.sizes[s_dim] for s_dim ∈ space_dims)
 
     variable_attributes = Pair{String,Any}[]
@@ -539,7 +608,7 @@ function saveParameterCubes(info, parameter_table, forcing_helpers)
     param_metadata["experiment_name"] = info.experiment.basics.name
     param_metadata["experiment_domain"] = info.experiment.basics.domain
     param_metadata["temporal_resolution"] = info.experiment.basics.temporal_resolution
-    params_ds = DataLoaders.YAXArrays.Dataset(; all_yax..., name_cubes..., properties=param_metadata)
+    params_ds = DataLoaders.YAXArrays.Dataset(; all_yax..., properties=param_metadata)
     print_info(saveParameterCubes, @__FILE__, @__LINE__, "saving the optimized parameters to the parameter file `$(data_path)`", n_m=4)
     DataLoaders.saveParameterDataset(params_ds, data_path)
 
@@ -547,6 +616,46 @@ function saveParameterCubes(info, parameter_table, forcing_helpers)
     writeParameterInputJson(json_path, abspath(data_path), variable_attributes)
     print_info(nothing, @__FILE__, @__LINE__, "saved the parameters input of the parameter file to `$(json_path)`", n_m=4)
     return (; data_path, json_path)
+end
+```
+
+:::
+
+
+----
+
+### savePerformanceMetrics
+```@docs
+savePerformanceMetrics
+```
+
+:::details Code
+
+```julia
+function savePerformanceMetrics(info, cost_options, observations, def_output, opt_output)
+    metrics = errorMetrics()
+    loss_def = metricVector(def_output, observations, cost_options)
+    loss_opt = metricVector(opt_output, observations, cost_options)
+    rows = map(enumerate(cost_options)) do (i, cost_option)
+        y, yσ, y_def = getData(def_output, observations, cost_option)
+        _, _, y_opt = getData(opt_output, observations, cost_option)
+        y, yσ, y_def, y_opt = (Float64.(vec(collect(a))) for a ∈ (y, yσ, y_def, y_opt))
+        valid = isfinite.(y) .& isfinite.(yσ) .& isfinite.(y_def) .& isfinite.(y_opt)
+        y, yσ, y_def, y_opt = y[valid], yσ[valid], y_def[valid], y_opt[valid]
+        metric_values = Pair{Symbol,Float64}[]
+        for m ∈ metrics, (run_name, ŷ) ∈ (("def", y_def), ("opt", y_opt))
+            push!(metric_values, Symbol("$(nameof(typeof(m)))_$(run_name)") => performanceMetricValue(m, ŷ, y, yσ))
+        end
+        (; variable=String(cost_option.variable),
+            cost_metric=String(nameof(typeof(cost_option.cost_metric))),
+            cost_weight=Float64(cost_option.cost_weight), n=length(y),
+            mean_obs=meanOrNaN(y), mean_def=meanOrNaN(y_def), mean_opt=meanOrNaN(y_opt),
+            loss_def=Float64(loss_def[i]), loss_opt=Float64(loss_opt[i]), metric_values...)
+    end
+    performance_path = getPerformanceFilePath(info)
+    CSV.write(performance_path, rows)
+    print_info(savePerformanceMetrics, @__FILE__, @__LINE__, "saved the performance of the default and optimized output to `$(performance_path)`", n_m=4)
+    return performance_path
 end
 ```
 
@@ -568,7 +677,59 @@ function saveRestartCubes(info, restart)
     restart_metadata = getRestartMetadata(info, restart)
     restart_ds = getRestartDataset(info, restart, restart_metadata)
     print_info(nothing, @__FILE__, @__LINE__, "saving pools after the spinup step with save_restart to `$(data_path)`", n_m=4)
-    DataLoaders.YAXArrays.savedataset(restart_ds, path=data_path, overwrite=true)
+    DataLoaders.YAXArrays.savedataset(restart_ds; path=data_path, overwrite=true, getSaveKwargs(info)...)
+    return nothing
+end
+```
+
+:::
+
+
+----
+
+### saveSpinupCubes
+```@docs
+saveSpinupCubes
+```
+
+:::details Code
+
+```julia
+function saveSpinupCubes end
+
+saveSpinupCubes(_, ::Nothing) = nothing
+
+function saveSpinupCubes(info, spinup)
+    data_path = getSpinupFilePath(info)
+    spinup_metadata = copy(info.output.file_info.global_metadata)
+    method_name = string(nameof(typeof(info.spinup.method)))
+    spinup_metadata["spinup_sequence_method"] = lowercase(replace(method_name, r"(?<!^)([A-Z])" => s"_\1"))
+    spinup_metadata["spinup_sequence"] = join([join((nameof(typeof(seq.spinup_mode)), seq.forcing, seq.n_repeat, seq.n_timesteps), ":") for seq ∈ first(spinup.sequences)], ";")
+    t_step = info.experiment.basics.temporal_resolution
+    all_yax = map(spinup.variables, spinup.dims, spinup.data) do var_pair, var_dims, var_data
+        var_info = isnothing(var_pair) ? Dict{String,Any}("long_name" => "index of the spinup sequence step of the row, 0 before the spinup and -1 after the end of the sequence", "units" => "-") : getVariableInfo(getVarFull(var_pair), t_step)
+        DataLoaders.YAXArray(var_dims, var_data, var_info)
+    end
+    spinup_ds = DataLoaders.YAXArrays.Dataset(; zip(spinup.names, all_yax)..., properties=spinup_metadata)
+    print_info(nothing, @__FILE__, @__LINE__, "saving pools at every stored spinup step to `$(data_path)`", n_m=4)
+    DataLoaders.YAXArrays.savedataset(spinup_ds; path=data_path, overwrite=true, getSaveKwargs(info)...)
+    return nothing
+end
+
+function saveSpinupCubes(info, spinup)
+    data_path = getSpinupFilePath(info)
+    spinup_metadata = copy(info.output.file_info.global_metadata)
+    method_name = string(nameof(typeof(info.spinup.method)))
+    spinup_metadata["spinup_sequence_method"] = lowercase(replace(method_name, r"(?<!^)([A-Z])" => s"_\1"))
+    spinup_metadata["spinup_sequence"] = join([join((nameof(typeof(seq.spinup_mode)), seq.forcing, seq.n_repeat, seq.n_timesteps), ":") for seq ∈ first(spinup.sequences)], ";")
+    t_step = info.experiment.basics.temporal_resolution
+    all_yax = map(spinup.variables, spinup.dims, spinup.data) do var_pair, var_dims, var_data
+        var_info = isnothing(var_pair) ? Dict{String,Any}("long_name" => "index of the spinup sequence step of the row, 0 before the spinup and -1 after the end of the sequence", "units" => "-") : getVariableInfo(getVarFull(var_pair), t_step)
+        DataLoaders.YAXArray(var_dims, var_data, var_info)
+    end
+    spinup_ds = DataLoaders.YAXArrays.Dataset(; zip(spinup.names, all_yax)..., properties=spinup_metadata)
+    print_info(nothing, @__FILE__, @__LINE__, "saving pools at every stored spinup step to `$(data_path)`", n_m=4)
+    DataLoaders.YAXArrays.savedataset(spinup_ds; path=data_path, overwrite=true, getSaveKwargs(info)...)
     return nothing
 end
 ```

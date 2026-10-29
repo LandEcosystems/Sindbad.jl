@@ -98,6 +98,20 @@ function loss(params, models, parameter_to_index, parameter_scaling_type, loc_fo
     return t_loss
 end
 
+"""
+    lossComponents(params, models, parameter_to_index, parameter_scaling_type, loc_forcing, loc_spinup, loc_forcing_t, loc_output, land_init, tem_info, loc_obs, cost_options, constraint_method, gradient_lib, ::LossModelObsMachineLearning)
+
+Calculates the scalar loss of a site, like [`loss`](@ref), and also returns the loss
+components it is combined from.
+
+# Arguments
+- Same as [`loss`](@ref).
+
+# Returns
+- `t_loss`: the scalar loss, combined with `constraint_method`
+- `loss_vector`: the loss of each observation constraint
+- `loss_indices`: the names of the observation constraints, `cost_options.obs_sn`
+"""
 function lossComponents(params, models, parameter_to_index, parameter_scaling_type, loc_forcing, loc_spinup, loc_forcing_t, loc_output, land_init, tem_info, loc_obs, cost_options, constraint_method, gradient_lib,loss_type::LossModelObsMachineLearning)
     loss_vector, loss_indices = lossVector(params, models,parameter_to_index, parameter_scaling_type, loc_forcing, loc_spinup, loc_forcing_t, loc_output, land_init, tem_info, loc_obs, cost_options, constraint_method, gradient_lib, loss_type)
     t_loss = combineMetric(loss_vector, constraint_method)

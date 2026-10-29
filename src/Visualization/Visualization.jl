@@ -81,11 +81,44 @@ module Visualization
         return sig.parameters[end] === Any ? VisualizationTypes() : backend
     end
 
+    """
+        plotPerformanceHistograms(out_opti)
+
+    Plots histograms of the performance metrics of the default and optimized runs of
+    an optimization.
+
+    # Arguments
+    - `out_opti`: the output of an optimization run, which carries `.info`
+
+    # Notes
+    - The backend is read from `info.helpers.run.visualization_backend`. Without a
+      loaded plotting backend, it logs an info message and returns `nothing`.
+    """
     function plotPerformanceHistograms(out_opti)
         backend = out_opti.info.helpers.run.visualization_backend
         return plotPerformanceHistograms(out_opti, _resolvedBackend(plotPerformanceHistograms, backend, out_opti))
     end
 
+    """
+        plotTimeSeries(out_opti)
+        plotTimeSeries(out, cost_options)
+        plotTimeSeries(info, opt_dat, def_dat; forcing_helpers=nothing)
+
+    Plots the time series of the model output, with the observations where there are
+    any, and saves one figure per variable in `info.output.dirs.figure`.
+
+    # Arguments
+    - `out_opti`: the output of an optimization run, which carries `.info`
+    - `out`: the output of a run, which carries `.info` and `.observation`
+    - `cost_options`: the cost options that pair model variables with observations
+    - `info`: Information structure containing experiment details
+    - `opt_dat`, `def_dat`: the optimized and default model output
+    - `forcing_helpers`: gives the spatial dimensions, which a spatial run needs
+
+    # Notes
+    - The backend is read from `info.helpers.run.visualization_backend`. Without a
+      loaded plotting backend, it logs an info message and returns `nothing`.
+    """
     function plotTimeSeries(out_opti)
         backend = out_opti.info.helpers.run.visualization_backend
         return plotTimeSeries(out_opti, _resolvedBackend(plotTimeSeries, backend, out_opti))
@@ -111,7 +144,19 @@ module Visualization
     # point's shape (the 2-arg plotTimeSeries derives obs_array from
     # out.observation instead), so it resolves its own backend and forwards to the
     # explicit-argument method directly, preserving the exact old behavior/signature.
+    """
+        plotTimeSeriesWithObs(out_opti)
+        plotTimeSeriesWithObs(out, obs_array, cost_options)
+
+    Deprecated alias of [`plotTimeSeries`](@ref), kept with its original signatures.
+    """
     plotTimeSeriesWithObs(out_opti) = plotTimeSeries(out_opti)
+
+    """
+        plotTimeSeriesDebug(info, opt_dat, def_dat; kwargs...)
+
+    Deprecated alias of [`plotTimeSeries`](@ref), kept with its original signature.
+    """
     plotTimeSeriesDebug(info, opt_dat, def_dat; kwargs...) = plotTimeSeries(info, opt_dat, def_dat; kwargs...)
 
     function plotTimeSeriesWithObs(out, obs_array, cost_options)
@@ -119,7 +164,22 @@ module Visualization
         return plotTimeSeries(out.info, obs_array, cost_options, out.output, _resolvedBackend(plotTimeSeries, backend, out.info, obs_array, cost_options, out.output))
     end
 
-    # `out` is the output of an experiment run, which carries `.info` and `.forcing`
+    """
+        plotForcing(out)
+        plotForcing(info, forcing)
+
+    Saves figures of every forcing variable in `info.output.dirs.figure`, as
+    `forcing_<variable>.png` for one location.
+
+    # Arguments
+    - `out`: the output of an experiment run, which carries `.info` and `.forcing`
+    - `info`: Information structure containing experiment details
+    - `forcing`: the forcing NamedTuple with the `variables` and their `data`
+
+    # Notes
+    - The backend is read from `info.helpers.run.visualization_backend`. Without a
+      loaded plotting backend, it logs an info message and returns `nothing`.
+    """
     plotForcing(out) = plotForcing(out.info, out.forcing)
 
     function plotForcing(info, forcing)
@@ -127,8 +187,27 @@ module Visualization
         return plotForcing(info, forcing, _resolvedBackend(plotForcing, backend, info, forcing))
     end
 
-    # `out` is the output of a forward or optimization run, which carries `.info`,
-    # the stored `.spinup` and the `.output` of the forward run that followed it
+    """
+        plotSpinup(out; kwargs...)
+        plotSpinup(info, spinup; loc_index=1, output=nothing)
+
+    Plots `cEco` and `TWS` at every stored step of the spinup of one location and saves
+    one figure per pool, `spinup_<pool>.png`, in `info.output.dirs.figure`.
+
+    # Arguments
+    - `out`: the output of a forward or optimization run, which carries `.info`, the
+      stored `.spinup` and the `.output` of the forward run that followed it
+    - `info`: Information structure containing experiment details
+    - `spinup`: the stored spinup from `prepSpinupOut`
+    - `loc_index`: the index of the location in `spinup.sequences`
+    - `output`: the output of the forward run after the spinup, appended to the plot
+      when given
+
+    # Notes
+    - The spinup is only stored with `store_spinup` set to true.
+    - The backend is read from `info.helpers.run.visualization_backend`. Without a
+      loaded plotting backend, it logs an info message and returns `nothing`.
+    """
     plotSpinup(out; kwargs...) = plotSpinup(out.info, out.spinup; output=_forwardOutput(out), kwargs...)
 
     # the output of the run whose spinup is stored, which is the optimized one when
@@ -156,6 +235,28 @@ module Visualization
     # No `info` to read a backend from, so VisualizationPlots() is asked for directly.
     # `tmp_`-prefixed (unlike the info-taking form below): it lands in the working
     # directory, not an experiment's output dir, and `tmp_*` is gitignored.
+    """
+        plotCarbonFlows(approach=nothing; kwargs...)
+        plotCarbonFlows(approach, file_path; kwargs...)
+        plotCarbonFlows(info::NamedTuple, approach=nothing; kwargs...)
+
+    Draws the carbon flow topology of a `cCycleBase` approach as a giver by taker
+    matrix, labelled with each flow's turnover time, allocation fraction, microbial
+    efficiency and quality-partition fraction.
+
+    # Arguments
+    - `approach`: the `cCycleBase` approach, or `nothing` to take it from a `land`
+      given in `kwargs`
+    - `file_path`: where the figure is saved, or `nothing` to skip saving
+    - `info`: Information structure containing experiment details. The backend is read
+      from it and the figure is saved in `info.output.dirs.figure`.
+
+    # Notes
+    - Without `info` or `file_path`, the figure is
+      `tmp_carbon_flow_matrix_<approach>_default.pdf` in the working directory, or
+      `_actual.pdf` when a real `land` is given.
+    - Without a loaded plotting backend, it logs an info message and returns `nothing`.
+    """
     function plotCarbonFlows(approach=nothing; kwargs...)
         suffix = isnothing(get(kwargs, :land, nothing)) ? "default" : "actual"
         file_path = "tmp_carbon_flow_matrix_$(_approachName(approach, kwargs))_$(suffix).pdf"
@@ -195,6 +296,21 @@ module Visualization
         return plotCarbonFlows(approach, file_path, _resolvedBackend(plotCarbonFlows, backend, approach, file_path); kwargs...)
     end
 
+    """
+        plotIOModelStructure(info, which_function=:compute, which_field=[:input, :output])
+
+    Plots which variables each selected model reads and writes in one of its functions,
+    and saves the figure as a PDF in the experiment's output directory.
+
+    # Arguments
+    - `info`: Information structure containing experiment details
+    - `which_function`: the model function to analyze, e.g. `:compute` or `:define`
+    - `which_field`: a `Symbol` or a vector of `Symbol`s among `:input` and `:output`
+
+    # Notes
+    - The backend is read from `info.helpers.run.visualization_backend`. Without a
+      loaded plotting backend, it logs an info message and returns `nothing`.
+    """
     plotIOModelStructure(info) = plotIOModelStructure(info, :compute)
     plotIOModelStructure(info, which_function) = plotIOModelStructure(info, which_function, [:input, :output])
     function plotIOModelStructure(info, which_function, which_field)

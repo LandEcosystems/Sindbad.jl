@@ -22,11 +22,11 @@ function TEMYax(map_cubes...;selected_models, forcing_vars, loc_land::NamedTuple
     any(in_forcing -> any(v -> ismissing(v) || isnan(v), in_forcing), inputs)
 
     # ? apply clean_data fields to input data points
-    _data_fill, _num_type, _forcing_data_info = clean_data
+    _num_type, _forcing_data_info = clean_data
 
     inputs = map(enumerate(inputs)) do (i, in_forcing)
         _data_info = _forcing_data_info[i]
-        map(data_point -> cleanData(data_point, _data_fill, _data_info, _num_type), in_forcing)
+        map(data_point -> cleanData(data_point, _data_info, _num_type), in_forcing)
     end
     loc_forcing = (; Pair.(forcing_vars, inputs)...)
     # the restart cubes are filled after the spinup step with `save_restart`
@@ -57,6 +57,8 @@ accumulateSpinupForcing
 function accumulateSpinupForcing end
 
 accumulateSpinupForcing(::Tuple{}, _, _, spinup_forcing) = spinup_forcing
+
+accumulateSpinupForcing(spin_sequences::Tuple{SpinupStepWithAggregator{:none},Vararg}, forcing, tem_helpers, spinup_forcing) = accumulateSpinupForcing(Base.tail(spin_sequences), forcing, tem_helpers, spinup_forcing)
 
 function accumulateSpinupForcing(spin_sequences::Tuple{SpinupStepWithAggregator{F},Vararg}, forcing, tem_helpers, spinup_forcing) where {F}
     if F ∉ keys(spinup_forcing)
@@ -521,32 +523,12 @@ getSpinupSequence
 :::details Code
 
 ```julia
-function getSpinupSequence end
-
-function getSpinupSequence(::SequenceDefault, spinup_config, _, helpers_dates, aggregator_cache)
-    options = spinup_config.options
-    steps = prepSequenceDefault(; nrepeat_base=options.n_repeat_base, forcing_msc=options.forcing_msc)
-    return Tuple(getSpinupSequenceWithTypes(steps, helpers_dates, aggregator_cache))
-end
-
-function getSpinupSequence(::SequenceDefault, spinup_config, _, helpers_dates, aggregator_cache)
-    options = spinup_config.options
-    steps = prepSequenceDefault(; nrepeat_base=options.n_repeat_base, forcing_msc=options.forcing_msc)
-    return Tuple(getSpinupSequenceWithTypes(steps, helpers_dates, aggregator_cache))
-end
-
-function getSpinupSequence(::SequenceList, spinup_config, _, helpers_dates, aggregator_cache)
-    return Tuple(getSpinupSequenceWithTypes(spinup_config.options.steps, helpers_dates, aggregator_cache))
-end
-
-function getSpinupSequence(::SequenceWithAge, spinup_config, loc_forcing, helpers_dates, aggregator_cache)
-    options = spinup_config.options
-    year_disturbance = getproperty(loc_forcing, Symbol(options.disturbance_variable))
-    steps = prepSequenceWithAge(Int(first(year_disturbance));
-        nrepeat_base=options.n_repeat_base,
-        year_start=year(first(helpers_dates.range)),
-        forcing_msc=options.forcing_msc)
-    return Tuple(getSpinupSequenceWithTypes(steps, helpers_dates, aggregator_cache))
+function getSpinupSequenceSteps(sequence)
+    steps = [0]
+    for (seq_index, spin_seq) ∈ enumerate(sequence)
+        append!(steps, fill(seq_index, spin_seq.n_repeat * spinupStoreSteps(spin_seq)))
+    end
+    return steps
 end
 ```
 
@@ -565,9 +547,9 @@ prepSequenceDefault
 ```julia
 function prepSequenceDefault(; nrepeat_base=200, forcing_msc="day_MSC")
     return [
-        Dict("spinup_mode" => "sel_spinup_models", "forcing" => "all_years", "n_repeat" => 1),
-        Dict("spinup_mode" => "sel_spinup_models", "forcing" => forcing_msc, "n_repeat" => nrepeat_base),
-        Dict("spinup_mode" => "sel_spinup_models", "forcing" => "all_years", "n_repeat" => 1),
+        Dict("spinup_mode" => "loop_TEM", "models" => "spinup", "forcing" => "all_years", "n_repeat" => 1),
+        Dict("spinup_mode" => "loop_TEM", "models" => "spinup", "forcing" => forcing_msc, "n_repeat" => nrepeat_base),
+        Dict("spinup_mode" => "loop_TEM", "models" => "spinup", "forcing" => "all_years", "n_repeat" => 1),
     ]
 end
 ```
@@ -588,19 +570,140 @@ prepSequenceWithAge
 function prepSequenceWithAge(year_disturbance; nrepeat_base=200, year_start = 1979, forcing_msc = "day_MSC")
     nrepeat_age = nrepeatYearsAge(year_disturbance; year_start)
     sequence = [
-        Dict("spinup_mode" => "sel_spinup_models", "forcing" => "all_years", "n_repeat" => 1),
-        Dict("spinup_mode" => "sel_spinup_models", "forcing" => forcing_msc, "n_repeat" => nrepeat_base),
-        Dict("spinup_mode" => "eta_scale_H", "forcing" => forcing_msc, "n_repeat" => 1, "save_restart" => true),
+        Dict("spinup_mode" => "loop_TEM", "models" => "spinup", "forcing" => "all_years", "n_repeat" => 1),
+        Dict("spinup_mode" => "loop_TEM", "models" => "spinup", "forcing" => forcing_msc, "n_repeat" => nrepeat_base),
+        Dict("spinup_mode" => "eta_scale_H", "forcing" => nothing, "models" => nothing, "n_repeat" => 1, "save_restart" => true),
     ]
     if nrepeat_age >= 0
         sequence = [
-            Dict("spinup_mode" => "sel_spinup_models", "forcing" => "all_years", "n_repeat" => 1),
-            Dict("spinup_mode" => "sel_spinup_models", "forcing" => forcing_msc, "n_repeat" => nrepeat_base),
-            Dict("spinup_mode" => "eta_scale_A0H", "forcing" => forcing_msc, "n_repeat" => 1, "save_restart" => true),
-            Dict("spinup_mode" => "sel_spinup_models", "forcing" => forcing_msc, "n_repeat" => nrepeat_age),
+            Dict("spinup_mode" => "loop_TEM", "models" => "spinup", "forcing" => "all_years", "n_repeat" => 1),
+            Dict("spinup_mode" => "loop_TEM", "models" => "spinup", "forcing" => forcing_msc, "n_repeat" => nrepeat_base),
+            Dict("spinup_mode" => "clearance_A0", "forcing" => nothing, "models" => nothing, "n_repeat" => 1),
+            Dict("spinup_mode" => "eta_scale_H", "forcing" => nothing, "models" => nothing, "n_repeat" => 1, "save_restart" => true),
+            Dict("spinup_mode" => "loop_TEM", "models" => "spinup", "forcing" => forcing_msc, "n_repeat" => nrepeat_age),
         ]
     end
     return sequence
+end
+```
+
+:::
+
+
+----
+
+### prepSpinupOut
+```@docs
+prepSpinupOut
+```
+
+:::details Code
+
+```julia
+function prepSpinupOut end
+
+prepSpinupOut(info, run_helpers) = prepSpinupOut(info, run_helpers, info.helpers.run.store_spinup)
+
+prepSpinupOut(_, _, ::DoNotStoreSpinup) = nothing
+
+function prepSpinupOut(info, run_helpers, ::DoStoreSpinup)
+    restart = run_helpers.restart
+    space_land = run_helpers.space_land
+    space_ind = run_helpers.space_ind
+    sequences = [loc_spinup.sequence for loc_spinup ∈ run_helpers.space_spinup]
+    sequence_steps = map(getSpinupSequenceSteps, sequences)
+    n_max = maximum(length, sequence_steps)
+    step_dim = YAXArrays.Dim{:spinup_step}(1:n_max)
+    num_type = info.helpers.numbers.num_type
+    variables = []
+    names = Symbol[]
+    dims = []
+    data = []
+    space_dims = ()
+    for pool_name ∈ (:cEco, :TWS)
+        store_name = Symbol("spinup_", pool_name)
+        loc_store = getproperty(first(space_land).states, store_name)
+        isnothing(loc_store) && continue
+        var_index = findfirst(==((:pools, pool_name)), restart.variables)
+        isnothing(var_index) && continue
+        n_layers = size(loc_store, 2)
+        space_sizes = size(restart.data[var_index])[3:end]
+        pool_data = fill(num_type(NaN), n_max, n_layers, space_sizes...)
+        for (loc_land, loc_ind) ∈ zip(space_land, space_ind)
+            loc_store = getproperty(loc_land.states, store_name)
+            view_at_trailing_indices(pool_data, loc_ind)[1:size(loc_store, 1), :] .= loc_store
+        end
+        pool_dims = restart.dims[var_index]
+        if n_layers == 1
+            pool_data = dropdims(pool_data; dims=2)
+        end
+        space_dims = Tuple(pool_dims)[end-length(space_sizes)+1:end]
+        push!(variables, (:pools, pool_name))
+        push!(names, pool_name)
+        push!(dims, (step_dim, pool_dims...))
+        push!(data, pool_data)
+    end
+    isempty(data) && return nothing
+    space_sizes = size(last(data))[end-length(space_dims)+1:end]
+    step_data = fill(-1, n_max, space_sizes...)
+    for (loc_steps, loc_ind) ∈ zip(sequence_steps, space_ind)
+        view_at_trailing_indices(step_data, loc_ind)[1:length(loc_steps)] .= loc_steps
+    end
+    push!(variables, nothing)
+    push!(names, :spinup_sequence_step)
+    push!(dims, (step_dim, space_dims...))
+    push!(data, step_data)
+    return (; variables, names, dims, data, sequences, space_ind)
+end
+
+function prepSpinupOut(info, run_helpers, ::DoStoreSpinup)
+    restart = run_helpers.restart
+    space_land = run_helpers.space_land
+    space_ind = run_helpers.space_ind
+    sequences = [loc_spinup.sequence for loc_spinup ∈ run_helpers.space_spinup]
+    sequence_steps = map(getSpinupSequenceSteps, sequences)
+    n_max = maximum(length, sequence_steps)
+    step_dim = YAXArrays.Dim{:spinup_step}(1:n_max)
+    num_type = info.helpers.numbers.num_type
+    variables = []
+    names = Symbol[]
+    dims = []
+    data = []
+    space_dims = ()
+    for pool_name ∈ (:cEco, :TWS)
+        store_name = Symbol("spinup_", pool_name)
+        loc_store = getproperty(first(space_land).states, store_name)
+        isnothing(loc_store) && continue
+        var_index = findfirst(==((:pools, pool_name)), restart.variables)
+        isnothing(var_index) && continue
+        n_layers = size(loc_store, 2)
+        space_sizes = size(restart.data[var_index])[3:end]
+        pool_data = fill(num_type(NaN), n_max, n_layers, space_sizes...)
+        for (loc_land, loc_ind) ∈ zip(space_land, space_ind)
+            loc_store = getproperty(loc_land.states, store_name)
+            view_at_trailing_indices(pool_data, loc_ind)[1:size(loc_store, 1), :] .= loc_store
+        end
+        pool_dims = restart.dims[var_index]
+        if n_layers == 1
+            pool_data = dropdims(pool_data; dims=2)
+        end
+        space_dims = Tuple(pool_dims)[end-length(space_sizes)+1:end]
+        push!(variables, (:pools, pool_name))
+        push!(names, pool_name)
+        push!(dims, (step_dim, pool_dims...))
+        push!(data, pool_data)
+    end
+    isempty(data) && return nothing
+    space_sizes = size(last(data))[end-length(space_dims)+1:end]
+    step_data = fill(-1, n_max, space_sizes...)
+    for (loc_steps, loc_ind) ∈ zip(sequence_steps, space_ind)
+        view_at_trailing_indices(step_data, loc_ind)[1:length(loc_steps)] .= loc_steps
+    end
+    push!(variables, nothing)
+    push!(names, :spinup_sequence_step)
+    push!(dims, (step_dim, space_dims...))
+    push!(data, step_data)
+    return (; variables, names, dims, data, sequences, space_ind)
 end
 ```
 
@@ -694,24 +797,26 @@ runSpinupSequences
 ```julia
 function runSpinupSequences end
 
-runSpinupSequences(::Tuple{}, selected_models, spinup_forcings, loc_forcing_t, land, tem_info, log_index, loc_restart=nothing) = (land, log_index)
+runSpinupSequences(::Tuple{}, selected_models, spinup_forcings, loc_forcing_t, land, tem_info, loc_restart=nothing) = land
 
-function runSpinupSequences(spin_seqs::Tuple, selected_models, spinup_forcings, loc_forcing_t, land, tem_info, log_index, loc_restart=nothing)
+function runSpinupSequences(spin_seqs::Tuple, selected_models, spinup_forcings, loc_forcing_t, land, tem_info, loc_restart=nothing)
     spin_seq = first(spin_seqs)
     n_repeat = spin_seq.n_repeat
-    sel_forcing = sequenceForcing(spinup_forcings, spin_seq.forcing)
-    land = spinupSequence(selected_models, sel_forcing, loc_forcing_t, land, tem_info, spin_seq.n_timesteps, log_index, n_repeat, spin_seq.spinup_mode)
+    sel_forcing = sequenceForcing(spinup_forcings, spin_seq)
+    spinup_models = getSpinupModels(selected_models, spin_seq.model_indices)
+    land = spinupSequence(spinup_models, sel_forcing, loc_forcing_t, land, tem_info, spin_seq.n_timesteps, n_repeat, spin_seq.spinup_mode)
     spin_seq.save_restart && setRestart!(loc_restart, land, tem_info)
-    return runSpinupSequences(Base.tail(spin_seqs), selected_models, spinup_forcings, loc_forcing_t, land, tem_info, log_index + n_repeat, loc_restart)
+    return runSpinupSequences(Base.tail(spin_seqs), selected_models, spinup_forcings, loc_forcing_t, land, tem_info, loc_restart)
 end
 
-function runSpinupSequences(spin_seqs::Tuple, selected_models, spinup_forcings, loc_forcing_t, land, tem_info, log_index, loc_restart=nothing)
+function runSpinupSequences(spin_seqs::Tuple, selected_models, spinup_forcings, loc_forcing_t, land, tem_info, loc_restart=nothing)
     spin_seq = first(spin_seqs)
     n_repeat = spin_seq.n_repeat
-    sel_forcing = sequenceForcing(spinup_forcings, spin_seq.forcing)
-    land = spinupSequence(selected_models, sel_forcing, loc_forcing_t, land, tem_info, spin_seq.n_timesteps, log_index, n_repeat, spin_seq.spinup_mode)
+    sel_forcing = sequenceForcing(spinup_forcings, spin_seq)
+    spinup_models = getSpinupModels(selected_models, spin_seq.model_indices)
+    land = spinupSequence(spinup_models, sel_forcing, loc_forcing_t, land, tem_info, spin_seq.n_timesteps, n_repeat, spin_seq.spinup_mode)
     spin_seq.save_restart && setRestart!(loc_restart, land, tem_info)
-    return runSpinupSequences(Base.tail(spin_seqs), selected_models, spinup_forcings, loc_forcing_t, land, tem_info, log_index + n_repeat, loc_restart)
+    return runSpinupSequences(Base.tail(spin_seqs), selected_models, spinup_forcings, loc_forcing_t, land, tem_info, loc_restart)
 end
 ```
 
@@ -732,9 +837,12 @@ function runTEMOne(selected_models, loc_forcing, land_init, tem, spinup_sequence
     loc_forcing_t = getForcingForTimeStep(loc_forcing, loc_forcing, 1, tem.vals.forcing_types)
     loc_land = definePrecomputeTEM(selected_models, loc_forcing_t, land_init,
         tem.model_helpers)
+    # copied, since the step can update the pool arrays in place
+    pools_before = deepcopy(loc_land.pools)
     loc_land = computeTEM(selected_models, loc_forcing_t, loc_land, tem.model_helpers)
+    loc_land = (; loc_land..., pools=pools_before)
     # loc_land = drop_empty_namedtuple_fields(loc_land)
-    loc_land = addSpinupLog(loc_land, spinup_sequence, tem.run.store_spinup)
+    loc_land = addSpinupStore(loc_land, spinup_sequence, tem.run.store_spinup)
     checkSpinupInput(loc_land, loc_forcing_t, spinup_sequence)
     # loc_land = definePrecomputeTEM(selected_models, loc_forcing_t, loc_land,
         # tem.model_helpers)
@@ -778,14 +886,14 @@ function runTEM!(forcing::NamedTuple, info::NamedTuple)
     return run_helpers.output_array
 end
 
-function runTEM!(space_selected_models, space_forcing, space_spinup, loc_forcing_t, space_output, space_land, tem_info::NamedTuple)
+function runTEM!(space_selected_models, space_forcing, space_spinup, loc_forcing_t, space_output, space_land, tem_info::NamedTuple; show_progress=false)
     # one `nothing` per location, so no pools are stored for the restart file
     no_restart = Fill(nothing, length(space_forcing))
-    return runTEM!(space_selected_models, space_forcing, space_spinup, loc_forcing_t, space_output, no_restart, space_land, tem_info)
+    return runTEM!(space_selected_models, space_forcing, space_spinup, loc_forcing_t, space_output, no_restart, space_land, tem_info; show_progress=show_progress)
 end
 
-function runTEM!(space_selected_models, space_forcing, space_spinup, loc_forcing_t, space_output, space_restart, space_land, tem_info::NamedTuple)
-    parallelizeTEM!(space_selected_models, space_forcing, space_spinup, loc_forcing_t, space_output, space_restart, space_land, tem_info, tem_info.run.parallelization)
+function runTEM!(space_selected_models, space_forcing, space_spinup, loc_forcing_t, space_output, space_restart, space_land, tem_info::NamedTuple; show_progress=false)
+    parallelizeTEM!(space_selected_models, space_forcing, space_spinup, loc_forcing_t, space_output, space_restart, space_land, tem_info, tem_info.run.parallelization; show_progress=show_progress)
     return nothing
 end
 ```
@@ -840,7 +948,7 @@ function runTEMYax(selected_models, forcing::NamedTuple, info::NamedTuple)
         output_vars=run_helpers.output_vars,
         loc_land=loc_land,
         tem=run_helpers.tem_info,
-        clean_data=(; _data_fill, _num_type, _forcing_data_info),
+        clean_data=(; _num_type, _forcing_data_info),
         restart_vars=restart_vars,
         parameter_to_index=parameter_to_index),
         output = new_output,
@@ -851,7 +959,10 @@ function runTEMYax(selected_models, forcing::NamedTuple, info::NamedTuple)
     outcubes = outcubes isa YAXArray ? (outcubes,) : outcubes
     n_out = length(output)
     varnames = getUniqueVarNames(info.output.variables)
-    output_ds = Dataset(;zip(varnames, outcubes[1:n_out])...)
+    output_cubes = map(output, outcubes[1:n_out]) do out, o_cube
+        dropPaddedDimsYax(o_cube, setdiff(DD.name.(alloutdims), DD.name.(out.outaxes)))
+    end
+    output_ds = Dataset(;zip(varnames, output_cubes)...)
     restart_cubes = map(restart_output, outcubes[(n_out+1):end]) do r_out, r_cube
         dropPaddedDimsYax(r_cube, setdiff(DD.name.(alloutdims), DD.name.(r_out.outaxes)))
     end
@@ -882,7 +993,7 @@ function runTEMYaxParameters(selected_models, forcing::NamedTuple, in_cube_param
         output_vars=run_helpers.output_vars,
         loc_land=loc_land,
         tem=run_helpers.tem_info,
-        clean_data=(; _data_fill, _num_type, _forcing_data_info),
+        clean_data=(; _num_type, _forcing_data_info),
         indims=indims,
         outdims=run_helpers.output_dims,
         max_cache=info.experiment.exe_rules.yax_max_cache,
@@ -1034,6 +1145,19 @@ function timeLoopTEMSpinup(spinup_models, spinup_forcing, loc_forcing_t, land, t
     for ts ∈ 1:n_timesteps
         f_ts = getForcingForTimeStep(spinup_forcing, loc_forcing_t, ts, tem_info.vals.forcing_types)
         land = computeTEM(spinup_models, f_ts, land, tem_info.model_helpers)
+    end
+    return land
+end
+
+function timeLoopTEMSpinup(spinup_models, spinup_forcing, loc_forcing_t, land, tem_info, n_timesteps, ::DoNotStoreSpinup)
+    return timeLoopTEMSpinup(spinup_models, spinup_forcing, loc_forcing_t, land, tem_info, n_timesteps)
+end
+
+function timeLoopTEMSpinup(spinup_models, spinup_forcing, loc_forcing_t, land, tem_info, n_timesteps, store_spinup_mode::DoStoreSpinup)
+    for ts ∈ 1:n_timesteps
+        f_ts = getForcingForTimeStep(spinup_forcing, loc_forcing_t, ts, tem_info.vals.forcing_types)
+        land = computeTEM(spinup_models, f_ts, land, tem_info.model_helpers)
+        storeSpinupStep!(land, store_spinup_mode)
     end
     return land
 end

@@ -443,7 +443,7 @@ Variables are grouped by `land_field` into Fluxes / Pools / States / Diagnostics
 
 ## Diagnostics
 
-:::details Show table (63)
+:::details Show table (66)
 
 | standard_name | units | description | long_name | Key |
 |---|---|---|---|---|
@@ -465,6 +465,9 @@ Variables are grouped by `land_field` into Fluxes / Pools / States / Diagnostics
 | `c_eco_k_f_soil_props` | `fraction` | effect of soil_props on carbon decomposition rate. 1: no stress, 0: complete stress | `soil_property_effect_carbon_decomposition_rate` | `diagnostics__c_eco_k_f_soil_props` |
 | `c_eco_k_f_veg_props` | `fraction` | effect of veg_props on carbon decomposition rate. 1: no stress, 0: complete stress | `vegetation_property_effect_carbon_decomposition_rate` | `diagnostics__c_eco_k_f_veg_props` |
 | `c_eco_τ` | `years` | number of years needed for carbon turnover per carbon pool | `carbon_turnover_per_pool` | `diagnostics__c_eco_τ` |
+| `c_fire_efflux` | `gC/m2/time` | carbon of each pool combusted by fire and emitted to the atmosphere | `fire_carbon_emission_per_pool` | `diagnostics__c_fire_efflux` |
+| `c_fire_flow` | `gC/m2/time` | carbon of vegetation killed by fire or die-off but not combusted, received by each litter and soil pool | `fire_carbon_flow_to_litter_and_soil` | `diagnostics__c_fire_flow` |
+| `c_fire_mortality` | `gC/m2/time` | total carbon lost by each vegetation pool to fire or die-off, the combusted part plus the flow to litter and soil | `fire_carbon_mortality_per_pool` | `diagnostics__c_fire_mortality` |
 | `c_flow_A_array` | `fraction` | an array indicating the flow direction and connections across different pools, with elements larger than 0 indicating flow from column pool to row pool | `carbon_flow_array` | `diagnostics__c_flow_A_array` |
 | `c_flow_A_vec` | `fraction` | fraction of the carbon loss fron a (giver) pool that flows to a (taker) pool | `carbon_flow_vector` | `diagnostics__c_flow_A_vec` |
 | `c_flow_E_array` | `fraction` | an array containing the efficiency of each flow in the c_flow_A_array | `carbon_flow_efficiency_array` | `diagnostics__c_flow_E_array` |

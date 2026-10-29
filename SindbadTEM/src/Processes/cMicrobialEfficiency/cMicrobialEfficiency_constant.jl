@@ -52,7 +52,7 @@ Set it to zero for the endpoint where all decomposed carbon respires and none is
 by the receiving pool.
 
 This is the one-parameter alternative to composing the three pool-group factors through
-[`cMicrobialEfficiency_mult`](@ref). It ignores them, so it can be selected whether or not
+[`cMicrobialEfficiency_sum`](@ref). It ignores them, so it can be selected whether or not
 they are, and it is equivalent to selecting `_constant` with the same value in all three
 groups.
 

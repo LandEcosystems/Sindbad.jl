@@ -1,4 +1,4 @@
-export cFire
+export cFire_simple
 
 #! format: off
 struct cFire_simple <: cFire end

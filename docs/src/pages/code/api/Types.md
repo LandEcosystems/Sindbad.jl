@@ -19,13 +19,6 @@ ActivationType
 
 ----
 
-### AllForwardModels
-```@docs
-AllForwardModels
-```
-
-----
-
 ### ArrayTypes
 ```@docs
 ArrayTypes
@@ -57,6 +50,13 @@ CMAEvolutionStrategyCMAES
 ### CalcFoldFromSplit
 ```@docs
 CalcFoldFromSplit
+```
+
+----
+
+### ClearanceA0
+```@docs
+ClearanceA0
 ```
 
 ----
@@ -498,6 +498,13 @@ LandWrapper
 ### LoadFoldFromFile
 ```@docs
 LoadFoldFromFile
+```
+
+----
+
+### LoopTEM
+```@docs
+LoopTEM
 ```
 
 ----
@@ -950,13 +957,6 @@ ScaleNone
 
 ----
 
-### SelSpinupModels
-```@docs
-SelSpinupModels
-```
-
-----
-
 ### SequenceDefault
 ```@docs
 SequenceDefault
@@ -974,6 +974,13 @@ SequenceList
 ### SequenceWithAge
 ```@docs
 SequenceWithAge
+```
+
+----
+
+### SequenceWithSpinupInput
+```@docs
+SequenceWithSpinupInput
 ```
 
 ----
