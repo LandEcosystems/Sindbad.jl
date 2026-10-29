@@ -15,9 +15,8 @@ using Sindbad: NlsolveFixedpointTrustregionTWS, NlsolveFixedpointTrustregionCEco
 # - spinup(::Any, ::Any, ::Any, ::Any, ::Any, ::Any, ::NlsolveFixedpointTrustregionCEco) @ Sindbad.Simulation src/Simulation/spinupTEM.jl:260
 # - spinup(::Any, ::Any, ::Any, ::Any, ::Any, ::Any, ::NlsolveFixedpointTrustregionCEcoTWS) @ Sindbad.Simulation src/Simulation/spinupTEM.jl:237
 # - spinup(::Any, ::Any, ::Any, ::Any, ::Any, ::Any, ::ODETsit5) @ Sindbad.Simulation src/Simulation/spinupTEM.jl:421
-# - spinup(::Any, ::Any, ::Any, ::Any, ::Any, ::Any, ::SelSpinupModels) @ Sindbad.Simulation src/Simulation/spinupTEM.jl:217
+# - spinup(::Any, ::Any, ::Any, ::Any, ::Any, ::Any, ::LoopTEM) @ Sindbad.Simulation src/Simulation/spinupTEM.jl:217
 # - spinup(::Any, ::Any, ::Any, ::Any, ::Any, ::Any, ::NlsolveFixedpointTrustregionTWS) @ Sindbad.Simulation src/Simulation/spinupTEM.jl:227
-# - spinup(::Any, ::Any, ::Any, ::Any, ::Any, ::Any, ::AllForwardModels) @ Sindbad.Simulation src/Simulation/spinupTEM.jl:222
 # - spinup(::Any, ::Any, ::Any, ::Any, ::Any, ::Any, ::SSPDynamicSSTsit5) @ Sindbad.Simulation src/Simulation/spinupTEM.jl:437
 # - spinup(::Any, ::Any, ::Any, ::Any, ::Any, ::Any, ::ODEAutoTsit5Rodas5) @ Sindbad.Simulation src/Simulation/spinupTEM.jl:390
 # - spinup(::Any, ::Any, ::Any, ::Any, ::Any, ::Any, ::ODEDP5) @ Sindbad.Simulation src/Simulation/spinupTEM.jl:405

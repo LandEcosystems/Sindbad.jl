@@ -57,8 +57,8 @@ LAI_cVegLeaf
 **Calculated using:**
 
 ```julia
-Inputs: :pools => :cEco
-Outputs: :states => :LAI, :diagnostics => :SLA
+Inputs: :pools => :cEco, :states => :frac_vegetation
+Outputs: :states => :LAI, :states => :LAI_grid, :diagnostics => :SLA
 ```
 
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/LAI/LAI_cVegLeaf.jl)
@@ -887,6 +887,20 @@ Outputs: :states => :aboveground_biomass
 
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cBiomass/cBiomass_treeGrass_cVegReserveScaling.jl)
 
+== cBiomass_vegType
+```@docs
+cBiomass_vegType
+```
+
+**Calculated using:**
+
+```julia
+Inputs: :pools => :cEco, :states => :veg_type_name
+Outputs: :states => :aboveground_biomass
+```
+
+[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cBiomass/cBiomass_vegType.jl)
+
 
 ::::
 
@@ -1223,7 +1237,7 @@ cDieBack_ImplicitResprout
 **Calculated using:**
 
 ```julia
-Inputs: :forcing => :f_dist_intensity, :cCycleBase => :c_flow_order, :cCycleBase => :c_giver, :cCycleBase => :c_taker, :pools => :cEco, :states => :c_remain, :models => :c_model, :constants => :z_zero, :diagnostics => :c_flow_QP_vec, :diagnostics => :c_disturbance_mortality, :diagnostics => :c_disturbance_flow, :diagnostics => :c_disturbance_efflux
+Inputs: :cCycleBase => :c_flow_order, :cCycleBase => :c_giver, :cCycleBase => :c_taker, :cCycleBase => :zix_cHeterotrophic, :pools => :cEco, :states => :c_remain, :constants => :z_zero, :diagnostics => :c_f_cVeg_dieOff, :diagnostics => :c_flow_QP_vec, :diagnostics => :c_disturbance_mortality, :diagnostics => :c_disturbance_flow, :diagnostics => :c_disturbance_efflux
 Outputs: :diagnostics => :c_disturbance_mortality, :diagnostics => :c_disturbance_flow, :diagnostics => :c_disturbance_efflux
 ```
 
@@ -1246,10 +1260,20 @@ cFire
 
 ::::tabs
 
-== SindbadTEM.Processes.cFire_simple
+== cFire_simple
 ```@docs
-SindbadTEM.Processes.cFire_simple
+cFire_simple
 ```
+
+**Calculated using:**
+
+```julia
+Inputs: :diagnostics => :c_f_cVeg_dieOff, :diagnostics => :c_fire_mortality, :diagnostics => :c_fire_efflux, :diagnostics => :c_fire_flow, :diagnostics => :c_fire_fba, :diagnostics => :c_flow_QP_vec, :diagnostics => :c_Fire_cci, :diagnostics => :c_Fire_k, :pools => :cEco, :states => :c_remain, :cCycleBase => :c_flow_order, :cCycleBase => :c_giver, :cCycleBase => :c_taker, :cCycleBase => :zix_cHeterotrophic, :constants => :z_zero
+Outputs: :fluxes => :cFireTotal, :diagnostics => :c_fire_mortality, :diagnostics => :c_fire_efflux, :diagnostics => :c_fire_flow
+```
+
+[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cFire/cFire_simple.jl)
+
 
 ::::
 
@@ -2207,6 +2231,12 @@ Outputs: :diagnostics => :c_f_cVeg_dieOff
 
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cVegetationDieOff/cVegetationDieOff_forcing.jl)
 
+== cVegetationDieOff_none
+```@docs
+cVegetationDieOff_none
+```
+[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/cVegetationDieOff/cVegetationDieOff_none.jl)
+
 
 ::::
 
@@ -2533,7 +2563,7 @@ fAPAR_LAIBareFrac
 
 ```julia
 Inputs: :states => :LAI, :states => :frac_vegetation
-Outputs: Symbol("states # TODO: now use fAPAR_bare as the output for the cost function!") => :fAPAR_bare, Symbol("states # TODO: now use fAPAR_bare as the output for the cost function!") => :fAPAR
+Outputs: :states => :fAPAR, :states => :fAPAR_grid
 ```
 
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/fAPAR/fAPAR_LAIBareFrac.jl)
@@ -2561,7 +2591,7 @@ fAPAR_cVegLeafBareFrac
 
 ```julia
 Inputs: :pools => :cEco, :states => :frac_vegetation
-Outputs: Symbol("states # TODO: now use fAPAR_bare as the output for the cost function!") => :fAPAR_bare, Symbol("states # TODO: now use fAPAR_bare as the output for the cost function!") => :fAPAR
+Outputs: :states => :fAPAR, :states => :fAPAR_grid
 ```
 
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/fAPAR/fAPAR_cVegLeafBareFrac.jl)
@@ -2930,6 +2960,20 @@ gppDiffRadiation
 
 ::::tabs
 
+== gppDiffRadiation_De2025_Enhancement
+```@docs
+gppDiffRadiation_De2025_Enhancement
+```
+
+**Calculated using:**
+
+```julia
+Inputs: :forcing => :f_rg, :forcing => :f_rg_pot, :constants => :z_zero
+Outputs: :diagnostics => :gpp_f_cloud
+```
+
+[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/gppDiffRadiation/gppDiffRadiation_De2025_Enhancement.jl)
+
 == gppDiffRadiation_GSI
 ```@docs
 gppDiffRadiation_GSI
@@ -2958,6 +3002,20 @@ Outputs: :diagnostics => :gpp_f_cloud, :diagnostics => :CI_min, :diagnostics => 
 
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/gppDiffRadiation/gppDiffRadiation_Turner2006.jl)
 
+== gppDiffRadiation_Turner2006Exp
+```@docs
+gppDiffRadiation_Turner2006Exp
+```
+
+**Calculated using:**
+
+```julia
+Inputs: :forcing => :f_rg, :forcing => :f_rg_pot, :diagnostics => :CI_min, :diagnostics => :CI_max, :constants => :z_zero
+Outputs: :diagnostics => :gpp_f_cloud, :diagnostics => :CI_min, :diagnostics => :CI_max
+```
+
+[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/gppDiffRadiation/gppDiffRadiation_Turner2006Exp.jl)
+
 == gppDiffRadiation_Wang2015
 ```@docs
 gppDiffRadiation_Wang2015
@@ -2971,34 +3029,6 @@ Outputs: :diagnostics => :gpp_f_cloud, :gppDiffRadiation => :CI_min, :gppDiffRad
 ```
 
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/gppDiffRadiation/gppDiffRadiation_Wang2015.jl)
-
-== gppDiffRadiation_exp
-```@docs
-gppDiffRadiation_exp
-```
-
-**Calculated using:**
-
-```julia
-Inputs: :forcing => :f_rg, :forcing => :f_rg_pot, :gppDiffRadiation => :CI_min, :gppDiffRadiation => :CI_max, :constants => :z_zero
-Outputs: :diagnostics => :gpp_f_cloud, :gppDiffRadiation => :CI_min, :gppDiffRadiation => :CI_max
-```
-
-[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/gppDiffRadiation/gppDiffRadiation_exp.jl)
-
-== gppDiffRadiation_expCorrection
-```@docs
-gppDiffRadiation_expCorrection
-```
-
-**Calculated using:**
-
-```julia
-Inputs: :forcing => :f_rg, :forcing => :f_rg_pot, :gppDiffRadiation => :CI_min, :gppDiffRadiation => :CI_max, :constants => :z_zero
-Outputs: :diagnostics => :gpp_f_cloud, :gppDiffRadiation => :CI_min, :gppDiffRadiation => :CI_max
-```
-
-[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/gppDiffRadiation/gppDiffRadiation_expCorrection.jl)
 
 == gppDiffRadiation_none
 ```@docs

@@ -56,8 +56,8 @@ cleanData
 :::details Code
 
 ```julia
-function cleanData(_data, _data_fill, _data_info, ::Val{T}) where {T}
-    _data = replace_invalid_number(_data, _data_fill)
+function cleanData(_data, _data_info, ::Val{T}) where {T}
+    is_invalid_number(_data) && return T(NaN)::T
     _data = applyUnitConversion(_data, _data_info.source_to_sindbad_unit,
         _data_info.additive_unit_conversion)
     bounds = _data_info.bounds
@@ -209,7 +209,7 @@ function getForcing(info::NamedTuple)
         end
         incube
     end
-    parameters = getParameters(info, f_dimension)
+    parameters = getParameters(info, f_dimension, NamedTuple{Tuple(forcing_vars)}(Tuple(incubes)))
     return createForcingNamedTuple(incubes, f_sizes, f_dimension, info; parameters=parameters)
 end
 ```
@@ -326,11 +326,11 @@ function getObservation(info::NamedTuple, forcing_helpers::NamedTuple)
         @debug "      qflag"
         cyax_qc = subsetAndProcessYax(yax_qc, yax_mask_v, tar_dims, vinfo_qc, info, num_type; clean_data=false)
         @debug "      data"
-        cyax = subsetAndProcessYax(yax, yax_mask, tar_dims, vinfo_data, info, num_type; fill_nan=true, yax_qc=cyax_qc, bounds_qc=bounds_qc)
+        cyax = subsetAndProcessYax(yax, yax_mask, tar_dims, vinfo_data, info, num_type; yax_qc=cyax_qc, bounds_qc=bounds_qc)
         @debug "      unc"
-        cyax_unc = subsetAndProcessYax(yax_unc, yax_mask, tar_dims, vinfo_unc, info, num_type; fill_nan=true, yax_qc=cyax_qc, bounds_qc=bounds_qc)
+        cyax_unc = subsetAndProcessYax(yax_unc, yax_mask, tar_dims, vinfo_unc, info, num_type; yax_qc=cyax_qc, bounds_qc=bounds_qc)
         @debug "      weight"
-        cyax_wgt = subsetAndProcessYax(yax_wgt, yax_mask, tar_dims, vinfo_wgt, info, num_type; fill_nan=true, yax_qc=cyax_qc, bounds_qc=bounds_qc)
+        cyax_wgt = subsetAndProcessYax(yax_wgt, yax_mask, tar_dims, vinfo_wgt, info, num_type; yax_qc=cyax_qc, bounds_qc=bounds_qc)
         @debug "      mask"
         yax_mask_v = subsetAndProcessYax(yax_mask_v, yax_mask_v, tar_dims, vinfo_mask, info, num_type_bool; clean_data=false)
 
@@ -363,41 +363,15 @@ end
 
 ----
 
-### getParameterFileDims
-```@docs
-getParameterFileDims
-```
-
-:::details Code
-
-```julia
-function getParameterFileDims(space_dims, axes_values)
-    name_cubes = Pair{Symbol,Any}[]
-    dims = map(Tuple(space_dims)) do s_dim
-        coord = collect(axes_values[s_dim])
-        eltype(coord) <: Number && return DD.Dim{s_dim}(coord)
-        index_dim = DD.Dim{s_dim}(collect(1:length(coord)))
-        push!(name_cubes, Symbol(string(s_dim) * "_name") => YAXArray((index_dim,), string.(coord)))
-        index_dim
-    end
-    return dims, name_cubes
-end
-```
-
-:::
-
-
-----
-
 ### getParameters
 ```@docs
-getParameters
+Sindbad.DataLoaders.getParameters
 ```
 
 :::details Code
 
 ```julia
-function getParameters(info::NamedTuple, forcing_axes)
+function getParameters(info::NamedTuple, forcing_axes, forcing_cubes=nothing)
     parameter_input = get(info.experiment.data_settings, :parameters, nothing)
     isnothing(parameter_input) && return nothing
     print_info(getParameters, @__FILE__, @__LINE__, "getting parameters per location from the parameters input...", n_m=1)
@@ -410,19 +384,34 @@ function getParameters(info::NamedTuple, forcing_axes)
     forcing_space_dims = Tuple(DD.Dim{s_dim}(axes_values[s_dim]) for s_dim ∈ space_dims)
     open_files = Dict{String,Any}()
     var_names, var_sources = listParameterVariables(parameter_input, open_files)
+    lookup = getParameterLookup(parameter_input)
+    lookup_cube = isnothing(lookup) ? nothing : getLookupCube(lookup, forcing_cubes, space_dims)
+    # the lazy cube of each parameter is computed once for an eager run, which reads
+    # it per location
+    keep_lazy = info.helpers.run.run_lazy isa DoRunLazy
 
     table_rows = []
+    map_classes = []
     data = map(var_names, var_sources) do var_name, var_source
         dataset = openParameterFile!(open_files, var_source.data_path)
         attributes = readVariableAttributes(dataset, var_source.source_variable, var_source.data_path)
         p_row = resolveParameterVariable(var_name, var_source, parameter_input, attributes, info)
-        yax = selectForcingLocations(dataset[var_source.source_variable], forcing_axes, space_dims, var_name, dataset)
-        p_values = cleanParameterValues(Array(yax), p_row, num_type)
+        p_values = if isnothing(lookup)
+            getParameterValuesByLocation(dataset[var_source.source_variable], forcing_axes, space_dims, p_row, num_type, var_name)
+        else
+            by_class = getParameterValuesByClass(dataset[var_source.source_variable], lookup, lookup_cube, p_row, num_type, var_name)
+            push!(map_classes, by_class.classes)
+            by_class
+        end
         push!(table_rows, (; p_row..., n_nan=p_values.n_nan, n_clamped=p_values.n_clamped))
         print_info(nothing, @__FILE__, @__LINE__, "`$(var_name)` = `$(p_row.name_full)` ($(p_row.units)) from `$(var_source.source_variable)` in `$(var_source.data_path)` * $(p_row.unit_factor)", n_m=4)
-        # kept as a cube on the spatial dimensions and coordinates of the forcing, so a
-        # lazy run can map over it together with the forcing
-        YAXArray(forcing_space_dims, p_values.data)
+        # kept as a cube on the spatial dimensions and coordinates of the forcing, so
+        # a lazy run can map over it together with the forcing
+        YAXArray(forcing_space_dims, keep_lazy ? p_values.data.data : Array(p_values.data.data))
+    end
+    if !isnothing(lookup)
+        allequal(map_classes) || error("The variables of the class map by `$(lookup.lookup_variable)` have different classes. All need the same `$(lookup.lookup_variable)` coordinates.")
+        warnClassesNotInMap(lookup, findClassesNotInMap(lookup_cube, first(map_classes)))
     end
 
     parameter_table = Table([table_rows...])
@@ -456,7 +445,9 @@ function getSpatialSubset(ss, v)
         ssname = propertynames(ss)
         for ssn ∈ ssname
             ss_r = getproperty(ss, ssn)
-            if !isnothing(ss_r)
+            # a variable without the dimension, e.g., a purely temporal one, is kept
+            # as it is
+            if !isnothing(ss_r) && hasdim(v, ssn)
                 ss_range = collect(ss_r)
                 checkSubsetValues(v, ssn, ss_range)
                 ss_typeName = Symbol("Space" * string(ssn))
@@ -481,12 +472,12 @@ mapCleanData
 :::details Code
 
 ```julia
-function mapCleanData(_data, _data_qc, _data_fill, bounds_qc, _data_info, ::Val{T}) where {T}
+function mapCleanData(_data, _data_qc, bounds_qc, _data_info, ::Val{T}) where {T}
     if !isnothing(bounds_qc) && !isnothing(_data_qc)
-        _data = map((da, dq) -> applyQCBound(da, dq, bounds_qc, _data_fill), _data, _data_qc)
+        _data = map((da, dq) -> applyQCBound(da, dq, bounds_qc, NaN), _data, _data_qc)
     end
     vT = Val{T}()
-    _data = map(data_point -> cleanData(data_point, _data_fill, _data_info, vT), _data)
+    _data = map(data_point -> cleanData(data_point, _data_info, vT), _data)
     return _data
 end
 ```
@@ -584,7 +575,7 @@ subsetAndProcessYax
 :::details Code
 
 ```julia
-function subsetAndProcessYax(yax, forcing_mask, tar_dims, _data_info, info, ::Val{num_type}; clean_data=true, fill_nan=false, yax_qc=nothing, bounds_qc=nothing) where {num_type}
+function subsetAndProcessYax(yax, forcing_mask, tar_dims, _data_info, info, ::Val{num_type}; clean_data=true, yax_qc=nothing, bounds_qc=nothing) where {num_type}
     forcing_data_settings = info.experiment.data_settings.forcing
     if !isnothing(forcing_mask)
         yax = yax #todo: mask the forcing variables here depending on the mask of 1 and 0
@@ -607,18 +598,14 @@ function subsetAndProcessYax(yax, forcing_mask, tar_dims, _data_info, info, ::Va
         yax = getSpatialSubset(forcing_data_settings.subset, yax)
     end
 
-    #todo mean of the data instead of zero or nan
     # do a proper check on input type for forcing and if is not lazy do the cleanup
     if info.helpers.run.run_lazy isa DoNotRunLazy
-        vfill = 0.0
-        if fill_nan
-            vfill = NaN
-        end
         vNT = Val{num_type}()
         if clean_data
-            yax = mapCleanData(yax, yax_qc, vfill, bounds_qc, _data_info, vNT)
+            yax = mapCleanData(yax, yax_qc, bounds_qc, _data_info, vNT)
         else
-            yax = map(yax_point -> replace_invalid_number(yax_point, vfill), yax)
+            # masks and QC flags: an invalid point is zero, i.e., false for a mask
+            yax = map(yax_point -> replace_invalid_number(yax_point, 0.0), yax)
             yax = map(num_type, yax)
         end
     end

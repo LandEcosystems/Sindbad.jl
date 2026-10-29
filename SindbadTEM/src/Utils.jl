@@ -18,6 +18,7 @@ module Utils
     export parseTemporalResolution
     export modelParameter
     export modelParameters
+    export print_info_once
 
 """
     getInOutModel(model::LandEcosystem)
@@ -352,8 +353,7 @@ function getTypedModel(model::Symbol, model_timestep="day", num_type=Float64)
     if length(parameter_names) > 0
         parameter_vals = []
         for pn ∈ parameter_names
-            param = getParameterValue(model_obj(), pn, model_timestep)
-            # param = getfield(model_obj(), pn)
+            param = getParameterValue(model_instance, pn, model_timestep)
             parameter_typed = if typeof(param) <: Array
                 num_type.(param)
             else
@@ -572,6 +572,28 @@ function modelParameter(model::LandEcosystem, show=true)
         end
     end
     return p_vec
+end
+
+const _printed_once = Set{Tuple{String,Int}}()
+const _printed_once_lock = ReentrantLock()
+
+"""
+    print_info_once(func, file_name, line_number, info_message; kwargs...)
+
+Calls `print_info` only the first time a given `file_name` and `line_number` is reached
+in a session. Use it for warnings in `define` or `precompute` of processes, which run
+once per location in spatial runs and would otherwise repeat for every pixel.
+
+# Arguments:
+- same as `print_info`
+"""
+function print_info_once(func, file_name, line_number, info_message; kwargs...)
+    key = (String(file_name), Int(line_number))
+    is_new = lock(_printed_once_lock) do
+        key in _printed_once ? false : (push!(_printed_once, key); true)
+    end
+    is_new && print_info(func, file_name, line_number, info_message; kwargs...)
+    return nothing
 end
 
 end # module Utils

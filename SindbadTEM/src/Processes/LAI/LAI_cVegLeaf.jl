@@ -10,17 +10,22 @@ function compute(params::LAI_cVegLeaf, forcing, land, helpers)
     ## unpack parameters
     @unpack_LAI_cVegLeaf params
 
-    @unpack_nt cEco ⇐ land.pools
+    @unpack_nt begin
+        cEco ⇐ land.pools
+        frac_vegetation ⇐ land.states
+    end
 
     ## calculate variables
     # summed straight out of cEco through zix, so a pool name that spans several cEco
     # slots contributes all of them and a name the structure lacks contributes
     # nothing
     cVegLeafTotal = totalS_indices(cEco, helpers.pools.zix.cVegLeaf)
+    # LAI is per m2 of vegetated area, LAI_grid per m2 of grid cell
     LAI = cVegLeafTotal * SLA
+    LAI_grid = LAI * frac_vegetation
 
     ## pack land variables
-    @pack_nt LAI ⇒ land.states
+    @pack_nt (LAI, LAI_grid) ⇒ land.states
     @pack_nt SLA ⇒ land.diagnostics
     return land
 end

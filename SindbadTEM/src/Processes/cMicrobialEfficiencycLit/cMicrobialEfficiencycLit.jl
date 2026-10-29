@@ -17,7 +17,7 @@ carbon-transfer efficiency with one entry per active carbon transfer, in the sam
 as `c_flow_order`, `c_giver` and `c_taker`.
 
 The factor is one everywhere except on the transfers leaving the litter pools, and
-[`cMicrobialEfficiency_mult`](@ref) combines it with the other two pool-group factors to
+[`cMicrobialEfficiency_sum`](@ref) combines it with the other two pool-group factors to
 form `c_flow_ME_vec`. No other factor touches a `cLit` giver, which is what lets the
 three be combined.
 

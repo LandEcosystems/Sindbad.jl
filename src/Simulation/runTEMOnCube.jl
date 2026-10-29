@@ -56,11 +56,11 @@ function TEMYax(map_cubes...;selected_models, forcing_vars, loc_land::NamedTuple
     any(in_forcing -> any(v -> ismissing(v) || isnan(v), in_forcing), inputs)
 
     # ? apply clean_data fields to input data points
-    _data_fill, _num_type, _forcing_data_info = clean_data
+    _num_type, _forcing_data_info = clean_data
 
     inputs = map(enumerate(inputs)) do (i, in_forcing)
         _data_info = _forcing_data_info[i]
-        map(data_point -> cleanData(data_point, _data_fill, _data_info, _num_type), in_forcing)
+        map(data_point -> cleanData(data_point, _data_info, _num_type), in_forcing)
     end
     loc_forcing = (; Pair.(forcing_vars, inputs)...)
     # the restart cubes are filled after the spinup step with `save_restart`
@@ -171,7 +171,7 @@ function runTEMYax(selected_models, forcing::NamedTuple, info::NamedTuple)
         output_vars=run_helpers.output_vars,
         loc_land=loc_land,
         tem=run_helpers.tem_info,
-        clean_data=(; _data_fill, _num_type, _forcing_data_info),
+        clean_data=(; _num_type, _forcing_data_info),
         restart_vars=restart_vars,
         parameter_to_index=parameter_to_index),
         output = new_output,
@@ -182,7 +182,10 @@ function runTEMYax(selected_models, forcing::NamedTuple, info::NamedTuple)
     outcubes = outcubes isa YAXArray ? (outcubes,) : outcubes
     n_out = length(output)
     varnames = getUniqueVarNames(info.output.variables)
-    output_ds = Dataset(;zip(varnames, outcubes[1:n_out])...)
+    output_cubes = map(output, outcubes[1:n_out]) do out, o_cube
+        dropPaddedDimsYax(o_cube, setdiff(DD.name.(alloutdims), DD.name.(out.outaxes)))
+    end
+    output_ds = Dataset(;zip(varnames, output_cubes)...)
     restart_cubes = map(restart_output, outcubes[(n_out+1):end]) do r_out, r_cube
         dropPaddedDimsYax(r_cube, setdiff(DD.name.(alloutdims), DD.name.(r_out.outaxes)))
     end
@@ -239,11 +242,11 @@ function psTEMYax(in_pixel_cube...; selected_models, param_to_index, forcing_var
     outputs, inputs = unpackYaxForward(in_pixel_cube[1:end-1]; output_vars, forcing_vars)
     in_new_params = last(in_pixel_cube)
     # ? apply clean_data fields to input data points
-    _data_fill, _num_type, _forcing_data_info = clean_data
+    _num_type, _forcing_data_info = clean_data
 
     inputs = map(enumerate(inputs)) do (i, in_forcing)
         _data_info = _forcing_data_info[i]
-        map(data_point -> cleanData(data_point, _data_fill, _data_info, _num_type), in_forcing)
+        map(data_point -> cleanData(data_point, _data_info, _num_type), in_forcing)
     end
     loc_forcing = (; Pair.(forcing_vars, inputs)...)
     updated_models = updateModelParameters(param_to_index, selected_models, in_new_params)
@@ -284,7 +287,7 @@ function runTEMYaxParameters(selected_models, forcing::NamedTuple, in_cube_param
         output_vars=run_helpers.output_vars,
         loc_land=loc_land,
         tem=run_helpers.tem_info,
-        clean_data=(; _data_fill, _num_type, _forcing_data_info),
+        clean_data=(; _num_type, _forcing_data_info),
         indims=indims,
         outdims=run_helpers.output_dims,
         max_cache=info.experiment.exe_rules.yax_max_cache,

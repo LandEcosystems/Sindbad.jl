@@ -10,5 +10,7 @@ This extension is loaded automatically by Julia when `Plots` is available.
 
 - [`SindbadPlotsExt.jl`](https://github.com/LandEcosystems/Sindbad/blob/main/ext/SindbadPlotsExt/SindbadPlotsExt.jl)
 - [`VisualizationPlotCarbonFlows.jl`](https://github.com/LandEcosystems/Sindbad/blob/main/ext/SindbadPlotsExt/VisualizationPlotCarbonFlows.jl)
+- [`VisualizationPlotForcingSpinup.jl`](https://github.com/LandEcosystems/Sindbad/blob/main/ext/SindbadPlotsExt/VisualizationPlotForcingSpinup.jl)
 - [`VisualizationPlotIOModelStructure.jl`](https://github.com/LandEcosystems/Sindbad/blob/main/ext/SindbadPlotsExt/VisualizationPlotIOModelStructure.jl)
 - [`VisualizationPlotOutput.jl`](https://github.com/LandEcosystems/Sindbad/blob/main/ext/SindbadPlotsExt/VisualizationPlotOutput.jl)
+- [`VisualizationPlotSpatial.jl`](https://github.com/LandEcosystems/Sindbad/blob/main/ext/SindbadPlotsExt/VisualizationPlotSpatial.jl)

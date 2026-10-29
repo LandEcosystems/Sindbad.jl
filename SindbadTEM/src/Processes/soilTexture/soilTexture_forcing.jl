@@ -13,7 +13,7 @@ function define(params::soilTexture_forcing, forcing, land, helpers)
     st_silt = zero(soilW)
 
     if length(f_clay) != length(st_clay)
-        print_info(nothing, @__FILE__, @__LINE__, "soilTexture_forcing: the number of soil layers in forcing data does not match the layers in model_structure.json. Using mean of input over the soil layers.", n_m=4)
+        print_info_once(nothing, @__FILE__, @__LINE__, "soilTexture_forcing: the number of soil layers in forcing data does not match the layers in model_structure.json. Using mean of input over the soil layers.", n_m=4)
     end
 
     ## pack land variables

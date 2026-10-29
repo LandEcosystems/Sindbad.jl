@@ -403,8 +403,7 @@ function getTypedModel(model::Symbol, model_timestep="day", num_type=Float64)
     if length(parameter_names) > 0
         parameter_vals = []
         for pn ∈ parameter_names
-            param = getParameterValue(model_obj(), pn, model_timestep)
-            # param = getfield(model_obj(), pn)
+            param = getParameterValue(model_instance, pn, model_timestep)
             parameter_typed = if typeof(param) <: Array
                 num_type.(param)
             else
@@ -629,6 +628,29 @@ function parseTemporalResolution(resolution)
     else
         error("invalid temporal resolution \"$(resolution)\": expected a bare unit (e.g. \"day\") or \"<integer>-<unit>\" (e.g. \"6-hour\"), got $(length(parts)) dash-separated parts.")
     end
+end
+```
+
+:::
+
+
+----
+
+### print_info_once
+```@docs
+print_info_once
+```
+
+:::details Code
+
+```julia
+function print_info_once(func, file_name, line_number, info_message; kwargs...)
+    key = (String(file_name), Int(line_number))
+    is_new = lock(_printed_once_lock) do
+        key in _printed_once ? false : (push!(_printed_once, key); true)
+    end
+    is_new && print_info(func, file_name, line_number, info_message; kwargs...)
+    return nothing
 end
 ```
 

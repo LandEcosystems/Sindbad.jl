@@ -301,6 +301,27 @@ sindbad_tem_variables = orD{Symbol,orD{Symbol,String}}(
         :land_field => "diagnostics",
         :description => "number of years needed for carbon turnover per carbon pool"
     ),
+    :diagnostics__c_fire_efflux => orD(
+        :standard_name => "c_fire_efflux",
+        :long_name => "fire_carbon_emission_per_pool",
+        :units => "gC/m2/time",
+        :land_field => "diagnostics",
+        :description => "carbon of each pool combusted by fire and emitted to the atmosphere"
+    ),
+    :diagnostics__c_fire_flow => orD(
+        :standard_name => "c_fire_flow",
+        :long_name => "fire_carbon_flow_to_litter_and_soil",
+        :units => "gC/m2/time",
+        :land_field => "diagnostics",
+        :description => "carbon of vegetation killed by fire or die-off but not combusted, received by each litter and soil pool"
+    ),
+    :diagnostics__c_fire_mortality => orD(
+        :standard_name => "c_fire_mortality",
+        :long_name => "fire_carbon_mortality_per_pool",
+        :units => "gC/m2/time",
+        :land_field => "diagnostics",
+        :description => "total carbon lost by each vegetation pool to fire or die-off, the combusted part plus the flow to litter and soil"
+    ),
     :cCycleBase__c_flow_order => orD(
         :standard_name => "c_flow_order",
         :long_name => "carbon_flow_order",

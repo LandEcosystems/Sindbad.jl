@@ -152,7 +152,7 @@ end
 
 ## Modules
 
-- [`SindbadTEM.TEMTypes`](/pages/code/api/SindbadTEM.TEMTypes)
-- [`SindbadTEM.Utils`](/pages/code/api/SindbadTEM.Utils)
-- [`SindbadTEM.Variables`](/pages/code/api/SindbadTEM.Variables)
-- [`SindbadTEM.Processes`](/pages/code/api/SindbadTEM.Processes)
+- [`SindbadTEM.TEMTypes`](SindbadTEM.TEMTypes.md)
+- [`SindbadTEM.Utils`](SindbadTEM.Utils.md)
+- [`SindbadTEM.Variables`](SindbadTEM.Variables.md)
+- [`SindbadTEM.Processes`](SindbadTEM.Processes.md)

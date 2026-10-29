@@ -59,15 +59,39 @@ plotCarbonFlows
         suffix = isnothing(get(kwargs, :land, nothing)) ? "default" : "actual"
         approach_name = _approachName(approach, kwargs)
         file_path = joinpath(info.output.dirs.figure,
-            "carbon_flow_matrix_$(info.experiment.basics.id)_$(approach_name)_$(suffix).pdf")
-        # an explicit pool_configuration in kwargs (rare) wins over info's, since it
-        # comes later in this merge
-        kwargs = (; pool_configuration=_experimentPoolConfiguration(info), kwargs...)
+            "carbon_flow_matrix_$(approach_name)_$(suffix).pdf")
+        # an explicit pool_configuration or helpers in kwargs (rare) wins over info's,
+        # since it comes later in this merge
+        kwargs = (; pool_configuration=_experimentPoolConfiguration(info), helpers=info.helpers, kwargs...)
         return plotCarbonFlows(approach, file_path, _resolvedBackend(plotCarbonFlows, backend, approach, file_path); kwargs...)
     end
 
     function plotCarbonFlows(approach, file_path, ::VisualizationTypes; kwargs...)
         print_info(plotCarbonFlows, @__FILE__, @__LINE__, _visualizationFallbackMessage(plotCarbonFlows, VisualizationPlots()), n_f=4)
+        return nothing
+    end
+```
+
+:::
+
+
+----
+
+### plotForcing
+```@docs
+plotForcing
+```
+
+:::details Code
+
+```julia
+    function plotForcing(info, forcing)
+        backend = info.helpers.run.visualization_backend
+        return plotForcing(info, forcing, _resolvedBackend(plotForcing, backend, info, forcing))
+    end
+
+    function plotForcing(info, forcing, ::VisualizationTypes)
+        print_info(plotForcing, @__FILE__, @__LINE__, _visualizationFallbackMessage(plotForcing, info.helpers.run.visualization_backend), n_f=4)
         return nothing
     end
 ```
@@ -125,6 +149,30 @@ plotPerformanceHistograms
 
 ----
 
+### plotSpinup
+```@docs
+plotSpinup
+```
+
+:::details Code
+
+```julia
+    function plotSpinup(info, spinup; kwargs...)
+        backend = info.helpers.run.visualization_backend
+        return plotSpinup(info, spinup, _resolvedBackend(plotSpinup, backend, info, spinup); kwargs...)
+    end
+
+    function plotSpinup(info, spinup, ::VisualizationTypes; kwargs...)
+        print_info(plotSpinup, @__FILE__, @__LINE__, _visualizationFallbackMessage(plotSpinup, info.helpers.run.visualization_backend), n_f=4)
+        return nothing
+    end
+```
+
+:::
+
+
+----
+
 ### plotTimeSeries
 ```@docs
 plotTimeSeries
@@ -143,9 +191,9 @@ plotTimeSeries
         return plotTimeSeries(out, cost_options, _resolvedBackend(plotTimeSeries, backend, out, cost_options))
     end
 
-    function plotTimeSeries(info, opt_dat, def_dat)
+    function plotTimeSeries(info, opt_dat, def_dat; forcing_helpers=nothing)
         backend = info.helpers.run.visualization_backend
-        return plotTimeSeries(info, opt_dat, def_dat, _resolvedBackend(plotTimeSeries, backend, info, opt_dat, def_dat))
+        return plotTimeSeries(info, opt_dat, def_dat, _resolvedBackend(plotTimeSeries, backend, info, opt_dat, def_dat); forcing_helpers=forcing_helpers)
     end
 
     function plotTimeSeriesWithObs(out, obs_array, cost_options)
@@ -163,12 +211,12 @@ plotTimeSeries
         return nothing
     end
 
-    function plotTimeSeries(info, opt_dat, def_dat, ::VisualizationTypes)
+    function plotTimeSeries(info, opt_dat, def_dat, ::VisualizationTypes; kwargs...)
         print_info(plotTimeSeries, @__FILE__, @__LINE__, _visualizationFallbackMessage(plotTimeSeries, info.helpers.run.visualization_backend), n_f=4)
         return nothing
     end
 
-    function plotTimeSeries(info, obs_array, cost_options, def_dat, ::VisualizationTypes)
+    function plotTimeSeries(info, obs_array, cost_options, def_dat, ::VisualizationTypes; kwargs...)
         print_info(plotTimeSeries, @__FILE__, @__LINE__, _visualizationFallbackMessage(plotTimeSeries, info.helpers.run.visualization_backend), n_f=4)
         return nothing
     end

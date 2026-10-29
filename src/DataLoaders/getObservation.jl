@@ -168,11 +168,11 @@ function getObservation(info::NamedTuple, forcing_helpers::NamedTuple)
         @debug "      qflag"
         cyax_qc = subsetAndProcessYax(yax_qc, yax_mask_v, tar_dims, vinfo_qc, info, num_type; clean_data=false)
         @debug "      data"
-        cyax = subsetAndProcessYax(yax, yax_mask, tar_dims, vinfo_data, info, num_type; fill_nan=true, yax_qc=cyax_qc, bounds_qc=bounds_qc)
+        cyax = subsetAndProcessYax(yax, yax_mask, tar_dims, vinfo_data, info, num_type; yax_qc=cyax_qc, bounds_qc=bounds_qc)
         @debug "      unc"
-        cyax_unc = subsetAndProcessYax(yax_unc, yax_mask, tar_dims, vinfo_unc, info, num_type; fill_nan=true, yax_qc=cyax_qc, bounds_qc=bounds_qc)
+        cyax_unc = subsetAndProcessYax(yax_unc, yax_mask, tar_dims, vinfo_unc, info, num_type; yax_qc=cyax_qc, bounds_qc=bounds_qc)
         @debug "      weight"
-        cyax_wgt = subsetAndProcessYax(yax_wgt, yax_mask, tar_dims, vinfo_wgt, info, num_type; fill_nan=true, yax_qc=cyax_qc, bounds_qc=bounds_qc)
+        cyax_wgt = subsetAndProcessYax(yax_wgt, yax_mask, tar_dims, vinfo_wgt, info, num_type; yax_qc=cyax_qc, bounds_qc=bounds_qc)
         @debug "      mask"
         yax_mask_v = subsetAndProcessYax(yax_mask_v, yax_mask_v, tar_dims, vinfo_mask, info, num_type_bool; clean_data=false)
 

@@ -241,6 +241,19 @@ function find_function_file(func_name::String, package_name::Symbol, module_name
     return nothing
 end
 
+# Name to put in a `@docs` block. Documenter resolves a bare name in `Main`, so a name
+# that two modules export, e.g. `getParameters` from `Setup` and `DataLoaders`, is
+# ambiguous there. Such a name is qualified with its module.
+function docs_name(the_module::Module, module_expr::String, name)
+    sym = Symbol(name)
+    same = try
+        getfield(Main, sym) === getfield(the_module, sym)
+    catch
+        false
+    end
+    return same ? string(name) : "$(module_expr).$(name)"
+end
+
 
 # Helper function to generate documentation for a module
 function generate_module_docs(module_path::String, module_expr::String, module_name::Symbol, package_name::Symbol)
@@ -266,7 +279,7 @@ function generate_module_docs(module_path::String, module_expr::String, module_n
                 else
                     write(o_file, "### $(function_name)\n")
                 end
-                write(o_file, "```@docs\n$(function_name)\n```\n")
+                write(o_file, "```@docs\n$(docs_name(the_module, module_expr, function_name))\n```\n")
                 
                 # Add code section right after the docstring
                 func_file = find_function_file(string(function_name), package_name, module_name)
@@ -286,7 +299,7 @@ function generate_module_docs(module_path::String, module_expr::String, module_n
             write(o_file, "## Methods\n\n")
             foreach(lib_methods) do method_name
                 write(o_file, "### $(method_name)\n")
-                write(o_file, "```@docs\n$(method_name)\n```\n")
+                write(o_file, "```@docs\n$(docs_name(the_module, module_expr, method_name))\n```\n")
                 
                 # Add code section right after the docstring
                 func_file = find_function_file(string(method_name), package_name, module_name)
@@ -306,7 +319,7 @@ function generate_module_docs(module_path::String, module_expr::String, module_n
             write(o_file, "## Types\n\n")
             foreach(lib_types) do type_name
                 write(o_file, "### $(type_name)\n")
-                write(o_file, "```@docs\n$(type_name)\n```\n")
+                write(o_file, "```@docs\n$(docs_name(the_module, module_expr, type_name))\n```\n")
                 write(o_file, "\n----\n\n")
             end
         end
@@ -379,10 +392,10 @@ foreach(packages_list) do package_name
         # For the SindbadTEM landing page, add quick links to key submodules.
         if package_name == :SindbadTEM
             write(o_file, "\n## Modules\n\n")
-            write(o_file, "- [`SindbadTEM.TEMTypes`](/pages/code/api/SindbadTEM.TEMTypes)\n")
-            write(o_file, "- [`SindbadTEM.Utils`](/pages/code/api/SindbadTEM.Utils)\n")
-            write(o_file, "- [`SindbadTEM.Variables`](/pages/code/api/SindbadTEM.Variables)\n")
-            write(o_file, "- [`SindbadTEM.Processes`](/pages/code/api/SindbadTEM.Processes)\n")
+            write(o_file, "- [`SindbadTEM.TEMTypes`](SindbadTEM.TEMTypes.md)\n")
+            write(o_file, "- [`SindbadTEM.Utils`](SindbadTEM.Utils.md)\n")
+            write(o_file, "- [`SindbadTEM.Variables`](SindbadTEM.Variables.md)\n")
+            write(o_file, "- [`SindbadTEM.Processes`](SindbadTEM.Processes.md)\n")
         end
     end
 end

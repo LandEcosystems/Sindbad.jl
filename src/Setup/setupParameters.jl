@@ -488,7 +488,7 @@ Retrieves indices for model parameters from a parameter table.
 # Returns
 A Tuple of Pair of Name and Indices corresponding to the model parameters in the parameter table for  selected models.
 """
-function getModelParameterIndices end
+function getParameterIndices end
 
 function getParameterIndices(selected_models::LongTuple, parameter_table::Table)
     selected_models_tuple = to_tuple(selected_models)

@@ -508,6 +508,6 @@ function getForcing(info::NamedTuple)
         f_sizes = collectForcingSizes(info, interpincubes[i_spatiotemporal])
         f_dimension = getSindbadDims(interpincubes[i_spatiotemporal])
     end
-    parameters = getParameters(info, f_dimension)
+    parameters = getParameters(info, f_dimension, NamedTuple{Tuple(forcing_vars)}(Tuple(incubes)))
     return createForcingNamedTuple(interpincubes, f_sizes, f_dimension, info; parameters=parameters)
 end
