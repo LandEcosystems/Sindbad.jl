@@ -163,7 +163,7 @@ end
 
 
 function filterNanPixels(forcing, loc_space_maps, ::DoFilterNanPixels)
-    forcing_nt_array = namedtuple_from_names_values(forcing.data, forcing.variables)
+    forcing_nt_array = namedtuple_from_names_values(values(forcing.data), forcing.variables)
     # a value of a variable without a time dimension is a number, otherwise an array
     hasInvalid(v) = v isa Number ? is_invalid_number(v) : any(is_invalid_number, v)
     # one row per pixel and one column per forcing variable, true where the variable
