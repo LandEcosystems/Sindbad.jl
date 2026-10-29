@@ -1,5 +1,6 @@
 export runTEMYax
 export TEMYax
+export computeTEMYax
 
 
 """
@@ -29,6 +30,29 @@ function coreTEMYax(selected_models, loc_forcing, loc_land, tem_info, store_rest
     return LandWrapper(land_time_series)
 end
 
+"""
+    coreTEMYax!(loc_output, selected_models, loc_forcing, loc_land, tem_info, store_restart=nothing)
+
+Runs the TEM for one location and writes the output variables of every time step into
+`loc_output`, the same way as `coreTEM!` of an eager run.
+
+# Arguments:
+- `loc_output`: the output arrays of the location, in the order of
+  `tem_info.vals.output_vars`, with time as the first dimension
+- the other arguments are the same as for `coreTEMYax`
+
+# Notes:
+- Only the output variables are kept at each time step, whereas `coreTEMYax` keeps the
+  whole land of every time step and allocates far more memory.
+"""
+function coreTEMYax!(loc_output, selected_models, loc_forcing, loc_land, tem_info, store_restart=nothing)
+    loc_forcing_t = getForcingForTimeStep(loc_forcing, deepcopy(loc_forcing), 1, tem_info.vals.forcing_types)
+    land_prec = definePrecomputeTEM(selected_models, loc_forcing_t, loc_land, tem_info.model_helpers)
+    land_spin = spinupTEMYax(selected_models, loc_forcing, loc_forcing_t, land_prec, tem_info, tem_info.run.spinup_TEM, store_restart)
+    timeLoopTEM!(selected_models, loc_forcing, loc_forcing_t, loc_output, land_spin, tem_info.vals.forcing_types, tem_info.model_helpers, tem_info.vals.output_vars, tem_info.n_timesteps, tem_info.run.debug_model)
+    return nothing
+end
+
 
 """
     TEMYax(map_cubes; loc_land::NamedTuple, tem::NamedTuple, selected_models, forcing_vars::AbstractArray)
@@ -51,9 +75,13 @@ function TEMYax(map_cubes...;selected_models, forcing_vars, loc_land::NamedTuple
 
     outputs, inputs, restarts, parameter_inputs = unpackYaxForward(map_cubes; output_vars, forcing_vars, restart_vars)
     selected_models = setLocationParametersYax(selected_models, parameter_to_index, parameter_inputs)
-    # What exactly should the NaN check be? 
-    # Do I check per variable, or for all variables together?
-    any(in_forcing -> any(v -> ismissing(v) || isnan(v), in_forcing), inputs)
+    # the same rule as filterNanPixels: a pixel with an invalid forcing value at any
+    # time step is not run, and its output and restart stay NaN
+    if any(in_forcing -> any(is_invalid_number, in_forcing), inputs)
+        foreach(xout -> fill!(xout, NaN), outputs)
+        foreach(xout -> fill!(xout, NaN), restarts)
+        return nothing
+    end
 
     # ? apply clean_data fields to input data points
     _num_type, _forcing_data_info = clean_data
@@ -65,13 +93,10 @@ function TEMYax(map_cubes...;selected_models, forcing_vars, loc_land::NamedTuple
     loc_forcing = (; Pair.(forcing_vars, inputs)...)
     # the restart cubes are filled after the spinup step with `save_restart`
     store_restart = land -> fillRestartYax(restarts, land, restart_vars)
-    land_out = coreTEMYax(selected_models, loc_forcing, loc_land, tem, store_restart)
-    i = 1
-    foreach(output_vars) do var_pair
-        data = land_out[first(var_pair)][last(var_pair)]
-            fillOutputYax(outputs[i], data, var_pair)
-            i += 1
-    end
+    # every pixel gets its own copy, as the land has mutable arrays and the pixels can
+    # run on different threads
+    coreTEMYax!(outputs, selected_models, loc_forcing, deepcopy(loc_land), tem, store_restart)
+    return nothing
 end
 
 """
@@ -175,22 +200,57 @@ function runTEMYax(selected_models, forcing::NamedTuple, info::NamedTuple)
         restart_vars=restart_vars,
         parameter_to_index=parameter_to_index),
         output = new_output,
+        # xmap runs the pixels of a block on one thread unless this is set
+        allow_threads = info.helpers.run.parallelization isa ThreadsParallelization,
         #outdims=run_helpers.output_dims,
         #max_cache=info.experiment.exe_rules.yax_max_cache,
         #ispar=false,
         )
     outcubes = outcubes isa YAXArray ? (outcubes,) : outcubes
     n_out = length(output)
-    varnames = getUniqueVarNames(info.output.variables)
-    output_cubes = map(output, outcubes[1:n_out]) do out, o_cube
-        dropPaddedDimsYax(o_cube, setdiff(DD.name.(alloutdims), DD.name.(out.outaxes)))
-    end
+    varnames = Tuple(getUniqueVarNames(info.output.variables))
+    restart_names = Tuple(last.(restart_vars))
+    padded_names = map(out -> setdiff(DD.name.(alloutdims), DD.name.(out.outaxes)), all_output)
+    output_cubes = map(dropPaddedDimsYax, outcubes[1:n_out], padded_names[1:n_out])
     output_ds = Dataset(;zip(varnames, output_cubes)...)
-    restart_cubes = map(restart_output, outcubes[(n_out+1):end]) do r_out, r_cube
-        dropPaddedDimsYax(r_cube, setdiff(DD.name.(alloutdims), DD.name.(r_out.outaxes)))
-    end
-    restart_ds = Dataset(; zip(last.(restart_vars), restart_cubes)...)
-    return (; output=output_ds, restart=restart_ds, restart_vars=restart_vars, spinup_mode=getSaveRestartSpinupMode(info))
+    restart_cubes = map(dropPaddedDimsYax, outcubes[(n_out+1):end], padded_names[(n_out+1):end])
+    restart_ds = Dataset(; zip(restart_names, restart_cubes)...)
+    # a pool can also be an output variable, so the restart cubes get their own keys
+    restart_keys = map(r -> Symbol("restart_", r), restart_names)
+    xmap_keys = (varnames..., restart_keys...)
+    xmap_cubes = (; dataset=Dataset(; zip(xmap_keys, outcubes)...),
+        padded_names=Dict(zip(xmap_keys, padded_names)),
+        output_names=varnames, restart_names=restart_names, restart_keys=restart_keys)
+    return (; output=output_ds, restart=restart_ds, restart_vars=restart_vars, spinup_mode=getSaveRestartSpinupMode(info), xmap=xmap_cubes)
+end
+
+"""
+    computeTEMYax(xmap_cubes, store_path; max_cache=5e8)
+
+Computes all output and restart cubes of a lazy run in one pass and writes them to the
+zarr store at `store_path`.
+
+# Arguments:
+- `xmap_cubes`: the `xmap` field returned by `runTEMYax`
+- `store_path`: the path of the zarr store that holds the computed cubes
+- `max_cache`: the cache size of `compute_to_zarr`
+
+# Returns:
+- a NamedTuple with the `output` and `restart` Datasets, read from the store and
+  without the padded dimensions
+
+# Notes:
+- All cubes of `runTEMYax` come from one `xmap`. Saving them one by one runs the model
+  once per cube, while `compute_to_zarr` runs it once for all of them.
+- The cubes keep their padded dimensions until they are computed, since
+  `compute_to_zarr` can only fuse the direct outputs of the `xmap`.
+"""
+function computeTEMYax(xmap_cubes, store_path; max_cache=5e8)
+    computed = YAXArrays.compute_to_zarr(xmap_cubes.dataset, store_path; max_cache=max_cache, overwrite=true)
+    stored(key) = dropPaddedDimsYax(computed.cubes[key], xmap_cubes.padded_names[key])
+    output_ds = Dataset(; (name => stored(name) for name ∈ xmap_cubes.output_names)...)
+    restart_ds = Dataset(; (name => stored(key) for (name, key) ∈ zip(xmap_cubes.restart_names, xmap_cubes.restart_keys))...)
+    return (; output=output_ds, restart=restart_ds)
 end
 
 """
