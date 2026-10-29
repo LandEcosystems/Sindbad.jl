@@ -210,7 +210,12 @@ function runTEMYax(selected_models, forcing::NamedTuple, info::NamedTuple)
     n_out = length(output)
     varnames = Tuple(getUniqueVarNames(info.output.variables))
     restart_names = Tuple(last.(restart_vars))
-    padded_names = map(out -> setdiff(DD.name.(alloutdims), DD.name.(out.outaxes)), all_output)
+    # besides the padding, xmap adds a singleton for every core dimension of the forcing
+    # that the output does not have, e.g. the soil layers of the texture forcing
+    space_dims = Symbol.(info.experiment.data_settings.forcing.data_dimension.space)
+    padded_names = map(all_output, outcubes) do out, o_cube
+        setdiff(DD.name.(DD.dims(o_cube)), (DD.name.(out.outaxes)..., space_dims...))
+    end
     output_cubes = map(dropPaddedDimsYax, outcubes[1:n_out], padded_names[1:n_out])
     output_ds = Dataset(;zip(varnames, output_cubes)...)
     restart_cubes = map(dropPaddedDimsYax, outcubes[(n_out+1):end], padded_names[(n_out+1):end])
@@ -280,7 +285,8 @@ end
     dropPaddedDimsYax(cube, padded_names)
 
 Removes the singleton dimensions that were added to an output cube only because
-DiskArrayEngine needs all output cubes to have the same dimensions.
+DiskArrayEngine needs all output cubes to have the same dimensions, and those that xmap
+adds for the core dimensions of the forcing that the output does not have.
 
 # Arguments:
 - `cube`: an output cube of `xmap`
