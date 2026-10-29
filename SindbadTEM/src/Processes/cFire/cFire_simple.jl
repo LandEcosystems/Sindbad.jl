@@ -29,7 +29,6 @@ function compute(params::cFire_simple, forcing, land, helpers)
         cEco ⇐ land.pools
         c_remain ⇐ land.states
         (c_flow_order, c_giver, c_taker, zix_cHeterotrophic) ⇐ land.cCycleBase
-        c_model ⇐ land.models
         z_zero ⇐ land.constants
     end
     # set c_fire_efflux and c_fire_mortality and cFireTotal to 0
@@ -48,10 +47,14 @@ function compute(params::cFire_simple, forcing, land, helpers)
             # total mortality fraction of vegetation pool
             f_loss = c_f_cVeg_dieOff + c_fire_fba * c_Fire_k[giver]
             cLoss = (at_least_zero(cEco[giver] - c_remain) * f_loss) * c_flow_QP_vec[fO]
-            # part that is combusted and that goes to the litter pools
+            # part that is combusted and lost to the atmosphere, and the rest that dies
+            # unburnt and goes to the litter pools
             cLossFire = cLoss * c_Fire_cci[giver] * safe_divide(c_fire_fba * c_Fire_k[giver],f_loss)
             cLossNonFire = cLoss - cLossFire
 
+            # the mortality is the total loss of the giver, i.e., its efflux plus its
+            # flow to the taker. cCycleDisturbance removes only the mortality from the
+            # pools, and the efflux is the part of it that leaves the system.
             @add_to_elem cLossFire ⇒ (c_fire_efflux, giver)
             @add_to_elem cLossNonFire ⇒ (c_fire_flow, taker)
             @add_to_elem cLoss ⇒ (c_fire_mortality, giver)
@@ -59,7 +62,8 @@ function compute(params::cFire_simple, forcing, land, helpers)
 
         # compute fire flux from litter and soils
         for zix ∈ zix_cHeterotrophic
-            # total combustion from pool
+            # total combustion from pool. These pools have no mortality, so their loss
+            # is only this efflux out of the system.
             f_loss = c_fire_fba * c_Fire_cci[zix]
             cLoss = at_least_zero(cEco[zix] * f_loss)
             @rep_elem cLoss ⇒ (c_fire_efflux, zix)
@@ -68,8 +72,6 @@ function compute(params::cFire_simple, forcing, land, helpers)
         cFireTotal = totalS(c_fire_efflux)
     end
 
-    land = adjustPackPoolComponents(land, helpers, c_model)
-    
     ## pack land variables
     @pack_nt begin 
         # cEco ⇒ land.pools

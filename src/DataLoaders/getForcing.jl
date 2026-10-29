@@ -223,6 +223,6 @@ function getForcing(info::NamedTuple)
         end
         incube
     end
-    parameters = getParameters(info, f_dimension)
+    parameters = getParameters(info, f_dimension, NamedTuple{Tuple(forcing_vars)}(Tuple(incubes)))
     return createForcingNamedTuple(incubes, f_sizes, f_dimension, info; parameters=parameters)
 end

@@ -149,11 +149,12 @@ end
 function runExperiment(info::NamedTuple, forcing::NamedTuple, ::Union{DoRunForward, DoNotRunOptimization})
     run_output = runForward(forcing, info, info.helpers.run.run_lazy)
     set_log_level()
-    return (; forcing, info, output=run_output.output, restart=run_output.restart)
+    return (; forcing, info, output=run_output.output, restart=run_output.restart, spinup=run_output.spinup)
 end
 
 
 function runExperiment(info::NamedTuple, forcing::NamedTuple, ::DoRunOptimization)
+    info = withoutSpinupStore(info)
     observations = getObservation(info, forcing.helpers)
     additionaldims = setdiff(keys(forcing.helpers.sizes), info.experiment.data_settings.forcing.data_dimension.time)
     run_output = nothing
@@ -164,14 +165,54 @@ function runExperiment(info::NamedTuple, forcing::NamedTuple, ::DoRunOptimizatio
         print_info(runExperiment, @__FILE__, @__LINE__, "run optimization for spatial domain...")
         obs_array = [Array(_o) for _o in observations.data]; # TODO: necessary now for performance because view of keyedarray is slow
         optim_params = optimizeTEM(forcing, obs_array, info)
-        optim_file_prefix = joinpath(info.output.dirs.optimization, info.experiment.basics.name * "_" * info.experiment.basics.domain)
-        print_info(runExperiment, @__FILE__, @__LINE__, "saving optimized parameters to file: $(optim_file_prefix)_model_parameters_optimized.csv")
-        CSV.write(optim_file_prefix * "_model_parameters_optimized.csv", optim_params)
+        optim_file = joinpath(info.output.dirs.optimization, "model_parameters_optimized.csv")
+        print_info(runExperiment, @__FILE__, @__LINE__, "saving optimized parameters to file: $(optim_file)")
+        CSV.write(optim_file, optim_params)
         saveParameterCubes(info, optim_params, forcing.helpers)
         run_output = optim_params
     end
     set_log_level()
     return (; forcing, info, observation=obs_array, parameters=run_output)
+end
+
+
+"""
+    withoutSpinupStore(info)
+
+Returns `info` with `store_spinup` set to `DoNotStoreSpinup`. The model runs of an
+optimization and of a sensitivity analysis use it, and the forward runs keep the
+setting of the experiment.
+"""
+withoutSpinupStore(info) = @set info.helpers.run.store_spinup = DoNotStoreSpinup()
+
+
+"""
+    plotForwardRun(info, forcing, def_output, spinup; opt_output=nothing)
+
+Plots the forcing and the debug time series of every output variable of a forward
+run, and the stored spinup when there is one.
+
+# Arguments
+- `info`: a SINDBAD NamedTuple with all information needed for setup and execution of
+  an experiment
+- `forcing`: the forcing NamedTuple of the run
+- `def_output`: the output of the forward run with the default parameters, or the
+  only output of a plain forward run
+- `spinup`: the stored spinup from `prepSpinupOut`, or `nothing` when it is not
+  stored
+- `opt_output`: the output of the forward run with the optimized parameters, or
+  `nothing` for a plain forward run
+
+# Notes
+- Nothing is drawn unless `visualization_backend` is set to `"Plots"` and Plots is
+  loaded.
+"""
+function plotForwardRun(info, forcing, def_output, spinup; opt_output=nothing)
+    plotForcing(info, forcing)
+    plotTimeSeries(info, opt_output, def_output; forcing_helpers=forcing.helpers)
+    # the stored spinup is that of the optimized run when there is one
+    isnothing(spinup) || plotSpinup(info, spinup; output=isnothing(opt_output) ? def_output : opt_output)
+    return nothing
 end
 
 
@@ -220,6 +261,10 @@ function runExperimentForward(sindbad_experiment::String; replace_info=Dict(), l
     output_dims = getOutDims(info, forcing.helpers)
     saveOutCubes(info, values(run_output.output), output_dims, info.output.variables)
     saveRestartCubes(info, run_output.restart)
+    saveSpinupCubes(info, run_output.spinup)
+    # the figures need the forcing and output in memory, which a lazy run does not
+    # have
+    info.helpers.run.run_lazy isa DoRunLazy || plotForwardRun(info, forcing, run_output.output, run_output.spinup)
     set_log_level()
     return run_output
 end
@@ -260,10 +305,12 @@ function runExperimentForwardParams(params_vector::Vector, sindbad_experiment::S
     output_dims = getOutDims(info, forcing.helpers)
     saveOutCubes(info, values(optimized_output), output_dims, info.output.variables)
     saveRestartCubes(info, optimized_run.restart)
+    saveSpinupCubes(info, optimized_run.spinup)
+    plotForwardRun(info, forcing, default_output, optimized_run.spinup; opt_output=optimized_output)
 
     forward_output = (; optimized=optimized_output, default=default_output)
     set_log_level()
-    return (; forcing, info, output=forward_output)
+    return (; forcing, info, output=forward_output, spinup=optimized_run.spinup)
 end
 
 
@@ -289,13 +336,17 @@ function runExperimentFullOutput(sindbad_experiment::String; replace_info=Dict()
     info = @set info.helpers.run.land_output_type = PreAllocArrayAll()
     run_helpers = prepTEM(info.models.forward, forcing, info)
     info = @set info.output.variables = run_helpers.output_vars
-    runTEM!(run_helpers.space_selected_models, run_helpers.space_forcing, run_helpers.space_spinup, run_helpers.loc_forcing_t, run_helpers.space_output, run_helpers.space_restart, run_helpers.space_land, run_helpers.tem_info)
+    runTEM!(run_helpers.space_selected_models, run_helpers.space_forcing, run_helpers.space_spinup, run_helpers.loc_forcing_t, run_helpers.space_output, run_helpers.space_restart, run_helpers.space_land, run_helpers.tem_info; show_progress=true)
     output_dims = run_helpers.output_dims
     run_output = run_helpers.output_array
     saveOutCubes(info, run_output, output_dims, run_helpers.output_vars)
     saveRestartCubes(info, run_helpers.restart)
+    spinup = prepSpinupOut(info, run_helpers)
+    saveSpinupCubes(info, spinup)
+    full_output = (; Pair.(getUniqueVarNames(run_helpers.output_vars), run_output)...)
+    plotForwardRun(info, forcing, full_output, spinup)
     set_log_level()
-    return (; forcing, info, output=(; Pair.(getUniqueVarNames(run_helpers.output_vars), run_output)...))
+    return (; forcing, info, output=full_output, spinup)
 end
 
 
@@ -317,6 +368,9 @@ function runExperimentOpti(sindbad_experiment::String; replace_info=Dict(), log_
     set_log_level(log_level)
     setExperimentMode!(replace_info, :optimization)
     info, forcing = prepExperiment(sindbad_experiment; replace_info=replace_info)
+    # the final forward run in runExperimentForwardParams prepares its own info, so
+    # it stores the spinup when the experiment says so
+    info = withoutSpinupStore(info)
     run_helpers = prepTEM(info.models.forward, forcing, info)
     opti_output = runExperiment(info, forcing, info.helpers.run.run_optimization)
     set_log_level(:info)
@@ -328,8 +382,14 @@ function runExperimentOpti(sindbad_experiment::String; replace_info=Dict(), log_
     loss_table = Table((; variable=cost_options.variable, metric=cost_options.cost_metric, loss_opt=loss_vector, loss_def=loss_vector_def))
     println("Total loss:: optimized: $(sum(loss_vector)), default: $(sum(loss_vector_def))")
     display(loss_table)
+    savePerformanceMetrics(fp_output.info, cost_options, opti_output.observation, fp_output.output.default, fp_output.output.optimized)
     parameters_nt = convertParametersToNamedTuple(opti_output.parameters, :model, :name)
-    return (; forcing, cost_options, run_helpers, info=fp_output.info, loss=loss_table, observation=opti_output.observation, output=fp_output.output, parameters=opti_output.parameters, parameters_nt=parameters_nt)
+    out_opti = (; forcing, cost_options, run_helpers, info=fp_output.info, loss=loss_table, observation=opti_output.observation, output=fp_output.output, spinup=fp_output.spinup, parameters=opti_output.parameters, parameters_nt=parameters_nt)
+    # the forcing, debug and spinup figures of the final forward run come from
+    # runExperimentForwardParams
+    plotTimeSeries(out_opti)
+    plotPerformanceHistograms(out_opti)
+    return out_opti
 end
 
 
@@ -352,6 +412,7 @@ function runExperimentSensitivity(sindbad_experiment::String; replace_info=Dict(
     print_info_separator(sep_text="Sensitivity Analysis Experiment")
     setExperimentMode!(replace_info, :optimization)
     info, forcing = prepExperiment(sindbad_experiment; replace_info=replace_info)
+    info = withoutSpinupStore(info)
     observations = getObservation(info, forcing.helpers)
 
     obs_array = [Array(_o) for _o in observations.data]; # TODO: necessary now for performance because view of keyedarray is slow
@@ -392,6 +453,9 @@ Run a SINDBAD forward simulation, choosing between eager and lazy execution.
 - A NamedTuple with:
   - `output`: for `DoNotRunLazy`, a NamedTuple pairing each unique output variable name (from `info.output.variables`) with its computed time series. For `DoRunLazy`, the lazy YAXArray output produced by `runTEMYax`.
   - `restart`: the pools of every location after the spinup step with `save_restart`, to be written with `saveRestartCubes`
+  - `spinup`: for `DoNotRunLazy` with `store_spinup` true, `cEco` and `TWS` of every
+    location at every stored spinup step from `prepSpinupOut`, to be written with
+    `saveSpinupCubes`. Otherwise `nothing`.
 
 # Description
 This function is the entry point for executing the forward model of a SINDBAD experiment. It dispatches on the run mode to select between two execution strategies:
@@ -412,13 +476,13 @@ end
 # instead of calling `runTEM!`/`runTEMYax` directly.
 function runForward(selected_models, forcing, info, ::DoNotRunLazy)
     run_helpers = prepTEM(selected_models, forcing, info)
-    runTEM!(run_helpers.space_selected_models, run_helpers.space_forcing, run_helpers.space_spinup, run_helpers.loc_forcing_t, run_helpers.space_output, run_helpers.space_restart, run_helpers.space_land, run_helpers.tem_info)
+    runTEM!(run_helpers.space_selected_models, run_helpers.space_forcing, run_helpers.space_spinup, run_helpers.loc_forcing_t, run_helpers.space_output, run_helpers.space_restart, run_helpers.space_land, run_helpers.tem_info; show_progress=true)
     run_output = (; Pair.(getUniqueVarNames(info.output.variables), run_helpers.output_array)...)
-    return (; output=run_output, restart=run_helpers.restart)
+    return (; output=run_output, restart=run_helpers.restart, spinup=prepSpinupOut(info, run_helpers))
 end
 
 function runForward(selected_models, forcing, info, ::DoRunLazy)
     run_output = runTEMYax(selected_models, forcing, info)
     restart = (; dataset=run_output.restart, variables=run_output.restart_vars, spinup_mode=run_output.spinup_mode)
-    return (; output=run_output.output, restart=restart)
+    return (; output=run_output.output, restart=restart, spinup=nothing)
 end

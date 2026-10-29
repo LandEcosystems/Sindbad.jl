@@ -112,6 +112,75 @@ end
 
 
 """
+    getOutputCompression(model_output)
+
+Returns the compression settings for the output files from the `data_compression`
+field of the `model_output` settings.
+
+# Arguments:
+- `model_output`: the `model_output` settings of the experiment
+
+# Returns:
+- A NamedTuple with the `level` and `digits` of the compression.
+
+# Notes:
+- `data_compression` is an object with the optional fields `level` and `digits`,
+  e.g., `"data_compression": {"level": 4, "digits": 6}`.
+- `level` is the compression level, with -1 or 0 for no compression and 1 to 9 for
+  increasing compression. For NetCDF output, it is the deflate level. For Zarr
+  output, it is the level of the Blosc compressor with lz4. When it is not set, it is
+  `nothing` and the writer uses the default of the output format, which is 4 for
+  NetCDF and 5 for Zarr.
+- `digits` is the number of significant decimal digits kept in the output data. The
+  data are rounded to the fewest mantissa bits that hold these digits before they are
+  written, which makes them compress much better. When it is not set, it is
+  `nothing` and the data are written at full precision. A Float32 holds about 7
+  digits, so 7 or more also keeps Float32 data unchanged.
+"""
+function getOutputCompression(model_output)
+    data_compression = hasproperty(model_output, :data_compression) ? model_output.data_compression : (;)
+    if !(data_compression isa NamedTuple)
+        error("model_output.data_compression must be an object with the optional fields `level` and `digits`, got `$(data_compression)`")
+    end
+    level = hasproperty(data_compression, :level) ? data_compression.level : nothing
+    if !isnothing(level) && (!(level isa Integer) || !(-1 <= level <= 9))
+        error("model_output.data_compression.level must be an integer from -1 to 9, got `$(level)`")
+    end
+    digits = hasproperty(data_compression, :digits) ? data_compression.digits : nothing
+    if !isnothing(digits) && (!(digits isa Integer) || digits < 1)
+        error("model_output.data_compression.digits must be a positive integer, got `$(digits)`")
+    end
+    return (; level=isnothing(level) ? nothing : Int(level), digits=isnothing(digits) ? nothing : Int(digits))
+end
+
+"""
+    getPlotResolution(model_output)
+
+Returns the resolution of the saved figures in dots per inch from the `model_output`
+settings of the experiment.
+
+# Arguments:
+- `model_output`: the `model_output` settings of the experiment
+
+# Returns:
+- The dots per inch as an `Int`, 100 when `plot_resolution` is not set or is `null`.
+
+# Notes:
+- A high resolution, e.g., 300 for print, makes the figures of a run with many
+  variables slow to save. 100 is enough to look at the figures on a screen.
+- The resolution applies to the raster figures, e.g., png. Vector figures such as pdf
+  do not depend on it.
+"""
+function getPlotResolution(model_output)
+    plot_resolution = hasproperty(model_output, :plot_resolution) ? model_output.plot_resolution : nothing
+    isnothing(plot_resolution) && return 100
+    if !(plot_resolution isa Integer) || plot_resolution < 1
+        error("model_output.plot_resolution must be a positive integer of dots per inch, got `$(plot_resolution)`")
+    end
+    return Int(plot_resolution)
+end
+
+"""
     getPoolSize(info_pools::NamedTuple, pool_name::Symbol)
 
 Retrieves the size of a pool variable from the model structure settings.
@@ -310,7 +379,8 @@ function setExperimentOutput(info)
     if info.settings.experiment.flags.run_optimization || info.settings.experiment.flags.calc_cost
         push!(sub_output, "optimization")
     end
-    out_info = (; dirs=(;), format=info.settings.experiment.model_output.format)
+    model_output = info.settings.experiment.model_output
+    out_info = (; dirs=(;), format=model_output.format, data_compression=getOutputCompression(model_output), plot_resolution=getPlotResolution(model_output))
     for s_o ∈ sub_output
         if s_o == "root"
             out_info = set_namedtuple_subfield(out_info, :dirs, (Symbol(s_o), path_output_full))
@@ -321,8 +391,7 @@ function setExperimentOutput(info)
         end
     end
     global_metadata = getGlobalAttributesForOutCubes(info)
-    file_prefix = joinpath(out_info.dirs.data, info.temp.experiment.basics.name * "_" * info.temp.experiment.basics.domain)
-    out_file_info = (; global_metadata=global_metadata, file_prefix=file_prefix)
+    out_file_info = (; global_metadata=global_metadata)
     out_info = (; out_info..., file_info=out_file_info)  
     info = set_namedtuple_field(info, (:output, out_info))
     print_info(nothing, @__FILE__, @__LINE__, "→→→    output directory set to: `$(info.output.dirs.root)`")

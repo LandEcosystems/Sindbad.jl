@@ -139,7 +139,7 @@ The `model_output` section configures output format, variables, and storage sett
     "format": "Output format ('zarr' or 'nc')",
     "output_array_type": "Output array backend",
     "path": "Custom output path (null for default)",
-    "plot_model_output": "Enable output plotting",
+    "plot_resolution": "Dots per inch of the saved raster figures (default 100 when null or missing)",
     "save_single_file": "Save all variables in one file",
     "variables": {
       "field.name:depth/layers": "Layer specification (null for 1 layer, string for depth dimension, or number for layers)"
@@ -159,7 +159,7 @@ The `model_output` section configures output format, variables, and storage sett
     "format": "zarr",
     "output_array_type": "array",
     "path": null,
-    "plot_model_output": false,
+    "plot_resolution": 100,
     "save_single_file": true,
     "variables": {
       "diagnostics.auto_respiration_f_airT": null,

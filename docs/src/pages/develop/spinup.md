@@ -55,7 +55,9 @@ This will display a formatted list of all spinup methods and their descriptions.
 
 Current methods include:
 - `AllForwardModels`: Use all forward models for spinup
+- `ClearanceA0`: Cut the vegetation carbon pools down to c_remain, as `EtaScaleA0H` does without the scaling by ηH
 - `EtaScaleA0H`: Scale carbon pools using diagnostic scalars for ηH and c_remain
+- `EtaScaleH`: Scale only the heterotrophic carbon pools using diagnostic scalars for ηH. `ClearanceA0` followed by `EtaScaleH` changes the pools as `EtaScaleA0H` does
 - `EtaScaleAH`: Scale carbon pools using diagnostic scalars for ηH and ηA
 - `NlsolveFixedpointTrustregionCEco`: Use a fixed-point nonlinear solver with trust region for carbon pools (cEco)
 - `NlsolveFixedpointTrustregionCEcoTWS`: Use a fixed-point nonlinear solver with trust region for both cEco and TWS

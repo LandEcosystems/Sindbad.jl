@@ -31,7 +31,9 @@ function getSpatialSubset(ss, v)
         ssname = propertynames(ss)
         for ssn ∈ ssname
             ss_r = getproperty(ss, ssn)
-            if !isnothing(ss_r)
+            # a variable without the dimension, e.g., a purely temporal one, is kept
+            # as it is
+            if !isnothing(ss_r) && hasdim(v, ssn)
                 ss_range = collect(ss_r)
                 checkSubsetValues(v, ssn, ss_range)
                 ss_typeName = Symbol("Space" * string(ssn))
