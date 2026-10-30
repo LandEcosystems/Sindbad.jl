@@ -633,7 +633,9 @@ function helpPrepTEM(selected_models, info, forcing::NamedTuple, output::NamedTu
     tem_info = getRunTEMInfo(info, forcing);
 
 
-    forcing_nt_array = namedtuple_from_names_values(forcing.data, forcing.variables)
+    forcing_nt_array = forcing.data
+    # forcing_nt_array = namedtuple_from_names_values(forcing.data, forcing.variables)
+
     land_init = output.land_init
 
     # collect local data and create copies
@@ -680,7 +682,9 @@ function helpPrepTEM(selected_models, info, forcing::NamedTuple, output::NamedTu
     # generate vals for dispatch of forcing and output
     tem_info = getRunTEMInfo(info, forcing);
 
-    forcing_nt_array = namedtuple_from_names_values(forcing.data, forcing.variables)
+    forcing_nt_array = forcing.data
+    # forcing_nt_array = namedtuple_from_names_values(forcing.data, forcing.variables)
+
     land_init = output.land_init
 
     # collect local data and create copies
@@ -729,7 +733,9 @@ function helpPrepTEM(selected_models, info, forcing::NamedTuple, output::NamedTu
     tem_info = getRunTEMInfo(info, forcing);
 
 
-    forcing_nt_array = namedtuple_from_names_values(forcing.data, forcing.variables)
+    forcing_nt_array = forcing.data
+    # forcing_nt_array = namedtuple_from_names_values(forcing.data, forcing.variables)
+
     land_init = output.land_init
     output_array = output.data
 
@@ -803,7 +809,9 @@ function helpPrepTEM(selected_models, info, forcing::NamedTuple, output::NamedTu
     ## run the model for one time step
     print_info(helpPrepTEM, @__FILE__, @__LINE__, "model run for one location and time step", n_f=6)
     land_init = output.land_init
-    forcing_nt_array = namedtuple_from_names_values(forcing.data, forcing.variables)
+    forcing_nt_array = forcing.data
+    # forcing_nt_array = namedtuple_from_names_values(forcing.data, forcing.variables)
+
     loc_forcing = getLocData(forcing_nt_array, space_ind[1])
     loc_spinup = getLocSpinup(loc_forcing, tem_info)
     loc_forcing_t, loc_land = runTEMOne(selected_models, loc_forcing, land_init, tem_info, loc_spinup.sequence)

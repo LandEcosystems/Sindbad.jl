@@ -121,7 +121,7 @@ function createForcingNamedTuple(incubes, f_sizes, f_dimensions, info; parameter
     f_types =  Tuple(Tuple.(Pair.(forcing_vars, data_ts_type)))
     print_info_separator()
     forcing = (;
-        data=typed_cubes,
+        data=(; zip(forcing_vars, typed_cubes)...),
         dims=indims,
         variables=forcing_vars,
         f_types = f_types,
@@ -213,6 +213,12 @@ function getForcing(info::NamedTuple)
         data_path_v = getAbsDataPath(info, getfield(vinfo, :data_path))
         nc, yax = getYaxFromSource(nc, data_path, data_path_v, vinfo.source_variable)
         incube = subsetAndProcessYax(yax, forcing_mask, tar_dims, vinfo, info, num_type)
+        space_dims = Symbol.(vinfo.space_dimensions)
+        for (i,dim) in enumerate(space_dims)
+            if hasdim(incube, dim)
+                incube = set(incube, dim .=> Symbol(default_info.space_dimensions[i]))
+            end
+        end
         v_op = vinfo.additive_unit_conversion ? " + " : " * "
         v_op = v_op * "$(vinfo.source_to_sindbad_unit)"
         v_string = "`$(k)` ($(vinfo.sindbad_unit), $(vinfo.bounds)) = <$(vinfo.space_time_type)> `$(vinfo.source_variable)` ($(vinfo.source_unit)) $(v_op)"
@@ -221,8 +227,19 @@ function getForcing(info::NamedTuple)
             f_sizes = collectForcingSizes(info, incube)
             f_dimension = getSindbadDims(incube)
         end
-        incube
+        k => incube
+    end
+    if hasproperty(forcing_data_settings, :spatial_resolution_of)
+        targetcube = last(only(filter(x->first(x) == Symbol(forcing_data_settings.spatial_resolution_of), incubes)))
+        target_resolution = dims(targetcube)
+        print_info(getForcing, @__FILE__, @__LINE__, "remapping forcing variables to target resolution: $(target_resolution)")
+        interpincubes = map(incubes) do incube
+            rescube = YAXArrays.xresample(last(incube), to=target_resolution)
+            rebuild(rescube, data=reshape(parent(rescube), size(rescube)))
+        end
+    else 
+        interpincubes = last.(incubes)
     end
     parameters = getParameters(info, f_dimension, NamedTuple{Tuple(forcing_vars)}(Tuple(incubes)))
-    return createForcingNamedTuple(incubes, f_sizes, f_dimension, info; parameters=parameters)
+    return createForcingNamedTuple(interpcubes, f_sizes, f_dimension, info; parameters=parameters)
 end

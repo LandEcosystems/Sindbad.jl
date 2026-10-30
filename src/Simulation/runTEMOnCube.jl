@@ -136,7 +136,7 @@ end
 """
 function runTEMYax(selected_models, forcing::NamedTuple, info::NamedTuple)
     # forcing/input information
-    incubes = forcing.data;
+    incubes = values(forcing.data);
     indims = forcing.dims;
     # the parameters per location have no core dimensions, so each location gets one
     # value per parameter, which sets the parameters of its models in TEMYax
