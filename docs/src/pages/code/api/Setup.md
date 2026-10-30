@@ -1202,6 +1202,13 @@ getParameterIndices
 :::details Code
 
 ```julia
+function getParameterIndices end
+
+function getParameterIndices(selected_models::LongTuple, parameter_table::Table)
+    selected_models_tuple = to_tuple(selected_models)
+    return getParameterIndices(selected_models_tuple, parameter_table)
+end
+
 function getParameterIndices(selected_models::LongTuple, parameter_table::Table)
     selected_models_tuple = to_tuple(selected_models)
     return getParameterIndices(selected_models_tuple, parameter_table)
@@ -1270,7 +1277,7 @@ end
 
 ### getParameters
 ```@docs
-getParameters
+Sindbad.Setup.getParameters
 ```
 
 :::details Code
@@ -1454,27 +1461,47 @@ function getSpinupSequenceWithTypes end
 
 getSpinupSequenceWithTypes(seqq, helpers_dates) = getSpinupSequenceWithTypes(seqq, helpers_dates, Dict{Symbol,Any}())
 
-function getSpinupSequenceWithTypes(seqq, helpers_dates, aggregator_cache)
+function getSpinupSequenceWithTypes(seqq, helpers_dates, aggregator_cache, spinup_models=nothing)
     seqq_typed = []
     save_restart_flags = getSaveRestartFlags(seqq)
     for (seq, save_restart) in zip(seqq, save_restart_flags)
-        aggregator, aggregator_indices, n_timesteps, aggregator_type = getSpinupAggregator(seq["forcing"], helpers_dates, aggregator_cache)
-        spinup_mode = getTypeInstanceForNamedOptions(seq["spinup_mode"])
+        mode_name, default_models = getSpinupModeName(seq["spinup_mode"])
+        spinup_mode = getTypeInstanceForNamedOptions(mode_name)
+        forcing_name = haskey(seq, "forcing") ? seq["forcing"] : nothing
+        if isnothing(forcing_name)
+            spinup_mode isa LoopTEM && error("The spinup step with `spinup_mode` $(seq["spinup_mode"]) has no forcing. A loop_TEM step runs the models over the forcing, so set its `forcing`, e.g., \"day_MSC\".")
+            forcing = :none
+            aggregator, aggregator_indices, n_timesteps, aggregator_type = nothing, Int[], 1, TimeIndexed()
+        else
+            forcing = Symbol(forcing_name)
+            aggregator, aggregator_indices, n_timesteps, aggregator_type = getSpinupAggregator(forcing_name, helpers_dates, aggregator_cache)
+        end
         optns = haskey(seq, "options") ? seq["options"] : (;)
-        sst = SpinupStepWithAggregator(Symbol(seq["forcing"]), seq["n_repeat"], n_timesteps, spinup_mode, optns, aggregator_indices, aggregator, aggregator_type, save_restart);
+        model_indices = getSpinupModelsIndex(seq, default_models, spinup_models)
+        sst = SpinupStepWithAggregator(forcing, seq["n_repeat"], n_timesteps, spinup_mode, optns, aggregator_indices, aggregator, aggregator_type, save_restart, model_indices);
         push!(seqq_typed, sst)
     end
     return seqq_typed
 end
 
-function getSpinupSequenceWithTypes(seqq, helpers_dates, aggregator_cache)
+function getSpinupSequenceWithTypes(seqq, helpers_dates, aggregator_cache, spinup_models=nothing)
     seqq_typed = []
     save_restart_flags = getSaveRestartFlags(seqq)
     for (seq, save_restart) in zip(seqq, save_restart_flags)
-        aggregator, aggregator_indices, n_timesteps, aggregator_type = getSpinupAggregator(seq["forcing"], helpers_dates, aggregator_cache)
-        spinup_mode = getTypeInstanceForNamedOptions(seq["spinup_mode"])
+        mode_name, default_models = getSpinupModeName(seq["spinup_mode"])
+        spinup_mode = getTypeInstanceForNamedOptions(mode_name)
+        forcing_name = haskey(seq, "forcing") ? seq["forcing"] : nothing
+        if isnothing(forcing_name)
+            spinup_mode isa LoopTEM && error("The spinup step with `spinup_mode` $(seq["spinup_mode"]) has no forcing. A loop_TEM step runs the models over the forcing, so set its `forcing`, e.g., \"day_MSC\".")
+            forcing = :none
+            aggregator, aggregator_indices, n_timesteps, aggregator_type = nothing, Int[], 1, TimeIndexed()
+        else
+            forcing = Symbol(forcing_name)
+            aggregator, aggregator_indices, n_timesteps, aggregator_type = getSpinupAggregator(forcing_name, helpers_dates, aggregator_cache)
+        end
         optns = haskey(seq, "options") ? seq["options"] : (;)
-        sst = SpinupStepWithAggregator(Symbol(seq["forcing"]), seq["n_repeat"], n_timesteps, spinup_mode, optns, aggregator_indices, aggregator, aggregator_type, save_restart);
+        model_indices = getSpinupModelsIndex(seq, default_models, spinup_models)
+        sst = SpinupStepWithAggregator(forcing, seq["n_repeat"], n_timesteps, spinup_mode, optns, aggregator_indices, aggregator, aggregator_type, save_restart, model_indices);
         push!(seqq_typed, sst)
     end
     return seqq_typed
@@ -1985,21 +2012,13 @@ setOptimization
 ```julia
 function setOptimization(info::NamedTuple)
     print_info(setOptimization, @__FILE__, @__LINE__, "setting ParameterOptimization and Observation Info...")
-    info = set_namedtuple_field(info, (:optimization, (;)))
-
-    # set information related to cost metrics for each variable
-    info = set_namedtuple_subfield(info, :optimization, (:model_parameter_default, info.settings.optimization.model_parameter_default))
-    info = set_namedtuple_subfield(info, :optimization, (:observational_constraints, info.settings.optimization.observational_constraints))
-
+    # The optimization info is built on its own and set in info once at the end, because
+    # every rebuild of info compiles anew for its large type.
     n_threads_cost = 1
     run_lazy =get(info.settings.experiment.flags, :run_lazy, false)
-    if info.settings.optimization.optimization_cost_threaded > 0 && info.settings.experiment.flags.run_optimization && !run_lazy
+    threaded_cost = info.settings.optimization.optimization_cost_threaded > 0 && info.settings.experiment.flags.run_optimization && !run_lazy
+    if threaded_cost
         n_threads_cost = info.settings.optimization.optimization_cost_threaded > 1 ? info.settings.optimization.optimization_cost_threaded : Threads.nthreads()
-        # overwrite land array type when threaded optimization is set
-        info = @set info.temp.helpers.run.land_output_type = PreAllocArrayMT()
-        # info = set_namedtuple_subfield(info,
-        # :optimization,
-        # (:n_threads_cost, n_threads_cost))
     end
 
     # get types for optimization run options
@@ -2008,13 +2027,11 @@ function setOptimization(info::NamedTuple)
     scaling_method = isnothing(info.settings.optimization.optimization_parameter_scaling) ? "scale_none" : info.settings.optimization.optimization_parameter_scaling
     parameter_scaling = getTypeInstanceForNamedOptions(scaling_method)
     optimization_types = (; cost_method, parameter_scaling, multi_constraint_method, n_threads_cost)
-    info = set_namedtuple_subfield(info, :optimization, (:run_options, optimization_types))
-        
-    # check and set the list of parameters to be optimized
-    
+    optimization = (; run_options=optimization_types)
+
     # set algorithm related options
-    info = setAlgorithmOptions(info, :algorithm_optimization)
-    info = setAlgorithmOptions(info, :algorithm_sensitivity_analysis)
+    optimization = setAlgorithmOptions(optimization, info, :algorithm_optimization)
+    optimization = setAlgorithmOptions(optimization, info, :algorithm_sensitivity_analysis)
     parameter_table = getOptimizationParametersTable(info.temp.models.parameter_table, info.settings.optimization.model_parameter_default, info.settings.optimization.model_parameters_to_optimize)
     
     checkOptimizedParametersInModels(info, parameter_table)
@@ -2024,19 +2041,19 @@ function setOptimization(info::NamedTuple)
 
     # get the variables to be used during optimization
     obs_vars, optim_vars, store_vars, model_vars = getConstraintNames(info.settings.optimization)
-    vars_info = (;)
-    vars_info = set_namedtuple_field(vars_info, (:obs, obs_vars))
-    vars_info = set_namedtuple_field(vars_info, (:optimization, optim_vars))
-    vars_info = set_namedtuple_field(vars_info, (:store, store_vars))
-    vars_info = set_namedtuple_field(vars_info, (:model, model_vars))
-    info = set_namedtuple_subfield(info, :optimization, (:variables, (vars_info)))
+    vars_info = (; obs=obs_vars, optimization=optim_vars, store=store_vars, model=model_vars)
+
+    # updateVariablesToStore reads the variables from info.optimization
+    temp = info.temp
+    if threaded_cost
+        # overwrite land array type when threaded optimization is set
+        temp = (; temp..., helpers=(; temp.helpers..., run=(; temp.helpers.run..., land_output_type=PreAllocArrayMT())))
+    end
+    info = (; info..., temp=temp, optimization=(; variables=vars_info))
     info = updateVariablesToStore(info)
     cost_options = getCostOptions(info.settings.optimization, vars_info, info.temp.output.variables, info.temp.helpers.numbers, info.temp.helpers.dates)
-    info = set_namedtuple_subfield(info, :optimization, (:cost_options, cost_options))
-    info = set_namedtuple_subfield(info, :optimization, (:parameter_table, parameter_table))
-    optimization_info = info.optimization
-    optimization_info = drop_namedtuple_fields(optimization_info, (:model_parameter_default, :model_parameters_to_optimize, :observational_constraints, :variables))
-    info = (; info..., optimization = optimization_info)
+    optimization = (; optimization..., cost_options=cost_options, parameter_table=parameter_table)
+    info = (; info..., optimization=optimization)
     return info
 end
 ```
@@ -2492,17 +2509,6 @@ function setupInfo(info::NamedTuple)
         info = setHybridInfo(info)
     end
 
-    if !isnothing(info.settings.experiment.exe_rules.longtuple_size)
-        longtuple_size = info.settings.experiment.exe_rules.longtuple_size
-        # Julia does not unroll `map` over a tuple of 32 or more elements, so it is not
-        # inferred and allocates. Every chunk of a long tuple must be shorter than that.
-        if longtuple_size >= 32
-            @warn "experiment.exe_rules.longtuple_size is $(longtuple_size). With 32 or more models in a chunk, setting parameters on the models is not type stable and allocates on every call, which slows down optimizations. Use a value from 16 to 31."
-        end
-        selected_approach_forward = to_longtuple(info.temp.models.forward, longtuple_size)
-        info = @set info.temp.models.forward = selected_approach_forward
-    end
-
     print_info(setupInfo, @__FILE__, @__LINE__, "Cleaning Info Fields...")
     exe_rules = info.settings.experiment.exe_rules
     info = drop_namedtuple_fields(info, (:model_structure, :experiment, :output, :pools))
@@ -2510,6 +2516,19 @@ function setupInfo(info::NamedTuple)
     info = set_namedtuple_subfield(info, :experiment, (:data_settings, data_settings))
     info = set_namedtuple_subfield(info, :experiment, (:exe_rules, exe_rules))
     info = drop_namedtuple_fields(info, (:temp, :settings,))
+
+    # Converted last because every NamedTuple rebuild above compiles anew for the type of
+    # info, and a LongTuple of all models makes that type very large.
+    if !isnothing(exe_rules.longtuple_size)
+        longtuple_size = exe_rules.longtuple_size
+        # Julia does not unroll `map` over a tuple of 32 or more elements, so it is not
+        # inferred and allocates. Every chunk of a long tuple must be shorter than that.
+        if longtuple_size >= 32
+            @warn "experiment.exe_rules.longtuple_size is $(longtuple_size). With 32 or more models in a chunk, setting parameters on the models is not type stable and allocates on every call, which slows down optimizations. Use a value from 16 to 31."
+        end
+        forward = to_longtuple(info.models.forward, longtuple_size)
+        return (; info..., models=(; info.models..., forward=forward), setup_input)
+    end
     return (; info..., setup_input)
 end
 ```
@@ -2536,8 +2555,8 @@ sindbadDefaultOptions(::CMAEvolutionStrategyCMAES) = (; maxfevals = 50)
 sindbadDefaultOptions(::SpinupSequence) = (; n_repeat_base = 200, forcing_msc = "day_MSC")
 
 # invoke reaches the SpinupSequence method above, so this stays the shared defaults plus the
-# one option this method adds, rather than a second copy of them
-sindbadDefaultOptions(m::SequenceWithAge) = (; invoke(sindbadDefaultOptions, Tuple{SpinupSequence}, m)..., disturbance_variable = "f_dist_year")
+# one option these methods add, rather than a second copy of them
+sindbadDefaultOptions(m::Union{SequenceWithAge,SequenceWithSpinupInput}) =(; invoke(sindbadDefaultOptions, Tuple{SpinupSequence}, m)..., disturbance_variable = "f_dist_year")
 
 # this method builds nothing, it replays the steps authored in the settings, so none of the
 # shared options above apply to it

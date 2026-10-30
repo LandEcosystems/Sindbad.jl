@@ -51,7 +51,7 @@ approach; a missing one is an absent diagnostic rather than a neutral factor, so
 at unpack rather than silently leaving that group's transfers at perfect retention.
 Leaving `cMicrobialEfficiency` out entirely gives every flow the neutral efficiency
 of one allocated by `cCycleBase`. CASA's original edge-specific efficiencies are
-provided separately by `cMicrobialEfficiency_CASA`.
+parameters of `cCycleBase_CASA`.
 
 To reproduce the whole-vector texture response this process used to offer in one
 approach, select `_texture` in all three groups. This is also the closest composed

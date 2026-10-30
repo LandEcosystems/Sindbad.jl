@@ -65,17 +65,20 @@ function cost(parameter_vector, _, selected_models, space_forcing, space_spinup,
     return cost_metric
 end
 
-function cost(parameter_matrix, _, selected_models, space_forcing, space_spinup, loc_forcing_t, output_array, space_output, space_land, tem_info, observations, parameter_updater, cost_options, multi_constraint_method, parameter_scaling_type, cost_out::Vector, ::CostModelObsMT)
+function cost(parameter_matrix, _, selected_models, space_forcing, space_spinup, loc_forcing_t, output_array_mt, space_output_mt, space_land_mt, tem_info, observations, parameter_updater, cost_options, multi_constraint_method, parameter_scaling_type, ::CostModelObsMT)
     parameter_set_size = size(parameter_matrix, 2)
-    Threads.@threads for parameter_index in eachindex(1:parameter_set_size)
-        idx = Threads.threadid()
-        parameter_vector = parameter_matrix[:, parameter_index]
-        updated_models = updateModels(parameter_vector, parameter_updater, parameter_scaling_type, selected_models)
-        coreTEM!(updated_models, space_forcing, space_spinup, loc_forcing_t, space_output[idx], space_land, tem_info)
-        cost_vector = metricVector(space_output[idx], observations, cost_options)
-        cost_metric = combineMetric(cost_vector, multi_constraint_method)
-        cost_out[parameter_index] = cost_metric
+    cost_out = Vector{eltype(parameter_matrix)}(undef, parameter_set_size)
+    chunks = Iterators.partition(1:parameter_set_size, cld(parameter_set_size, length(space_output_mt)))
+    tasks = map(enumerate(chunks)) do (buffer_index, chunk)
+        Threads.@spawn for parameter_index in chunk
+            parameter_vector = parameter_matrix[:, parameter_index]
+            updated_models = updateModels(parameter_vector, parameter_updater, parameter_scaling_type, selected_models)
+            coreTEM!(updated_models, space_forcing, space_spinup, loc_forcing_t, space_output_mt[buffer_index], space_land_mt[buffer_index], tem_info)
+            cost_vector = metricVector(output_array_mt[buffer_index], observations, cost_options)
+            cost_out[parameter_index] = combineMetric(cost_vector, multi_constraint_method)
+        end
     end
+    foreach(wait, tasks)
     return cost_out
 end
 
@@ -175,31 +178,17 @@ getCostVectorSize
 function getCostVectorSize end
 
 function getCostVectorSize(algo_options, parameter_vector, ::CMAEvolutionStrategyCMAES)
-    cost_vector_size = Threads.nthreads()
-    if hasproperty(algo_options, :multi_threading)
-        if algo_options.multi_threading
-            if hasproperty(algo_options, :popsize)
-                cost_vector_size = algo_options.popsize
-            else
-                cost_vector_size = 4 + floor(Int, 3 * log(length(parameter_vector)))
-            end
-        end
+    if hasproperty(algo_options, :popsize)
+        return algo_options.popsize
     end
-    return cost_vector_size
+    return 4 + floor(Int, 3 * log(length(parameter_vector)))
 end
 
 function getCostVectorSize(algo_options, parameter_vector, ::CMAEvolutionStrategyCMAES)
-    cost_vector_size = Threads.nthreads()
-    if hasproperty(algo_options, :multi_threading)
-        if algo_options.multi_threading
-            if hasproperty(algo_options, :popsize)
-                cost_vector_size = algo_options.popsize
-            else
-                cost_vector_size = 4 + floor(Int, 3 * log(length(parameter_vector)))
-            end
-        end
+    if hasproperty(algo_options, :popsize)
+        return algo_options.popsize
     end
-    return cost_vector_size
+    return 4 + floor(Int, 3 * log(length(parameter_vector)))
 end
 
 function getCostVectorSize(algo_options, __precompile__, ::GSAMorris)
@@ -523,7 +512,10 @@ function  prepOpti(forcing, observations, info, ::CostModelObsMT; algorithm_info
     
     space_index = 1 # the parallelization of cost computation only runs in single pixel runs
 
-    cost_function = x -> cost(x, opti_helpers.default_values, getCostModels(run_helpers, space_index), run_helpers.space_forcing[space_index], run_helpers.space_spinup[space_index], run_helpers.loc_forcing_t, run_helpers.output_array, run_helpers.space_output_mt, deepcopy(run_helpers.space_land[space_index]), run_helpers.tem_info, observations, opti_helpers.parameter_updater, opti_helpers.cost_options, info.optimization.run_options.multi_constraint_method, info.optimization.run_options.parameter_scaling, cost_vector, info.optimization.run_options.cost_method)
+    # a land per output buffer, so that parallel tasks never share one
+    space_land_mt = [deepcopy(run_helpers.space_land[space_index]) for _ in eachindex(run_helpers.space_output_mt)]
+
+    cost_function = x -> cost(x, opti_helpers.default_values, getCostModels(run_helpers, space_index), run_helpers.space_forcing[space_index], run_helpers.space_spinup[space_index], run_helpers.loc_forcing_t, run_helpers.output_array_mt, run_helpers.space_output_mt, space_land_mt, run_helpers.tem_info, observations, opti_helpers.parameter_updater, opti_helpers.cost_options, info.optimization.run_options.multi_constraint_method, info.optimization.run_options.parameter_scaling, info.optimization.run_options.cost_method)
 
     opti_helpers = (; opti_helpers..., cost_function=cost_function, cost_vector=cost_vector)
     return opti_helpers

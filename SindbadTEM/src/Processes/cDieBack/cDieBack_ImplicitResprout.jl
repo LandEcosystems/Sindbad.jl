@@ -20,36 +20,32 @@ function define(params::cDieBack_ImplicitResprout, forcing, land, helpers)
 end
 
 function compute(params::cDieBack_ImplicitResprout, forcing, land, helpers)
-    ## unpack forcing
-    @unpack_nt f_dist_intensity ⇐ forcing
     @unpack_cDieBack_ImplicitResprout params
 
     ## unpack land variables
     @unpack_nt begin
-        (c_flow_order, c_giver, c_taker) ⇐ land.cCycleBase
+        (c_flow_order, c_giver, c_taker, zix_cHeterotrophic) ⇐ land.cCycleBase
         cEco ⇐ land.pools
         c_remain ⇐ land.states
-        c_model ⇐ land.models
         z_zero ⇐ land.constants
-        (c_flow_QP_vec, c_disturbance_mortality, c_disturbance_flow, c_disturbance_efflux) ⇐ land.diagnostics
+        (c_f_cVeg_dieOff, c_flow_QP_vec, c_disturbance_mortality, c_disturbance_flow, c_disturbance_efflux) ⇐ land.diagnostics
     end
+    # losses are per time step, so clear the previous step before accumulating
+    @rep_vec c_disturbance_mortality ⇒ helpers.pools.zeros.cEco
+    @rep_vec c_disturbance_flow ⇒ helpers.pools.zeros.cEco
+    @rep_vec c_disturbance_efflux ⇒ helpers.pools.zeros.cEco
     zix_cVeg = helpers.pools.zix.cVeg
-    if f_dist_intensity > z_zero
+    if c_f_cVeg_dieOff > z_zero
         for fO ∈ c_flow_order
-            c_giver[fO] ∈ zix_cVeg || continue
+            # only flows from vegetation to litter and soil, as in cFire_simple, so that
+            # c_flow_QP_vec sums to one per giver and each pool loses its die-off once
+            c_giver[fO] ∈ zix_cVeg && c_taker[fO] ∈ zix_cHeterotrophic || continue
             frac_lives = c_giver[fO] ∈ helpers.pools.zix.cVegReserve ? frac_reserve_survival : zero(frac_reserve_survival)
-            cLoss = at_least_zero(cEco[c_giver[fO]] - c_remain * frac_lives) * f_dist_intensity * c_flow_QP_vec[fO]
-            #=
-            # deplete pool
-            @add_to_elem -cLoss ⇒ (cEco, c_giver[fO])
-            # transfer to litter
-            @add_to_elem cLoss ⇒ (cEco, c_taker[fO])
-            =#
+            cLoss = at_least_zero(cEco[c_giver[fO]] - c_remain * frac_lives) * c_f_cVeg_dieOff * c_flow_QP_vec[fO]
             # track mortality
             @add_to_elem cLoss ⇒ (c_disturbance_mortality, c_giver[fO])
             @add_to_elem cLoss ⇒ (c_disturbance_flow, c_taker[fO])
         end
-        land = adjustPackPoolComponents(land, helpers, c_model)
     end
     ## pack land variables
     @pack_nt begin 

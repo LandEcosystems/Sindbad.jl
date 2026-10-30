@@ -231,18 +231,19 @@ end
 
 
 """
-    setAlgorithmOptions(info::NamedTuple, which_algorithm)
+    setAlgorithmOptions(optimization::NamedTuple, info::NamedTuple, which_algorithm)
 Set up algorithm-specific options for optimization.
 # Arguments:
+- `optimization`: The NamedTuple of optimization info being built in `setOptimization`.
 - `info`: A NamedTuple containing the experiment configuration.
 - `which_algorithm`: A symbol indicating which algorithm to set up (e.g., `:algorithm_optimization`, `:algorithm_sensitivity_analysis`).
 # Returns:
-- The updated `info` NamedTuple with algorithm options set.
+- The updated `optimization` NamedTuple with the algorithm options set.
 # Notes:
 - Reads algorithm settings from the experiment configuration.
 - If the algorithm is specified as a JSON file, it parses the file and merges the options with default settings.
 """
-function setAlgorithmOptions(info, which_algorithm)
+function setAlgorithmOptions(optimization::NamedTuple, info, which_algorithm)
     optim_algorithm = getproperty(info.settings.optimization, which_algorithm)
     tmp_algorithm = (;)
     algo_options = (;)
@@ -287,8 +288,7 @@ function setAlgorithmOptions(info, which_algorithm)
     tmp_algorithm = set_namedtuple_field(tmp_algorithm, (:method, algo_method))
     tmp_algorithm = set_namedtuple_field(tmp_algorithm, (:options, merged_options))
     algo_field = which_algorithm == :algorithm_sensitivity_analysis ? :sensitivity_analysis : :optimizer
-    info = set_namedtuple_subfield(info, :optimization, (algo_field, tmp_algorithm))
-    return info
+    return (; optimization..., algo_field => tmp_algorithm)
 end
 
 """
@@ -308,21 +308,13 @@ Sets up optimization-related fields in the experiment configuration.
 """
 function setOptimization(info::NamedTuple)
     print_info(setOptimization, @__FILE__, @__LINE__, "setting ParameterOptimization and Observation Info...")
-    info = set_namedtuple_field(info, (:optimization, (;)))
-
-    # set information related to cost metrics for each variable
-    info = set_namedtuple_subfield(info, :optimization, (:model_parameter_default, info.settings.optimization.model_parameter_default))
-    info = set_namedtuple_subfield(info, :optimization, (:observational_constraints, info.settings.optimization.observational_constraints))
-
+    # The optimization info is built on its own and set in info once at the end, because
+    # every rebuild of info compiles anew for its large type.
     n_threads_cost = 1
     run_lazy =get(info.settings.experiment.flags, :run_lazy, false)
-    if info.settings.optimization.optimization_cost_threaded > 0 && info.settings.experiment.flags.run_optimization && !run_lazy
+    threaded_cost = info.settings.optimization.optimization_cost_threaded > 0 && info.settings.experiment.flags.run_optimization && !run_lazy
+    if threaded_cost
         n_threads_cost = info.settings.optimization.optimization_cost_threaded > 1 ? info.settings.optimization.optimization_cost_threaded : Threads.nthreads()
-        # overwrite land array type when threaded optimization is set
-        info = @set info.temp.helpers.run.land_output_type = PreAllocArrayMT()
-        # info = set_namedtuple_subfield(info,
-        # :optimization,
-        # (:n_threads_cost, n_threads_cost))
     end
 
     # get types for optimization run options
@@ -331,13 +323,11 @@ function setOptimization(info::NamedTuple)
     scaling_method = isnothing(info.settings.optimization.optimization_parameter_scaling) ? "scale_none" : info.settings.optimization.optimization_parameter_scaling
     parameter_scaling = getTypeInstanceForNamedOptions(scaling_method)
     optimization_types = (; cost_method, parameter_scaling, multi_constraint_method, n_threads_cost)
-    info = set_namedtuple_subfield(info, :optimization, (:run_options, optimization_types))
-        
-    # check and set the list of parameters to be optimized
-    
+    optimization = (; run_options=optimization_types)
+
     # set algorithm related options
-    info = setAlgorithmOptions(info, :algorithm_optimization)
-    info = setAlgorithmOptions(info, :algorithm_sensitivity_analysis)
+    optimization = setAlgorithmOptions(optimization, info, :algorithm_optimization)
+    optimization = setAlgorithmOptions(optimization, info, :algorithm_sensitivity_analysis)
     parameter_table = getOptimizationParametersTable(info.temp.models.parameter_table, info.settings.optimization.model_parameter_default, info.settings.optimization.model_parameters_to_optimize)
     
     checkOptimizedParametersInModels(info, parameter_table)
@@ -347,19 +337,19 @@ function setOptimization(info::NamedTuple)
 
     # get the variables to be used during optimization
     obs_vars, optim_vars, store_vars, model_vars = getConstraintNames(info.settings.optimization)
-    vars_info = (;)
-    vars_info = set_namedtuple_field(vars_info, (:obs, obs_vars))
-    vars_info = set_namedtuple_field(vars_info, (:optimization, optim_vars))
-    vars_info = set_namedtuple_field(vars_info, (:store, store_vars))
-    vars_info = set_namedtuple_field(vars_info, (:model, model_vars))
-    info = set_namedtuple_subfield(info, :optimization, (:variables, (vars_info)))
+    vars_info = (; obs=obs_vars, optimization=optim_vars, store=store_vars, model=model_vars)
+
+    # updateVariablesToStore reads the variables from info.optimization
+    temp = info.temp
+    if threaded_cost
+        # overwrite land array type when threaded optimization is set
+        temp = (; temp..., helpers=(; temp.helpers..., run=(; temp.helpers.run..., land_output_type=PreAllocArrayMT())))
+    end
+    info = (; info..., temp=temp, optimization=(; variables=vars_info))
     info = updateVariablesToStore(info)
     cost_options = getCostOptions(info.settings.optimization, vars_info, info.temp.output.variables, info.temp.helpers.numbers, info.temp.helpers.dates)
-    info = set_namedtuple_subfield(info, :optimization, (:cost_options, cost_options))
-    info = set_namedtuple_subfield(info, :optimization, (:parameter_table, parameter_table))
-    optimization_info = info.optimization
-    optimization_info = drop_namedtuple_fields(optimization_info, (:model_parameter_default, :model_parameters_to_optimize, :observational_constraints, :variables))
-    info = (; info..., optimization = optimization_info)
+    optimization = (; optimization..., cost_options=cost_options, parameter_table=parameter_table)
+    info = (; info..., optimization=optimization)
     return info
 end
 

@@ -63,16 +63,14 @@ The efficiency splits by the pool group the carbon leaves, each a process of its
 - [`cMicrobialEfficiencycMic`](@ref): the transfers leaving the microbial pools.
 - [`cMicrobialEfficiencycSoil`](@ref): the transfers leaving the soil carbon pools.
 
-[`cMicrobialEfficiency_mult`](@ref) combines the three, the way
+[`cMicrobialEfficiency_sum`](@ref) combines the three, the way
 [`cQualityPartition_mult`](@ref) combines the quality-partition factors and
 [`cTau_mult`](@ref) the decomposition-rate stressors.
 
-Two approaches bypass the factors instead of combining them:
-
-- [`cMicrobialEfficiency_none`](@ref): every transfer keeps the neutral efficiency of
-  one.
-- [`cMicrobialEfficiency_constant`](@ref): one constant on every decomposition transfer,
-  whichever group it leaves.
+[`cMicrobialEfficiency_constant`](@ref) bypasses the factors instead of combining them:
+one constant on every decomposition transfer, whichever group it leaves. Leaving
+`cMicrobialEfficiency` out of the model structure keeps every transfer at the neutral
+efficiency of one.
 
 CASA does not need a third: `cCycleBase_CASA` itself carries the 14 statically-known
 CASA transfers as ordinary bounded parameters and writes them into `c_flow_ME_vec` in

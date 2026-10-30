@@ -17,23 +17,21 @@ function compute(params::fAPAR_LAIBareFrac, forcing, land, helpers)
         frac_vegetation ⇐ land.states
     end
     ## calculate variables
+    # fAPAR is per m2 of vegetated area, fAPAR_grid per m2 of grid cell
     fAPAR = one(k_extinction) - exp(-(LAI * k_extinction))
-    fAPAR_bare = fAPAR * (one(k_extinction) - frac_vegetation) # ?  frac_vegetation -> (1 - frac_B_soil) 
-    fAPAR = fAPAR * frac_vegetation
-    # Cross check frac_vegetation from NetCDF files! 
+    fAPAR_grid = fAPAR * frac_vegetation
+    # Cross check frac_vegetation from NetCDF files!
     # TODO:  tree_frac (1km), Ranits's, mix, use table is available if not keep it!
-    # 
+    #
     # ? make sure that frac_vegetation is consistent with Ranit's table!
     ## pack land variables
-    @pack_nt begin
-        (fAPAR_bare, fAPAR) ⇒ land.states # TODO: now use fAPAR_bare as the output for the cost function!
-    end
+    @pack_nt (fAPAR, fAPAR_grid) ⇒ land.states
 
 	return land
 end
 
 
-purpose(::Type{fAPAR_LAIBareFrac}) = "sets the value of fAPAR as a function of LAI with bare soil fraction"
+purpose(::Type{fAPAR_LAIBareFrac}) = "fAPAR of the vegetated area as a function of LAI, and fAPAR of the grid cell scaled by the vegetation fraction"
 
 @doc """ 
 

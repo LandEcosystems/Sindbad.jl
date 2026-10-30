@@ -239,6 +239,6 @@ function getForcing(info::NamedTuple)
     else 
         interpincubes = last.(incubes)
     end
-    parameters = getParameters(info, f_dimension)
-    return createForcingNamedTuple(interpincubes, f_sizes, f_dimension, info; parameters=parameters)
+    parameters = getParameters(info, f_dimension, NamedTuple{Tuple(forcing_vars)}(Tuple(incubes)))
+    return createForcingNamedTuple(interpcubes, f_sizes, f_dimension, info; parameters=parameters)
 end

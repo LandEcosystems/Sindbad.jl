@@ -67,12 +67,6 @@ module Types
         false
     end
 
-    _type_hasdoc(T::Type) = try
-        Base.Docs.doc(T) !== nothing
-    catch
-        false
-    end
-
     # ------------------------- SindbadTypes ------------------------------------------------------------
     include("LandTypes.jl")
     include("ArrayTypes.jl")
@@ -112,7 +106,7 @@ module Types
             # documenting imported/foreign types.
             if parentmodule(st) === @__MODULE__
                 sym = Symbol(nameof(st))
-                if isdefined(@__MODULE__, sym) && !_binding_hasdoc(@__MODULE__, sym) && !_type_hasdoc(st)
+                if isdefined(@__MODULE__, sym) && !_binding_hasdoc(@__MODULE__, sym)
                     doc_txt = get_type_docstring(st, purpose_function=purpose)
                     # Use `@doc` so the stored doc is the usual Markdown-based form that
                     # Documenter expects, while still guarding with a Julia-1.10-safe

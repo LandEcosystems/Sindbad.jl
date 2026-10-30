@@ -163,16 +163,16 @@ export DoNotAggrObs
 export DoSpatialWeight
 export DoNotSpatialWeight
 
-struct DoAggrObs end
+struct DoAggrObs <: ParameterOptimizationTypes end
 purpose(::Type{DoAggrObs}) = "Apply aggregation to observations"
 
-struct DoNotAggrObs end
+struct DoNotAggrObs <: ParameterOptimizationTypes end
 purpose(::Type{DoNotAggrObs}) = "Do not apply aggregation to observations"
 
-struct DoSpatialWeight end
+struct DoSpatialWeight <: ParameterOptimizationTypes end
 purpose(::Type{DoSpatialWeight}) = "Apply spatial weighting to metrics"
 
-struct DoNotSpatialWeight end
+struct DoNotSpatialWeight <: ParameterOptimizationTypes end
 purpose(::Type{DoNotSpatialWeight}) = "Do not apply spatial weighting to metrics"
 
 export SpatialDataAggr
@@ -181,7 +181,7 @@ export ConcatData
 abstract type SpatialDataAggr <: ParameterOptimizationTypes end
 purpose(::Type{SpatialDataAggr}) = "Abstract type for spatial data aggregation methods in SINDBAD"
 
-struct ConcatData end
+struct ConcatData <: SpatialDataAggr end
 purpose(::Type{ConcatData}) = "Concatenate data arrays for aggregation"
 
 # ------------------------- spatial metric aggregation -------------------------

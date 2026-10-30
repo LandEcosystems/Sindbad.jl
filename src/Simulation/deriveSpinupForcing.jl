@@ -44,6 +44,8 @@ function accumulateSpinupForcing end
 
 accumulateSpinupForcing(::Tuple{}, _, _, spinup_forcing) = spinup_forcing
 
+accumulateSpinupForcing(spin_sequences::Tuple{SpinupStepWithAggregator{:none},Vararg}, forcing, tem_helpers, spinup_forcing) = accumulateSpinupForcing(Base.tail(spin_sequences), forcing, tem_helpers, spinup_forcing)
+
 function accumulateSpinupForcing(spin_sequences::Tuple{SpinupStepWithAggregator{F},Vararg}, forcing, tem_helpers, spinup_forcing) where {F}
     if F ∉ keys(spinup_forcing)
         seq_forc = getSpinupForcing(forcing, first(spin_sequences), tem_helpers.vals.forcing_types)
