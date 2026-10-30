@@ -341,8 +341,9 @@ function runTEMYax(selected_models, forcing::NamedTuple, info::NamedTuple)
     # are passed behind a Ref{Any} to keep those types small and fast to compile
     function_kwargs = (tem_kwargs=Ref{Any}(tem_kwargs),),
         output = new_output,
-        # xmap runs the pixels of a block on one thread unless this is set
-        allow_threads = info.helpers.run.parallelization isa ThreadsParallelization,
+        # xmap runs the pixels of a block on one thread unless this is set. The number of
+        # threads of the Julia session decides how many are used.
+        allow_threads = true,
         #outdims=run_helpers.output_dims,
         #max_cache=info.experiment.exe_rules.yax_max_cache,
         #ispar=false,
