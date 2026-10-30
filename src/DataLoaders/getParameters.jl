@@ -19,13 +19,20 @@ ready to use in the same way `getForcing` does for the forcing.
 - Otherwise a NamedTuple with:
   - `variables`: the names of the parameter variables
   - `data`: one YAXArray per variable on the spatial dimensions of the forcing, in the
-    units of the run, without NaN, and within the bounds of the parameter. It is lazy
-    in a lazy run, so a large forcing is only read where the run needs it, and in
-    memory otherwise.
+    units of the run, without NaN, and within the bounds of the parameter. A variable
+    that varies in time has the time dimension of the forcing first. It is lazy in a
+    lazy run, so a large forcing is only read where the run needs it, and in memory
+    otherwise.
   - `parameter_table`: a Table with one row per variable with the resolved settings:
     `model`, `name`, `name_full`, `model_approach`, `units`, `timescale_run`,
-    `unit_factor`, `lower`, `upper`, `default`, `source_variable`, `data_path`, `n_nan`
-    and `n_clamped`
+    `unit_factor`, `lower`, `upper`, `default`, `source_variable`, `data_path`,
+    `space_time_type`, `time_dimension`, `time_method`, `n_nan` and `n_clamped`
+  - `f_types`: `ForcingWithTime()` or `ForcingWithoutTime()` per variable, as for the
+    forcing
+  - `dims`: the dimensions of each variable besides the spatial ones, `(time,)` or
+    `()`, as `forcing.dims`
+  - `lookup_variable`: the `lookup_variable` of a class map whose lookup variable has
+    time, else `nothing`
 
 # Notes:
 - The settings of a variable come from its entry in the json first, then from
@@ -47,6 +54,10 @@ ready to use in the same way `getForcing` does for the forcing.
   with one value per class. Each location takes the value of its class in that
   forcing variable, else of the `default` class, else the `default` of the parameter.
   The result is a location map like any other, see `getParameterValuesByClass`.
+- A variable with `space_time_type` `spatiotemporal` varies in time like a forcing
+  variable, see `getParameterValuesByLocationAndTime`. A class map varies in time when
+  its lookup variable does, e.g., a yearly map of PFT, and its variables then stay
+  `spatial`. The run updates the models when the values change, see `timeLoopTEM!`.
 """
 function getParameters(info::NamedTuple, forcing_axes, forcing_cubes=nothing)
     parameter_input = get(info.experiment.data_settings, :parameters, nothing)
@@ -56,13 +67,16 @@ function getParameters(info::NamedTuple, forcing_axes, forcing_cubes=nothing)
         error("A json or zarr/nc parameters input needs a forcing with a spatiotemporal variable to set the locations of the parameters.")
     end
     space_dims = Symbol.(info.experiment.data_settings.forcing.data_dimension.space)
+    time_name = Symbol(info.experiment.data_settings.forcing.data_dimension.time)
     num_type = info.helpers.numbers.num_type
     axes_values = Dict(Symbol(first(f_axis)) => last(f_axis) for f_axis ∈ forcing_axes)
     forcing_space_dims = Tuple(DD.Dim{s_dim}(axes_values[s_dim]) for s_dim ∈ space_dims)
+    forcing_time_dim = haskey(axes_values, time_name) ? DD.Dim{time_name}(axes_values[time_name]) : nothing
     open_files = Dict{String,Any}()
     var_names, var_sources = listParameterVariables(parameter_input, open_files)
     lookup = getParameterLookup(parameter_input)
-    lookup_cube = isnothing(lookup) ? nothing : getLookupCube(lookup, forcing_cubes, space_dims)
+    lookup_cube = isnothing(lookup) ? nothing : getLookupCube(lookup, forcing_cubes, space_dims, time_name)
+    lookup_has_time = !isnothing(lookup_cube) && hasdim(lookup_cube, time_name)
     # the lazy cube of each parameter is computed once for an eager run, which reads
     # it per location
     keep_lazy = info.helpers.run.run_lazy isa DoRunLazy
@@ -73,22 +87,36 @@ function getParameters(info::NamedTuple, forcing_axes, forcing_cubes=nothing)
         dataset = openParameterFile!(open_files, var_source.data_path)
         attributes = readVariableAttributes(dataset, var_source.source_variable, var_source.data_path)
         p_row = resolveParameterVariable(var_name, var_source, parameter_input, attributes, info)
-        p_values = if isnothing(lookup)
-            getParameterValuesByLocation(dataset[var_source.source_variable], forcing_axes, space_dims, p_row, num_type, var_name)
-        else
+        is_spatiotemporal = p_row.space_time_type == "spatiotemporal"
+        p_values = if !isnothing(lookup)
+            if is_spatiotemporal
+                error("The parameter variable `$(var_name)` of the class map by `$(lookup.lookup_variable)` is spatiotemporal. A class map varies in time through its lookup variable, so its variables are spatial.")
+            end
             by_class = getParameterValuesByClass(dataset[var_source.source_variable], lookup, lookup_cube, p_row, num_type, var_name)
             push!(map_classes, by_class.classes)
             by_class
+        elseif is_spatiotemporal
+            isnothing(forcing_time_dim) && error("The parameter variable `$(var_name)` is spatiotemporal, but the forcing has no `$(time_name)` dimension.")
+            getParameterValuesByLocationAndTime(dataset[var_source.source_variable], forcing_axes, space_dims, forcing_time_dim, p_row, num_type, var_name)
+        else
+            getParameterValuesByLocation(dataset[var_source.source_variable], forcing_axes, space_dims, p_row, num_type, var_name)
         end
         push!(table_rows, (; p_row..., n_nan=p_values.n_nan, n_clamped=p_values.n_clamped))
-        print_info(nothing, @__FILE__, @__LINE__, "`$(var_name)` = `$(p_row.name_full)` ($(p_row.units)) from `$(var_source.source_variable)` in `$(var_source.data_path)` * $(p_row.unit_factor)", n_m=4)
-        # kept as a cube on the spatial dimensions and coordinates of the forcing, so
-        # a lazy run can map over it together with the forcing
-        YAXArray(forcing_space_dims, keep_lazy ? p_values.data.data : Array(p_values.data.data))
+        print_info(nothing, @__FILE__, @__LINE__, "`$(var_name)` = <$(p_row.space_time_type)> `$(p_row.name_full)` ($(p_row.units)) from `$(var_source.source_variable)` in `$(var_source.data_path)` * $(p_row.unit_factor)", n_m=4)
+        # kept as a cube on the dimensions and coordinates of the forcing, so a lazy
+        # run can map over it together with the forcing
+        p_dims = hasdim(p_values.data, time_name) ? (forcing_time_dim, forcing_space_dims...) : forcing_space_dims
+        YAXArray(p_dims, keep_lazy ? p_values.data.data : Array(p_values.data.data))
     end
     if !isnothing(lookup)
         allequal(map_classes) || error("The variables of the class map by `$(lookup.lookup_variable)` have different classes. All need the same `$(lookup.lookup_variable)` coordinates.")
-        warnClassesNotInMap(lookup, findClassesNotInMap(lookup_cube, first(map_classes)))
+        if lookup_has_time
+            # counting the classes would read the whole lookup variable, which is far
+            # too much for a global forcing at every time step
+            print_info(nothing, @__FILE__, @__LINE__, "the class map by `$(lookup.lookup_variable)` varies in time, so the classes that are not in the map are not counted", n_m=4)
+        else
+            warnClassesNotInMap(lookup, findClassesNotInMap(lookup_cube, first(map_classes)))
+        end
     end
 
     parameter_table = Table([table_rows...])
@@ -97,7 +125,11 @@ function getParameters(info::NamedTuple, forcing_axes, forcing_cubes=nothing)
     if !isempty(duplicates)
         error("The parameters input sets $(duplicates) more than once. Keep one variable per parameter.")
     end
-    return (; variables=Tuple(var_names), data=Tuple(data), parameter_table=parameter_table)
+    has_time = map(p_data -> hasdim(p_data, time_name), Tuple(data))
+    f_types = map(t -> t ? ForcingWithTime() : ForcingWithoutTime(), has_time)
+    p_dims = map(t -> t ? (time_name,) : (), has_time)
+    lookup_variable = lookup_has_time ? lookup.lookup_variable : nothing
+    return (; variables=Tuple(var_names), data=Tuple(data), parameter_table=parameter_table, f_types=f_types, dims=p_dims, lookup_variable=lookup_variable)
 end
 
 
@@ -195,8 +227,16 @@ table of the selected model structure.
 
 # Returns:
 - A NamedTuple with `model`, `name`, `name_full`, `model_approach`, `units`,
-  `timescale_run`, `unit_factor`, `lower`, `upper`, `default`, `source_variable` and
-  `data_path`. `lower`, `upper` and `default` are in the units of the run.
+  `timescale_run`, `unit_factor`, `lower`, `upper`, `default`, `source_variable`,
+  `data_path`, `space_time_type`, `time_dimension` and `time_method`. `lower`, `upper`
+  and `default` are in the units of the run.
+
+# Notes:
+- `space_time_type` is `spatial` or `spatiotemporal`, as for a forcing variable.
+- `time_dimension` and `time_method` are the `time` of the `dimension` and
+  `interpolation_method` groups, from the variable, then `default_parameter_map`. They
+  default to `time` and `Previous`, so a value holds from its time stamp until the
+  next one.
 """
 function resolveParameterVariable(var_name, var_source, parameter_input, attributes, info)
     var_string = string(var_name)
@@ -230,9 +270,12 @@ function resolveParameterVariable(var_name, var_source, parameter_input, attribu
     end
 
     space_time_type = string(get_setting(:space_time_type, "spatial"))
-    if space_time_type != "spatial"
-        error("The parameter variable `$(var_string)` has space_time_type `$(space_time_type)`. A parameters input only supports `spatial` parameters.")
+    if space_time_type ∉ ("spatial", "spatiotemporal")
+        error("The parameter variable `$(var_string)` has space_time_type `$(space_time_type)`. A parameters input supports `spatial` and `spatiotemporal` parameters.")
     end
+    # the time settings are groups like those of a forcing variable
+    time_dimension = string(firstSetValue(:time, "time", getSettingValue(var_settings, :dimension), getSettingValue(default_map, :dimension)))
+    time_method = string(firstSetValue(:time, "Previous", getSettingValue(var_settings, :interpolation_method), getSettingValue(default_map, :interpolation_method)))
 
     num_type = info.helpers.numbers.num_type
     timescale_run = string(get_setting(:timescale_run, ""))
@@ -244,7 +287,7 @@ function resolveParameterVariable(var_name, var_source, parameter_input, attribu
         error("The parameter variable of `$(name_full)` has a lower bound $(lower) above its upper bound $(upper).")
     end
 
-    return (; model=model_row.model, name=model_row.name, name_full=name_full, model_approach=model_row.model_approach, units=string(model_row.units), timescale_run=timescale_run, unit_factor=num_type(unit_factor), lower=lower, upper=upper, default=default, source_variable=var_source.source_variable, data_path=var_source.data_path)
+    return (; model=model_row.model, name=model_row.name, name_full=name_full, model_approach=model_row.model_approach, units=string(model_row.units), timescale_run=timescale_run, unit_factor=num_type(unit_factor), lower=lower, upper=upper, default=default, source_variable=var_source.source_variable, data_path=var_source.data_path, space_time_type=space_time_type, time_dimension=time_dimension, time_method=time_method)
 end
 
 
@@ -303,6 +346,77 @@ ready to use.
   taken in one pass over the selected values, see `countReplacedValues`.
 """
 function getParameterValuesByLocation(yax, forcing_axes, space_dims, p_row, num_type, var_name)
+    yax = selectForcingLocations(yax, forcing_axes, space_dims, var_name)
+    extra_dims = setdiff(DD.name(DD.dims(yax)), space_dims)
+    if !isempty(extra_dims)
+        error("The parameter variable `$(var_name)` has the dimensions $(extra_dims) besides the spatial dimensions of the forcing. Set its `space_time_type` to `spatiotemporal` when one of them is time.")
+    end
+    yax = permutedims(yax, getDimPermutation(DD.name(DD.dims(yax)), space_dims))
+    counts = countReplacedValues(yax.data, p_row, num_type)
+    warnReplacedValues(p_row, counts, "locations")
+    return (; data=map(parameterCleaner(p_row, num_type), yax), n_nan=counts.n_nan, n_clamped=counts.n_clamped)
+end
+
+"""
+    getParameterValuesByLocationAndTime(yax, forcing_axes, space_dims, forcing_time_dim, p_row, num_type, var_name)
+
+Returns the values of one spatiotemporal variable of a location map at the locations
+and time steps of the forcing, ready to use.
+
+# Arguments:
+- `forcing_time_dim`: the time dimension of the forcing, i.e., the time steps of the
+  run
+- the other arguments are the same as for `getParameterValuesByLocation`
+
+# Returns:
+- A NamedTuple with the `data` with the time dimension of the forcing first and its
+  spatial dimensions after it, and the `n_nan` and `n_clamped` of the values in the
+  file at the forcing locations.
+
+# Notes:
+- The time dimension of the file is `p_row.time_dimension`. Its coordinate is a date,
+  or a year as an integer, which is taken as the start of that year.
+- The values are put on the time steps of the run with `resampleToTarget` and the
+  method `p_row.time_method`, as a forcing variable. With the default `Previous`, a
+  value holds from its time stamp until the next one. The steps before the first time
+  stamp take the first value, and those after the last time stamp the last value.
+- The counts are taken on the values in the file, before they are put on the time
+  steps of the run.
+"""
+function getParameterValuesByLocationAndTime(yax, forcing_axes, space_dims, forcing_time_dim, p_row, num_type, var_name)
+    source_time = Symbol(p_row.time_dimension)
+    if !hasdim(yax, source_time)
+        error("The parameter variable `$(var_name)` is spatiotemporal, but has no `$(source_time)` dimension. Its dimensions are $(DD.name(DD.dims(yax))). Set the `time` of `dimension` for the variable or in `default_parameter_map`.")
+    end
+    yax = selectForcingLocations(yax, forcing_axes, space_dims, var_name)
+    extra_dims = setdiff(DD.name(DD.dims(yax)), (space_dims..., source_time))
+    if !isempty(extra_dims)
+        error("The parameter variable `$(var_name)` has the dimensions $(extra_dims) besides the spatial and time dimensions of the forcing.")
+    end
+    time_name = DD.name(forcing_time_dim)
+    yax = setParameterTimeStamps(yax, source_time, time_name)
+    counts = countReplacedValues(yax.data, p_row, num_type)
+    warnReplacedValues(p_row, counts, "values")
+    yax = resampleToTarget(yax, (forcing_time_dim,), p_row.time_method, num_type, var_name)
+    if length(DD.lookup(yax, time_name)) != length(forcing_time_dim)
+        error("The parameter variable `$(var_name)` is not on the time steps of the run, because its time `interpolation_method` is `$(p_row.time_method)`. Use a method such as `Previous`.")
+    end
+    yax = permutedims(yax, getDimPermutation(DD.name(DD.dims(yax)), (time_name, space_dims...)))
+    return (; data=map(parameterCleaner(p_row, num_type), yax), n_nan=counts.n_nan, n_clamped=counts.n_clamped)
+end
+
+"""
+    selectForcingLocations(yax, forcing_axes, space_dims, var_name)
+
+Returns a view of a parameter variable at the spatial coordinates of the forcing, in
+the order of the forcing.
+
+# Notes:
+- The coordinates are selected by value, so the file may have more locations than the
+  forcing, in any order.
+- An error lists the coordinates of the forcing that are missing in the file.
+"""
+function selectForcingLocations(yax, forcing_axes, space_dims, var_name)
     axes_values = Dict(Symbol(first(f_axis)) => last(f_axis) for f_axis ∈ forcing_axes)
     for s_dim ∈ space_dims
         haskey(axes_values, s_dim) || error("The forcing has no coordinates for the spatial dimension `$(s_dim)`.")
@@ -316,14 +430,24 @@ function getParameterValuesByLocation(yax, forcing_axes, space_dims, p_row, num_
         positions = [findfirst(==(v), file_values) for v ∈ forcing_values]
         yax = view(yax, DD.Dim{s_dim}(positions))
     end
-    extra_dims = setdiff(DD.name(DD.dims(yax)), space_dims)
-    if !isempty(extra_dims)
-        error("The parameter variable `$(var_name)` has the dimensions $(extra_dims) besides the spatial dimensions of the forcing. A parameters input only supports spatial parameters.")
-    end
-    yax = permutedims(yax, getDimPermutation(DD.name(DD.dims(yax)), space_dims))
-    counts = countReplacedValues(yax.data, p_row, num_type)
-    warnReplacedValues(p_row, counts, "locations")
-    return (; data=map(parameterCleaner(p_row, num_type), yax), n_nan=counts.n_nan, n_clamped=counts.n_clamped)
+    return yax
+end
+
+"""
+    setParameterTimeStamps(yax, source_time, time_name)
+
+Returns `yax` with its time dimension `source_time` renamed to `time_name`, the time
+dimension of the forcing, and its coordinate as `DateTime`.
+
+# Notes:
+- An integer or other real coordinate is taken as a year, and its time stamp is the
+  start of that year, e.g., the `time_annual` of a yearly map.
+"""
+function setParameterTimeStamps(yax, source_time, time_name)
+    stamps = collect(DD.lookup(yax, source_time))
+    date_times = eltype(stamps) <: Real ? [DateTime(round(Int, s), 1, 1) for s ∈ stamps] : DateTime.(stamps)
+    new_dims = map(d -> DD.name(d) == source_time ? DD.Dim{time_name}(date_times) : d, DD.dims(yax))
+    return YAXArray(new_dims, yax.data, yax.properties)
 end
 
 """
@@ -344,22 +468,27 @@ end
 
 
 """
-    getLookupCube(lookup, forcing_cubes, space_dims)
+    getLookupCube(lookup, forcing_cubes, space_dims, time_name)
 
 Returns the forcing cube of the `lookup_variable`, with the spatial dimensions of the
-forcing in their order.
+forcing in their order, and its time dimension `time_name` first when it has one.
+
+# Notes:
+- With time, the class of a location can change between time steps, e.g., with a
+  yearly map of PFT, and so do the parameters of the class map.
 """
-function getLookupCube(lookup, forcing_cubes, space_dims)
+function getLookupCube(lookup, forcing_cubes, space_dims, time_name)
     lookup_variable = lookup.lookup_variable
     if isnothing(forcing_cubes) || !hasproperty(forcing_cubes, lookup_variable)
         error("The `lookup_variable` `$(lookup_variable)` of the parameters input is not a forcing variable. Add it to the forcing settings.")
     end
     cube = getproperty(forcing_cubes, lookup_variable)
     cube_dims = DD.name(DD.dims(cube))
-    if Set(cube_dims) != Set(space_dims)
-        error("The `lookup_variable` `$(lookup_variable)` has the dimensions $(cube_dims), but needs only the spatial dimensions $(Tuple(space_dims)) of the forcing. Set its `space_time_type` to `spatial`.")
+    target_dims = time_name ∈ cube_dims ? (time_name, space_dims...) : Tuple(space_dims)
+    if Set(cube_dims) != Set(target_dims)
+        error("The `lookup_variable` `$(lookup_variable)` has the dimensions $(cube_dims), but needs the spatial dimensions $(Tuple(space_dims)) of the forcing, and its time dimension `$(time_name)` when the classes change in time.")
     end
-    return permutedims(cube, getDimPermutation(cube_dims, space_dims))
+    return permutedims(cube, getDimPermutation(cube_dims, target_dims))
 end
 
 
@@ -378,8 +507,10 @@ Returns the values of one variable of a class map at the locations of the forcin
 - `var_name`: the name of the variable, for the errors
 
 # Returns:
-- A NamedTuple with the `data` on the spatial dimensions of the forcing, the
-  `classes` of the variable, and the `n_nan` and `n_clamped` of its values by class.
+- A NamedTuple with the `data` on the dimensions of `lookup_cube`, i.e., the spatial
+  dimensions of the forcing and its time dimension when the lookup variable has one,
+  the `classes` of the variable, and the `n_nan` and `n_clamped` of its values by
+  class.
 
 # Notes:
 - The values by class are made ready with `cleanParameterValues`, so `n_nan` and

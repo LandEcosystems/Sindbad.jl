@@ -160,7 +160,7 @@ function runExperiment(info::NamedTuple, forcing::NamedTuple, ::DoRunOptimizatio
     run_output = nothing
     if isempty(additionaldims)
         print_info(runExperiment, @__FILE__, @__LINE__, "run optimization per pixel...")
-        run_output = optimizeTEMYax(forcing, info.tem, info.optimization, observations; max_cache=info.settings.experiment.exe_rules.yax_max_cache)
+        run_output = optimizeTEMYax(forcing, info.tem, info.optimization, observations; max_cache=getMaxCacheYax(info, (forcing.data..., observations.data...); n_forcing=length(forcing.data)))
     else
         print_info(runExperiment, @__FILE__, @__LINE__, "run optimization for spatial domain...")
         obs_array = [Array(_o) for _o in observations.data]; # TODO: necessary now for performance because view of keyedarray is slow
@@ -515,7 +515,7 @@ computeLazyRun(_, run_output, ::DoNotRunLazy) = (run_output, nothing)
 function computeLazyRun(info, run_output, ::DoRunLazy)
     store_path = joinpath(info.output.dirs.data, "lazy_run.zarr")
     print_info(computeLazyRun, @__FILE__, @__LINE__, "computing all output and restart cubes in one pass to `$(store_path)`", n_m=4)
-    computed = computeTEMYax(run_output.xmap, store_path; max_cache=info.experiment.exe_rules.yax_max_cache)
+    computed = computeTEMYax(run_output.xmap, store_path; max_cache=getMaxCacheYax(info, run_output.xmap))
     restart = (; run_output.restart..., dataset=computed.restart)
     return (; run_output..., output=computed.output, restart=restart), store_path
 end

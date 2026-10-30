@@ -373,6 +373,8 @@ function getLocLand(loc_models, loc_forcing, loc_spinup, land_init, tem_info)
     if has_input
         loc_spinup = (; loc_spinup..., sequence=Base.tail(sequence))
     end
+    # parameters that vary in time are at their values of the first time step here
+    loc_models = initialModels(loc_models)
     # runTEMOne adds the spinup store for the sequence of this location
     loc_forcing_t, loc_land = runTEMOne(loc_models, loc_forcing, deepcopy(land_init), tem_info, loc_spinup.sequence)
     if has_input && tem_info.run.spinup_TEM isa DoSpinupTEM
@@ -439,11 +441,14 @@ parameters input applied.
 - A NamedTuple with:
   - `space_selected_models`: a vector with one tuple of models per location. Without
     parameters per location, every element is `selected_models`. Otherwise the
-    parameters of each element are set to the values at that location.
+    parameters of each element are set to the values at that location. When a
+    parameter varies in time, each element is a `TimeVaryingModels` whose models have
+    the values of the first time step.
   - `parameters`: `nothing` without parameters per location. Otherwise a NamedTuple
-    with the `parameter_table` of what was applied, for reference. It is the table of
-    `forcing.parameters` with `initial` and `optimized` set to the mean over the
-    locations, and with their `min` and `max`.
+    with the `parameter_table` of what was applied, for reference, and `time_varying`,
+    whether a parameter varies in time. The table is that of `forcing.parameters` with
+    `initial` and `optimized` set to the mean over the locations and time steps, and
+    with their `min` and `max`.
 
 # Notes:
 - The values are used as they are, because `getParameters` already converted their
@@ -458,22 +463,26 @@ function getLocationModels(selected_models, forcing, space_ind)
     print_info(getLocationModels, @__FILE__, @__LINE__, "setting the parameters of the models of each location", n_f=6)
     input_table = forcing_parameters.parameter_table
     parameter_to_index = getParameterIndices(selected_models, input_table)
-    space_values = map([space_ind...]) do loc_ind
-        map(p_data -> p_data[loc_ind...], collect(forcing_parameters.data))
+    time_varying = getTimeVaryingInfo(selected_models, parameter_to_index, forcing_parameters)
+    # the values of a location, a 0-dimensional array for a spatial parameter and a
+    # vector over time for one that varies in time
+    space_parameters = map([space_ind...]) do loc_ind
+        map(p_data -> Array(view_at_trailing_indices(p_data.data, loc_ind)), collect(forcing_parameters.data))
     end
-    space_selected_models = map(space_values) do loc_values
-        setTypedParameters(selected_models, parameter_to_index, loc_values)
+    space_selected_models = map(space_parameters) do loc_parameters
+        loc_models = setTypedParameters(selected_models, parameter_to_index, map(first, loc_parameters))
+        setTimeVaryingModels(loc_models, loc_parameters, time_varying)
     end
 
     p_indices = eachindex(input_table.name_full)
-    p_mean = [sum(v[p_i] for v ∈ space_values) / length(space_values) for p_i ∈ p_indices]
-    p_min = [minimum(v[p_i] for v ∈ space_values) for p_i ∈ p_indices]
-    p_max = [maximum(v[p_i] for v ∈ space_values) for p_i ∈ p_indices]
+    p_mean = [sum(sum(lp[p_i]) / length(lp[p_i]) for lp ∈ space_parameters) / length(space_parameters) for p_i ∈ p_indices]
+    p_min = [minimum(minimum(lp[p_i]) for lp ∈ space_parameters) for p_i ∈ p_indices]
+    p_max = [maximum(maximum(lp[p_i]) for lp ∈ space_parameters) for p_i ∈ p_indices]
     parameter_table = Table(input_table; initial=p_mean, optimized=copy(p_mean), min=p_min, max=p_max)
     foreach(p_indices) do p_i
         print_info(nothing, @__FILE__, @__LINE__, "→→→    `$(input_table.name_full[p_i])`: mean $(p_mean[p_i]), min $(p_min[p_i]), max $(p_max[p_i])", n_m=8)
     end
-    return (; space_selected_models, parameters=(; parameter_table))
+    return (; space_selected_models, parameters=(; parameter_table, time_varying=!isnothing(time_varying)))
 end
 
 """
