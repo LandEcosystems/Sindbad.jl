@@ -64,7 +64,7 @@ The `exe_rules` section defines model execution settings and performance configu
     "model_number_type": "Numeric type used in models",
     "parallelization": "Parallelization backend for spatial operations",
     "tolerance": "Numerical tolerance for error checking",
-    "yax_max_cache": "Cache size for YaxArray-based model runs"
+    "yax_max_cache": "Cache size in bytes for YaxArray-based model runs, or null to compute it from the threads and valid locations, so that the run needs at most 66% of the available memory"
 }
 ```
 
