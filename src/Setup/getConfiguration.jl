@@ -65,7 +65,7 @@ function createNestedDict(dict::AbstractDict)
                 subkey_name = subkey * string(key_index)
             end
             if subkey == last(key_list)
-                key_dict[subkey_name] = dict[kii]
+                key_dict[subkey_name] = toOrderedDict(dict[kii])
             else
                 if !haskey(key_dict, subkey_name)
                     # an OrderedDict, like the parsed json, so that a level that is new in
@@ -84,6 +84,12 @@ function createNestedDict(dict::AbstractDict)
     end
     return nested_dict
 end
+
+# A dictionary given as a value in replace_info becomes an OrderedDict, like the parsed
+# json. dict_to_namedtuple converts only OrderedDicts, so a plain Dict that adds a new
+# field to the configuration would otherwise stay a Dict in info.
+toOrderedDict(dict::AbstractDict) = DataStructures.OrderedDict{Any,Any}(k => toOrderedDict(v) for (k, v) ∈ dict)
+toOrderedDict(value) = value
 
 """
     deepMerge(d::AbstractDict...) = merge(deepMerge, d...)
