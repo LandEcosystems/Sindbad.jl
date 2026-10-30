@@ -2,6 +2,39 @@ export runTEMYax
 export TEMYax
 export computeTEMYax
 
+const DiskArrays = YAXArrays.Cubes.DiskArrays
+
+"""
+    ErasedDiskArray{T,N}
+
+A disk array that wraps another array without its type in the type of the wrapper.
+
+# Notes:
+- The type of every cube of an `xmap` holds the types of all its input arrays. With
+  the forcing cubes as inputs, which are views of permuted zarr arrays, these types are
+  huge and every function that handles the cubes is very slow to compile. Wrapped,
+  all inputs with the same element type and number of dimensions share one type.
+- Reading a block dispatches on the wrapped array at run time, which is negligible
+  next to reading the block from disk.
+"""
+struct ErasedDiskArray{T,N} <: DiskArrays.AbstractDiskArray{T,N}
+    parent::AbstractArray{T,N}
+end
+
+Base.parent(a::ErasedDiskArray) = a.parent
+Base.size(a::ErasedDiskArray) = size(a.parent)
+DiskArrays.haschunks(a::ErasedDiskArray) = DiskArrays.haschunks(a.parent)
+DiskArrays.eachchunk(a::ErasedDiskArray) = DiskArrays.eachchunk(a.parent)
+DiskArrays.readblock!(a::ErasedDiskArray, aout, r::OrdinalRange...) = DiskArrays.readblock!(a.parent, aout, r...)
+
+"""
+    eraseCubeType(cube)
+
+Returns `cube` with its data wrapped in an `ErasedDiskArray`, keeping its dimensions,
+properties and chunks.
+"""
+eraseCubeType(cube) = YAXArray(DD.dims(cube), ErasedDiskArray(cube.data), cube.properties; chunks=DiskArrays.eachchunk(cube))
+
 
 """
     coreTEMYax(selected_models, loc_forcing, loc_forcing_t, loc_land, tem_info, tem_spinup, ::DoSpinupTEM)
@@ -100,6 +133,22 @@ function TEMYax(map_cubes...;selected_models, forcing_vars, loc_land::NamedTuple
 end
 
 """
+    TEMYaxErased(map_cubes...; tem_kwargs)
+
+Runs `TEMYax` for one location with the keyword arguments held in `tem_kwargs[]`.
+
+# Notes:
+- `xmap` makes its function arguments part of the type of every function that runs it.
+  The arguments of `TEMYax` hold the models and the land, which makes those types huge
+  and slow to compile, so `runTEMYax` passes them in a `Ref{Any}` instead.
+- `TEMYax` is called dynamically once per location and is specialized as before.
+"""
+function TEMYaxErased(map_cubes...; tem_kwargs::Base.RefValue{Any})
+    TEMYax(map_cubes...; tem_kwargs[]...)
+    return nothing
+end
+
+"""
     getForcingDataInfo(info, forcing_vars)
 
 Returns the cleaning info of every forcing variable, i.e., the settings of the variable
@@ -113,11 +162,17 @@ merged into `default_forcing` the same way as in `getForcing`.
 - An empty or null setting of a variable, such as `"bounds": []`, keeps the value of
   `default_forcing`, whose bounds are always typed. The merge is done once here rather
   than for every pixel.
+- Only the fields that `cleanData` reads are kept. The info is part of the argument
+  types of `TEMYax`, and the full settings, e.g., with the `dimension` and
+  `interpolation_method` groups, make it slow to compile.
 """
 function getForcingDataInfo(info, forcing_vars)
     default_info = info.experiment.data_settings.forcing.default_forcing
     vars_info = info.experiment.data_settings.forcing.variables
-    return map(v -> merge_namedtuple_prefer_nonempty(default_info, getproperty(vars_info, Symbol(v))), Tuple(forcing_vars))
+    return map(Tuple(forcing_vars)) do v
+        v_info = merge_namedtuple_prefer_nonempty(default_info, getproperty(vars_info, Symbol(v)))
+        (; source_to_sindbad_unit=v_info.source_to_sindbad_unit, additive_unit_conversion=v_info.additive_unit_conversion, bounds=v_info.bounds)
+    end
 end
 
 """
@@ -161,7 +216,7 @@ end
 """
 function runTEMYax(selected_models, forcing::NamedTuple, info::NamedTuple)
     # forcing/input information
-    incubes = values(forcing.data);
+    incubes = map(eraseCubeType, values(forcing.data));
     indims = forcing.dims;
     # the parameters per location have no core dimensions, so each location gets one
     # value per parameter, which sets the parameters of its models in TEMYax
@@ -189,16 +244,19 @@ function runTEMYax(selected_models, forcing::NamedTuple, info::NamedTuple)
         newdims = (out.outaxes..., DD.rebuild.(singleton_dims, (1:1,))...) 
         YAXArrays.XOutput(newdims, out.destroyaxes, out.outtype, out.properties)
     end
-    outcubes = xmap(TEMYax,
-        (incubes .⊘ indims)...;
-    function_kwargs = (selected_models=selected_models,
+    tem_kwargs = (selected_models=selected_models,
         forcing_vars=forcing.variables,
         output_vars=run_helpers.output_vars,
         loc_land=loc_land,
         tem=run_helpers.tem_info,
         clean_data=(; _num_type, _forcing_data_info),
         restart_vars=restart_vars,
-        parameter_to_index=parameter_to_index),
+        parameter_to_index=parameter_to_index)
+    outcubes = xmap(TEMYaxErased,
+        (incubes .⊘ indims)...;
+    # the arguments become part of the type of every function of the xmap run, so they
+    # are passed behind a Ref{Any} to keep those types small and fast to compile
+    function_kwargs = (tem_kwargs=Ref{Any}(tem_kwargs),),
         output = new_output,
         # xmap runs the pixels of a block on one thread unless this is set
         allow_threads = info.helpers.run.parallelization isa ThreadsParallelization,
@@ -206,24 +264,23 @@ function runTEMYax(selected_models, forcing::NamedTuple, info::NamedTuple)
         #max_cache=info.experiment.exe_rules.yax_max_cache,
         #ispar=false,
         )
-    outcubes = outcubes isa YAXArray ? (outcubes,) : outcubes
+    # the cubes are kept in a Vector{Any}, as code for the tuple of all their types is
+    # slow to compile
+    outcubes = outcubes isa YAXArray ? Any[outcubes] : collect(Any, outcubes)
     n_out = length(output)
     varnames = Tuple(getUniqueVarNames(info.output.variables))
     restart_names = Tuple(last.(restart_vars))
     # besides the padding, xmap adds a singleton for every core dimension of the forcing
     # that the output does not have, e.g. the soil layers of the texture forcing
     space_dims = Symbol.(info.experiment.data_settings.forcing.data_dimension.space)
-    padded_names = map(all_output, outcubes) do out, o_cube
-        setdiff(DD.name.(DD.dims(o_cube)), (DD.name.(out.outaxes)..., space_dims...))
-    end
-    output_cubes = map(dropPaddedDimsYax, outcubes[1:n_out], padded_names[1:n_out])
-    output_ds = Dataset(;zip(varnames, output_cubes)...)
-    restart_cubes = map(dropPaddedDimsYax, outcubes[(n_out+1):end], padded_names[(n_out+1):end])
-    restart_ds = Dataset(; zip(restart_names, restart_cubes)...)
+    padded_names = Vector{Symbol}[setdiff(DD.name.(DD.dims(o_cube)), (DD.name.(out.outaxes)..., space_dims...)) for (out, o_cube) ∈ zip(collect(Any, all_output), outcubes)]
+    dropped_cubes = Any[dropPaddedDimsYax(o_cube, padded) for (o_cube, padded) ∈ zip(outcubes, padded_names)]
+    output_ds = datasetFromCubes(varnames, dropped_cubes[1:n_out])
+    restart_ds = datasetFromCubes(restart_names, dropped_cubes[(n_out+1):end])
     # a pool can also be an output variable, so the restart cubes get their own keys
     restart_keys = map(r -> Symbol("restart_", r), restart_names)
     xmap_keys = (varnames..., restart_keys...)
-    xmap_cubes = (; dataset=Dataset(; zip(xmap_keys, outcubes)...),
+    xmap_cubes = (; dataset=datasetFromCubes(xmap_keys, outcubes),
         padded_names=Dict(zip(xmap_keys, padded_names)),
         output_names=varnames, restart_names=restart_names, restart_keys=restart_keys)
     return (; output=output_ds, restart=restart_ds, restart_vars=restart_vars, spinup_mode=getSaveRestartSpinupMode(info), xmap=xmap_cubes)
@@ -253,9 +310,31 @@ zarr store at `store_path`.
 function computeTEMYax(xmap_cubes, store_path; max_cache=5e8)
     computed = YAXArrays.compute_to_zarr(xmap_cubes.dataset, store_path; max_cache=max_cache, overwrite=true)
     stored(key) = dropPaddedDimsYax(computed.cubes[key], xmap_cubes.padded_names[key])
-    output_ds = Dataset(; (name => stored(name) for name ∈ xmap_cubes.output_names)...)
-    restart_ds = Dataset(; (name => stored(key) for (name, key) ∈ zip(xmap_cubes.restart_names, xmap_cubes.restart_keys))...)
+    output_ds = datasetFromCubes(xmap_cubes.output_names, Any[stored(name) for name ∈ xmap_cubes.output_names])
+    restart_ds = datasetFromCubes(xmap_cubes.restart_names, Any[stored(key) for key ∈ xmap_cubes.restart_keys])
     return (; output=output_ds, restart=restart_ds)
+end
+
+"""
+    datasetFromCubes(names, cubes; properties=Dict{String,Any}())
+
+Builds a `Dataset` of `cubes` named by `names`, the same as `Dataset(; cubes...)`.
+
+# Notes:
+- The keyword constructor of `Dataset` is compiled for the types of all its cubes
+  together, which is slow for the cubes of a lazy run. Here the cubes are added one by
+  one to the dictionary of the `Dataset`.
+"""
+function datasetFromCubes(names, cubes; properties=Dict{String,Any}())
+    cube_dict = YAXArrays.Datasets.OrderedDict{Symbol,YAXArray}()
+    axes = Dict{Symbol,DD.Dimension}()
+    for (name, cube) ∈ zip(names, cubes)
+        cube_dict[Symbol(name)] = cube
+        for ax ∈ DD.dims(cube)
+            axes[DD.name(ax)] = ax
+        end
+    end
+    return Dataset(cube_dict, axes, properties)
 end
 
 """
