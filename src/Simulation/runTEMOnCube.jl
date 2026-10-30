@@ -149,6 +149,88 @@ function TEMYaxErased(map_cubes...; tem_kwargs::Base.RefValue{Any})
 end
 
 """
+    getTemplateLandYax(selected_models, forcing, info, tem_info, land_init, forcing_data_info)
+
+Builds the land that every location of a lazy run starts from, with every field of the
+selected models in its final type, as `runTEMOne` does for an eager run.
+
+# Notes:
+- The land is built from a placeholder forcing, see `getPlaceholderForcingYax`, so no
+  forcing is read and no location has to be valid.
+- The model errors are not caught in this step, since the placeholder values of
+  different variables are not consistent with each other. The values of the land are
+  set again for every location by define and precompute.
+"""
+function getTemplateLandYax(selected_models, forcing, info, tem_info, land_init, forcing_data_info)
+    loc_forcing = getPlaceholderForcingYax(forcing, info, forcing_data_info, getTestForcing())
+    loc_forcing_t = getForcingForTimeStep(loc_forcing, loc_forcing, 1, tem_info.vals.forcing_types)
+    model_helpers = (; tem_info.model_helpers..., run=(; tem_info.model_helpers.run..., catch_model_errors=DoNotCatchModelErrors()))
+    return buildFullLand(selected_models, loc_forcing_t, deepcopy(land_init), model_helpers)
+end
+
+"""
+    getPlaceholderForcingYax(forcing, info, forcing_data_info, test_forcing)
+
+Returns a forcing NT of one location with the same types as the forcing that `TEMYax`
+builds from the cubes.
+
+# Arguments:
+- `test_forcing`: the forcing of one location from `getTestForcing`, whose values are
+  used for the variables it has
+
+# Notes:
+- An array has the core dimensions of its cube, i.e., all dimensions but the spatial
+  ones. The time dimension has a length of 1, and the other dimensions, e.g., soil
+  layers, keep their length.
+- A test value with another number of layers than the cube is replaced by its mean.
+- A variable that is not in `test_forcing` is filled with the middle of its bounds, or
+  with one when it has no bounds. The middle of the bounds is not valid for every
+  variable, e.g., soil texture, whose bounds are in percent while the values are
+  fractions, so the test values are preferred.
+"""
+function getPlaceholderForcingYax(forcing, info, forcing_data_info, test_forcing)
+    num_type = info.helpers.numbers.num_type
+    time_name = Symbol(info.experiment.data_settings.forcing.data_dimension.time)
+    arrays = map(Tuple(forcing.variables), Tuple(values(forcing.data)), Tuple(forcing.dims), forcing_data_info) do var_name, cube, core_dims, data_info
+        sizes = map(d -> d == time_name ? 1 : length(DD.dims(cube, d)), core_dims)
+        test_value = get(test_forcing, Symbol(var_name), nothing)
+        if isnothing(test_value)
+            bounds = data_info.bounds
+            value = isnothing(bounds) || isempty(bounds) ? one(num_type) : num_type((first(bounds) + last(bounds)) / 2)
+            fill(value, sizes...)
+        elseif test_value isa Number
+            fill(num_type(test_value), sizes...)
+        elseif length(test_value) == prod(sizes)
+            reshape(num_type.(vec(test_value)), sizes...)
+        else
+            fill(num_type(sum(test_value) / length(test_value)), sizes...)
+        end
+    end
+    return (; Pair.(forcing.variables, arrays)...)
+end
+
+"""
+    getTestForcing()
+
+Returns the forcing of one location in the test data of SindbadTEM, `tmp_forcing` in
+`test/test_data/forcing.jl`, or an empty NT when the file is not found.
+
+# Notes:
+- Only the `tmp_forcing` expression of the file is evaluated, in a new module, so the
+  packages that the file loads do not have to be available.
+"""
+function getTestForcing()
+    path = joinpath(pkgdir(SindbadTEM), "test", "test_data", "forcing.jl")
+    isfile(path) || return (;)
+    for ex ∈ Meta.parseall(read(path, String)).args
+        if ex isa Expr && ex.head == :(=) && ex.args[1] == :tmp_forcing
+            return Core.eval(Module(), ex.args[2])
+        end
+    end
+    return (;)
+end
+
+"""
     getForcingDataInfo(info, forcing_vars)
 
 Returns the cleaning info of every forcing variable, i.e., the settings of the variable
@@ -225,13 +307,14 @@ function runTEMYax(selected_models, forcing::NamedTuple, info::NamedTuple)
     indims = (indims..., map(_ -> (), parameter_cubes)...)
     # information for running model
     run_helpers = prepTEM(forcing, info);
-    loc_land = deepcopy(run_helpers.loc_land);
-    _data_fill = 0.0f0
     _num_type = Val{info.helpers.numbers.num_type}()
     _forcing_data_info = getForcingDataInfo(info, forcing.variables)
+    # every location starts from this land, so the land keeps one type in all models
+    loc_land = getTemplateLandYax(selected_models, forcing, info, run_helpers.tem_info, run_helpers.loc_land, _forcing_data_info)
+    checkOutputLayers(info.output.variables, info.output.depth_info, loc_land)
     #output = XOutput.(getproperty.(run_helpers.output_dims, :axisdesc))
     output = run_helpers.output_dims
-    # land_init already has every pool, so no model run is needed to find them
+    # the template land has every pool
     restart = getRestartDimsArrays(info, forcing.helpers, loc_land)
     restart_vars = restart.variables
     restart_output = getRestartOutDimsYax(info, restart.dims_pairs)

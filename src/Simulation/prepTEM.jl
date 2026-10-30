@@ -953,21 +953,56 @@ run the SINDBAD TEM for one time step
 """
 function runTEMOne(selected_models, loc_forcing, land_init, tem, spinup_sequence)
     loc_forcing_t = getForcingForTimeStep(loc_forcing, loc_forcing, 1, tem.vals.forcing_types)
-    loc_land = definePrecomputeTEM(selected_models, loc_forcing_t, land_init,
-        tem.model_helpers)
-    # copied, since the step can update the pool arrays in place
-    pools_before = deepcopy(loc_land.pools)
-    loc_land = computeTEM(selected_models, loc_forcing_t, loc_land, tem.model_helpers)
-    loc_land = (; loc_land..., pools=pools_before)
-    # loc_land = drop_empty_namedtuple_fields(loc_land)
+    loc_land = buildFullLand(selected_models, loc_forcing_t, land_init, tem.model_helpers)
     loc_land = addSpinupStore(loc_land, spinup_sequence, tem.run.store_spinup)
     checkSpinupInput(loc_land, loc_forcing_t, spinup_sequence)
-    # loc_land = definePrecomputeTEM(selected_models, loc_forcing_t, loc_land,
-        # tem.model_helpers)
-    # loc_land = precomputeTEM(selected_models, loc_forcing_t, loc_land,
-        # tem.model_helpers)
-    # loc_land = computeTEM(selected_models, loc_forcing_t, loc_land, tem.model_helpers)
     return loc_forcing_t, loc_land
+end
+
+"""
+    buildFullLand(selected_models, loc_forcing_t, land_init, model_helpers)
+
+Builds the land with every field of the selected models in its final type, by running
+define, precompute and compute of the models for one time step.
+
+# Arguments:
+- `selected_models`: a tuple of all models selected in the given model structure
+- `loc_forcing_t`: the forcing NT of one location for one time step
+- `land_init`: the initial land from `createInitLand`
+- `model_helpers`: the model helpers of `tem_info`
+
+# Notes:
+- The pools are set back to their values before the time step.
+- The groups of the land named after the models that no model fills are dropped, see
+  `dropEmptyProcessGroups`.
+"""
+function buildFullLand(selected_models, loc_forcing_t, land_init, model_helpers)
+    loc_land = definePrecomputeTEM(selected_models, loc_forcing_t, land_init, model_helpers)
+    # copied, since the step can update the pool arrays in place
+    pools_before = deepcopy(loc_land.pools)
+    loc_land = computeTEM(selected_models, loc_forcing_t, loc_land, model_helpers)
+    loc_land = (; loc_land..., pools=pools_before)
+    return dropEmptyProcessGroups(loc_land)
+end
+
+const LAND_MAIN_GROUPS = (:fluxes, :pools, :states, :diagnostics, :properties, :models, :constants)
+
+"""
+    dropEmptyProcessGroups(land)
+
+Drops the groups of the land that are named after a model and are empty after a time
+step of all models.
+
+# Notes:
+- `createInitLand` adds one group per model, but most models never fill theirs. The
+  empty groups are part of the type of the land and make every function that takes the
+  land slower to compile.
+- The main groups, such as `states`, are always kept, since a model can add to them
+  later, e.g., the spinup store.
+"""
+function dropEmptyProcessGroups(land)
+    keep = filter(k -> k ∈ LAND_MAIN_GROUPS || !isempty(getfield(land, k)), keys(land))
+    return NamedTuple{keep}(map(k -> getfield(land, k), keep))
 end
 
 """
