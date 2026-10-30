@@ -14,7 +14,7 @@ Streamline the ingestion and preprocessing of input data for SINDBAD experiments
 - `AxisKeys`: Labeled multidimensional arrays (`KeyedArray`).
 - `DimensionalData`: Dimension-aware indexing/slicing.
 - `FillArrays`: Efficient filled-array representations.
-- `Interpolations`: Interpolation methods passed to `YAXArrays.xresample` when forcing is remapped to a target resolution.
+- `Interpolations`: Interpolation methods of `resampleCube` when forcing or parameters are put on the space and time of the run.
 - `YAXArrays`, `YAXArrayBase`: Multidimensional array/cube abstractions used for IO and spatial data. `YAXArrays.open_dataset` reads both netcdf and zarr sources uniformly.
 - `NetCDF`, `Zarr`: not called directly for I/O; merely having them loaded activates YAXArrayBase's `NetCDFExt`/`ZarrExt` backends that `open_dataset` dispatches to. `NetCDF` is also used directly by some example scripts via `DataLoaders.NetCDF.open`.
 
@@ -26,6 +26,7 @@ Streamline the ingestion and preprocessing of input data for SINDBAD experiments
 # Included Files
 - **`utilsDataLoaders.jl`**: Utility functions for data preprocessing (cleaning, masking, bounds checks).
 - **`spatialSubset.jl`**: Spatial operations (extracting subsets based on spatial dimensions).
+- **`resampleCube.jl`**: Interpolation methods that put a cube on target dimensions, with `resampleValues!` to extend for new methods.
 - **`getForcing.jl`**: Extracting and processing forcing data (environmental drivers).
 - **`getParameters.jl`**: Loading and checking the parameters per location from a json or zarr/nc parameters input.
 - **`getObservation.jl`**: Reading and processing observational data for evaluation/validation.
@@ -50,13 +51,15 @@ module DataLoaders
    using Interpolations: Interpolations
    using NetCDF
    using YAXArrayBase
-   using YAXArrays: YAXArrays, Cube, YAXArray
+   using YAXArrays: YAXArrays, Cube, YAXArray, xmap, XOutput, ⊘
+   using InteractiveUtils: subtypes
    using YAXArrays.DAT: InDims
    using Zarr
    using TimeSamplers
 
    include("utilsDataLoaders.jl")
    include("spatialSubset.jl")
+   include("resampleCube.jl")
    include("getForcing.jl")
    include("getParameters.jl")
    include("getObservation.jl")

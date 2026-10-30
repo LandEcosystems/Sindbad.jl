@@ -155,42 +155,6 @@ function collectTypesTiDim(incube::YAXArrays.YAXArray, time_dim_name::Symbol)
     end
 end
 
-# DiskArrayEngine interpolates each output block from a window of 2 input points per
-# axis, so only methods of degree 0 and 1 are valid here.
-const FORCING_INTERPOLATION_METHODS = (
-    Nearest=Interpolations.Constant(),
-    Constant=Interpolations.Constant(),
-    Previous=Interpolations.Constant(Interpolations.Previous),
-    Next=Interpolations.Constant(Interpolations.Next),
-    Linear=Interpolations.Linear(),
-)
-
-"""
-    getInterpolationMethod(method_name::AbstractString)
-
-Returns the Interpolations.jl method for the name given in the forcing settings.
-
-# Arguments:
-- `method_name`: One of `"Nearest"`, `"Constant"`, `"Previous"`, `"Next"` or `"Linear"`.
-  `"None"` is handled before this call in `resampleToTarget` and has no method.
-
-# Returns:
-- The interpolation method to pass to `YAXArrays.xresample`.
-
-# Notes:
-- `"Nearest"` and `"Constant"` are the same method.
-- Higher order methods such as `Quadratic` or `Cubic` are not supported, because
-  DiskArrayEngine interpolates each output block from only 2 input points per axis.
-"""
-function getInterpolationMethod(method_name::AbstractString)
-    method_key = Symbol(method_name)
-    if !hasproperty(FORCING_INTERPOLATION_METHODS, method_key)
-        valid_names = join(["None", string.(keys(FORCING_INTERPOLATION_METHODS))...], ", ")
-        error("unknown forcing interpolation method `$(method_name)`. Valid methods are: $(valid_names). Quadratic and Cubic are not supported because each output value is interpolated from 2 input points per axis.")
-    end
-    return getproperty(FORCING_INTERPOLATION_METHODS, method_key)
-end
-
 """
     toSymbolVector(dim_names)
 
@@ -242,7 +206,10 @@ Merges the default forcing settings with the settings of one variable.
 # Notes:
 - `dimension` falls back to `data_dimension.space` and `data_dimension.time`.
 - `interpolation_method` falls back to `"None"`, so a variable is not interpolated
-  along an axis unless `default_forcing` or the variable itself sets a method.
+  along an axis unless `default_forcing` or the variable itself sets a method. A
+  method is a name or a group with the name in `method` and its options, see
+  `getInterpolationMethod`. The setting of the variable for an axis replaces that of
+  `default_forcing` as a whole.
 """
 function getForcingVariableInfo(default_info, var_settings, forcing_data_settings)
     vinfo = merge_namedtuple_prefer_nonempty(default_info, var_settings)
@@ -331,35 +298,43 @@ function isSameLookup(lookup_a, lookup_b)
 end
 
 """
-    resampleToTarget(incube, target_dims, method_name, num_type, var_name)
+    resampleToTarget(incube, target_dims, method_setting, axis, num_type, var_name)
 
-Remaps a forcing cube to the target dimensions with the given interpolation method.
+Puts a forcing or parameter cube on the target dimensions with an interpolation
+method.
 
 # Arguments:
 - `incube`: The forcing cube.
 - `target_dims`: A Tuple of target dimensions, or `nothing` to skip.
-- `method_name`: The name of the interpolation method, see `getInterpolationMethod`.
+- `method_setting`: The interpolation method, a name or a group with the name in
+  `method` and its options, see `getInterpolationMethod`.
+- `axis`: `:space` or `:time`, which sets the methods that `method_setting` can name.
 - `num_type`: The number type of the remapped cube.
 - `var_name`: The name of the forcing variable, used in the log.
 
 # Returns:
 - The remapped cube. It is returned unchanged when it already matches every target
-  dimension that it has, or when `method_name` is `"None"`.
+  dimension that it has, or when the method is `"None"`.
+
+# Notes:
+- All target dimensions of the cube go to the method together, also one that already
+  matches, so a method can combine them, e.g. latitude and longitude. See
+  `resampleCube`.
 """
-function resampleToTarget(incube, target_dims, method_name, num_type, var_name)
+function resampleToTarget(incube, target_dims, method_setting, axis, num_type, var_name)
     isnothing(target_dims) && return incube
-    needs_resample = any(target_dims) do target_dim
-        dim_name = DD.name(target_dim)
-        hasdim(incube, dim_name) && !isSameLookup(DD.lookup(incube, dim_name), DD.lookup(target_dim))
+    cube_target_dims = filter(target_dim -> hasdim(incube, DD.name(target_dim)), target_dims)
+    needs_resample = any(cube_target_dims) do target_dim
+        !isSameLookup(DD.lookup(incube, DD.name(target_dim)), DD.lookup(target_dim))
     end
     needs_resample || return incube
-    if method_name == "None"
-        target_names = join(string.(DD.name.(target_dims)), ", ")
+    method = getInterpolationMethod(method_setting, axis)
+    if method isa Union{SpaceInterpNone,TimeInterpNone}
+        target_names = join(string.(DD.name.(cube_target_dims)), ", ")
         print_info(nothing, @__FILE__, @__LINE__, "`$(var_name)` keeps its own $(target_names) because its interpolation_method is None", n_m=4)
         return incube
     end
-    method = getInterpolationMethod(method_name)
-    return YAXArrays.xresample(incube; to=target_dims, method=method, outtype=num_type)
+    return resampleCube(incube, cube_target_dims, method, num_type)
 end
 
 """
@@ -400,8 +375,8 @@ function remapForcing(incubes, vinfos, forcing_data_settings, ::Val{num_type}) w
     time_note = isnothing(time_variable) ? "switched off" : "`$(time_variable)`"
     print_info(remapForcing, @__FILE__, @__LINE__, "remapping forcing variables to target resolution. space: $(space_note), time: $(time_note)")
     return map(incubes, vinfos) do (var_name, incube), vinfo
-        incube = resampleToTarget(incube, space_target, vinfo.interpolation_method.space, num_type, var_name)
-        resampleToTarget(incube, time_target, vinfo.interpolation_method.time, num_type, var_name)
+        incube = resampleToTarget(incube, space_target, vinfo.interpolation_method.space, :space, num_type, var_name)
+        resampleToTarget(incube, time_target, vinfo.interpolation_method.time, :time, num_type, var_name)
     end
 end
 

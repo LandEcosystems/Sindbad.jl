@@ -236,7 +236,8 @@ table of the selected model structure.
 - `time_dimension` and `time_method` are the `time` of the `dimension` and
   `interpolation_method` groups, from the variable, then `default_parameter_map`. They
   default to `time` and `Previous`, so a value holds from its time stamp until the
-  next one.
+  next one. `time_method` is kept as set, a name or a group with options, and is
+  checked here, see `getInterpolationMethod`.
 """
 function resolveParameterVariable(var_name, var_source, parameter_input, attributes, info)
     var_string = string(var_name)
@@ -275,7 +276,8 @@ function resolveParameterVariable(var_name, var_source, parameter_input, attribu
     end
     # the time settings are groups like those of a forcing variable
     time_dimension = string(firstSetValue(:time, "time", getSettingValue(var_settings, :dimension), getSettingValue(default_map, :dimension)))
-    time_method = string(firstSetValue(:time, "Previous", getSettingValue(var_settings, :interpolation_method), getSettingValue(default_map, :interpolation_method)))
+    time_method = firstSetValue(:time, "Previous", getSettingValue(var_settings, :interpolation_method), getSettingValue(default_map, :interpolation_method))
+    getInterpolationMethod(time_method, :time)
 
     num_type = info.helpers.numbers.num_type
     timescale_run = string(get_setting(:timescale_run, ""))
@@ -397,7 +399,7 @@ function getParameterValuesByLocationAndTime(yax, forcing_axes, space_dims, forc
     yax = setParameterTimeStamps(yax, source_time, time_name)
     counts = countReplacedValues(yax.data, p_row, num_type)
     warnReplacedValues(p_row, counts, "values")
-    yax = resampleToTarget(yax, (forcing_time_dim,), p_row.time_method, num_type, var_name)
+    yax = resampleToTarget(yax, (forcing_time_dim,), p_row.time_method, :time, num_type, var_name)
     if length(DD.lookup(yax, time_name)) != length(forcing_time_dim)
         error("The parameter variable `$(var_name)` is not on the time steps of the run, because its time `interpolation_method` is `$(p_row.time_method)`. Use a method such as `Previous`.")
     end
