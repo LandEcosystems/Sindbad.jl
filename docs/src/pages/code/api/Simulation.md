@@ -504,7 +504,7 @@ end
 
 function getSpatialInfo(forcing, filter_nan_pixels)
     space_ind, loc_space_maps = getSpatialInfo(forcing.helpers)
-    loc_space_maps = filterNanPixels(forcing, loc_space_maps, filter_nan_pixels)
+    loc_space_maps = filterNanGrids(forcing, loc_space_maps, filter_nan_pixels)
     space_ind = Tuple([Tuple(last.(loc_space_map)) for loc_space_map ∈ loc_space_maps])
     return space_ind
 end

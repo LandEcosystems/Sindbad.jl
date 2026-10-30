@@ -116,7 +116,7 @@ function TEMYax(map_cubes...;selected_models, forcing_vars, loc_land::NamedTuple
     outputs, inputs, restarts, parameter_inputs = unpackYaxForward(map_cubes; output_vars, forcing_vars, restart_vars)
     selected_models = setLocationParametersYax(selected_models, parameter_to_index, parameter_inputs)
     selected_models = setTimeVaryingModels(selected_models, parameter_inputs, parameter_time)
-    # the same rule as filterNanPixels: a pixel with an invalid forcing value at any
+    # the same rule as filterNanGrids: a grid with an invalid forcing value at any
     # time step is not run, and its output and restart stay NaN
     if any(in_forcing -> any(is_invalid_number, in_forcing), inputs)
         foreach(xout -> fill!(xout, NaN), outputs)
@@ -412,7 +412,7 @@ end
 
 """
     getMaxCacheYax(info, in_cubes, out_cubes=(); n_forcing=length(in_cubes),
-        pixels_per_thread=4, memory_fraction=0.66)
+        grids_per_thread=4, memory_fraction=0.66)
     getMaxCacheYax(info, xmap_cubes)
 
 Returns the cache size of a cube run, `compute_to_zarr` or `mapCube`, from the
@@ -426,42 +426,42 @@ the cache is computed.
 - `out_cubes`: the output cubes of the run, empty when they are not built yet
 - `xmap_cubes`: the `xmap` field returned by `runTEMYax`, which holds both
 - `n_forcing`: the number of forcing cubes at the start of `in_cubes`
-- `pixels_per_thread`: the number of valid locations per thread in a block
+- `grids_per_thread`: the number of valid grids per thread in a block
 - `memory_fraction`: the largest share of the available memory for the run
 
 # Notes:
-- A cube run reads, runs and writes one block of locations at a time, and the
-  threads only share the locations of that block. A location with invalid forcing
-  returns at once, so a block with fewer valid locations than threads leaves the
-  other threads idle. The computed cache fits `pixels_per_thread` valid locations per
+- A cube run reads, runs and writes one block of grids at a time, and the
+  threads only share the grids of that block. A grid with invalid forcing
+  returns at once, so a block with fewer valid grids than threads leaves the
+  other threads idle. The computed cache fits `grids_per_thread` valid grids per
   thread.
-- The bytes of a location are summed over the input and output cubes. A cube without
-  a spatial dimension is read once for all locations of a block and is not counted.
-- The share of valid locations is counted from the forcing without time, since
+- The bytes of a grid are summed over the input and output cubes. A cube without
+  a spatial dimension is read once for all grids of a block and is not counted.
+- The share of valid grids is counted from the forcing without time, since
   reading the forcing with time costs as much as the run.
 - The cache only holds the input and output buffers of a block. Reading or writing a
   block can copy each buffer once more, and every thread holds the data of its own
-  location, so the run is taken to need twice the cache and one location per thread.
+  grid, so the run is taken to need twice the cache and one grid per thread.
   This is kept within `memory_fraction` of the memory that is available when the
   cache is computed, which excludes what the session already holds.
 """
-function getMaxCacheYax(info, in_cubes, out_cubes=(); n_forcing=length(in_cubes), pixels_per_thread=4, memory_fraction=0.66)
+function getMaxCacheYax(info, in_cubes, out_cubes=(); n_forcing=length(in_cubes), grids_per_thread=4, memory_fraction=0.66)
     max_cache = get(info.experiment.exe_rules, :yax_max_cache, nothing)
     max_cache isa Real && return max_cache
     isnothing(max_cache) || error("experiment.exe_rules.yax_max_cache must be a number of bytes, or null to compute it, got `$(max_cache)`")
     data_dimension = info.experiment.data_settings.forcing.data_dimension
     space_dims = Symbol.(data_dimension.space)
     time_name = Symbol(data_dimension.time)
-    bytes_per_pixel = sum(cube -> getBytesPerPixelYax(cube, space_dims), (in_cubes..., out_cubes...))
+    bytes_per_grid = sum(cube -> getBytesPerGridYax(cube, space_dims), (in_cubes..., out_cubes...))
     valid_fraction = getValidFractionYax(in_cubes[1:n_forcing], space_dims, time_name)
     n_threads = Threads.nthreads()
-    n_pixels = ceil(Int, pixels_per_thread * n_threads / valid_fraction)
-    cache = n_pixels * bytes_per_pixel
-    print_info(getMaxCacheYax, @__FILE__, @__LINE__, "computed cache of $(round(cache / 1e9; digits=2)) GB: $(n_pixels) locations per block at $(round(bytes_per_pixel / 1e6; digits=2)) MB each, for $(pixels_per_thread) valid locations on each of $(n_threads) threads with $(round(100 * valid_fraction; digits=1))% of locations valid", n_m=4)
+    n_grids = ceil(Int, grids_per_thread * n_threads / valid_fraction)
+    cache = n_grids * bytes_per_grid
+    print_info(getMaxCacheYax, @__FILE__, @__LINE__, "computed cache of $(round(cache / 1e9; digits=2)) GB: $(n_grids) grids per block at $(round(bytes_per_grid / 1e6; digits=2)) MB each, for $(grids_per_thread) valid grids on each of $(n_threads) threads with $(round(100 * valid_fraction; digits=1))% of grids valid", n_m=4)
     available_memory = Sys.free_memory()
-    thread_memory = n_threads * bytes_per_pixel
+    thread_memory = n_threads * bytes_per_grid
     memory_limit = (memory_fraction * available_memory - thread_memory) / 2
-    memory_limit > bytes_per_pixel || error("$(round(Int, 100 * memory_fraction))% of the $(round(available_memory / 1e9; digits=2)) GB of available memory is too small to run $(n_threads) threads at $(round(bytes_per_pixel / 1e6; digits=2)) MB per location. Use fewer threads or more memory.")
+    memory_limit > bytes_per_grid || error("$(round(Int, 100 * memory_fraction))% of the $(round(available_memory / 1e9; digits=2)) GB of available memory is too small to run $(n_threads) threads at $(round(bytes_per_grid / 1e6; digits=2)) MB per grid. Use fewer threads or more memory.")
     if cache > memory_limit
         @warn "The computed cache of $(round(cache / 1e9; digits=2)) GB needs up to $(round((2 * cache + thread_memory) / 1e9; digits=2)) GB for the run, more than $(round(Int, 100 * memory_fraction))% of the $(round(available_memory / 1e9; digits=2)) GB of available memory. It is set to $(round(memory_limit / 1e9; digits=2)) GB, so some threads stay idle."
         cache = memory_limit
@@ -472,12 +472,12 @@ end
 getMaxCacheYax(info, xmap_cubes::NamedTuple) = getMaxCacheYax(info, xmap_cubes.in_cubes, values(xmap_cubes.dataset.cubes); n_forcing=xmap_cubes.n_forcing)
 
 """
-    getBytesPerPixelYax(cube, space_dims)
+    getBytesPerGridYax(cube, space_dims)
 
-Returns the bytes of one location of `cube`, or zero when it has no spatial
+Returns the bytes of one grid of `cube`, or zero when it has no spatial
 dimension.
 """
-function getBytesPerPixelYax(cube, space_dims)
+function getBytesPerGridYax(cube, space_dims)
     cube_dims = DD.dims(cube)
     any(d -> DD.name(d) ∈ space_dims, cube_dims) || return 0
     n_values = prod((length(d) for d ∈ cube_dims if DD.name(d) ∉ space_dims); init=1)
@@ -487,7 +487,7 @@ end
 """
     getValidFractionYax(forcing_cubes, space_dims, time_name)
 
-Returns the share of locations without an invalid value in the forcing cubes that
+Returns the share of grids without an invalid value in the forcing cubes that
 have every spatial dimension and no time, or one when there is no such cube.
 """
 function getValidFractionYax(forcing_cubes, space_dims, time_name)
