@@ -353,12 +353,13 @@ function subsetAndProcessYax(yax, forcing_mask, tar_dims, _data_info, info, ::Va
         @debug "         -> permuting dimensions to $(tar_dims)..."
         yax = permutedims(yax, permutes)
     end
-    if hasproperty(yax, Symbol(forcing_data_settings.data_dimension.time))
+    time_name = Symbol(forcing_data_settings.data_dimension.time)
+    if hasproperty(yax, time_name)
         init_date = DateTime(info.helpers.dates.date_begin)
         # date_end covers its whole timestep, so data stamped within the last period
         # such as a daily value at 11:00 UTC is kept and matches the dates range.
         last_date = DateTime(info.helpers.dates.date_end) + info.helpers.dates.timestep - Millisecond(1)
-        yax = yax[time=(init_date .. last_date)]
+        yax = getindex(yax; (time_name => init_date .. last_date,)...)
     end
 
     if hasproperty(forcing_data_settings, :subset)

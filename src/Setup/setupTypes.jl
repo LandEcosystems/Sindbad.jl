@@ -20,6 +20,7 @@ Converts model run-related flags from the experiment configuration into types fo
 - Flags are processed recursively:
   - If a flag is a `NamedTuple`, its subfields are converted into types.
   - If a flag is a scalar, it is directly converted into a type using `getTypeInstanceForFlags`.
+- `filter_nan_pixels` is true when the experiment does not set it.
 - The resulting `new_run` NamedTuple is used for type-based dispatch in SINDBAD's model execution.
 
 # Examples
@@ -32,7 +33,9 @@ julia> # new_run = convertRunFlagsToTypes(info)
 """
 function convertRunFlagsToTypes(info)
     new_run = (;)
-    dr = deepcopy(info.settings.experiment.flags)
+    # a pixel with invalid forcing cannot be simulated, so it is skipped unless the
+    # experiment turns filtering off
+    dr = merge((; filter_nan_pixels=true), deepcopy(info.settings.experiment.flags))
     for pr in propertynames(dr)
         prf = getfield(dr, pr)
         prtoset = nothing

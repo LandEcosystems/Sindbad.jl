@@ -97,6 +97,83 @@ The `forcing_mask` section configures spatial subsetting of forcing data, enabli
 Temporal subsetting is configured in the `time` section of `experiment.json`.
 :::
 
+## Resampling to a Target Resolution
+
+The `target_resolution` section puts all forcing variables on the space grid of one variable and the time axis of another. Each variable is resampled with its `interpolation_method`, set in `default_forcing` or for the variable. A method is a name, or a group with the name in `method` and its options. The setting of a variable for an axis replaces that of `default_forcing` as a whole. Without a method, `"none"`, a variable keeps its own grid or time axis.
+
+:::tabs
+
+== Explanation
+```json
+"target_resolution": {
+    "space": {"variable": "Variable whose space grid is the target", "apply": "false skips the space resampling"},
+    "time": {"variable": "Variable whose time axis is the target", "apply": "false skips the time resampling"}
+},
+"default_forcing": {
+    "interpolation_method": {
+        "space": "Method name, or a group with method and options",
+        "time": "Method name, or a group with method and options"
+    }
+}
+```
+
+== Example
+```json
+"target_resolution": {
+    "space": {"variable": "f_pft", "apply": true},
+    "time": {"variable": "f_airT", "apply": true}
+},
+"default_forcing": {
+    "interpolation_method": {
+        "space": "zhao2004",
+        "time": {"method": "cubic", "boundary": "flat", "extrapolation": "nan"}
+    }
+},
+"variables": {
+    "f_pft": {"interpolation_method": {"space": "nearest"}}
+}
+```
+:::
+
+Space and time have separate methods, so `interpolation_method.space` takes only space methods and `interpolation_method.time` only time methods.
+
+**Space methods**
+
+| Method | Options | Notes |
+|:--|:--|:--|
+| `none` | | no resampling |
+| `nearest`, `constant` | `extrapolation` | value of the nearest grid |
+| `linear` | `extrapolation` | linear along each axis |
+| `quadratic`, `cubic` | `boundary`, `grid`, `extrapolation` | B-spline fitted to the source grids within 12 and 16 grids of each block of target grids, so an invalid value makes the target grids that far from it invalid |
+| `lanczos` | `order`, `extrapolation` | Lanczos with `order` lobes, 4 by default |
+| `lanczos_opencv` | `extrapolation` | Lanczos of order 4 as in OpenCV |
+| `zhao2004` | `power` | weights the four surrounding grids by cos(π/2 d/d_max)^`power` of their great-circle distance, equations 3 to 5 of Zhao et al. 2005, Remote Sensing of Environment 95; `power` is 4 by default |
+
+**Time methods**
+
+| Method | Options | Notes |
+|:--|:--|:--|
+| `none` | | no resampling |
+| `nearest`, `constant` | `extrapolation` | nearest value in time |
+| `previous`, `next` | `extrapolation` | previous or next value in time |
+| `linear` | `extrapolation` | linear |
+| `quadratic`, `cubic` | `boundary`, `grid`, `extrapolation` | B-spline fitted to the whole series, so one invalid value makes the whole series invalid |
+| `lanczos` | `order`, `extrapolation` | Lanczos with `order` lobes, 4 by default |
+| `lanczos_opencv` | `extrapolation` | Lanczos of order 4 as in OpenCV |
+| `linear_monotonic`, `finite_difference_monotonic`, `fritsch_carlson_monotonic`, `fritsch_butland_monotonic`, `steffen_monotonic`, `akima_monotonic` | `extrapolation` | monotonic methods on the time coordinates |
+| `cardinal_monotonic` | `tension`, `extrapolation` | `tension` from 0 to 1, 0 by default |
+
+The options take these values, with the default first:
+- `extrapolation`: `flat`, `line`, `periodic`, `reflect`, `throw`, `nan`
+- `boundary`: `line`, `flat`, `free`, `periodic`, `reflect`
+- `grid`: `on_grid`, `on_cell`
+
+A name is written in snake case, and the first letter of each word may be upper case, so `"Linear"` and `"linear"` are the same method. Parameter maps that vary in time take the time methods in their `interpolation_method.time`, with `previous` as the default.
+
+::: tip Custom methods
+A method is a type: add a subtype of `SpaceInterpolationMethod` or `TimeInterpolationMethod` with its options as fields in `src/Types/InputTypes.jl`, and a method of `resampleValues!` in `src/DataLoaders/resampleCube.jl`. `resampleValues!` gets the source values with the coordinates and cell bounds of every resampled axis, so a space method can combine latitude and longitude, and a method can keep the sums or means of cells. The name in the settings is the type name without `SpaceInterp` or `TimeInterp` in snake case, e.g. `SpaceInterpZhao2004` is `"zhao2004"`. A space method that only needs the source grids near each target grid also declares `resampleRadius`, so a lazy run resamples each target grid once; without it the method gets the whole field, which a lazy run recomputes for every block it reads. What a method can compute from the axes alone, e.g. its weights, goes into `resamplePlan`, so it is computed once per block instead of at every time step.
+:::
+
 ## Variable Configuration
 
 The `variables` section lists all forcing variables required for the experiment. Only settings that differ from `default_forcing` need to be specified.

@@ -149,7 +149,7 @@ end
 function runExperiment(info::NamedTuple, forcing::NamedTuple, ::Union{DoRunForward, DoNotRunOptimization})
     run_output = runForward(forcing, info, info.helpers.run.run_lazy)
     set_log_level()
-    return (; forcing, info, output=run_output.output, restart=run_output.restart, spinup=run_output.spinup)
+    return (; forcing, info, output=run_output.output, restart=run_output.restart, spinup=run_output.spinup, xmap=get(run_output, :xmap, nothing))
 end
 
 
@@ -160,7 +160,7 @@ function runExperiment(info::NamedTuple, forcing::NamedTuple, ::DoRunOptimizatio
     run_output = nothing
     if isempty(additionaldims)
         print_info(runExperiment, @__FILE__, @__LINE__, "run optimization per pixel...")
-        run_output = optimizeTEMYax(forcing, info.tem, info.optimization, observations; max_cache=info.settings.experiment.exe_rules.yax_max_cache)
+        run_output = optimizeTEMYax(forcing, info.tem, info.optimization, observations; max_cache=getMaxCacheYax(info, (forcing.data..., observations.data...); n_forcing=length(forcing.data)))
     else
         print_info(runExperiment, @__FILE__, @__LINE__, "run optimization for spatial domain...")
         obs_array = [Array(_o) for _o in observations.data]; # TODO: necessary now for performance because view of keyedarray is slow
@@ -259,9 +259,11 @@ function runExperimentForward(sindbad_experiment::String; replace_info=Dict(), l
     info, forcing = prepExperiment(sindbad_experiment; replace_info=replace_info)
     run_output = runExperiment(info, forcing, info.helpers.run.run_forward)
     output_dims = getOutDims(info, forcing.helpers)
-    saveOutCubes(info, values(run_output.output), output_dims, info.output.variables)
-    saveRestartCubes(info, run_output.restart)
+    saved_output, lazy_store = computeLazyRun(info, run_output, info.helpers.run.run_lazy)
+    saveOutCubes(info, values(saved_output.output), output_dims, info.output.variables)
+    saveRestartCubes(info, saved_output.restart)
     saveSpinupCubes(info, run_output.spinup)
+    isnothing(lazy_store) || rm(lazy_store; recursive=true)
     # the figures need the forcing and output in memory, which a lazy run does not
     # have
     info.helpers.run.run_lazy isa DoRunLazy || plotForwardRun(info, forcing, run_output.output, run_output.spinup)
@@ -484,5 +486,36 @@ end
 function runForward(selected_models, forcing, info, ::DoRunLazy)
     run_output = runTEMYax(selected_models, forcing, info)
     restart = (; dataset=run_output.restart, variables=run_output.restart_vars, spinup_mode=run_output.spinup_mode)
-    return (; output=run_output.output, restart=restart, spinup=nothing)
+    return (; output=run_output.output, restart=restart, spinup=nothing, xmap=run_output.xmap)
+end
+
+"""
+    computeLazyRun(info, run_output, run_lazy_mode)
+
+Computes the output and restart cubes of a lazy run in one pass before they are saved.
+
+# Arguments:
+- `info`: a SINDBAD NT with all information needed for setup and execution of an experiment
+- `run_output`: the output of `runExperiment`
+- `run_lazy_mode`: `DoRunLazy` or `DoNotRunLazy`
+
+# Returns:
+- `run_output` with its `output` and `restart` read from the computed store, and the
+  path of that store, which the caller removes after saving. A run that is not lazy is
+  returned as it is, with `nothing` for the path.
+
+# Notes:
+- The store is `lazy_run.zarr` in the data output directory. Saving from it only
+  copies data, while saving the lazy cubes directly runs the model once per variable.
+"""
+function computeLazyRun end
+
+computeLazyRun(_, run_output, ::DoNotRunLazy) = (run_output, nothing)
+
+function computeLazyRun(info, run_output, ::DoRunLazy)
+    store_path = joinpath(info.output.dirs.data, "lazy_run.zarr")
+    print_info(computeLazyRun, @__FILE__, @__LINE__, "computing all output and restart cubes in one pass to `$(store_path)`", n_m=4)
+    computed = computeTEMYax(run_output.xmap, store_path; max_cache=getMaxCacheYax(info, run_output.xmap))
+    restart = (; run_output.restart..., dataset=computed.restart)
+    return (; run_output..., output=computed.output, restart=restart), store_path
 end

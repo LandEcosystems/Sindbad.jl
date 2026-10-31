@@ -1,5 +1,40 @@
 export runTEMYax
 export TEMYax
+export computeTEMYax
+export getMaxCacheYax
+
+const DiskArrays = YAXArrays.Cubes.DiskArrays
+
+"""
+    ErasedDiskArray{T,N}
+
+A disk array that wraps another array without its type in the type of the wrapper.
+
+# Notes:
+- The type of every cube of an `xmap` holds the types of all its input arrays. With
+  the forcing cubes as inputs, which are views of permuted zarr arrays, these types are
+  huge and every function that handles the cubes is very slow to compile. Wrapped,
+  all inputs with the same element type and number of dimensions share one type.
+- Reading a block dispatches on the wrapped array at run time, which is negligible
+  next to reading the block from disk.
+"""
+struct ErasedDiskArray{T,N} <: DiskArrays.AbstractDiskArray{T,N}
+    parent::AbstractArray{T,N}
+end
+
+Base.parent(a::ErasedDiskArray) = a.parent
+Base.size(a::ErasedDiskArray) = size(a.parent)
+DiskArrays.haschunks(a::ErasedDiskArray) = DiskArrays.haschunks(a.parent)
+DiskArrays.eachchunk(a::ErasedDiskArray) = DiskArrays.eachchunk(a.parent)
+DiskArrays.readblock!(a::ErasedDiskArray, aout, r::OrdinalRange...) = DiskArrays.readblock!(a.parent, aout, r...)
+
+"""
+    eraseCubeType(cube)
+
+Returns `cube` with its data wrapped in an `ErasedDiskArray`, keeping its dimensions,
+properties and chunks.
+"""
+eraseCubeType(cube) = YAXArray(DD.dims(cube), ErasedDiskArray(cube.data), cube.properties; chunks=DiskArrays.eachchunk(cube))
 
 
 """
@@ -29,6 +64,32 @@ function coreTEMYax(selected_models, loc_forcing, loc_land, tem_info, store_rest
     return LandWrapper(land_time_series)
 end
 
+"""
+    coreTEMYax!(loc_output, selected_models, loc_forcing, loc_land, tem_info, store_restart=nothing)
+
+Runs the TEM for one location and writes the output variables of every time step into
+`loc_output`, the same way as `coreTEM!` of an eager run.
+
+# Arguments:
+- `loc_output`: the output arrays of the location, in the order of
+  `tem_info.vals.output_vars`, with time as the first dimension
+- the other arguments are the same as for `coreTEMYax`
+
+# Notes:
+- Only the output variables are kept at each time step, whereas `coreTEMYax` keeps the
+  whole land of every time step and allocates far more memory.
+"""
+function coreTEMYax!(loc_output, selected_models, loc_forcing, loc_land, tem_info, store_restart=nothing)
+    loc_forcing_t = getForcingForTimeStep(loc_forcing, deepcopy(loc_forcing), 1, tem_info.vals.forcing_types)
+    # define, precompute and spinup use the parameters of the first time step when
+    # they vary in time, and the time loop updates them
+    loc_models = initialModels(selected_models)
+    land_prec = definePrecomputeTEM(loc_models, loc_forcing_t, loc_land, tem_info.model_helpers)
+    land_spin = spinupTEMYax(loc_models, loc_forcing, loc_forcing_t, land_prec, tem_info, tem_info.run.spinup_TEM, store_restart)
+    timeLoopTEM!(selected_models, loc_forcing, loc_forcing_t, loc_output, land_spin, tem_info.vals.forcing_types, tem_info.model_helpers, tem_info.vals.output_vars, tem_info.n_timesteps, tem_info.run.debug_model)
+    return nothing
+end
+
 
 """
     TEMYax(map_cubes; loc_land::NamedTuple, tem::NamedTuple, selected_models, forcing_vars::AbstractArray)
@@ -44,16 +105,24 @@ end
 - `parameter_to_index`: the index of each parameter per location in the models, or
   `nothing` when there are none. The values of the location then set the parameters of
   `selected_models` before the run.
+- `parameter_time`: the `getTimeVaryingInfo` of the parameters, or `nothing` when no
+  parameter varies in time. The models of the location are then a
+  `TimeVaryingModels`, which the time loop updates.
 """
-function TEMYax(map_cubes...;selected_models, forcing_vars, loc_land::NamedTuple, output_vars, tem::NamedTuple, clean_data, restart_vars=(), parameter_to_index=nothing)
+function TEMYax(map_cubes...;selected_models, forcing_vars, loc_land::NamedTuple, output_vars, tem::NamedTuple, clean_data, restart_vars=(), parameter_to_index=nothing, parameter_time=nothing)
     # Make NaN check here instead of AllNaN filters
-    
+
 
     outputs, inputs, restarts, parameter_inputs = unpackYaxForward(map_cubes; output_vars, forcing_vars, restart_vars)
     selected_models = setLocationParametersYax(selected_models, parameter_to_index, parameter_inputs)
-    # What exactly should the NaN check be? 
-    # Do I check per variable, or for all variables together?
-    any(in_forcing -> any(v -> ismissing(v) || isnan(v), in_forcing), inputs)
+    selected_models = setTimeVaryingModels(selected_models, parameter_inputs, parameter_time)
+    # the same rule as filterNanGrids: a grid with an invalid forcing value at any
+    # time step is not run, and its output and restart stay NaN
+    if any(in_forcing -> any(is_invalid_number, in_forcing), inputs)
+        foreach(xout -> fill!(xout, NaN), outputs)
+        foreach(xout -> fill!(xout, NaN), restarts)
+        return nothing
+    end
 
     # ? apply clean_data fields to input data points
     _num_type, _forcing_data_info = clean_data
@@ -65,13 +134,108 @@ function TEMYax(map_cubes...;selected_models, forcing_vars, loc_land::NamedTuple
     loc_forcing = (; Pair.(forcing_vars, inputs)...)
     # the restart cubes are filled after the spinup step with `save_restart`
     store_restart = land -> fillRestartYax(restarts, land, restart_vars)
-    land_out = coreTEMYax(selected_models, loc_forcing, loc_land, tem, store_restart)
-    i = 1
-    foreach(output_vars) do var_pair
-        data = land_out[first(var_pair)][last(var_pair)]
-            fillOutputYax(outputs[i], data, var_pair)
-            i += 1
+    # every pixel gets its own copy, as the land has mutable arrays and the pixels can
+    # run on different threads
+    coreTEMYax!(outputs, selected_models, loc_forcing, deepcopy(loc_land), tem, store_restart)
+    return nothing
+end
+
+"""
+    TEMYaxErased(map_cubes...; tem_kwargs)
+
+Runs `TEMYax` for one location with the keyword arguments held in `tem_kwargs[]`.
+
+# Notes:
+- `xmap` makes its function arguments part of the type of every function that runs it.
+  The arguments of `TEMYax` hold the models and the land, which makes those types huge
+  and slow to compile, so `runTEMYax` passes them in a `Ref{Any}` instead.
+- `TEMYax` is called dynamically once per location and is specialized as before.
+"""
+function TEMYaxErased(map_cubes...; tem_kwargs::Base.RefValue{Any})
+    TEMYax(map_cubes...; tem_kwargs[]...)
+    return nothing
+end
+
+"""
+    getTemplateLandYax(selected_models, forcing, info, tem_info, land_init, forcing_data_info)
+
+Builds the land that every location of a lazy run starts from, with every field of the
+selected models in its final type, as `runTEMOne` does for an eager run.
+
+# Notes:
+- The land is built from a placeholder forcing, see `getPlaceholderForcingYax`, so no
+  forcing is read and no location has to be valid.
+- The model errors are not caught in this step, since the placeholder values of
+  different variables are not consistent with each other. The values of the land are
+  set again for every location by define and precompute.
+"""
+function getTemplateLandYax(selected_models, forcing, info, tem_info, land_init, forcing_data_info)
+    loc_forcing = getPlaceholderForcingYax(forcing, info, forcing_data_info, getTestForcing())
+    loc_forcing_t = getForcingForTimeStep(loc_forcing, loc_forcing, 1, tem_info.vals.forcing_types)
+    model_helpers = (; tem_info.model_helpers..., run=(; tem_info.model_helpers.run..., catch_model_errors=DoNotCatchModelErrors()))
+    return buildFullLand(selected_models, loc_forcing_t, deepcopy(land_init), model_helpers)
+end
+
+"""
+    getPlaceholderForcingYax(forcing, info, forcing_data_info, test_forcing)
+
+Returns a forcing NT of one location with the same types as the forcing that `TEMYax`
+builds from the cubes.
+
+# Arguments:
+- `test_forcing`: the forcing of one location from `getTestForcing`, whose values are
+  used for the variables it has
+
+# Notes:
+- An array has the core dimensions of its cube, i.e., all dimensions but the spatial
+  ones. The time dimension has a length of 1, and the other dimensions, e.g., soil
+  layers, keep their length.
+- A test value with another number of layers than the cube is replaced by its mean.
+- A variable that is not in `test_forcing` is filled with the middle of its bounds, or
+  with one when it has no bounds. The middle of the bounds is not valid for every
+  variable, e.g., soil texture, whose bounds are in percent while the values are
+  fractions, so the test values are preferred.
+"""
+function getPlaceholderForcingYax(forcing, info, forcing_data_info, test_forcing)
+    num_type = info.helpers.numbers.num_type
+    time_name = Symbol(info.experiment.data_settings.forcing.data_dimension.time)
+    arrays = map(Tuple(forcing.variables), Tuple(values(forcing.data)), Tuple(forcing.dims), forcing_data_info) do var_name, cube, core_dims, data_info
+        sizes = map(d -> d == time_name ? 1 : length(DD.dims(cube, d)), core_dims)
+        test_value = get(test_forcing, Symbol(var_name), nothing)
+        if isnothing(test_value)
+            bounds = data_info.bounds
+            value = isnothing(bounds) || isempty(bounds) ? one(num_type) : num_type((first(bounds) + last(bounds)) / 2)
+            fill(value, sizes...)
+        elseif test_value isa Number
+            fill(num_type(test_value), sizes...)
+        elseif length(test_value) == prod(sizes)
+            reshape(num_type.(vec(test_value)), sizes...)
+        else
+            fill(num_type(sum(test_value) / length(test_value)), sizes...)
+        end
     end
+    return (; Pair.(forcing.variables, arrays)...)
+end
+
+"""
+    getTestForcing()
+
+Returns the forcing of one location in the test data of SindbadTEM, `tmp_forcing` in
+`test/test_data/forcing.jl`, or an empty NT when the file is not found.
+
+# Notes:
+- Only the `tmp_forcing` expression of the file is evaluated, in a new module, so the
+  packages that the file loads do not have to be available.
+"""
+function getTestForcing()
+    path = joinpath(pkgdir(SindbadTEM), "test", "test_data", "forcing.jl")
+    isfile(path) || return (;)
+    for ex ∈ Meta.parseall(read(path, String)).args
+        if ex isa Expr && ex.head == :(=) && ex.args[1] == :tmp_forcing
+            return Core.eval(Module(), ex.args[2])
+        end
+    end
+    return (;)
 end
 
 """
@@ -88,11 +252,17 @@ merged into `default_forcing` the same way as in `getForcing`.
 - An empty or null setting of a variable, such as `"bounds": []`, keeps the value of
   `default_forcing`, whose bounds are always typed. The merge is done once here rather
   than for every pixel.
+- Only the fields that `cleanData` reads are kept. The info is part of the argument
+  types of `TEMYax`, and the full settings, e.g., with the `dimension` and
+  `interpolation_method` groups, make it slow to compile.
 """
 function getForcingDataInfo(info, forcing_vars)
     default_info = info.experiment.data_settings.forcing.default_forcing
     vars_info = info.experiment.data_settings.forcing.variables
-    return map(v -> merge_namedtuple_prefer_nonempty(default_info, getproperty(vars_info, Symbol(v))), Tuple(forcing_vars))
+    return map(Tuple(forcing_vars)) do v
+        v_info = merge_namedtuple_prefer_nonempty(default_info, getproperty(vars_info, Symbol(v)))
+        (; source_to_sindbad_unit=v_info.source_to_sindbad_unit, additive_unit_conversion=v_info.additive_unit_conversion, bounds=v_info.bounds)
+    end
 end
 
 """
@@ -136,22 +306,24 @@ end
 """
 function runTEMYax(selected_models, forcing::NamedTuple, info::NamedTuple)
     # forcing/input information
-    incubes = values(forcing.data);
+    incubes = map(eraseCubeType, values(forcing.data));
     indims = forcing.dims;
-    # the parameters per location have no core dimensions, so each location gets one
-    # value per parameter, which sets the parameters of its models in TEMYax
-    parameter_cubes, parameter_to_index = getParameterCubesYax(selected_models, forcing)
+    # a spatial parameter has no core dimensions, so each location gets one value, and a
+    # spatiotemporal one has time, so each location gets its values over time like a
+    # forcing. The values set the parameters of the models of the location in TEMYax.
+    parameter_cubes, parameter_dims, parameter_to_index, parameter_time = getParameterCubesYax(selected_models, forcing)
     incubes = (incubes..., parameter_cubes...)
-    indims = (indims..., map(_ -> (), parameter_cubes)...)
+    indims = (indims..., parameter_dims...)
     # information for running model
     run_helpers = prepTEM(forcing, info);
-    loc_land = deepcopy(run_helpers.loc_land);
-    _data_fill = 0.0f0
     _num_type = Val{info.helpers.numbers.num_type}()
     _forcing_data_info = getForcingDataInfo(info, forcing.variables)
+    # every location starts from this land, so the land keeps one type in all models
+    loc_land = getTemplateLandYax(selected_models, forcing, info, run_helpers.tem_info, run_helpers.loc_land, _forcing_data_info)
+    checkOutputLayers(info.output.variables, info.output.depth_info, loc_land)
     #output = XOutput.(getproperty.(run_helpers.output_dims, :axisdesc))
     output = run_helpers.output_dims
-    # land_init already has every pool, so no model run is needed to find them
+    # the template land has every pool
     restart = getRestartDimsArrays(info, forcing.helpers, loc_land)
     restart_vars = restart.variables
     restart_output = getRestartOutDimsYax(info, restart.dims_pairs)
@@ -164,33 +336,196 @@ function runTEMYax(selected_models, forcing::NamedTuple, info::NamedTuple)
         newdims = (out.outaxes..., DD.rebuild.(singleton_dims, (1:1,))...) 
         YAXArrays.XOutput(newdims, out.destroyaxes, out.outtype, out.properties)
     end
-    outcubes = xmap(TEMYax,
-        (incubes .⊘ indims)...;
-    function_kwargs = (selected_models=selected_models,
+    tem_kwargs = (selected_models=selected_models,
         forcing_vars=forcing.variables,
         output_vars=run_helpers.output_vars,
         loc_land=loc_land,
         tem=run_helpers.tem_info,
         clean_data=(; _num_type, _forcing_data_info),
         restart_vars=restart_vars,
-        parameter_to_index=parameter_to_index),
+        parameter_to_index=parameter_to_index,
+        parameter_time=parameter_time)
+    outcubes = xmap(TEMYaxErased,
+        (incubes .⊘ indims)...;
+    # the arguments become part of the type of every function of the xmap run, so they
+    # are passed behind a Ref{Any} to keep those types small and fast to compile
+    function_kwargs = (tem_kwargs=Ref{Any}(tem_kwargs),),
         output = new_output,
+        # xmap runs the pixels of a block on one thread unless this is set. The number of
+        # threads of the Julia session decides how many are used.
+        allow_threads = true,
         #outdims=run_helpers.output_dims,
         #max_cache=info.experiment.exe_rules.yax_max_cache,
         #ispar=false,
         )
-    outcubes = outcubes isa YAXArray ? (outcubes,) : outcubes
+    # the cubes are kept in a Vector{Any}, as code for the tuple of all their types is
+    # slow to compile
+    outcubes = outcubes isa YAXArray ? Any[outcubes] : collect(Any, outcubes)
     n_out = length(output)
-    varnames = getUniqueVarNames(info.output.variables)
-    output_cubes = map(output, outcubes[1:n_out]) do out, o_cube
-        dropPaddedDimsYax(o_cube, setdiff(DD.name.(alloutdims), DD.name.(out.outaxes)))
+    varnames = Tuple(getUniqueVarNames(info.output.variables))
+    restart_names = Tuple(last.(restart_vars))
+    # besides the padding, xmap adds a singleton for every core dimension of the forcing
+    # that the output does not have, e.g. the soil layers of the texture forcing
+    space_dims = Symbol.(info.experiment.data_settings.forcing.data_dimension.space)
+    padded_names = Vector{Symbol}[setdiff(DD.name.(DD.dims(o_cube)), (DD.name.(out.outaxes)..., space_dims...)) for (out, o_cube) ∈ zip(collect(Any, all_output), outcubes)]
+    dropped_cubes = Any[dropPaddedDimsYax(o_cube, padded) for (o_cube, padded) ∈ zip(outcubes, padded_names)]
+    output_ds = datasetFromCubes(varnames, dropped_cubes[1:n_out])
+    restart_ds = datasetFromCubes(restart_names, dropped_cubes[(n_out+1):end])
+    # a pool can also be an output variable, so the restart cubes get their own keys
+    restart_keys = map(r -> Symbol("restart_", r), restart_names)
+    xmap_keys = (varnames..., restart_keys...)
+    xmap_cubes = (; dataset=datasetFromCubes(xmap_keys, outcubes),
+        padded_names=Dict(zip(xmap_keys, padded_names)),
+        output_names=varnames, restart_names=restart_names, restart_keys=restart_keys,
+        in_cubes=incubes, n_forcing=length(forcing.variables))
+    return (; output=output_ds, restart=restart_ds, restart_vars=restart_vars, spinup_mode=getSaveRestartSpinupMode(info), xmap=xmap_cubes)
+end
+
+"""
+    computeTEMYax(xmap_cubes, store_path; max_cache=5e8)
+
+Computes all output and restart cubes of a lazy run in one pass and writes them to the
+zarr store at `store_path`.
+
+# Arguments:
+- `xmap_cubes`: the `xmap` field returned by `runTEMYax`
+- `store_path`: the path of the zarr store that holds the computed cubes
+- `max_cache`: the cache size of `compute_to_zarr`
+
+# Returns:
+- a NamedTuple with the `output` and `restart` Datasets, read from the store and
+  without the padded dimensions
+
+# Notes:
+- All cubes of `runTEMYax` come from one `xmap`. Saving them one by one runs the model
+  once per cube, while `compute_to_zarr` runs it once for all of them.
+- The cubes keep their padded dimensions until they are computed, since
+  `compute_to_zarr` can only fuse the direct outputs of the `xmap`.
+"""
+function computeTEMYax(xmap_cubes, store_path; max_cache=5e8)
+    computed = YAXArrays.compute_to_zarr(xmap_cubes.dataset, store_path; max_cache=max_cache, overwrite=true)
+    stored(key) = dropPaddedDimsYax(computed.cubes[key], xmap_cubes.padded_names[key])
+    output_ds = datasetFromCubes(xmap_cubes.output_names, Any[stored(name) for name ∈ xmap_cubes.output_names])
+    restart_ds = datasetFromCubes(xmap_cubes.restart_names, Any[stored(key) for key ∈ xmap_cubes.restart_keys])
+    return (; output=output_ds, restart=restart_ds)
+end
+
+"""
+    getMaxCacheYax(info, in_cubes, out_cubes=(); n_forcing=length(in_cubes),
+        grids_per_thread=4, memory_fraction=0.66)
+    getMaxCacheYax(info, xmap_cubes)
+
+Returns the cache size of a cube run, `compute_to_zarr` or `mapCube`, from the
+`yax_max_cache` setting. A number in the setting is used as it is, and with `null`
+the cache is computed.
+
+# Arguments:
+- `info`: a SINDBAD NT with all information needed for setup and execution of an
+  experiment
+- `in_cubes`: the input cubes of the run, starting with the forcing
+- `out_cubes`: the output cubes of the run, empty when they are not built yet
+- `xmap_cubes`: the `xmap` field returned by `runTEMYax`, which holds both
+- `n_forcing`: the number of forcing cubes at the start of `in_cubes`
+- `grids_per_thread`: the number of valid grids per thread in a block
+- `memory_fraction`: the largest share of the available memory for the run
+
+# Notes:
+- A cube run reads, runs and writes one block of grids at a time, and the
+  threads only share the grids of that block. A grid with invalid forcing
+  returns at once, so a block with fewer valid grids than threads leaves the
+  other threads idle. The computed cache fits `grids_per_thread` valid grids per
+  thread.
+- The bytes of a grid are summed over the input and output cubes. A cube without
+  a spatial dimension is read once for all grids of a block and is not counted.
+- The share of valid grids is counted from the forcing without time, since
+  reading the forcing with time costs as much as the run.
+- The cache only holds the input and output buffers of a block. Reading or writing a
+  block can copy each buffer once more, and every thread holds the data of its own
+  grid, so the run is taken to need twice the cache and one grid per thread.
+  This is kept within `memory_fraction` of the memory that is available when the
+  cache is computed, which excludes what the session already holds.
+"""
+function getMaxCacheYax(info, in_cubes, out_cubes=(); n_forcing=length(in_cubes), grids_per_thread=4, memory_fraction=0.66)
+    max_cache = get(info.experiment.exe_rules, :yax_max_cache, nothing)
+    max_cache isa Real && return max_cache
+    isnothing(max_cache) || error("experiment.exe_rules.yax_max_cache must be a number of bytes, or null to compute it, got `$(max_cache)`")
+    data_dimension = info.experiment.data_settings.forcing.data_dimension
+    space_dims = Symbol.(data_dimension.space)
+    time_name = Symbol(data_dimension.time)
+    bytes_per_grid = sum(cube -> getBytesPerGridYax(cube, space_dims), (in_cubes..., out_cubes...))
+    valid_fraction = getValidFractionYax(in_cubes[1:n_forcing], space_dims, time_name)
+    n_threads = Threads.nthreads()
+    n_grids = ceil(Int, grids_per_thread * n_threads / valid_fraction)
+    cache = n_grids * bytes_per_grid
+    print_info(getMaxCacheYax, @__FILE__, @__LINE__, "computed cache of $(round(cache / 1e9; digits=2)) GB: $(n_grids) grids per block at $(round(bytes_per_grid / 1e6; digits=2)) MB each, for $(grids_per_thread) valid grids on each of $(n_threads) threads with $(round(100 * valid_fraction; digits=1))% of grids valid", n_m=4)
+    available_memory = Sys.free_memory()
+    thread_memory = n_threads * bytes_per_grid
+    memory_limit = (memory_fraction * available_memory - thread_memory) / 2
+    memory_limit > bytes_per_grid || error("$(round(Int, 100 * memory_fraction))% of the $(round(available_memory / 1e9; digits=2)) GB of available memory is too small to run $(n_threads) threads at $(round(bytes_per_grid / 1e6; digits=2)) MB per grid. Use fewer threads or more memory.")
+    if cache > memory_limit
+        @warn "The computed cache of $(round(cache / 1e9; digits=2)) GB needs up to $(round((2 * cache + thread_memory) / 1e9; digits=2)) GB for the run, more than $(round(Int, 100 * memory_fraction))% of the $(round(available_memory / 1e9; digits=2)) GB of available memory. It is set to $(round(memory_limit / 1e9; digits=2)) GB, so some threads stay idle."
+        cache = memory_limit
     end
-    output_ds = Dataset(;zip(varnames, output_cubes)...)
-    restart_cubes = map(restart_output, outcubes[(n_out+1):end]) do r_out, r_cube
-        dropPaddedDimsYax(r_cube, setdiff(DD.name.(alloutdims), DD.name.(r_out.outaxes)))
+    return cache
+end
+
+getMaxCacheYax(info, xmap_cubes::NamedTuple) = getMaxCacheYax(info, xmap_cubes.in_cubes, values(xmap_cubes.dataset.cubes); n_forcing=xmap_cubes.n_forcing)
+
+"""
+    getBytesPerGridYax(cube, space_dims)
+
+Returns the bytes of one grid of `cube`, or zero when it has no spatial
+dimension.
+"""
+function getBytesPerGridYax(cube, space_dims)
+    cube_dims = DD.dims(cube)
+    any(d -> DD.name(d) ∈ space_dims, cube_dims) || return 0
+    n_values = prod((length(d) for d ∈ cube_dims if DD.name(d) ∉ space_dims); init=1)
+    return n_values * sizeof(Base.nonmissingtype(eltype(cube)))
+end
+
+"""
+    getValidFractionYax(forcing_cubes, space_dims, time_name)
+
+Returns the share of grids without an invalid value in the forcing cubes that
+have every spatial dimension and no time, or one when there is no such cube.
+"""
+function getValidFractionYax(forcing_cubes, space_dims, time_name)
+    is_valid = nothing
+    for cube ∈ forcing_cubes
+        cube_names = DD.name.(DD.dims(cube))
+        (time_name ∈ cube_names || !all(∈(cube_names), space_dims)) && continue
+        other_names = filter(∉(space_dims), cube_names)
+        perm = DD.dimnum(cube, (space_dims..., other_names...))
+        data = permutedims(Array(cube.data), perm)
+        n_space = prod(size(data)[1:length(space_dims)])
+        cube_valid = vec(all(!is_invalid_number, reshape(data, n_space, :); dims=2))
+        is_valid = isnothing(is_valid) ? cube_valid : is_valid .& cube_valid
     end
-    restart_ds = Dataset(; zip(last.(restart_vars), restart_cubes)...)
-    return (; output=output_ds, restart=restart_ds, restart_vars=restart_vars, spinup_mode=getSaveRestartSpinupMode(info))
+    isnothing(is_valid) && return 1.0
+    return max(count(is_valid), 1) / length(is_valid)
+end
+
+"""
+    datasetFromCubes(names, cubes; properties=Dict{String,Any}())
+
+Builds a `Dataset` of `cubes` named by `names`, the same as `Dataset(; cubes...)`.
+
+# Notes:
+- The keyword constructor of `Dataset` is compiled for the types of all its cubes
+  together, which is slow for the cubes of a lazy run. Here the cubes are added one by
+  one to the dictionary of the `Dataset`.
+"""
+function datasetFromCubes(names, cubes; properties=Dict{String,Any}())
+    cube_dict = YAXArrays.Datasets.OrderedDict{Symbol,YAXArray}()
+    axes = Dict{Symbol,DD.Dimension}()
+    for (name, cube) ∈ zip(names, cubes)
+        cube_dict[Symbol(name)] = cube
+        for ax ∈ DD.dims(cube)
+            axes[DD.name(ax)] = ax
+        end
+    end
+    return Dataset(cube_dict, axes, properties)
 end
 
 """
@@ -220,7 +555,8 @@ end
     dropPaddedDimsYax(cube, padded_names)
 
 Removes the singleton dimensions that were added to an output cube only because
-DiskArrayEngine needs all output cubes to have the same dimensions.
+DiskArrayEngine needs all output cubes to have the same dimensions, and those that xmap
+adds for the core dimensions of the forcing that the output does not have.
 
 # Arguments:
 - `cube`: an output cube of `xmap`
@@ -290,7 +626,7 @@ function runTEMYaxParameters(selected_models, forcing::NamedTuple, in_cube_param
         clean_data=(; _num_type, _forcing_data_info),
         indims=indims,
         outdims=run_helpers.output_dims,
-        max_cache=info.experiment.exe_rules.yax_max_cache,
+        max_cache=getMaxCacheYax(info, in_cubes_all; n_forcing=length(in_cubes_forcing)),
         ispar=true,
         )
     return outcubes
@@ -368,21 +704,26 @@ end
 """
     getParameterCubesYax(selected_models, forcing)
 
-Returns the cubes of the parameters per location and the index of each parameter in
-the models, for the input cubes of `xmap`.
+Returns the cubes of the parameters per location, their core dimensions, and the index
+of each parameter in the models, for the input cubes of `xmap`.
 
 # Returns:
-- `()` and `nothing` when `forcing.parameters` is `nothing`, so the input cubes of
-  `xmap` are only the forcing.
-- Otherwise the cubes of `forcing.parameters.data`, which hold values that are already
-  in run units and within bounds, and the `parameter_to_index` from
-  `getParameterIndices`.
+- `()`, `()`, `nothing` and `nothing` when `forcing.parameters` is `nothing`, so the
+  input cubes of `xmap` are only the forcing.
+- Otherwise:
+  - the cubes of `forcing.parameters.data`, which hold values that are already in run
+    units and within bounds, with their types erased like the forcing cubes
+  - the core dimensions of each cube, `(time,)` for a parameter with time, else `()`
+  - the `parameter_to_index` from `getParameterIndices`
+  - the `getTimeVaryingInfo` of the parameters, `nothing` when none varies in time
 """
 function getParameterCubesYax(selected_models, forcing)
     forcing_parameters = get(forcing, :parameters, nothing)
-    isnothing(forcing_parameters) && return (), nothing
+    isnothing(forcing_parameters) && return (), (), nothing, nothing
     parameter_to_index = getParameterIndices(selected_models, forcing_parameters.parameter_table)
-    return Tuple(forcing_parameters.data), parameter_to_index
+    parameter_time = getTimeVaryingInfo(selected_models, parameter_to_index, forcing_parameters)
+    parameter_cubes = map(eraseCubeType, Tuple(forcing_parameters.data))
+    return parameter_cubes, Tuple(forcing_parameters.dims), parameter_to_index, parameter_time
 end
 
 
@@ -395,8 +736,9 @@ parameters per location, or `selected_models` when there are none.
 # Arguments:
 - `selected_models`: a tuple of all models selected in the given model structure
 - `parameter_to_index`: the index of each parameter in the models, or `nothing`
-- `parameter_inputs`: the value of each parameter at the location, as arrays without
-  dimensions from `xmap`
+- `parameter_inputs`: the values of each parameter at the location from `xmap`, an
+  array without dimensions, or with time for a parameter that varies in time, in which
+  case the value of the first time step is set
 """
 setLocationParametersYax(selected_models, ::Nothing, _) = selected_models
 

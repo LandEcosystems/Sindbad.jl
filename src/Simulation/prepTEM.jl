@@ -118,74 +118,87 @@ end
 
 
 """
-    filterNanPixels(forcing, loc_space_maps, filter_nan_pixels_mode)
+    filterNanGrids(forcing, loc_space_maps, filter_nan_grids_mode)
 
-Filters out spatial pixels that have an invalid value, i.e., `nothing`, `missing`, `NaN` or `Inf`, in any forcing variable at any time step, based on the specified filtering mode. The model is not run for these pixels.
+Filters out the grids that have an invalid value, i.e., `nothing`, `missing`, `NaN` or
+`Inf`, in any forcing variable at any time step, based on the filtering mode. The
+model is not run for these grids.
 
 # Arguments:
-- `forcing`: A forcing NamedTuple containing the time series of environmental drivers for all locations.
+- `forcing`: A forcing NamedTuple containing the time series of environmental drivers
+  for all locations.
 - `loc_space_maps`: A collection of local spatial coordinates for all input points.
-- `filter_nan_pixels_mode`: A type dispatch that determines whether to filter NaN-only pixels:
-    - `DoFilterNanPixels`: Filters out pixels with an invalid value in any forcing variable at any time step. Set `filter_nan_pixels` to true in flag section of experiment_json.
-    - `DoNotFilterNanPixels`: Does not filter any pixels, returning the input `loc_space_maps` unchanged. Set `filter_nan_pixels` to false in flag section of experiment_json.
+- `filter_nan_grids_mode`: A type dispatch that determines whether to filter grids:
+    - `DoFilterNanPixels`: Filters out grids with an invalid value in any forcing
+      variable at any time step. Set `filter_nan_pixels` to true in flag section of
+      experiment_json.
+    - `DoNotFilterNanPixels`: Does not filter any grids, returning the input
+      `loc_space_maps` unchanged. Set `filter_nan_pixels` to false in flag section of
+      experiment_json.
 
 # Returns:
-- `loc_space_maps`: The filtered or unfiltered spatial coordinates, depending on the filtering mode.
+- `loc_space_maps`: The filtered or unfiltered spatial coordinates, depending on the
+  filtering mode.
 
 # Notes:
+- The flag types keep the name of the `filter_nan_pixels` setting they are built from.
 - When `DoFilterNanPixels` is used:
-    - The function checks every forcing variable of every location. NOTE THAT THIS WILL BE SLOW FOR LARGE DATASETS AS ALL LAZILY-LOADED DATA ARE STORED IN MEMORY.
-    - Invalid values of the forcing are not filled when it is loaded, see `cleanData`, so they are seen here.
-    - Locations with an invalid value in any variable at any time step are excluded from the returned `loc_space_maps`, and their output stays NaN.
+    - The function checks every forcing variable of every location. NOTE THAT THIS
+      WILL BE SLOW FOR LARGE DATASETS AS ALL LAZILY-LOADED DATA ARE STORED IN MEMORY.
+    - Invalid values of the forcing are not filled when it is loaded, see `cleanData`,
+      so they are seen here.
+    - Locations with an invalid value in any variable at any time step are excluded
+      from the returned `loc_space_maps`, and their output stays NaN.
     - An error is thrown when no location is left.
-- When `DoNotFilterNanPixels` is used, the function simply returns the input `loc_space_maps` without any modifications.
+- When `DoNotFilterNanPixels` is used, the function simply returns the input
+  `loc_space_maps` without any modifications.
 
 # Examples:
-1. **Filtering NaN-only pixels**:
+1. **Filtering grids with invalid forcing**:
 ```julia
 forcing = (data = ..., variables = ...)
 loc_space_maps = [(1, 2), (3, 4), (5, 6)]
-filtered_maps = filterNanPixels(forcing, loc_space_maps, DoFilterNanPixels())
+filtered_maps = filterNanGrids(forcing, loc_space_maps, DoFilterNanPixels())
 ```
 
-2. **Skipping NaN filtering**:
+2. **Skipping the filtering**:
 ```julia
 forcing = (data = ..., variables = ...)
 loc_space_maps = [(1, 2), (3, 4), (5, 6)]
-filtered_maps = filterNanPixels(forcing, loc_space_maps, DoNotFilterNanPixels())
+filtered_maps = filterNanGrids(forcing, loc_space_maps, DoNotFilterNanPixels())
 ```
 """
-function filterNanPixels end
+function filterNanGrids end
 
-function filterNanPixels(_, loc_space_maps, ::DoNotFilterNanPixels)
+function filterNanGrids(_, loc_space_maps, ::DoNotFilterNanPixels)
     return loc_space_maps
 end
 
 
-function filterNanPixels(forcing, loc_space_maps, ::DoFilterNanPixels)
-    forcing_nt_array = namedtuple_from_names_values(forcing.data, forcing.variables)
+function filterNanGrids(forcing, loc_space_maps, ::DoFilterNanPixels)
+    forcing_nt_array = namedtuple_from_names_values(values(forcing.data), forcing.variables)
     # a value of a variable without a time dimension is a number, otherwise an array
     hasInvalid(v) = v isa Number ? is_invalid_number(v) : any(is_invalid_number, v)
-    # one row per pixel and one column per forcing variable, true where the variable
-    # has an invalid value at some time step of the pixel
+    # one row per grid and one column per forcing variable, true where the variable
+    # has an invalid value at some time step of the grid
     invalid_by_var = map(loc_space_maps) do loc_space_map
         loc_forcing = getLocData(forcing_nt_array, Tuple(last.(loc_space_map)))
         map(hasInvalid, Tuple(loc_forcing))
     end
     has_invalid = map(any, invalid_by_var)
-    n_pixels = length(loc_space_maps)
+    n_grids = length(loc_space_maps)
     n_invalid = count(has_invalid)
-    print_info(filterNanPixels, @__FILE__, @__LINE__,
-        "filtered out $(n_invalid) of $(n_pixels) pixels with an invalid value in any forcing variable at any time step, $(n_pixels - n_invalid) pixels are run", n_f=6)
-    # the pixels with an invalid value of each variable, which can add up to more than
-    # the filtered pixels when a pixel has invalid values in several variables
+    print_info(filterNanGrids, @__FILE__, @__LINE__,
+        "filtered out $(n_invalid) of $(n_grids) grids with an invalid value in any forcing variable at any time step, $(n_grids - n_invalid) grids are run", n_f=6)
+    # the grids with an invalid value of each variable, which can add up to more than
+    # the filtered grids when a grid has invalid values in several variables
     for (v_index, v_name) ∈ enumerate(forcing.variables)
         n_var = count(p -> p[v_index], invalid_by_var)
         n_var > 0 || continue
         print_info(nothing, @__FILE__, @__LINE__,
-            "→→→    `$(v_name)`: $(n_var) pixels with an invalid value", n_m=8)
+            "→→→    `$(v_name)`: $(n_var) grids with an invalid value", n_m=8)
     end
-    n_invalid == n_pixels && error("every pixel has an invalid value in a forcing variable at some time step, so no pixel is left to run. Fill the gaps of the forcing before running the simulation.")
+    n_invalid == n_grids && error("every grid has an invalid value in a forcing variable at some time step, so no grid is left to run. Fill the gaps of the forcing before running the simulation.")
     return loc_space_maps[.!collect(has_invalid)]
 end
 
@@ -234,9 +247,10 @@ end
 
 """
     getSpatialInfo(forcing_helpers)
-    getSpatialInfo(forcing, filterNanPixels)
+    getSpatialInfo(forcing, filter_nan_pixels)
 
-get the information of the indices of the data to run the model for. The second variant additionally filter pixels with all nan data
+get the information of the indices of the data to run the model for. The second variant
+additionally filters out the grids with invalid forcing, see `filterNanGrids`.
 
 # Arguments:
 - `forcing`: a forcing NT that contains the forcing time series set for ALL locations
@@ -262,7 +276,7 @@ end
 
 function getSpatialInfo(forcing, filter_nan_pixels)
     space_ind, loc_space_maps = getSpatialInfo(forcing.helpers)
-    loc_space_maps = filterNanPixels(forcing, loc_space_maps, filter_nan_pixels)
+    loc_space_maps = filterNanGrids(forcing, loc_space_maps, filter_nan_pixels)
     space_ind = Tuple([Tuple(last.(loc_space_map)) for loc_space_map ∈ loc_space_maps])
     return space_ind
 end
@@ -373,6 +387,8 @@ function getLocLand(loc_models, loc_forcing, loc_spinup, land_init, tem_info)
     if has_input
         loc_spinup = (; loc_spinup..., sequence=Base.tail(sequence))
     end
+    # parameters that vary in time are at their values of the first time step here
+    loc_models = initialModels(loc_models)
     # runTEMOne adds the spinup store for the sequence of this location
     loc_forcing_t, loc_land = runTEMOne(loc_models, loc_forcing, deepcopy(land_init), tem_info, loc_spinup.sequence)
     if has_input && tem_info.run.spinup_TEM isa DoSpinupTEM
@@ -439,11 +455,14 @@ parameters input applied.
 - A NamedTuple with:
   - `space_selected_models`: a vector with one tuple of models per location. Without
     parameters per location, every element is `selected_models`. Otherwise the
-    parameters of each element are set to the values at that location.
+    parameters of each element are set to the values at that location. When a
+    parameter varies in time, each element is a `TimeVaryingModels` whose models have
+    the values of the first time step.
   - `parameters`: `nothing` without parameters per location. Otherwise a NamedTuple
-    with the `parameter_table` of what was applied, for reference. It is the table of
-    `forcing.parameters` with `initial` and `optimized` set to the mean over the
-    locations, and with their `min` and `max`.
+    with the `parameter_table` of what was applied, for reference, and `time_varying`,
+    whether a parameter varies in time. The table is that of `forcing.parameters` with
+    `initial` and `optimized` set to the mean over the locations and time steps, and
+    with their `min` and `max`.
 
 # Notes:
 - The values are used as they are, because `getParameters` already converted their
@@ -458,22 +477,26 @@ function getLocationModels(selected_models, forcing, space_ind)
     print_info(getLocationModels, @__FILE__, @__LINE__, "setting the parameters of the models of each location", n_f=6)
     input_table = forcing_parameters.parameter_table
     parameter_to_index = getParameterIndices(selected_models, input_table)
-    space_values = map([space_ind...]) do loc_ind
-        map(p_data -> p_data[loc_ind...], collect(forcing_parameters.data))
+    time_varying = getTimeVaryingInfo(selected_models, parameter_to_index, forcing_parameters)
+    # the values of a location, a 0-dimensional array for a spatial parameter and a
+    # vector over time for one that varies in time
+    space_parameters = map([space_ind...]) do loc_ind
+        map(p_data -> Array(view_at_trailing_indices(p_data.data, loc_ind)), collect(forcing_parameters.data))
     end
-    space_selected_models = map(space_values) do loc_values
-        setTypedParameters(selected_models, parameter_to_index, loc_values)
+    space_selected_models = map(space_parameters) do loc_parameters
+        loc_models = setTypedParameters(selected_models, parameter_to_index, map(first, loc_parameters))
+        setTimeVaryingModels(loc_models, loc_parameters, time_varying)
     end
 
     p_indices = eachindex(input_table.name_full)
-    p_mean = [sum(v[p_i] for v ∈ space_values) / length(space_values) for p_i ∈ p_indices]
-    p_min = [minimum(v[p_i] for v ∈ space_values) for p_i ∈ p_indices]
-    p_max = [maximum(v[p_i] for v ∈ space_values) for p_i ∈ p_indices]
+    p_mean = [sum(sum(lp[p_i]) / length(lp[p_i]) for lp ∈ space_parameters) / length(space_parameters) for p_i ∈ p_indices]
+    p_min = [minimum(minimum(lp[p_i]) for lp ∈ space_parameters) for p_i ∈ p_indices]
+    p_max = [maximum(maximum(lp[p_i]) for lp ∈ space_parameters) for p_i ∈ p_indices]
     parameter_table = Table(input_table; initial=p_mean, optimized=copy(p_mean), min=p_min, max=p_max)
     foreach(p_indices) do p_i
         print_info(nothing, @__FILE__, @__LINE__, "→→→    `$(input_table.name_full[p_i])`: mean $(p_mean[p_i]), min $(p_min[p_i]), max $(p_max[p_i])", n_m=8)
     end
-    return (; space_selected_models, parameters=(; parameter_table))
+    return (; space_selected_models, parameters=(; parameter_table, time_varying=!isnothing(time_varying)))
 end
 
 """
@@ -953,21 +976,56 @@ run the SINDBAD TEM for one time step
 """
 function runTEMOne(selected_models, loc_forcing, land_init, tem, spinup_sequence)
     loc_forcing_t = getForcingForTimeStep(loc_forcing, loc_forcing, 1, tem.vals.forcing_types)
-    loc_land = definePrecomputeTEM(selected_models, loc_forcing_t, land_init,
-        tem.model_helpers)
-    # copied, since the step can update the pool arrays in place
-    pools_before = deepcopy(loc_land.pools)
-    loc_land = computeTEM(selected_models, loc_forcing_t, loc_land, tem.model_helpers)
-    loc_land = (; loc_land..., pools=pools_before)
-    # loc_land = drop_empty_namedtuple_fields(loc_land)
+    loc_land = buildFullLand(selected_models, loc_forcing_t, land_init, tem.model_helpers)
     loc_land = addSpinupStore(loc_land, spinup_sequence, tem.run.store_spinup)
     checkSpinupInput(loc_land, loc_forcing_t, spinup_sequence)
-    # loc_land = definePrecomputeTEM(selected_models, loc_forcing_t, loc_land,
-        # tem.model_helpers)
-    # loc_land = precomputeTEM(selected_models, loc_forcing_t, loc_land,
-        # tem.model_helpers)
-    # loc_land = computeTEM(selected_models, loc_forcing_t, loc_land, tem.model_helpers)
     return loc_forcing_t, loc_land
+end
+
+"""
+    buildFullLand(selected_models, loc_forcing_t, land_init, model_helpers)
+
+Builds the land with every field of the selected models in its final type, by running
+define, precompute and compute of the models for one time step.
+
+# Arguments:
+- `selected_models`: a tuple of all models selected in the given model structure
+- `loc_forcing_t`: the forcing NT of one location for one time step
+- `land_init`: the initial land from `createInitLand`
+- `model_helpers`: the model helpers of `tem_info`
+
+# Notes:
+- The pools are set back to their values before the time step.
+- The groups of the land named after the models that no model fills are dropped, see
+  `dropEmptyProcessGroups`.
+"""
+function buildFullLand(selected_models, loc_forcing_t, land_init, model_helpers)
+    loc_land = definePrecomputeTEM(selected_models, loc_forcing_t, land_init, model_helpers)
+    # copied, since the step can update the pool arrays in place
+    pools_before = deepcopy(loc_land.pools)
+    loc_land = computeTEM(selected_models, loc_forcing_t, loc_land, model_helpers)
+    loc_land = (; loc_land..., pools=pools_before)
+    return dropEmptyProcessGroups(loc_land)
+end
+
+const LAND_MAIN_GROUPS = (:fluxes, :pools, :states, :diagnostics, :properties, :models, :constants)
+
+"""
+    dropEmptyProcessGroups(land)
+
+Drops the groups of the land that are named after a model and are empty after a time
+step of all models.
+
+# Notes:
+- `createInitLand` adds one group per model, but most models never fill theirs. The
+  empty groups are part of the type of the land and make every function that takes the
+  land slower to compile.
+- The main groups, such as `states`, are always kept, since a model can add to them
+  later, e.g., the spinup store.
+"""
+function dropEmptyProcessGroups(land)
+    keep = filter(k -> k ∈ LAND_MAIN_GROUPS || !isempty(getfield(land, k)), keys(land))
+    return NamedTuple{keep}(map(k -> getfield(land, k), keep))
 end
 
 """

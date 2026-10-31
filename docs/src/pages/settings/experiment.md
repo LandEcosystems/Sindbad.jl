@@ -64,7 +64,7 @@ The `exe_rules` section defines model execution settings and performance configu
     "model_number_type": "Numeric type used in models",
     "parallelization": "Parallelization backend for spatial operations",
     "tolerance": "Numerical tolerance for error checking",
-    "yax_max_cache": "Cache size for YaxArray-based model runs"
+    "yax_max_cache": "Cache size in bytes for YaxArray-based model runs, or null to compute it from the threads and valid locations, so that the run needs at most 66% of the available memory"
 }
 ```
 
@@ -94,7 +94,7 @@ The `flags` section controls experiment execution modes and features. All fields
     "calc_cost": "Enable/disable cost calculation against observations",
     "catch_model_errors": "Stop execution on internal model errors",
     "debug_model": "Run single time step with diagnostics",
-    "filter_nan_pixels": "Remove NaN pixels from input arrays",
+    "filter_nan_pixels": "Skip pixels with an invalid forcing value at any time step (default: true)",
     "inline_update": "Update model state within time step",
     "run_forward": "Enable forward model run",
     "run_optimization": "Enable parameter calibration",
@@ -111,7 +111,7 @@ The `flags` section controls experiment execution modes and features. All fields
     "calc_cost": true,
     "catch_model_errors": false,
     "debug_model": false,
-    "filter_nan_pixels": false,
+    "filter_nan_pixels": true,
     "inline_update": false,
     "run_forward": true,
     "run_optimization": true,

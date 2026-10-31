@@ -34,7 +34,6 @@ function compute(params::drainage_dos, forcing, land, helpers)
         idx_soilW_end ⇐ land.properties
         (soilW, ΔsoilW) ⇐ land.pools
         (z_zero, o_one) ⇐ land.constants
-        tolerance ⇐ helpers.numbers
     end
 
     ## calculate drainage
@@ -49,7 +48,7 @@ function compute(params::drainage_dos, forcing, land, helpers)
         holdCap = w_sat[sl+1] - (soilW[sl+1] + ΔsoilW[sl+1])
         drain = min(drainage_tmp, holdCap, lossCap)
         
-        tmp = drain > tolerance ? drain : zero(drain)
+        tmp = at_least_zero(drain)
         @rep_elem tmp ⇒ (drainage, sl)
         @add_to_elem -tmp ⇒ (ΔsoilW, sl)
         @add_to_elem tmp ⇒ (ΔsoilW, sl + 1)
