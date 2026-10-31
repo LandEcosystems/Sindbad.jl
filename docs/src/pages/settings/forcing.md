@@ -144,7 +144,7 @@ Space and time have separate methods, so `interpolation_method.space` takes only
 | `none` | | no resampling |
 | `nearest`, `constant` | `extrapolation` | value of the nearest grid |
 | `linear` | `extrapolation` | linear along each axis |
-| `quadratic`, `cubic` | `boundary`, `grid`, `extrapolation` | B-spline fitted to the whole field, so one invalid value makes the whole field invalid |
+| `quadratic`, `cubic` | `boundary`, `grid`, `extrapolation` | B-spline fitted to the source grids within 12 and 16 grids of each block of target grids, so an invalid value makes the target grids that far from it invalid |
 | `lanczos` | `order`, `extrapolation` | Lanczos with `order` lobes, 4 by default |
 | `lanczos_opencv` | `extrapolation` | Lanczos of order 4 as in OpenCV |
 | `zhao2004` | `power` | weights the four surrounding grids by cos(π/2 d/d_max)^`power` of their great-circle distance, equations 3 to 5 of Zhao et al. 2005, Remote Sensing of Environment 95; `power` is 4 by default |
@@ -171,7 +171,7 @@ The options take these values, with the default first:
 A name is written in snake case, and the first letter of each word may be upper case, so `"Linear"` and `"linear"` are the same method. Parameter maps that vary in time take the time methods in their `interpolation_method.time`, with `previous` as the default.
 
 ::: tip Custom methods
-A method is a type: add a subtype of `SpaceInterpolationMethod` or `TimeInterpolationMethod` with its options as fields in `src/Types/InputTypes.jl`, and a method of `resampleValues!` in `src/DataLoaders/resampleCube.jl`. `resampleValues!` gets the source values with the coordinates and cell bounds of every resampled axis, so a space method can combine latitude and longitude, and a method can keep the sums or means of cells. The name in the settings is the type name without `SpaceInterp` or `TimeInterp` in snake case, e.g. `SpaceInterpZhao2004` is `"zhao2004"`.
+A method is a type: add a subtype of `SpaceInterpolationMethod` or `TimeInterpolationMethod` with its options as fields in `src/Types/InputTypes.jl`, and a method of `resampleValues!` in `src/DataLoaders/resampleCube.jl`. `resampleValues!` gets the source values with the coordinates and cell bounds of every resampled axis, so a space method can combine latitude and longitude, and a method can keep the sums or means of cells. The name in the settings is the type name without `SpaceInterp` or `TimeInterp` in snake case, e.g. `SpaceInterpZhao2004` is `"zhao2004"`. A space method that only needs the source grids near each target grid also declares `resampleRadius`, so a lazy run resamples each target grid once; without it the method gets the whole field, which a lazy run recomputes for every block it reads. What a method can compute from the axes alone, e.g. its weights, goes into `resamplePlan`, so it is computed once per block instead of at every time step.
 :::
 
 ## Variable Configuration

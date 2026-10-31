@@ -53,6 +53,7 @@ module DataLoaders
    using YAXArrayBase
    using YAXArrays: YAXArrays, Cube, YAXArray, xmap, XOutput, ⊘
    using InteractiveUtils: subtypes
+   const DAE = YAXArrays.Xmap.DAE
    using YAXArrays.DAT: InDims
    using Zarr
    using TimeSamplers

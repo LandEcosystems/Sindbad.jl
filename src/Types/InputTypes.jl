@@ -154,14 +154,14 @@ Base.@kwdef struct SpaceInterpQuadratic <: SpaceGridInterpolationMethod
     grid::String = "on_grid"
     extrapolation::String = "flat"
 end
-purpose(::Type{SpaceInterpQuadratic}) = "quadratic B-spline of Interpolations.jl. It is fitted to the whole field, so one invalid value makes the whole field invalid"
+purpose(::Type{SpaceInterpQuadratic}) = "quadratic B-spline of Interpolations.jl, fitted to the source grids within 12 grids of each block of target grids, so an invalid value makes the target grids that far from it invalid"
 
 Base.@kwdef struct SpaceInterpCubic <: SpaceGridInterpolationMethod
     boundary::String = "line"
     grid::String = "on_grid"
     extrapolation::String = "flat"
 end
-purpose(::Type{SpaceInterpCubic}) = "cubic B-spline of Interpolations.jl. It is fitted to the whole field, so one invalid value makes the whole field invalid"
+purpose(::Type{SpaceInterpCubic}) = "cubic B-spline of Interpolations.jl, fitted to the source grids within 16 grids of each block of target grids, so an invalid value makes the target grids that far from it invalid"
 
 Base.@kwdef struct SpaceInterpLanczos <: SpaceGridInterpolationMethod
     order::Int = 4
