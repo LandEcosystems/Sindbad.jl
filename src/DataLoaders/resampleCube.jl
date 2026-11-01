@@ -362,8 +362,17 @@ end
 
 Resamples one block of `getResampleBlock`. `data` and `xout` have the indices of the
 whole cube, and `dims` are the positions of the resampled dimensions. The method is
-called once per index of the other dimensions, with the axis info cut to the block
-and one `resamplePlan` of the block for all calls.
+called once per index of the other dimensions, e.g., per time step, with the axis info
+cut to the block and one `resamplePlan` of the block for all calls.
+
+# Notes:
+- The block is converted once, with the resampled dimensions first and the others
+  merged into one, so the method gets a plain view of contiguous values per call.
+  Building a view per call from the indices of the whole cube cost far more than
+  the resampling itself.
+- The calls run on all threads whatever `threaded` is. DiskArrayEngine passes
+  `threaded=false` here, and the block is read before the run of the model, while
+  the threads of the run are idle.
 """
 function resampleBlock!(xout, data; dims, threaded=false, source_axes, target_axes, method, num_type)
     source_ranges = map(d -> UnitRange(axes(data, d)), dims)
@@ -371,20 +380,28 @@ function resampleBlock!(xout, data; dims, threaded=false, source_axes, target_ax
     source_block = map(subsetAxisInfo, source_axes, source_ranges)
     target_block = map(subsetAxisInfo, target_axes, target_ranges)
     plan = resamplePlan(method, source_block, target_block)
-    other_dims = Tuple(filter(∉(dims), 1:ndims(xout)))
-    other_indices = CartesianIndices(map(d -> UnitRange(axes(xout, d)), other_dims))
-    blockIndex(I, ranges) = ntuple(d -> d ∈ dims ? ranges[findfirst(==(d), dims)] : I[findfirst(==(d), other_dims)], ndims(xout))
-    function resampleOne(I)
-        yin = num_type[ismissing(v) ? num_type(NaN) : num_type(v) for v ∈ view(data, blockIndex(I, source_ranges)...)]
-        resampleValues!(view(xout, blockIndex(I, target_ranges)...), yin, source_block, target_block, method, plan)
-        return nothing
-    end
-    if threaded
-        Threads.@threads for I ∈ other_indices
-            resampleOne(I)
-        end
-    else
-        foreach(resampleOne, other_indices)
+    n_resampled = length(dims)
+    perm = (dims..., filter(∉(dims), 1:ndims(xout))...)
+    # reshape to the own size drops the offsets of the whole cube
+    yin = permutedims(map(v -> ismissing(v) ? num_type(NaN) : num_type(v), reshape(data, size(data))), perm)
+    n_slices = prod(size(yin)[n_resampled+1:end]; init=1)
+    yin = reshape(yin, size(yin)[1:n_resampled]..., n_slices)
+    yout = Array{num_type}(undef, map(length, target_ranges)..., n_slices)
+    resampleSlices!(yout, yin, ntuple(_ -> Colon(), n_resampled), source_block, target_block, method, plan)
+    out = reshape(xout, size(xout))
+    out .= permutedims(reshape(yout, map(d -> size(out, d), perm)), invperm(perm))
+    return nothing
+end
+
+"""
+    resampleSlices!(yout, yin, colons, source_axes, target_axes, method, plan)
+
+Calls `resampleValues!` on every slice of the last dimension of `yin` and `yout`, on
+all threads.
+"""
+function resampleSlices!(yout, yin, colons, source_axes, target_axes, method, plan)
+    Threads.@threads for k ∈ axes(yin, ndims(yin))
+        resampleValues!(view(yout, colons..., k), view(yin, colons..., k), source_axes, target_axes, method, plan)
     end
     return nothing
 end

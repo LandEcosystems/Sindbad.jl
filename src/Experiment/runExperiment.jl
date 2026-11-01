@@ -260,10 +260,10 @@ function runExperimentForward(sindbad_experiment::String; replace_info=Dict(), l
     run_output = runExperiment(info, forcing, info.helpers.run.run_forward)
     output_dims = getOutDims(info, forcing.helpers)
     saved_output, lazy_store = computeLazyRun(info, run_output, info.helpers.run.run_lazy)
-    saveOutCubes(info, values(saved_output.output), output_dims, info.output.variables)
+    get(saved_output, :output_saved, false) || saveOutCubes(info, values(saved_output.output), output_dims, info.output.variables)
     saveRestartCubes(info, saved_output.restart)
     saveSpinupCubes(info, run_output.spinup)
-    isnothing(lazy_store) || rm(lazy_store; recursive=true)
+    removeLazyStore(lazy_store)
     # the figures need the forcing and output in memory, which a lazy run does not
     # have
     info.helpers.run.run_lazy isa DoRunLazy || plotForwardRun(info, forcing, run_output.output, run_output.spinup)
@@ -500,22 +500,60 @@ Computes the output and restart cubes of a lazy run in one pass before they are 
 - `run_lazy_mode`: `DoRunLazy` or `DoNotRunLazy`
 
 # Returns:
-- `run_output` with its `output` and `restart` read from the computed store, and the
-  path of that store, which the caller removes after saving. A run that is not lazy is
-  returned as it is, with `nothing` for the path.
+- `run_output` with its `output` and `restart` read from the computed store, and what
+  `removeLazyStore` removes after saving. A run that is not lazy is returned as it is,
+  with `nothing` to remove.
 
 # Notes:
-- The store is `lazy_run.zarr` in the data output directory. Saving from it only
-  copies data, while saving the lazy cubes directly runs the model once per variable.
+- Saving the lazy cubes one by one runs the model once per variable, so all of them
+  are computed in one pass.
+- With a zarr output in one file, the pass writes the final `all_variables.zarr` with
+  the attributes of the variables and the run and the compression of the settings, so
+  the output is written once. `run_output` then has `output_saved` set, and only the
+  restart cubes are removed from that file after they are saved to their own file.
+- Otherwise the pass writes `lazy_run.zarr` in the data output directory, which is
+  copied to the output files and then removed.
+- The block of grids of the pass is set by `exe_rules.yax_block_grids`, see
+  `getLoopRangesYax`.
 """
 function computeLazyRun end
 
 computeLazyRun(_, run_output, ::DoNotRunLazy) = (run_output, nothing)
 
 function computeLazyRun(info, run_output, ::DoRunLazy)
-    store_path = joinpath(info.output.dirs.data, "lazy_run.zarr")
+    xmap_cubes = run_output.xmap
+    max_cache, loop_ranges, run_filter = getLoopRangesYax(info, xmap_cubes)
+    if !isLazyOutputFinal(info)
+        store_path = joinpath(info.output.dirs.data, "lazy_run.zarr")
+        print_info(computeLazyRun, @__FILE__, @__LINE__, "computing all output and restart cubes in one pass to `$(store_path)`", n_m=4)
+        computed = computeTEMYax(xmap_cubes, store_path; max_cache=max_cache, loop_ranges=loop_ranges, run_filter=run_filter)
+        restart = (; run_output.restart..., dataset=computed.restart)
+        return (; run_output..., output=computed.output, restart=restart), store_path
+    end
+    store_path = joinpath(info.output.dirs.data, "all_variables.zarr")
     print_info(computeLazyRun, @__FILE__, @__LINE__, "computing all output and restart cubes in one pass to `$(store_path)`", n_m=4)
-    computed = computeTEMYax(run_output.xmap, store_path; max_cache=getMaxCacheYax(info, run_output.xmap))
+    t_step = info.experiment.basics.temporal_resolution
+    variable_properties = Dict(Symbol(name) => getVariableInfo(getVarFull(var_pair), t_step) for (name, var_pair) ∈ zip(getUniqueVarNames(info.output.variables), info.output.variables))
+    computed = computeTEMYax(xmap_cubes, store_path; max_cache=max_cache, loop_ranges=loop_ranges, run_filter=run_filter, variable_properties=variable_properties, global_properties=info.output.file_info.global_metadata, save_kwargs=getSaveKwargs(info))
+    print_info(nothing, @__FILE__, @__LINE__, "saved all variables to `$(store_path)`", n_m=4)
     restart = (; run_output.restart..., dataset=computed.restart)
-    return (; run_output..., output=computed.output, restart=restart), store_path
+    return (; run_output..., output=computed.output, restart=restart, output_saved=true), (; path=store_path, arrays=xmap_cubes.restart_keys)
 end
+
+"""
+    isLazyOutputFinal(info)
+
+Returns whether the pass of a lazy run can write the final output file, i.e., the
+output is zarr in a single file.
+"""
+isLazyOutputFinal(info) = info.output.format == "zarr" && info.helpers.run.save_single_file isa DoSaveSingleFile
+
+"""
+    removeLazyStore(lazy_store)
+
+Removes what `computeLazyRun` leaves after the output and restart are saved: nothing,
+the whole `lazy_run.zarr`, or the restart arrays of the final output file.
+"""
+removeLazyStore(::Nothing) = nothing
+removeLazyStore(store_path::AbstractString) = rm(store_path; recursive=true)
+removeLazyStore(lazy_store::NamedTuple) = removeArraysZarr(lazy_store.path, lazy_store.arrays)

@@ -49,10 +49,11 @@ module Simulation
    using SindbadTEM.OmniTools
    using ..Setup
    using ..DataLoaders: YAXArrays
-   using ..DataLoaders: AllNaN, cleanData
+   using ..DataLoaders: AllNaN, cleanData, getForcingVariableInfo
    using ThreadPools
    using YAXArrays
    using DimensionalData: DimensionalData as DD
+   using JSON: parsefile
    using FillArrays: Fill
 
    include("utilsSimulation.jl")
