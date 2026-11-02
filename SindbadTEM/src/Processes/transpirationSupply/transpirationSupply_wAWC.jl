@@ -2,7 +2,7 @@ export transpirationSupply_wAWC
 
 #! format: off
 @bounds @describe @units @timescale @with_kw struct transpirationSupply_wAWC{T1} <: transpirationSupply
-    k_transpiration::T1 = 0.99 | (0.002, 1.0) | "fraction of total maximum available water that can be transpired" | "" | ""
+    k_transpiration::T1 = 0.99 | (0.002, 1.0) | "fraction of total maximum available water that can be transpired" | "day-1" | "day"
 end
 #! format: on
 
@@ -36,6 +36,7 @@ $(getModelDocString(transpirationSupply_wAWC))
 
 *Versions*
  - 1.0 on 22.11.2019 [skoirala | @dr-ko]
+ - 1.1 on 02.11.2026 [skoirala | @dr-ko]: k_transpiration is a rate per day
 
 *Created by*
  - skoirala | @dr-ko

@@ -1309,6 +1309,13 @@ sindbad_tem_variables = orD{Symbol,orD{Symbol,String}}(
         :land_field => "properties",
         :description => "total soil depth of the location as the sum of soil layer thicknesses"
     ),
+    :properties__layer_depth_fraction => orD(
+        :standard_name => "layer_depth_fraction",
+        :long_name => "soil_layer_fraction_within_soil_depth",
+        :units => "fraction",
+        :land_field => "properties",
+        :description => "fraction of the thickness of each soil layer within the soil depth"
+    ),
     :properties__soil_layer_thickness => orD(
         :standard_name => "soil_layer_thickness",
         :long_name => "soil_thickness_per_layer",
@@ -1505,12 +1512,12 @@ sindbad_tem_variables = orD{Symbol,orD{Symbol,String}}(
         :land_field => "properties",
         :description => "amount of water in the soil at wiliting point per layer"
     ),
-    :rootWaterEfficiency__root_over => orD(
-        :standard_name => "root_over",
-        :long_name => "is_root_over",
-        :units => "boolean",
+    :rootWaterEfficiency__rooted_fraction => orD(
+        :standard_name => "rooted_fraction",
+        :long_name => "soil_layer_fraction_within_root_depth",
+        :units => "fraction",
         :land_field => "rootWaterEfficiency",
-        :description => "a boolean indicating if the root is allowed to exract water from a given layer depending on maximum rooting depth"
+        :description => "fraction of the thickness of each soil layer within the maximum rooting depth"
     ),
     :states__ambient_CO2 => orD(
         :standard_name => "ambient_CO2",

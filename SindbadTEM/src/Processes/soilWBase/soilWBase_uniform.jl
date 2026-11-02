@@ -35,11 +35,13 @@ function define(params::soilWBase_uniform, forcing, land, helpers)
     cumulative_soil_depths = cumsum(soil_layer_thickness)
     soil_depth = sum(soil_layer_thickness)
     idx_soilW_end = lastindex(soilW)
+    # every layer is fully within the soil
+    layer_depth_fraction = one.(soilW)
 
     # get the plant available water capacity
 
     @pack_nt begin
-        (idx_soilW_end, soil_depth) ⇒ land.properties
+        (idx_soilW_end, soil_depth, layer_depth_fraction) ⇒ land.properties
         (cumulative_soil_depths, k_fc, k_sat, k_wp, soil_layer_thickness, w_awc, w_fc, w_sat, w_wp, ∑w_awc, ∑w_fc, ∑w_sat, ∑w_wp, soil_α, soil_β, θ_fc, θ_sat, θ_wp, ψ_fc, ψ_sat, ψ_wp) ⇒ land.properties
     end
     return land
@@ -114,7 +116,8 @@ $(getModelDocString(soilWBase_uniform))
 
 *Versions*
  - 1.0 on 18.11.2019 [skoirala | @dr-ko]: clean up & consistency
- - 1.1 on 03.12.2019 [skoirala | @dr-ko]: handling potentail vertical distribution of soil texture  
+ - 1.1 on 03.12.2019 [skoirala | @dr-ko]: handling potentail vertical distribution of soil texture
+ - 1.2 on 02.11.2026 [skoirala]: save `layer_depth_fraction` as one for every layer
 
 *Created by*
  - ncarvalhais
