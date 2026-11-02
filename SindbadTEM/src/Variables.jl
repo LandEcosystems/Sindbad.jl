@@ -504,6 +504,13 @@ sindbad_tem_variables = orD{Symbol,orD{Symbol,String}}(
         :land_field => "diagnostics",
         :description => "effect of soil moisture on gpp. 1: no stress, 0: complete stress"
     ),
+    :diagnostics__gpp_f_co2 => orD(
+        :standard_name => "gpp_f_co2",
+        :long_name => "ambient_co2_effect_gpp",
+        :units => "fraction",
+        :land_field => "diagnostics",
+        :description => "effect of ambient co2 on gpp relative to a reference co2. 1: at the reference co2"
+    ),
     :diagnostics__gpp_f_vpd => orD(
         :standard_name => "gpp_f_vpd",
         :long_name => "vapor_pressure_deficit_effect_gpp",
