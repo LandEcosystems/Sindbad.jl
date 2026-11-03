@@ -32,10 +32,11 @@ function compute(params::cFire_simple, forcing, land, helpers)
         z_zero ⇐ land.constants
     end
     # set c_fire_efflux and c_fire_mortality and cFireTotal to 0
-    cFireTotal = z_zero
-    @rep_vec c_fire_efflux ⇒ helpers.pools.zeros.cEco
-    @rep_vec c_fire_mortality ⇒ helpers.pools.zeros.cEco
-    @rep_vec c_fire_flow ⇒ helpers.pools.zeros.cEco
+    c_zero = zero(first(cEco) * c_remain * c_f_cVeg_dieOff * c_fire_fba * first(c_Fire_k) * first(c_Fire_cci) * first(c_flow_QP_vec))
+    cFireTotal = c_zero
+    @rep_vec c_fire_efflux ⇒ helpers.pools.zeros.cEco .* c_zero
+    @rep_vec c_fire_mortality ⇒ helpers.pools.zeros.cEco .* c_zero
+    @rep_vec c_fire_flow ⇒ helpers.pools.zeros.cEco .* c_zero
     zix_cVeg = helpers.pools.zix.cVeg
 
     # if there is not fire and no dieoff, pack and return

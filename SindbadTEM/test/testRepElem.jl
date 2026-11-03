@@ -81,3 +81,20 @@
         @test collect(v_svec) == v_vec
     end
 end
+
+@testset "repElem/addToElem: mixed element types are inferred and promoted" begin
+    v32 = SVector{4,Float32}(1, 2, 3, 4)
+    v64 = SVector{4,Float64}(1, 2, 3, 4)
+
+    @test @inferred(repElem(v32, 2.5, 2)) isa SVector{4,Float64}
+    @test @inferred(repElem(v64, 2.5f0, 2)) isa SVector{4,Float64}
+    @test @inferred(addToElem(v32, 2.5, 2)) isa SVector{4,Float64}
+    @test @inferred(addToElem(v64, 2.5f0, 2)) isa SVector{4,Float64}
+
+    @test repElem(v32, 2.5, 2) == SVector(1.0, 2.5, 3.0, 4.0)
+    @test addToElem(v32, 2.5, 2) == SVector(1.0, 4.5, 3.0, 4.0)
+
+    vnan = SVector{3,Float32}(NaN32, Inf32, 1)
+    r = repElem(vnan, 9.0, 3)
+    @test isnan(r[1]) && isinf(r[2]) && r[3] == 9.0
+end
