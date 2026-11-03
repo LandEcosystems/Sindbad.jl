@@ -1,13 +1,14 @@
 export gppVPD_Farquhar
 
 #! format: off
-@bounds @describe @units @timescale @with_kw struct gppVPD_Farquhar{T1,T2,T3,T4,T5,T6} <: gppVPD
+@bounds @describe @units @timescale @with_kw struct gppVPD_Farquhar{T1,T2,T3,T4,T5,T6,T7} <: gppVPD
     κ::T1 = 0.4 | (0.06, 0.7) | "sensitivity of GPP to VPD" | "kPa-1" | ""
-    χ::T2 = 0.7 | (0.4, 0.9) | "ratio of leaf internal to ambient CO2" | "" | ""
-    ref_ambient_CO2::T3 = 380.0 | (300.0, 500.0) | "ambient CO2 at which the CO2 effect is one" | "ppm" | ""
-    Γ_star_25::T4 = 42.75 | (-Inf, Inf) | "CO2 compensation point at 25 °C" | "ppm" | ""
-    ΔH_Γ_star::T5 = 37830.0 | (-Inf, Inf) | "activation energy of the CO2 compensation point" | "J mol-1" | ""
-    gas_constant::T6 = 8.314 | (-Inf, Inf) | "universal gas constant" | "J mol-1 K-1" | ""
+    c_κ::T2 = 0.0 | (-10.0, 0.0) | "exponent of the change of the VPD sensitivity with ambient CO2" | "" | ""
+    χ::T3 = 0.7 | (0.4, 0.9) | "ratio of leaf internal to ambient CO2" | "" | ""
+    ref_ambient_CO2::T4 = 380.0 | (300.0, 500.0) | "ambient CO2 at which the CO2 effect is one" | "ppm" | ""
+    Γ_star_25::T5 = 42.75 | (-Inf, Inf) | "CO2 compensation point at 25 °C" | "ppm" | ""
+    ΔH_Γ_star::T6 = 37830.0 | (-Inf, Inf) | "activation energy of the CO2 compensation point" | "J mol-1" | ""
+    gas_constant::T7 = 8.314 | (-Inf, Inf) | "universal gas constant" | "J mol-1 K-1" | ""
 end
 #! format: on
 
@@ -33,8 +34,9 @@ function compute(params::gppVPD_Farquhar, forcing, land, helpers)
     m_ref = at_least_zero(χ * ref_ambient_CO2 - Γ_star) / (χ * ref_ambient_CO2 + t_two * Γ_star)
     gpp_f_co2 = safe_divide(m_CO2, m_ref)
 
-    ## VPD stress of Maekelae (2008) and the CO2 effect
-    gpp_f_vpd = exp(-κ * f_VPD_day) * gpp_f_co2
+    ## VPD stress of Maekelae (2008), weakened at higher CO2 as in PRELES, and the
+    # CO2 effect
+    gpp_f_vpd = exp(-κ * f_VPD_day * (ambient_CO2 / ref_ambient_CO2)^c_κ) * gpp_f_co2
 
     ## pack land variables
     @pack_nt (gpp_f_co2, gpp_f_vpd) ⇒ land.diagnostics
@@ -51,8 +53,11 @@ $(getModelDocString(gppVPD_Farquhar))
 
 # Extended help
 
-The VPD stress is exp(-κ VPD) as in gppVPD_Maekelae2008. It is multiplied by the
-CO2 effect m(Ca) / m(ref_ambient_CO2), where m = (Ci - Γ*) / (Ci + 2Γ*) is the CO2
+The VPD stress is exp(-κ VPD (Ca / ref_ambient_CO2)^c_κ), the stress of
+gppVPD_Maekelae2008 with the CO2 modulation of gppVPD_PRELES. c_κ is at most zero,
+so the VPD stress can only weaken as stomata close at higher CO2. The power stays
+positive and finite at any CO2. The VPD stress is multiplied by the CO2 effect
+m(Ca) / m(ref_ambient_CO2), where m = (Ci - Γ*) / (Ci + 2Γ*) is the CO2
 dependence of the light limited rate of C3 photosynthesis and Ci = χ Ca. The CO2
 effect is one at ref_ambient_CO2, stays positive for Ci above Γ*, and saturates at
 high CO2. Its sensitivity, d ln m / d ln Ca, is about 0.4 at 400 ppm and 25 °C.
