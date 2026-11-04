@@ -76,6 +76,7 @@ purpose(::Type{DoNotStoreSpinup}) = "Disable storing of spinup results"
 
 # ------------------------- parallelization options-------------------------
 export ParallelizationPackage
+export PmapParallelization
 export QbmapParallelization
 export ThreadsParallelization
 
@@ -83,6 +84,9 @@ export ThreadsParallelization
 abstract type ParallelizationPackage <: SimulationTypes end
 
 purpose(::Type{ParallelizationPackage}) = "Abstract type for using different parallelization packages in SINDBAD"
+
+struct PmapParallelization <: ParallelizationPackage end
+purpose(::Type{PmapParallelization}) = "Use Distributed workers with pmap, each with its own threads, for parallelization"
 
 struct QbmapParallelization <: ParallelizationPackage end
 purpose(::Type{QbmapParallelization}) = "Use Qbmap for parallelization"

@@ -65,6 +65,8 @@ Parallelizes the SINDBAD Terrestrial Ecosystem Model (TEM) across multiple locat
 - `parallelization_mode`: A type dispatch that determines the parallelization backend to use:
     - `ThreadsParallelization`: Uses Julia's `Threads.@threads` for parallel execution.
     - `QbmapParallelization`: Uses `qbmap` for parallel execution.
+    - `PmapParallelization`: Not supported, since the arrays of this run are not shared
+      between processes. It only runs a lazy run, see `getRunnerYax`.
 - `show_progress`: keyword to show a progress bar that advances when a location is
   done, `false` by default
 
@@ -112,6 +114,10 @@ function parallelizeTEM!(space_selected_models::Vector, space_forcing, space_spi
     end
     finish!(progress)
     return nothing
+end
+
+function parallelizeTEM!(space_selected_models::Vector, space_forcing, space_spinup, loc_forcing_t, space_output, space_restart, space_land, tem_info, ::PmapParallelization; show_progress=false)
+    error("parallelization `pmap` only runs a lazy run, set `experiment.flags.run_lazy` to true or use `threads`")
 end
 
 """

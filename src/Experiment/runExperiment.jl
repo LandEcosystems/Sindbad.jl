@@ -515,6 +515,7 @@ Computes the output and restart cubes of a lazy run in one pass before they are 
   copied to the output files and then removed.
 - The block of grids of the pass is set by `exe_rules.yax_block_grids`, see
   `getLoopRangesYax`.
+- `exe_rules.parallelization` sets how the blocks run, see `getRunnerYax`.
 """
 function computeLazyRun end
 
@@ -523,10 +524,11 @@ computeLazyRun(_, run_output, ::DoNotRunLazy) = (run_output, nothing)
 function computeLazyRun(info, run_output, ::DoRunLazy)
     xmap_cubes = run_output.xmap
     max_cache, loop_ranges, run_filter = getLoopRangesYax(info, xmap_cubes)
+    parallelization = info.helpers.run.parallelization
     if !isLazyOutputFinal(info)
         store_path = joinpath(info.output.dirs.data, "lazy_run.zarr")
         print_info(computeLazyRun, @__FILE__, @__LINE__, "computing all output and restart cubes in one pass to `$(store_path)`", n_m=4)
-        computed = computeTEMYax(xmap_cubes, store_path; max_cache=max_cache, loop_ranges=loop_ranges, run_filter=run_filter)
+        computed = computeTEMYax(xmap_cubes, store_path; max_cache=max_cache, loop_ranges=loop_ranges, run_filter=run_filter, parallelization=parallelization)
         restart = (; run_output.restart..., dataset=computed.restart)
         return (; run_output..., output=computed.output, restart=restart), store_path
     end
@@ -534,7 +536,7 @@ function computeLazyRun(info, run_output, ::DoRunLazy)
     print_info(computeLazyRun, @__FILE__, @__LINE__, "computing all output and restart cubes in one pass to `$(store_path)`", n_m=4)
     t_step = info.experiment.basics.temporal_resolution
     variable_properties = Dict(Symbol(name) => getVariableInfo(getVarFull(var_pair), t_step) for (name, var_pair) ∈ zip(getUniqueVarNames(info.output.variables), info.output.variables))
-    computed = computeTEMYax(xmap_cubes, store_path; max_cache=max_cache, loop_ranges=loop_ranges, run_filter=run_filter, variable_properties=variable_properties, global_properties=info.output.file_info.global_metadata, save_kwargs=getSaveKwargs(info))
+    computed = computeTEMYax(xmap_cubes, store_path; max_cache=max_cache, loop_ranges=loop_ranges, run_filter=run_filter, variable_properties=variable_properties, global_properties=info.output.file_info.global_metadata, save_kwargs=getSaveKwargs(info), parallelization=parallelization)
     print_info(nothing, @__FILE__, @__LINE__, "saved all variables to `$(store_path)`", n_m=4)
     restart = (; run_output.restart..., dataset=computed.restart)
     return (; run_output..., output=computed.output, restart=restart, output_saved=true), (; path=store_path, arrays=xmap_cubes.restart_keys)

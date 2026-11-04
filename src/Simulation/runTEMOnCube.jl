@@ -428,7 +428,8 @@ end
 """
     computeTEMYax(xmap_cubes, store_path; max_cache=5e8, loop_ranges=nothing,
         run_filter=nothing, variable_properties=nothing,
-        global_properties=Dict{String,Any}(), save_kwargs=(;))
+        global_properties=Dict{String,Any}(), save_kwargs=(;),
+        parallelization=ThreadsParallelization())
 
 Computes all output and restart cubes of a lazy run in one pass and writes them to the
 zarr store at `store_path`.
@@ -445,6 +446,7 @@ zarr store at `store_path`.
   or `nothing`
 - `global_properties`: the global attributes of the store
 - `save_kwargs`: the keyword arguments of `savedataset`, e.g., the compressor
+- `parallelization`: how the blocks run, see `getRunnerYax`
 
 # Returns:
 - a NamedTuple with the `output` and `restart` Datasets, read from the store
@@ -457,13 +459,13 @@ zarr store at `store_path`.
 - With the attributes, the store can be the final output file. The restart cubes stay
   in it until they are saved to their own file, see `removeArraysZarr`.
 """
-function computeTEMYax(xmap_cubes, store_path; max_cache=5e8, loop_ranges=nothing, run_filter=nothing, variable_properties=nothing, global_properties=Dict{String,Any}(), save_kwargs=(;))
+function computeTEMYax(xmap_cubes, store_path; max_cache=5e8, loop_ranges=nothing, run_filter=nothing, variable_properties=nothing, global_properties=Dict{String,Any}(), save_kwargs=(;), parallelization=ThreadsParallelization())
     dataset = xmap_cubes.dataset
     if !isnothing(variable_properties)
         cubes = Any[withPropertiesYax(cube, get(variable_properties, name, nothing)) for (name, cube) ∈ dataset.cubes]
         dataset = datasetFromCubes(collect(keys(dataset.cubes)), cubes)
     end
-    computed = computeToZarrYax(dataset, store_path, xmap_cubes.padded_names; max_cache=max_cache, loop_ranges=loop_ranges, run_filter=run_filter, properties=global_properties, save_kwargs=save_kwargs)
+    computed = computeToZarrYax(dataset, store_path, xmap_cubes.padded_names; max_cache=max_cache, loop_ranges=loop_ranges, run_filter=run_filter, properties=global_properties, save_kwargs=save_kwargs, parallelization=parallelization)
     output_ds = datasetFromCubes(xmap_cubes.output_names, Any[computed.cubes[name] for name ∈ xmap_cubes.output_names])
     restart_ds = datasetFromCubes(xmap_cubes.restart_names, Any[computed.cubes[key] for key ∈ xmap_cubes.restart_keys])
     return (; output=output_ds, restart=restart_ds)
@@ -471,7 +473,8 @@ end
 
 """
     computeToZarrYax(dataset, path, padded_names; max_cache=5e8, loop_ranges=nothing,
-        run_filter=nothing, properties=Dict{String,Any}(), save_kwargs=(;))
+        run_filter=nothing, properties=Dict{String,Any}(), save_kwargs=(;),
+        parallelization=ThreadsParallelization())
 
 Computes the cubes of `dataset`, which come from one `xmap`, in one pass and writes
 them to a new zarr store at `path`. Returns the `Dataset` of the store.
@@ -485,6 +488,7 @@ them to a new zarr store at `path`. Returns the `Dataset` of the store.
   decides per block whether it runs, or `nothing` to run every block
 - `properties`: the global attributes of the store
 - `save_kwargs`: the keyword arguments of `savedataset`, e.g., the compressor
+- `parallelization`: how the blocks run, see `getRunnerYax`
 
 # Notes:
 - The same as `YAXArrays.compute_to_zarr` of YAXArrays 0.7, with these differences:
@@ -497,13 +501,12 @@ them to a new zarr store at `path`. Returns the `Dataset` of the store.
     writes parts of chunks that other blocks write too.
   - A float array has NaN as its fill value, so the chunks of a block that the run
     filter skips read as NaN, the same as the invalid grids of a block that runs.
-  - A block that `run_filter` skips is neither read nor written. The run filter only
-    applies to a local run, not one on Distributed workers.
+  - A block that `run_filter` skips is neither read nor written.
   - The global attributes and `save_kwargs` are passed to `savedataset`.
 - It uses the internals of DiskArrayEngine 0.3, and is checked against the
   `compute_to_zarr` of YAXArrays when either is updated.
 """
-function computeToZarrYax(dataset, path, padded_names; max_cache=5e8, loop_ranges=nothing, run_filter=nothing, properties=Dict{String,Any}(), save_kwargs=(;))
+function computeToZarrYax(dataset, path, padded_names; max_cache=5e8, loop_ranges=nothing, run_filter=nothing, properties=Dict{String,Any}(), save_kwargs=(;), parallelization=ThreadsParallelization())
     graph = DAE.MwopGraph()
     out_nodes = Dict{Symbol,Any}()
     for (name, cube) ∈ dataset.cubes
@@ -549,11 +552,37 @@ function computeToZarrYax(dataset, path, padded_names; max_cache=5e8, loop_range
             # the runner writes the cube with its padded dimensions
             size(data) == full_size ? data : reshape(data, full_size)
         end
-        runner = DAE.Distributed.nworkers() > 1 ? DAE.DaggerRunner(op, lr, out_arrays; showprogress=true) : DAE.LocalRunner(op, lr, out_arrays; showprogress=true)
+        runner = getRunnerYax(parallelization, op, lr, out_arrays)
         runner = withRunFilterYax(runner, run_filter)
         run(runner)
     end
     return empty_ds
+end
+
+"""
+    getRunnerYax(parallelization, op, loop_ranges, out_arrays)
+
+Returns the DiskArrayEngine runner of the blocks of a lazy run.
+
+# Arguments:
+- `parallelization`: the `exe_rules.parallelization` of the experiment
+  - `ThreadsParallelization` or `QbmapParallelization`: a `LocalRunner`, which runs one
+    block at a time on all threads of this session
+  - `PmapParallelization`: a `PMapRunner`, which runs one block on each Distributed
+    worker at a time, on the threads of that worker
+- `op`, `loop_ranges`, `out_arrays`: the operation, its blocks and the arrays it writes
+
+# Notes:
+- A `LocalRunner` leaves all threads idle while it reads and writes a block. With
+  workers, the reading and writing of one worker overlaps the run of the others.
+- The workers write their blocks to the store themselves. No two of them write to
+  the same chunk, since the chunks follow the blocks.
+"""
+getRunnerYax(::ParallelizationPackage, op, loop_ranges, out_arrays) = DAE.LocalRunner(op, loop_ranges, out_arrays; showprogress=true)
+
+function getRunnerYax(::PmapParallelization, op, loop_ranges, out_arrays)
+    DAE.Distributed.nworkers() > 1 || error("parallelization `pmap` needs Distributed workers, e.g., from `addprocs`, with Sindbad loaded on them, but the session has $(DAE.Distributed.nworkers()) worker")
+    return DAE.PMapRunner(op, loop_ranges, out_arrays; showprogress=true)
 end
 
 """
@@ -581,18 +610,19 @@ DAE.need_run(inow, f::ValidGridsFilterYax) = boxSumYax(f.valid_sums, map(i -> in
 """
     withRunFilterYax(runner, run_filter)
 
-Returns a local DiskArrayEngine runner with the `ValidGridsFilterYax` `run_filter`
-added to its run filters, or `runner` itself when `run_filter` is `nothing` or the
-runner is not local.
+Returns the `LocalRunner` or `PMapRunner` of DiskArrayEngine with the
+`ValidGridsFilterYax` `run_filter` added to its run filters, or `runner` itself when
+`run_filter` is `nothing`.
 
 # Notes:
 - The runner checks its run filters before it reads the inputs of a block, so a
-  skipped block costs nothing.
+  skipped block costs nothing. A `PMapRunner` checks them on the worker.
 - The progress bar counts every block, and a skipped block is never counted, so the
   bar ends below 100% when blocks are skipped.
 """
 withRunFilterYax(runner, _) = runner
 withRunFilterYax(runner::DAE.LocalRunner, run_filter::ValidGridsFilterYax) = DAE.LocalRunner(runner.op, runner.loopranges, runner.outars, runner.threaded, runner.inbuffers_pure, runner.outbuffers, runner.cb, (runner.runfilter..., run_filter))
+withRunFilterYax(runner::DAE.PMapRunner, run_filter::ValidGridsFilterYax) = DAE.PMapRunner(runner.op, runner.loopranges, runner.outars, runner.threaded, runner.inbuffers_pure, runner.outbuffers, runner.cb, (runner.runfilter..., run_filter))
 
 """
     withNaNFillYax(cube)
@@ -720,6 +750,8 @@ the cache is computed.
   grid, so the run is taken to need twice the cache and one grid per thread.
   This is kept within `memory_fraction` of the memory that is available when the
   cache is computed, which excludes what the session already holds.
+- With `PmapParallelization`, the threads are those of one worker, and every worker
+  holds its own block, see `getMemoryLimitYax`.
 """
 function getMaxCacheYax(info, in_cubes, out_cubes=(); n_forcing=length(in_cubes), grids_per_thread=4, memory_fraction=0.66)
     max_cache = get(info.experiment.exe_rules, :yax_max_cache, nothing)
@@ -730,13 +762,15 @@ function getMaxCacheYax(info, in_cubes, out_cubes=(); n_forcing=length(in_cubes)
     time_name = Symbol(data_dimension.time)
     bytes_per_grid = sum(cube -> getBytesPerGridYax(cube, space_dims), (in_cubes..., out_cubes...))
     valid_fraction = getValidFractionYax(in_cubes[1:n_forcing], space_dims, time_name)
-    n_threads = Threads.nthreads()
+    parallelization = info.helpers.run.parallelization
+    n_threads = getBlockThreadsYax(parallelization)
+    n_procs = getBlockProcsYax(parallelization)
     n_grids = ceil(Int, grids_per_thread * n_threads / valid_fraction)
     cache = n_grids * bytes_per_grid
     print_info(getMaxCacheYax, @__FILE__, @__LINE__, "computed cache of $(round(cache / 1e9; digits=2)) GB: $(n_grids) grids per block at $(round(bytes_per_grid / 1e6; digits=2)) MB each, for $(grids_per_thread) valid grids on each of $(n_threads) threads with $(round(100 * valid_fraction; digits=1))% of grids valid", n_m=4)
-    memory_limit, available_memory = getMemoryLimitYax(bytes_per_grid; memory_fraction=memory_fraction)
+    memory_limit, available_memory = getMemoryLimitYax(bytes_per_grid, parallelization; memory_fraction=memory_fraction)
     if cache > memory_limit
-        @warn "The computed cache of $(round(cache / 1e9; digits=2)) GB needs up to $(round((2 * cache + n_threads * bytes_per_grid) / 1e9; digits=2)) GB for the run, more than $(round(Int, 100 * memory_fraction))% of the $(round(available_memory / 1e9; digits=2)) GB of available memory. It is set to $(round(memory_limit / 1e9; digits=2)) GB, so some threads stay idle."
+        @warn "The computed cache of $(round(cache / 1e9; digits=2)) GB needs up to $(round(((n_procs == 1 ? 2 : 2 * n_procs + 1) * cache + n_procs * n_threads * bytes_per_grid) / 1e9; digits=2)) GB for the run, more than $(round(Int, 100 * memory_fraction))% of the $(round(available_memory / 1e9; digits=2)) GB of available memory. It is set to $(round(memory_limit / 1e9; digits=2)) GB, so some threads stay idle."
         cache = memory_limit
     end
     return cache
@@ -745,7 +779,8 @@ end
 getMaxCacheYax(info, xmap_cubes::NamedTuple; kwargs...) = getMaxCacheYax(info, xmap_cubes.in_cubes, values(xmap_cubes.dataset.cubes); n_forcing=xmap_cubes.n_forcing, kwargs...)
 
 """
-    getMemoryLimitYax(bytes_per_grid; memory_fraction=0.66)
+    getMemoryLimitYax(bytes_per_grid, parallelization=ThreadsParallelization();
+        memory_fraction=0.66)
 
 Returns the largest cache of a cube run in bytes that keeps the run within
 `memory_fraction` of the available memory, and the available memory.
@@ -754,14 +789,39 @@ Returns the largest cache of a cube run in bytes that keeps the run within
 - Reading or writing a block can copy each buffer once more, and every thread holds
   the data of its own grid, so the run is taken to need twice the cache and one grid
   per thread.
+- With `PmapParallelization`, each worker holds a block, and this session keeps one
+  more copy of the input buffers that it sends to the workers. The run is then taken
+  to need twice the cache per worker plus one, and one grid per thread of every
+  worker. The workers are started before this is computed, so the memory that they
+  hold is not available.
 """
-function getMemoryLimitYax(bytes_per_grid; memory_fraction=0.66)
+function getMemoryLimitYax(bytes_per_grid, parallelization=ThreadsParallelization(); memory_fraction=0.66)
     available_memory = Sys.free_memory()
-    n_threads = Threads.nthreads()
-    memory_limit = (memory_fraction * available_memory - n_threads * bytes_per_grid) / 2
-    memory_limit > bytes_per_grid || error("$(round(Int, 100 * memory_fraction))% of the $(round(available_memory / 1e9; digits=2)) GB of available memory is too small to run $(n_threads) threads at $(round(bytes_per_grid / 1e6; digits=2)) MB per grid. Use fewer threads or more memory.")
+    n_threads = getBlockThreadsYax(parallelization)
+    n_procs = getBlockProcsYax(parallelization)
+    n_buffers = n_procs == 1 ? 2 : 2 * n_procs + 1
+    memory_limit = (memory_fraction * available_memory - n_procs * n_threads * bytes_per_grid) / n_buffers
+    memory_limit > bytes_per_grid || error("$(round(Int, 100 * memory_fraction))% of the $(round(available_memory / 1e9; digits=2)) GB of available memory is too small to run $(n_procs) x $(n_threads) threads at $(round(bytes_per_grid / 1e6; digits=2)) MB per grid. Use fewer threads or more memory.")
     return memory_limit, available_memory
 end
+
+"""
+    getBlockThreadsYax(parallelization)
+
+Returns the number of threads that run one block of a cube run: those of this session,
+or those of the first worker with `PmapParallelization`.
+"""
+getBlockThreadsYax(::ParallelizationPackage) = Threads.nthreads()
+getBlockThreadsYax(::PmapParallelization) = DAE.Distributed.remotecall_fetch(Threads.nthreads, first(DAE.Distributed.workers()))
+
+"""
+    getBlockProcsYax(parallelization)
+
+Returns the number of blocks of a cube run that run at once: one, or one per worker
+with `PmapParallelization`.
+"""
+getBlockProcsYax(::ParallelizationPackage) = 1
+getBlockProcsYax(::PmapParallelization) = DAE.Distributed.nworkers()
 
 """
     getMaxGridsYax(info, bytes_per_grid)
@@ -773,7 +833,7 @@ Returns the most grids that a block of a lazy run can have: those that fit the
 function getMaxGridsYax(info, bytes_per_grid)
     max_cache = get(info.experiment.exe_rules, :yax_max_cache, nothing)
     isnothing(max_cache) || max_cache isa Real || error("experiment.exe_rules.yax_max_cache must be a number of bytes, or null to compute it, got `$(max_cache)`")
-    cache = isnothing(max_cache) ? first(getMemoryLimitYax(bytes_per_grid)) : max_cache
+    cache = isnothing(max_cache) ? first(getMemoryLimitYax(bytes_per_grid, info.helpers.run.parallelization)) : max_cache
     return max(1, floor(Int, cache / bytes_per_grid))
 end
 
@@ -804,7 +864,8 @@ Returns the cache, the block of grids and the run filter of a lazy run, as
     spatial dimension is the least common multiple of their chunk sizes, so no such
     chunk is read for more than one block. The block grows by whole steps, keeping
     its sides near equal, while its fullest block has at most `grids_per_thread`
-    valid grids per thread and it fits the memory, see `getMaxGridsYax`. The valid
+    valid grids per thread and it fits the memory, see `getMaxGridsYax`. With
+    `PmapParallelization`, these are the threads of one worker. The valid
     grids are counted per block, so a block over land gets the intended work and one
     over ocean has less, instead of every block getting the average.
   - `[n_lat, n_lon]`: a fixed block of grids, e.g. for benchmarks.
@@ -840,7 +901,7 @@ function getLoopRangesYax(info, xmap_cubes; grids_per_thread=8)
     bytes_per_grid = sum(cube -> getBytesPerGridYax(cube, space_dims), (in_cubes..., values(xmap_cubes.dataset.cubes)...))
     block = if setting == "auto"
         steps = map(d -> getChunkStepYax(in_cubes, d, time_name), Tuple(space_dims))
-        max_valid = grids_per_thread * Threads.nthreads()
+        max_valid = grids_per_thread * getBlockThreadsYax(info.helpers.run.parallelization)
         max_grids = getMaxGridsYax(info, bytes_per_grid)
         fits = b -> prod(b) <= max_grids && maximum(getBlockValidCountsYax(valid_sums, b, space_sizes)) <= max_valid
         growBlockYax(steps, space_sizes, fits)
@@ -857,7 +918,9 @@ function getLoopRangesYax(info, xmap_cubes; grids_per_thread=8)
     n_blocks = prod(cld.(space_sizes, block))
     valid_counts = getBlockValidCountsYax(valid_sums, block, space_sizes)
     n_skipped = count(iszero, valid_counts)
-    print_info(getLoopRangesYax, @__FILE__, @__LINE__, "$(n_blocks) blocks of $(join(block, "x")) grids in $(join(space_dims, "x")), up to $(maximum(valid_counts)) valid grids per block for $(Threads.nthreads()) threads, $(round(n_grids * bytes_per_grid / 1e9; digits=2)) GB per block. $(n_skipped) blocks without a valid grid are skipped.", n_m=4)
+    parallelization = info.helpers.run.parallelization
+    run_threads = "$(getBlockProcsYax(parallelization)) x $(getBlockThreadsYax(parallelization))"
+    print_info(getLoopRangesYax, @__FILE__, @__LINE__, "$(n_blocks) blocks of $(join(block, "x")) grids in $(join(space_dims, "x")), up to $(maximum(valid_counts)) valid grids per block for $(run_threads) threads, $(round(n_grids * bytes_per_grid / 1e9; digits=2)) GB per block. $(n_skipped) blocks without a valid grid are skipped.", n_m=4)
     return n_grids * bytes_per_grid, loop_steps, run_filter
 end
 
