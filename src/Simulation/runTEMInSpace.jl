@@ -66,7 +66,7 @@ Parallelizes the SINDBAD Terrestrial Ecosystem Model (TEM) across multiple locat
     - `ThreadsParallelization`: Uses Julia's `Threads.@threads` for parallel execution.
     - `QbmapParallelization`: Uses `qbmap` for parallel execution.
     - `PmapParallelization`: Not supported, since the arrays of this run are not shared
-      between processes. It only runs a lazy run, see `getRunnerYax`.
+      between processes. It only runs a lazy run, see `getBlockRunner`.
 - `show_progress`: keyword to show a progress bar that advances when a location is
   done, `false` by default
 

@@ -3,7 +3,7 @@ export getLoopRanges
 export dropVariablesFromStore
 
 """
-    TypeHiddenDiskArray{T,N}
+    DiskArrayWithTypeHidden{T,N}
 
 A disk array that wraps another array without its type in the type of the wrapper.
 
@@ -15,23 +15,23 @@ A disk array that wraps another array without its type in the type of the wrappe
 - Reading a block dispatches on the wrapped array at run time, which is negligible
   next to reading the block from disk.
 """
-struct TypeHiddenDiskArray{T,N} <: DiskArrays.AbstractDiskArray{T,N}
+struct DiskArrayWithTypeHidden{T,N} <: DiskArrays.AbstractDiskArray{T,N}
     parent::AbstractArray{T,N}
 end
 
-Base.parent(a::TypeHiddenDiskArray) = a.parent
-Base.size(a::TypeHiddenDiskArray) = size(a.parent)
-DiskArrays.haschunks(a::TypeHiddenDiskArray) = DiskArrays.haschunks(a.parent)
-DiskArrays.eachchunk(a::TypeHiddenDiskArray) = DiskArrays.eachchunk(a.parent)
-DiskArrays.readblock!(a::TypeHiddenDiskArray, aout, r::OrdinalRange...) = DiskArrays.readblock!(a.parent, aout, r...)
+Base.parent(a::DiskArrayWithTypeHidden) = a.parent
+Base.size(a::DiskArrayWithTypeHidden) = size(a.parent)
+DiskArrays.haschunks(a::DiskArrayWithTypeHidden) = DiskArrays.haschunks(a.parent)
+DiskArrays.eachchunk(a::DiskArrayWithTypeHidden) = DiskArrays.eachchunk(a.parent)
+DiskArrays.readblock!(a::DiskArrayWithTypeHidden, aout, r::OrdinalRange...) = DiskArrays.readblock!(a.parent, aout, r...)
 
 """
     hideCubeType(cube)
 
-Returns `cube` with its data wrapped in a `TypeHiddenDiskArray`, keeping its
+Returns `cube` with its data wrapped in a `DiskArrayWithTypeHidden`, keeping its
 dimensions, properties and chunks.
 """
-hideCubeType(cube) = YAXArray(DD.dims(cube), TypeHiddenDiskArray(cube.data), cube.properties; chunks=DiskArrays.eachchunk(cube))
+hideCubeType(cube) = YAXArray(DD.dims(cube), DiskArrayWithTypeHidden(cube.data), cube.properties; chunks=DiskArrays.eachchunk(cube))
 
 
 """
@@ -264,7 +264,7 @@ Returns the cache, the block of grids and the run filter of a lazy run, as
 - the cache in bytes
 - the number of steps of each loop dimension of the `xmap` in a block, or `nothing`
   to let DiskArrayEngine choose the block
-- a `ValidGridsFilterYax` that skips the blocks without a valid grid, or `nothing`
+- a `ValidGridsFilter` that skips the blocks without a valid grid, or `nothing`
   when no forcing without time marks the valid grids
 
 # Notes:
@@ -306,7 +306,7 @@ function getLoopRanges(info, xmap_cubes; grids_per_thread=8)
     space_sizes == expected_sizes || error("the loop sizes $(space_sizes) of the spatial dimensions $(space_dims) do not match their lengths $(expected_sizes)")
     valid_grids = getValidGrids(in_cubes[1:xmap_cubes.n_forcing], space_dims, time_name)
     valid_sums = getValidGridSums(valid_grids)
-    run_filter = isnothing(valid_sums) ? nothing : ValidGridsFilterYax(valid_sums, i_space)
+    run_filter = isnothing(valid_sums) ? nothing : ValidGridsFilter(valid_sums, i_space)
     setting == "optimizer" && return getYaxMaxCache(info, xmap_cubes), nothing, run_filter
     bytes_per_grid = sum(cube -> getBytesPerGrid(cube, space_dims), (in_cubes..., values(xmap_cubes.dataset.cubes)...))
     block = if setting == "auto"

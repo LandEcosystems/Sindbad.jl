@@ -517,7 +517,7 @@ are saved.
   copied to the output files and then removed.
 - The block of grids of the pass is set by `exe_rules.yax_block_grids`, see
   `getLoopRanges`.
-- `exe_rules.parallelization` sets how the blocks run, see `getRunnerYax`.
+- `exe_rules.parallelization` sets how the blocks run, see `getBlockRunner`.
 """
 function lazyRun end
 

@@ -1,27 +1,27 @@
 export prepTEMLazy
 
 """
-    getTemplateLandYax(selected_models, forcing, info, tem_info, land_init, forcing_data_info)
+    getLandTemplate(selected_models, forcing, info, tem_info, land_init, forcing_data_info)
 
 Builds the land that every location of a lazy run starts from, with every field of the
 selected models in its final type, as `runTEMOne` does for an eager run.
 
 # Notes:
-- The land is built from a placeholder forcing, see `getPlaceholderForcingYax`, so no
+- The land is built from a placeholder forcing, see `getForcingTemplate`, so no
   forcing is read and no location has to be valid.
 - The model errors are not caught in this step, since the placeholder values of
   different variables are not consistent with each other. The values of the land are
   set again for every location by define and precompute.
 """
-function getTemplateLandYax(selected_models, forcing, info, tem_info, land_init, forcing_data_info)
-    loc_forcing = getPlaceholderForcingYax(forcing, info, forcing_data_info, getTestForcing())
+function getLandTemplate(selected_models, forcing, info, tem_info, land_init, forcing_data_info)
+    loc_forcing = getForcingTemplate(forcing, info, forcing_data_info, getTestForcing())
     loc_forcing_t = getForcingForTimeStep(loc_forcing, loc_forcing, 1, tem_info.vals.forcing_types)
     model_helpers = (; tem_info.model_helpers..., run=(; tem_info.model_helpers.run..., catch_model_errors=DoNotCatchModelErrors()))
     return buildFullLand(selected_models, loc_forcing_t, deepcopy(land_init), model_helpers)
 end
 
 """
-    getPlaceholderForcingYax(forcing, info, forcing_data_info, test_forcing)
+    getForcingTemplate(forcing, info, forcing_data_info, test_forcing)
 
 Returns a forcing NT of one location with the same types as the forcing that
 `TEMLazy` builds from the cubes.
@@ -40,7 +40,7 @@ Returns a forcing NT of one location with the same types as the forcing that
   variable, e.g., soil texture, whose bounds are in percent while the values are
   fractions, so the test values are preferred.
 """
-function getPlaceholderForcingYax(forcing, info, forcing_data_info, test_forcing)
+function getForcingTemplate(forcing, info, forcing_data_info, test_forcing)
     num_type = info.helpers.numbers.num_type
     time_name = Symbol(info.experiment.data_settings.forcing.data_dimension.time)
     arrays = map(Tuple(forcing.variables), Tuple(values(forcing.data)), Tuple(forcing.dims), forcing_data_info) do var_name, cube, core_dims, data_info
@@ -110,7 +110,7 @@ function getForcingDataInfo(info, forcing_vars)
 end
 
 """
-    shareForcingCubesYax(info, forcing)
+    shareForcingCubes(info, forcing)
 
 Returns the forcing cubes of a lazy run with one cube per source, their core
 dimensions, and the index of the cube of each forcing variable.
@@ -125,7 +125,7 @@ dimensions, and the index of the cube of each forcing variable.
   a cube can differ in them.
 - `exe_rules.yax_shared_forcing` set to `false` keeps one cube per variable.
 """
-function shareForcingCubesYax(info, forcing)
+function shareForcingCubes(info, forcing)
     cubes = Tuple(values(forcing.data))
     dims = Tuple(forcing.dims)
     all_sources = Tuple(eachindex(cubes))
@@ -139,7 +139,7 @@ function shareForcingCubesYax(info, forcing)
     unique_firsts = unique(first_of_source)
     length(unique_firsts) == length(cubes) && return cubes, dims, all_sources
     sources = map(i -> findfirst(==(i), unique_firsts), first_of_source)
-    print_info(shareForcingCubesYax, @__FILE__, @__LINE__, "$(length(cubes)) forcing variables read $(length(unique_firsts)) sources, each source is read once", n_m=4)
+    print_info(shareForcingCubes, @__FILE__, @__LINE__, "$(length(cubes)) forcing variables read $(length(unique_firsts)) sources, each source is read once", n_m=4)
     return Tuple(cubes[i] for i ∈ unique_firsts), Tuple(dims[i] for i ∈ unique_firsts), sources
 end
 
@@ -161,7 +161,7 @@ it. `runTEMLazy` runs it.
 """
 function prepTEMLazy(selected_models, forcing::NamedTuple, info::NamedTuple)
     # forcing/input information, one cube per source so that no source is read twice
-    forcing_cubes, forcing_dims, forcing_sources = shareForcingCubesYax(info, forcing)
+    forcing_cubes, forcing_dims, forcing_sources = shareForcingCubes(info, forcing)
     incubes = map(hideCubeType, forcing_cubes);
     indims = forcing_dims;
     n_forcing_cubes = length(incubes)
@@ -169,7 +169,7 @@ function prepTEMLazy(selected_models, forcing::NamedTuple, info::NamedTuple)
     # spatiotemporal one has time, so each location gets its values over time like a
     # forcing. The values set the parameters of the models of the location in
     # TEMLazy.
-    parameter_cubes, parameter_dims, parameter_to_index, parameter_time = getParameterCubesYax(selected_models, forcing)
+    parameter_cubes, parameter_dims, parameter_to_index, parameter_time = getParameterCubes(selected_models, forcing)
     incubes = (incubes..., parameter_cubes...)
     indims = (indims..., parameter_dims...)
     # information for running model
@@ -177,14 +177,14 @@ function prepTEMLazy(selected_models, forcing::NamedTuple, info::NamedTuple)
     _num_type = Val{info.helpers.numbers.num_type}()
     _forcing_data_info = getForcingDataInfo(info, forcing.variables)
     # every location starts from this land, so the land keeps one type in all models
-    loc_land = getTemplateLandYax(selected_models, forcing, info, run_helpers.tem_info, run_helpers.loc_land, _forcing_data_info)
+    loc_land = getLandTemplate(selected_models, forcing, info, run_helpers.tem_info, run_helpers.loc_land, _forcing_data_info)
     checkOutputLayers(info.output.variables, info.output.depth_info, loc_land)
     #output = XOutput.(getproperty.(run_helpers.output_dims, :axisdesc))
     output = run_helpers.output_dims
     # the template land has every pool
     restart = getRestartDimsArrays(info, forcing.helpers, loc_land)
     restart_vars = restart.variables
-    restart_output = getRestartOutDimsYax(info, restart.dims_pairs)
+    restart_output = getRestartOutDims(info, restart.dims_pairs)
     all_output = (output..., restart_output...)
     # DiskArrayEngine needs all output cubes to have the same dimensions, so every cube
     # is padded with singleton versions of the dimensions of the other cubes.
@@ -241,7 +241,7 @@ function prepTEMLazy(selected_models, forcing::NamedTuple, info::NamedTuple)
 end
 
 """
-    getRestartOutDimsYax(info, restart_dims_pairs)
+    getRestartOutDims(info, restart_dims_pairs)
 
 Builds one `XOutput` per restart variable from its dimension pairs, leaving out the
 spatial dimensions that `xmap` loops over.
@@ -250,7 +250,7 @@ spatial dimensions that `xmap` loops over.
 - `info`: a SINDBAD NT with all information needed for setup and execution of an experiment
 - `restart_dims_pairs`: the dimension pairs of each restart variable without time
 """
-function getRestartOutDimsYax(info, restart_dims_pairs)
+function getRestartOutDims(info, restart_dims_pairs)
     space_dims = Symbol.(info.experiment.data_settings.forcing.data_dimension.space)
     return map(Tuple(restart_dims_pairs)) do dim_pairs
         vdims = []
@@ -264,7 +264,7 @@ function getRestartOutDimsYax(info, restart_dims_pairs)
 end
 
 """
-    getParameterCubesYax(selected_models, forcing)
+    getParameterCubes(selected_models, forcing)
 
 Returns the cubes of the parameters per location, their core dimensions, and the index
 of each parameter in the models, for the input cubes of `xmap`.
@@ -279,7 +279,7 @@ of each parameter in the models, for the input cubes of `xmap`.
   - the `parameter_to_index` from `getParameterIndices`
   - the `getTimeVaryingInfo` of the parameters, `nothing` when none varies in time
 """
-function getParameterCubesYax(selected_models, forcing)
+function getParameterCubes(selected_models, forcing)
     forcing_parameters = get(forcing, :parameters, nothing)
     isnothing(forcing_parameters) && return (), (), nothing, nothing
     parameter_to_index = getParameterIndices(selected_models, forcing_parameters.parameter_table)

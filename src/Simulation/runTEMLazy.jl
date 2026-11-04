@@ -72,7 +72,7 @@ end
 - `selected_models`: a tuple of all models selected in the given model structure
 - `forcing_vars`: forcing variables
 - `forcing_sources`: the index of the input cube of each forcing variable, see
-  `shareForcingCubesYax`. Variables with the same source share one cube.
+  `shareForcingCubes`. Variables with the same source share one cube.
 - `parameter_to_index`: the index of each parameter per location in the models, or
   `nothing` when there are none. The values of the location then set the parameters of
   `selected_models` before the run.
@@ -84,8 +84,8 @@ function TEMLazy(map_cubes...;selected_models, forcing_vars, forcing_sources=Tup
     # Make NaN check here instead of AllNaN filters
 
 
-    outputs, inputs, restarts, parameter_inputs = unpackYaxForward(map_cubes; output_vars, forcing_vars, restart_vars, n_inputs=maximum(forcing_sources))
-    selected_models = setLocationParametersYax(selected_models, parameter_to_index, parameter_inputs)
+    outputs, inputs, restarts, parameter_inputs = unpackGridCubes(map_cubes; output_vars, forcing_vars, restart_vars, n_inputs=maximum(forcing_sources))
+    selected_models = setGridParameters(selected_models, parameter_to_index, parameter_inputs)
     selected_models = setTimeVaryingModels(selected_models, parameter_inputs, parameter_time)
     # the same rule as filterNanGrids: a grid with an invalid forcing value at any
     # time step is not run, and its output and restart stay NaN
@@ -106,7 +106,7 @@ function TEMLazy(map_cubes...;selected_models, forcing_vars, forcing_sources=Tup
     end
     loc_forcing = (; Pair.(forcing_vars, inputs)...)
     # the restart cubes are filled after the spinup step with `save_restart`
-    store_restart = land -> fillRestartYax(restarts, land, restart_vars)
+    store_restart = land -> fillGridRestart(restarts, land, restart_vars)
     # every pixel gets its own copy, as the land has mutable arrays and the pixels can
     # run on different threads
     coreTEMLazy!(outputs, selected_models, loc_forcing, deepcopy(loc_land), tem, store_restart)
@@ -130,7 +130,7 @@ function TEMLazyForGrid(map_cubes...; tem_kwargs::Base.RefValue{Any})
 end
 
 """
-    fillRestartYax(restarts, land, restart_vars)
+    fillGridRestart(restarts, land, restart_vars)
 
 Fills the restart cubes of one location with the pools after the spinup step with
 `save_restart`.
@@ -140,7 +140,7 @@ Fills the restart cubes of one location with the pools after the spinup step wit
 - `land`: the land after the spinup step with `save_restart`
 - `restart_vars`: the field and subfield pairs of the restart variables
 """
-function fillRestartYax(restarts, land, restart_vars)
+function fillGridRestart(restarts, land, restart_vars)
     foreach(enumerate(restart_vars)) do (i, var_pair)
         data = getproperty(getproperty(land, first(var_pair)), last(var_pair))
         xout = restarts[i]
@@ -166,13 +166,13 @@ pass to the zarr store at `store_path`.
 - `max_cache`: the cache size for the block that DiskArrayEngine optimizes
 - `loop_ranges`: the steps of each loop dimension in a block, from
   `getLoopRanges`, or `nothing` to let DiskArrayEngine choose the block
-- `run_filter`: a `ValidGridsFilterYax` from `getLoopRanges` that skips the blocks
+- `run_filter`: a `ValidGridsFilter` from `getLoopRanges` that skips the blocks
   without a valid grid, or `nothing` to run every block
 - `variable_properties`: a `Dict` of the attributes of each output variable by name,
   or `nothing`
 - `global_properties`: the global attributes of the store
 - `save_kwargs`: the keyword arguments of `savedataset`, e.g., the compressor
-- `parallelization`: how the blocks run, see `getRunnerYax`
+- `parallelization`: how the blocks run, see `getBlockRunner`
 
 # Returns:
 - a NamedTuple with the `output` and `restart` Datasets, read from the store
@@ -210,11 +210,11 @@ cubes to a new zarr store at `path`. Returns the `Dataset` of the store.
   written, by cube name
 - `loop_ranges`: the steps of each loop dimension in a block, or `nothing` for the
   block that DiskArrayEngine optimizes under `max_cache`
-- `run_filter`: a run filter of DiskArrayEngine, e.g., `ValidGridsFilterYax`, that
+- `run_filter`: a run filter of DiskArrayEngine, e.g., `ValidGridsFilter`, that
   decides per block whether it runs, or `nothing` to run every block
 - `properties`: the global attributes of the store
 - `save_kwargs`: the keyword arguments of `savedataset`, e.g., the compressor
-- `parallelization`: how the blocks run, see `getRunnerYax`
+- `parallelization`: how the blocks run, see `getBlockRunner`
 
 # Notes:
 - The same as `YAXArrays.compute_to_zarr` of YAXArrays 0.7, with these differences:
@@ -278,15 +278,15 @@ function runXmap(dataset, path, padded_names; max_cache=5e8, loop_ranges=nothing
             # the runner writes the cube with its padded dimensions
             size(data) == full_size ? data : reshape(data, full_size)
         end
-        runner = getRunnerYax(parallelization, op, lr, out_arrays)
-        runner = withRunFilterYax(runner, run_filter)
+        runner = getBlockRunner(parallelization, op, lr, out_arrays)
+        runner = addRunFilter(runner, run_filter)
         run(runner)
     end
     return empty_ds
 end
 
 """
-    getRunnerYax(parallelization, op, loop_ranges, out_arrays)
+    getBlockRunner(parallelization, op, loop_ranges, out_arrays)
 
 Returns the DiskArrayEngine runner of the blocks of a lazy run.
 
@@ -304,15 +304,15 @@ Returns the DiskArrayEngine runner of the blocks of a lazy run.
 - The workers write their blocks to the store themselves. No two of them write to
   the same chunk, since the chunks follow the blocks.
 """
-getRunnerYax(::ParallelizationPackage, op, loop_ranges, out_arrays) = DAE.LocalRunner(op, loop_ranges, out_arrays; showprogress=true)
+getBlockRunner(::ParallelizationPackage, op, loop_ranges, out_arrays) = DAE.LocalRunner(op, loop_ranges, out_arrays; showprogress=true)
 
-function getRunnerYax(::PmapParallelization, op, loop_ranges, out_arrays)
+function getBlockRunner(::PmapParallelization, op, loop_ranges, out_arrays)
     DAE.Distributed.nworkers() > 1 || error("parallelization `pmap` needs Distributed workers, e.g., from `addprocs`, with Sindbad loaded on them, but the session has $(DAE.Distributed.nworkers()) worker")
     return DAE.PMapRunner(op, loop_ranges, out_arrays; showprogress=true)
 end
 
 """
-    ValidGridsFilterYax
+    ValidGridsFilter
 
 A run filter of DiskArrayEngine that skips every block of a lazy run without a valid
 grid, e.g., one over ocean.
@@ -326,18 +326,18 @@ grid, e.g., one over ocean.
   grids as in `getValidGrids`. `TEMLazy` returns NaN at once for the others, so a
   block without a valid grid only costs the reading of its inputs.
 """
-struct ValidGridsFilterYax{S,I}
+struct ValidGridsFilter{S,I}
     valid_sums::S
     i_space::I
 end
 
-DAE.need_run(inow, f::ValidGridsFilterYax) = countValidGridsInBox(f.valid_sums, map(i -> inow[i], f.i_space)) > 0
+DAE.need_run(inow, f::ValidGridsFilter) = countValidGridsInBox(f.valid_sums, map(i -> inow[i], f.i_space)) > 0
 
 """
-    withRunFilterYax(runner, run_filter)
+    addRunFilter(runner, run_filter)
 
 Returns the `LocalRunner` or `PMapRunner` of DiskArrayEngine with the
-`ValidGridsFilterYax` `run_filter` added to its run filters, or `runner` itself when
+`ValidGridsFilter` `run_filter` added to its run filters, or `runner` itself when
 `run_filter` is `nothing`.
 
 # Notes:
@@ -346,9 +346,9 @@ Returns the `LocalRunner` or `PMapRunner` of DiskArrayEngine with the
 - The progress bar counts every block, and a skipped block is never counted, so the
   bar ends below 100% when blocks are skipped.
 """
-withRunFilterYax(runner, _) = runner
-withRunFilterYax(runner::DAE.LocalRunner, run_filter::ValidGridsFilterYax) = DAE.LocalRunner(runner.op, runner.loopranges, runner.outars, runner.threaded, runner.inbuffers_pure, runner.outbuffers, runner.cb, (runner.runfilter..., run_filter))
-withRunFilterYax(runner::DAE.PMapRunner, run_filter::ValidGridsFilterYax) = DAE.PMapRunner(runner.op, runner.loopranges, runner.outars, runner.threaded, runner.inbuffers_pure, runner.outbuffers, runner.cb, (runner.runfilter..., run_filter))
+addRunFilter(runner, _) = runner
+addRunFilter(runner::DAE.LocalRunner, run_filter::ValidGridsFilter) = DAE.LocalRunner(runner.op, runner.loopranges, runner.outars, runner.threaded, runner.inbuffers_pure, runner.outbuffers, runner.cb, (runner.runfilter..., run_filter))
+addRunFilter(runner::DAE.PMapRunner, run_filter::ValidGridsFilter) = DAE.PMapRunner(runner.op, runner.loopranges, runner.outars, runner.threaded, runner.inbuffers_pure, runner.outbuffers, runner.cb, (runner.runfilter..., run_filter))
 
 """
     psTEMYax(in_pixel_cube...; selected_models, param_to_index, forcing_vars, loc_land::NamedTuple, output_vars, tem::NamedTuple, clean_data)
@@ -361,7 +361,7 @@ withRunFilterYax(runner::DAE.PMapRunner, run_filter::ValidGridsFilterYax) = DAE.
 function psTEMYax(in_pixel_cube...; selected_models, param_to_index, forcing_vars, loc_land::NamedTuple,
     output_vars, tem::NamedTuple, clean_data)
 
-    outputs, inputs = unpackYaxForward(in_pixel_cube[1:end-1]; output_vars, forcing_vars)
+    outputs, inputs = unpackGridCubes(in_pixel_cube[1:end-1]; output_vars, forcing_vars)
     in_new_params = last(in_pixel_cube)
     # ? apply clean_data fields to input data points
     _num_type, _forcing_data_info = clean_data
@@ -465,7 +465,7 @@ end
 
 
 """
-    unpackYaxForward(args; tem::NamedTuple, forcing_vars::AbstractArray)
+    unpackGridCubes(args; tem::NamedTuple, forcing_vars::AbstractArray)
 
 unpack the input and output cubes from all cubes thrown by mapCube
 
@@ -481,7 +481,7 @@ unpack the input and output cubes from all cubes thrown by mapCube
 - The cubes of the parameters per location, if any, follow the forcing cubes and are
   returned last.
 """
-function unpackYaxForward(all_cubes; output_vars, forcing_vars, restart_vars=(), n_inputs=length(forcing_vars))
+function unpackGridCubes(all_cubes; output_vars, forcing_vars, restart_vars=(), n_inputs=length(forcing_vars))
     nin = n_inputs
     nout = length(output_vars)
     nres = length(restart_vars)
@@ -494,7 +494,7 @@ end
 
 
 """
-    setLocationParametersYax(selected_models, parameter_to_index, parameter_inputs)
+    setGridParameters(selected_models, parameter_to_index, parameter_inputs)
 
 Returns the models of one location with the parameters set from the values of the
 parameters per location, or `selected_models` when there are none.
@@ -506,9 +506,9 @@ parameters per location, or `selected_models` when there are none.
   array without dimensions, or with time for a parameter that varies in time, in which
   case the value of the first time step is set
 """
-setLocationParametersYax(selected_models, ::Nothing, _) = selected_models
+setGridParameters(selected_models, ::Nothing, _) = selected_models
 
-function setLocationParametersYax(selected_models, parameter_to_index, parameter_inputs)
+function setGridParameters(selected_models, parameter_to_index, parameter_inputs)
     return setTypedParameters(selected_models, parameter_to_index, map(first, parameter_inputs))
 end
 
