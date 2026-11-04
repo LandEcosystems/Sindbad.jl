@@ -320,7 +320,7 @@ function getForcing(info::NamedTuple)
         data_path_v = getAbsDataPath(info, getfield(vinfo, :data_path))
         nc, yax = getYaxFromSource(nc, data_path, data_path_v, vinfo.source_variable)
         yax = renameToCanonicalDims(yax, vinfo.dimension, forcing_data_settings)
-        incube = subsetAndProcessYax(yax, forcing_mask, tar_dims, vinfo, info, num_type)
+        incube = subsetAndProcessCube(yax, forcing_mask, tar_dims, vinfo, info, num_type)
         v_op = vinfo.additive_unit_conversion ? " + " : " * "
         v_op = v_op * "$(vinfo.source_to_sindbad_unit)"
         v_string = "`$(k)` ($(vinfo.sindbad_unit), $(vinfo.bounds)) = <$(vinfo.space_time_type)> `$(vinfo.source_variable)` ($(vinfo.source_unit)) $(v_op)"

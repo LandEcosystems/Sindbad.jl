@@ -160,7 +160,7 @@ function runExperiment(info::NamedTuple, forcing::NamedTuple, ::DoRunOptimizatio
     run_output = nothing
     if isempty(additionaldims)
         print_info(runExperiment, @__FILE__, @__LINE__, "run optimization per pixel...")
-        run_output = optimizeTEMYax(forcing, info.tem, info.optimization, observations; max_cache=getYaxMaxCache(info, (forcing.data..., observations.data...); n_forcing=length(forcing.data)))
+        run_output = optimizeTEMLazy(forcing, info.tem, info.optimization, observations; max_cache=getYaxMaxCache(info, (forcing.data..., observations.data...); n_forcing=length(forcing.data)))
     else
         print_info(runExperiment, @__FILE__, @__LINE__, "run optimization for spatial domain...")
         obs_array = [Array(_o) for _o in observations.data]; # TODO: necessary now for performance because view of keyedarray is slow

@@ -3,7 +3,7 @@ export mapCleanData
 export cleanData
 export applyUnitConversion
 export applyQCBound
-export subsetAndProcessYax
+export subsetAndProcessCube
 export yaxCubeToKeyedArray
 export toDimStackArray
 export AllNaN
@@ -318,7 +318,7 @@ end
 
 
 """
-    subsetAndProcessYax(yax, forcing_mask, tar_dims, _data_info, info, ::Val{num_type}; clean_data=true, yax_qc=nothing, bounds_qc=nothing) where {num_type}
+    subsetAndProcessCube(yax, forcing_mask, tar_dims, _data_info, info, ::Val{num_type}; clean_data=true, yax_qc=nothing, bounds_qc=nothing) where {num_type}
 
 Subset and process YAX data according to specified parameters and quality control criteria.
 
@@ -342,7 +342,7 @@ Processed and subset YAX data according to specified parameters and quality cont
 # Type Parameters
 - `num_type`: Numerical type specification for the processed data
 """
-function subsetAndProcessYax(yax, forcing_mask, tar_dims, _data_info, info, ::Val{num_type}; clean_data=true, yax_qc=nothing, bounds_qc=nothing) where {num_type}
+function subsetAndProcessCube(yax, forcing_mask, tar_dims, _data_info, info, ::Val{num_type}; clean_data=true, yax_qc=nothing, bounds_qc=nothing) where {num_type}
     forcing_data_settings = info.experiment.data_settings.forcing
     if !isnothing(forcing_mask)
         yax = yax #todo: mask the forcing variables here depending on the mask of 1 and 0
