@@ -168,7 +168,8 @@ function setSpinupAndForwardModels(info::NamedTuple)
     # change is_spinup to a vector of indices
     is_spinup = findall(is_spinup .== 1)
 
-    info = (; info..., temp=(; info.temp..., models=(; info.temp.models..., forward=selected_approach_forward, is_spinup=is_spinup)))
+    # forward_default: the models with the default parameters, i.e., before input parameters are applied (used to build the initial land with the flag init_land_with_default_parameters)
+    info = (; info..., temp=(; info.temp..., models=(; info.temp.models..., forward=selected_approach_forward, forward_default=selected_approach_forward, is_spinup=is_spinup)))
     # update the parameters of the approaches if a parameter value has been added from the experiment configuration
     if length(selected_approach_forward) > 0
         default_parameter_table = getParameters(selected_approach_forward, info.temp.helpers.numbers.num_type, info.temp.helpers.dates.temporal_resolution)

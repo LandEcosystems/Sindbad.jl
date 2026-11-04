@@ -1,6 +1,7 @@
 export getCostVectorSize
 export prepOpti
 export prepParameters
+export evaluationLandSource
 
 """
     getCostVectorSize(algo_options, parameter_vector, ::ParameterOptimizationMethod || GSAMethod)
@@ -143,7 +144,7 @@ function  prepOpti(forcing, observations, info, ::CostModelObsMT; algorithm_info
     
     space_index = 1 # the parallelization of cost computation only runs in single pixel runs
 
-    cost_function = x -> cost(x, opti_helpers.default_values, info.models.forward, run_helpers.space_forcing[space_index], run_helpers.space_spinup[space_index], run_helpers.loc_forcing_t, run_helpers.output_array, run_helpers.space_output_mt, run_helpers.space_land[space_index], run_helpers.tem_info, observations, opti_helpers.parameter_table, opti_helpers.cost_options, info.optimization.run_options.multi_constraint_method, info.optimization.run_options.parameter_scaling, cost_vector, info.optimization.run_options.cost_method)
+    cost_function = x -> cost(x, opti_helpers.default_values, info.models.forward, run_helpers.space_forcing[space_index], run_helpers.space_spinup[space_index], run_helpers.loc_forcing_t, run_helpers.output_array, run_helpers.space_output_mt, evaluationLandSource(run_helpers, info, space_index), run_helpers.tem_info, observations, opti_helpers.parameter_table, opti_helpers.cost_options, info.optimization.run_options.multi_constraint_method, info.optimization.run_options.parameter_scaling, cost_vector, info.optimization.run_options.cost_method)
 
     opti_helpers = (; opti_helpers..., cost_function=cost_function, cost_vector=cost_vector)
     return opti_helpers
@@ -153,7 +154,7 @@ function  prepOpti(forcing, observations, info, ::CostModelObsLandTS)
     opti_helpers = prepOpti(forcing, observations, info, CostModelObs())
     run_helpers = opti_helpers.run_helpers
 
-    cost_function = x -> costLand(x, info.models.forward, run_helpers.loc_forcing, run_helpers.loc_spinup, run_helpers.loc_forcing_t, run_helpers.land_time_series, run_helpers.loc_land, run_helpers.tem_info, observations, opti_helpers.parameter_table, opti_helpers.cost_options, info.optimization.run_options.multi_constraint_method, info.optimization.run_options.parameter_scaling)
+    cost_function = x -> costLand(x, info.models.forward, run_helpers.loc_forcing, run_helpers.loc_spinup, run_helpers.loc_forcing_t, run_helpers.land_time_series, evaluationLandSource(run_helpers, info, nothing), run_helpers.tem_info, observations, opti_helpers.parameter_table, opti_helpers.cost_options, info.optimization.run_options.multi_constraint_method, info.optimization.run_options.parameter_scaling)
 
     opti_helpers = (; opti_helpers..., cost_function=cost_function)
     
@@ -197,6 +198,18 @@ function withOutputBuffer(f, pool::OutputBufferPool)
     end
 end
 
+"""
+    evaluationLandSource(run_helpers, info)
+    evaluationLandSource(run_helpers, info, space_index)
+
+The initial land given to the cost function of one evaluation, see `evaluationLand`: by default a `LandFromModels`, so that every evaluation starts from the land of its own parameters, exactly like a forward run with these parameters (`prepTEM`); with the experiment flag `init_land_with_default_parameters`, a copy of the land that `prepTEM` built with the default parameters (the behaviour before this flag existed).
+"""
+evaluationLandSource(run_helpers, info) = useDefaultLand(info) ? deepcopy(run_helpers.space_land) : LandFromModels(run_helpers.land_init)
+evaluationLandSource(run_helpers, info, space_index::Integer) = useDefaultLand(info) ? run_helpers.space_land[space_index] : LandFromModels(run_helpers.land_init)
+evaluationLandSource(run_helpers, info, ::Nothing) = useDefaultLand(info) ? run_helpers.loc_land : LandFromModels(run_helpers.land_init)
+
+useDefaultLand(info) = hasproperty(info.helpers.run, :init_land_with_default_parameters) && info.helpers.run.init_land_with_default_parameters isa DoInitLandWithDefaultParameters
+
 function init_history_file(info)
     history_file = joinpath(info.output.dirs.data, "$(info.experiment.basics.name)_$(info.experiment.basics.domain)_History.jld2")
     if isfile(history_file)
@@ -230,13 +243,13 @@ function  prepOpti(forcing, observations, info, cost_method::CostModelObs)
         history_file = init_history_file(info)
         print_info(prepOpti, @__FILE__, @__LINE__, "saving training history to file: $history_file")
         cost_function = x -> withOutputBuffer(output_buffers) do (output_array, space_output)
-            cost(x, default_values, info.models.forward, run_helpers.space_forcing, run_helpers.space_spinup, run_helpers.loc_forcing_t, output_array, space_output, deepcopy(run_helpers.space_land), run_helpers.tem_info, observations, parameter_table, cost_options, info.optimization.run_options.multi_constraint_method, info.optimization.run_options.parameter_scaling, history_file, info, cost_method)
+            cost(x, default_values, info.models.forward, run_helpers.space_forcing, run_helpers.space_spinup, run_helpers.loc_forcing_t, output_array, space_output, evaluationLandSource(run_helpers, info), run_helpers.tem_info, observations, parameter_table, cost_options, info.optimization.run_options.multi_constraint_method, info.optimization.run_options.parameter_scaling, history_file, info, cost_method)
         end
     
     elseif  info.helpers.run.store_history isa DoNotStoreHistory
         print_info(prepOpti, @__FILE__, @__LINE__, "History file will not be stored as 'store_history' flag is set to false.")
         cost_function = x -> withOutputBuffer(output_buffers) do (output_array, space_output)
-            cost(x, default_values, info.models.forward, run_helpers.space_forcing, run_helpers.space_spinup, run_helpers.loc_forcing_t, output_array, space_output, deepcopy(run_helpers.space_land), run_helpers.tem_info, observations, parameter_table, cost_options, info.optimization.run_options.multi_constraint_method, info.optimization.run_options.parameter_scaling, cost_method)
+            cost(x, default_values, info.models.forward, run_helpers.space_forcing, run_helpers.space_spinup, run_helpers.loc_forcing_t, output_array, space_output, evaluationLandSource(run_helpers, info), run_helpers.tem_info, observations, parameter_table, cost_options, info.optimization.run_options.multi_constraint_method, info.optimization.run_options.parameter_scaling, cost_method)
         end
     end
 
@@ -260,7 +273,9 @@ A tuple containing processed parameters ready for optimization
 """
 function prepParameters(parameter_table, parameter_scaling)
     
-    default_values, lower_bounds, upper_bounds = scaleParameters(parameter_table, parameter_scaling)
+    # scaled in Float64: the optimizers keep their best point in the number type of the start vector (e.g. the logger of CMAEvolutionStrategy), and with the Float32 of the parameter table the reported optimum would be the evaluated candidate rounded to Float32 in the scaled space, i.e. a slightly different parameter set than the one with the lowest loss. Scaling in Float64 also maps the start vector back exactly to the default parameters.
+    table_64 = (; name=parameter_table.name, units=parameter_table.units, model_approach=parameter_table.model_approach, initial=Float64.(parameter_table.initial), lower=Float64.(parameter_table.lower), upper=Float64.(parameter_table.upper))
+    default_values, lower_bounds, upper_bounds = scaleParameters(table_64, parameter_scaling)
 
     parameter_helpers = (; parameter_table=parameter_table, default_values=default_values, lower_bounds=lower_bounds, upper_bounds=upper_bounds)
     return parameter_helpers

@@ -1,4 +1,7 @@
 export getSpatialInfo
+export LandFromModels
+export evaluationLand
+export landModels
 export prepTEM
 
 
@@ -297,6 +300,59 @@ function getSpaceLand(loc_land, space_spinup, store_spinup_mode)
     end)
 end
 
+
+"""
+    landModels(selected_models, info)
+
+Returns the models with which `prepTEM` builds the initial land (define, precompute and the first time step): the models of the run, or, with the experiment flag `init_land_with_default_parameters`, the same models with the default parameters (`info.models.forward_default`).
+
+The flag applies to every run, so that an optimization and the forward runs with its optimized parameters always start from the same land (see `evaluationLand`).
+"""
+function landModels(selected_models, info)
+    hasproperty(info.helpers.run, :init_land_with_default_parameters) || return selected_models
+    return landModels(selected_models, info, info.helpers.run.init_land_with_default_parameters)
+end
+
+landModels(selected_models, _, ::DoNotInitLandWithDefaultParameters) = selected_models
+
+function landModels(selected_models, info, ::DoInitLandWithDefaultParameters)
+    default_models = hasproperty(info.models, :forward_default) ? info.models.forward_default : nothing
+    if typeof(default_models) != typeof(selected_models)
+        @warn "init_land_with_default_parameters: the default models do not have the structure of the models of this run; the initial land is built with the models of the run."
+        return selected_models
+    end
+    return default_models
+end
+
+"""
+    LandFromModels(land_init)
+
+Marks that the initial land of a run has to be built from `land_init` with the models of that run, as `prepTEM` does, instead of being a land prepared beforehand (see `evaluationLand`).
+"""
+struct LandFromModels{L}
+    land_init::L
+end
+
+"""
+    evaluationLand(land, selected_models, space_forcing, space_spinup, tem_info)
+    evaluationLand(land, selected_models, loc_forcing, loc_spinup, tem_info)
+
+Returns the initial land for a run of `selected_models` (e.g., the models updated with the parameters of one evaluation of an optimization):
+- `land`: a land prepared beforehand, returned as it is.
+- `land::LandFromModels`: the land built from `land.land_init` with `selected_models`, exactly as `prepTEM(selected_models, ...)` builds it, so that the evaluation and a forward run with the same parameters start from the same land. The space variant returns the lands of all locations (as `space_land` of `prepTEM`), the location variant (`loc_spinup` with a `sequence` field) the land of one location.
+"""
+evaluationLand(land, _, _, _, _) = land
+
+function evaluationLand(land::LandFromModels, selected_models, space_forcing::AbstractVector, space_spinup, tem_info)
+    _, loc_land = runTEMOne(selected_models, space_forcing[1], deepcopy(land.land_init), tem_info, space_spinup[1].sequence)
+    return getSpaceLand(loc_land, space_spinup, tem_info.run.store_spinup)
+end
+
+function evaluationLand(land::LandFromModels, selected_models, loc_forcing, loc_spinup, tem_info)
+    _, loc_land = runTEMOne(selected_models, loc_forcing, deepcopy(land.land_init), tem_info, loc_spinup.sequence)
+    return addSpinupLog(loc_land, loc_spinup.sequence, tem_info.run.store_spinup)
+end
+
 """
     helpPrepTEM(selected_models, info, forcing::NamedTuple, output::NamedTuple, ::PreAlloc)
 
@@ -389,7 +445,8 @@ function helpPrepTEM(selected_models, info, forcing::NamedTuple, output::NamedTu
 
     ## run the model for one time step
     print_info(helpPrepTEM, @__FILE__, @__LINE__, "model run for one location and time step", n_f=6)
-    loc_forcing_t, loc_land = runTEMOne(selected_models, space_forcing[1], land_init, tem_info, space_spinup[1].sequence)
+    land_init_copy = deepcopy(land_init) # kept to build the initial land of other models (see evaluationLand)
+    loc_forcing_t, loc_land = runTEMOne(landModels(selected_models, info), space_forcing[1], land_init, tem_info, space_spinup[1].sequence)
 
     addErrorCatcher(loc_land, info.helpers.run.debug_model)
     plotActualCarbonFlows(info, loc_land)
@@ -408,7 +465,7 @@ function helpPrepTEM(selected_models, info, forcing::NamedTuple, output::NamedTu
 
     forcing_nt_array = nothing
 
-    run_helpers = (; space_selected_models, space_forcing, space_ind, space_spinup, loc_forcing_t, output_array, space_output, space_land, loc_land, output_dims, output_vars, tem_info)
+    run_helpers = (; space_selected_models, space_forcing, space_ind, space_spinup, loc_forcing_t, output_array, space_output, space_land, loc_land, land_init=land_init_copy, output_dims, output_vars, tem_info)
     return run_helpers
 end
 
@@ -432,7 +489,8 @@ function helpPrepTEM(selected_models, info, forcing::NamedTuple, output::NamedTu
 
     ## run the model for one time step
     print_info(helpPrepTEM, @__FILE__, @__LINE__, "model run for one location and time step", n_f=6)
-    loc_forcing_t, loc_land = runTEMOne(selected_models, space_forcing[1], land_init, tem_info, space_spinup[1].sequence)
+    land_init_copy = deepcopy(land_init) # kept to build the initial land of other models (see evaluationLand)
+    loc_forcing_t, loc_land = runTEMOne(landModels(selected_models, info), space_forcing[1], land_init, tem_info, space_spinup[1].sequence)
 
     addErrorCatcher(loc_land, info.helpers.run.debug_model)
     plotActualCarbonFlows(info, loc_land)
@@ -451,7 +509,7 @@ function helpPrepTEM(selected_models, info, forcing::NamedTuple, output::NamedTu
 
     forcing_nt_array = nothing
 
-    run_helpers = (; space_selected_models, space_forcing, space_ind, space_spinup, loc_forcing_t, output_array, space_output, space_land, loc_land, output_dims, output_vars=info.output.variables, tem_info)
+    run_helpers = (; space_selected_models, space_forcing, space_ind, space_spinup, loc_forcing_t, output_array, space_output, space_land, loc_land, land_init=land_init_copy, output_dims, output_vars=info.output.variables, tem_info)
     return run_helpers
 end
 
@@ -480,7 +538,8 @@ function helpPrepTEM(selected_models, info, forcing::NamedTuple, output::NamedTu
 
     ## run the model for one time step
     print_info(helpPrepTEM, @__FILE__, @__LINE__, "model run for one location and time step", n_f=6)
-    loc_forcing_t, loc_land = runTEMOne(selected_models, space_forcing[1], land_init, tem_info, space_spinup[1].sequence)
+    land_init_copy = deepcopy(land_init) # kept to build the initial land of other models (see evaluationLand)
+    loc_forcing_t, loc_land = runTEMOne(landModels(selected_models, info), space_forcing[1], land_init, tem_info, space_spinup[1].sequence)
 
     addErrorCatcher(loc_land, info.helpers.run.debug_model)
     plotActualCarbonFlows(info, loc_land)
@@ -493,7 +552,7 @@ function helpPrepTEM(selected_models, info, forcing::NamedTuple, output::NamedTu
 
     forcing_nt_array = nothing
 
-    run_helpers = (; space_selected_models, space_forcing, space_ind, space_spinup, loc_forcing_t, space_output, loc_land, output_vars=output.variables, tem_info)
+    run_helpers = (; space_selected_models, space_forcing, space_ind, space_spinup, loc_forcing_t, space_output, loc_land, land_init=land_init_copy, output_vars=output.variables, tem_info)
 
     return run_helpers
 end
@@ -545,7 +604,8 @@ function helpPrepTEM(selected_models, info, forcing::NamedTuple, output::NamedTu
     forcing_nt_array = namedtuple_from_names_values(forcing.data, forcing.variables)
     loc_forcing = getLocData(forcing_nt_array, space_ind[1])
     loc_spinup = getLocSpinup(loc_forcing, tem_info)
-    loc_forcing_t, loc_land = runTEMOne(selected_models, loc_forcing, land_init, tem_info, loc_spinup.sequence)
+    land_init_copy = deepcopy(land_init) # kept to build the initial land of other models (see evaluationLand)
+    loc_forcing_t, loc_land = runTEMOne(landModels(selected_models, info), loc_forcing, land_init, tem_info, loc_spinup.sequence)
     addErrorCatcher(loc_land, info.helpers.run.debug_model)
     plotActualCarbonFlows(info, loc_land)
 
@@ -555,7 +615,7 @@ function helpPrepTEM(selected_models, info, forcing::NamedTuple, output::NamedTu
     space_selected_models = [[selected_models for _ ∈ 1:length(space_ind)]...]
 
     land_time_series = nothing
-    run_helpers = (; loc_forcing, loc_forcing_t, loc_spinup, loc_land, land_time_series, space_selected_models, space_ind, output_dims, output_vars, tem_info)
+    run_helpers = (; loc_forcing, loc_forcing_t, loc_spinup, loc_land, land_init=land_init_copy, land_time_series, space_selected_models, space_ind, output_dims, output_vars, tem_info)
     return run_helpers
 end
 

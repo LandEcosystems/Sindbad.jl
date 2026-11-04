@@ -46,7 +46,7 @@ end
 RootPotentialLinear(mode::Int, A, B) = RootPotentialLinear(mode, promote(A, B)...)
 
 #! format: off
-@bounds @describe @units @timescale @with_kw struct plantHydraulics_PHS{T1,T2,T3,T4,T5,T6,T7,T8,T9,T10,T11,T12,T13,T14,T15,T16,T17,T18,T19,T20,T21,T22,T23,T24,T25,T26,T27,T28,T29,T30,T31,T32,T33,T34,T35,T36,T37,T38,T39,T40,T41,T42,T43,T44,T45,T46,T47,T48,T49,T50,T51,T52,T53,T54,T55,T56,T57,T58,T59,T60,T61,T62,T63,T64,T65,T66,T67,T68,T69,T70,T71,T72,T73,T74,T75,T76,T77,T78,T79,T80,T81,T82,T83,T84,T85,T86,T87,T88,T89,T90,T91,T92,T93,T94,T95,T96,T97,T98,T99,T100,T101,T102,T103,T104,T105,T106,T107,T108,T109,T110,T111,T112,T113,T114,T115,T116,T117,T118,T119,T120,T121,T122,T123,T124,T125,T126,T127,T128,T129,T130,T131,T132,T133} <: plantHydraulics
+@bounds @describe @units @timescale @with_kw struct plantHydraulics_PHS{T1,T2,T3,T4,T5,T6,T7,T8,T9,T10,T11,T12,T13,T14,T15,T16,T17,T18,T19,T20,T21,T22,T23,T24,T25,T26,T27,T28,T29,T30,T31,T32,T33,T34,T35,T36,T37,T38,T39,T40,T41,T42,T43,T44,T45,T46,T47,T48,T49,T50,T51,T52,T53,T54,T55,T56,T57,T58,T59,T60,T61,T62,T63,T64,T65,T66,T67,T68,T69,T70,T71,T72,T73,T74,T75,T76,T77,T78,T79,T80,T81,T82,T83,T84,T85,T86,T87,T88,T89,T90,T91,T92,T93,T94,T95,T96,T97,T98,T99,T100,T101,T102,T103,T104,T105,T106,T107,T108,T109,T110,T111,T112,T113,T114,T115,T116,T117,T118,T119,T120,T121,T122,T123,T124,T125,T126,T127,T128,T129,T130,T131,T132,T133,T134,T135,T136,T137,T138,T139,T140,T141,T142} <: plantHydraulics
     # root params
     root_radius::T1 = 1.5e-3 | (1.0e-5, 1.0e-2) | "fine-root radius used to infer root spacing from SINDBAD root surface area" | "m" | ""
     biomass_to_carbon::T2 = 0.488 | (0.1, 1.0) | "root carbon per unit root dry biomass" | "gC gDM-1" | ""
@@ -94,7 +94,7 @@ RootPotentialLinear(mode::Int, A, B) = RootPotentialLinear(mode, promote(A, B)..
     g1::T28 = 3.0 | (1, 12.0) | "stomatal conductance parameter, ranges are refer to Medlyn paper" | "kPa^0.5" | ""
     
     # constants
-    CL::T29 = 0.125 | (0.1, 0.8) | "maximum quantum yield of photosystem II in light-adapted leaves, for PAR to Iabs, refer to P model" | "" | ""
+    CL::T29 = 0.25 | (0.1, 0.8) | "maximum quantum yield of photosystem II in light-adapted leaves, for PAR to Iabs, refer to P model" | "" | ""
     k_R::T30 = 8.3145 | (8, 9) | "universal gas constant" | "J mol-1 K-1" | ""
     diffusivity_ratio::T31 = 1.6 | (-Inf, Inf) | "Ratio of the molecular diffusivities for water vapor and CO2" | "" | ""
     k_Po::T32 = 101325.0 | (1, 1e7) | "one standard ATM" | "Pa" | ""
@@ -221,6 +221,20 @@ RootPotentialLinear(mode::Int, A, B) = RootPotentialLinear(mode, promote(A, B)..
     Tleaf_relax_iter_1::T130 = 5 | (1, 100) | "iteration at which the first relaxation weight is applied" | "" | ""
     Tleaf_relax_iter_2::T131 = 10 | (1, 100) | "iteration at which the second relaxation weight is applied" | "" | ""
     Tleaf_relax_iter_3::T132 = 30 | (1, 100) | "iteration at which the third relaxation weight is applied" | "" | ""
+
+    # Sharpe Schoolfield params -- Vcmax temperature response
+    Ea_Vc::T133 = 65000.0 | (1e4, 1e5) | "Activation energy" | "J mol-1" | ""
+    El_Vc::T134 = 10000.0 | (1e3, 2e5) | "Low-temperature passivation enthalpy change" | "J mol-1" | ""
+    Eh_Vc::T135 = 200000 | (1e5, 4e5) | "High-temperature passivation enthalpy change" | "J mol-1" | ""
+    tl_Vc::T136 = 283.15 | (270, 290) | "Low-temperature semi-deactivation temperature" | "K" | ""
+    th_Vc::T137 = 314.15 | (300, 320) | "High-temperature semi-deactivation temperature" | "K" | ""
+
+    # Sharpe Schoolfield params -- Jmax temperature response
+    Ea_J::T138 = 40000.0 | (1e4, 1e5) | "Activation energy" | "J mol-1" | ""
+    El_J::T139 = 10000.0 | (1e3, 2e5) | "Low-temperature passivation enthalpy change" | "J mol-1" | ""
+    Eh_J::T140 = 200000 | (1e5, 4e5) | "High-temperature passivation enthalpy change" | "J mol-1" | ""
+    tl_J::T141 = 283.15 | (270, 290) | "Low-temperature semi-deactivation temperature" | "K" | ""
+    th_J::T142 = 314.15 | (300, 320) | "High-temperature semi-deactivation temperature" | "K" | ""
 
 end
 #! format: on
@@ -383,8 +397,8 @@ function compute(params::plantHydraulics_PHS, forcing, land, helpers)
     ### Step 2: calculate canopy NET radiation, W m-2.
     # As in SCOPE, the energy balance, aerodynamic resistance (ra) and stomatal resistance (rs) are for ONE LEAF (per m2 of leaf area).
     # Net radiation absorbed by the canopy is per m2 of ground, so it is divided by LAI for the leaf balance, and the leaf fluxes are multiplied by LAI to get ground-area fluxes.
-    Rn_canopy = at_least_zero(f_rn) * con_1e6 / f_daytime_seconds * fAPAR # W m-2 ground
-    Rn_leaf = Rn_canopy / LAI_l # W m-2 leaf
+    Rn_canopy = at_least_zero(f_rn) * con_1e6 * fAPAR # J m-2 d-1 ground
+    Rn_leaf = Rn_canopy / LAI_l # J m-2 d-1 leaf
 
     ### Step 3: solve energy balance model.
     ci_prev = ci_initial_fraction * ca_Pa
@@ -422,8 +436,10 @@ function compute(params::plantHydraulics_PHS, forcing, land, helpers)
             ψ_leaf_act = ψ_leaf_act + psi_leaf_damping * (ψ_leaf_tmp - ψ_leaf_act)
         end
 
-        ### Step 3.5: calcualte energy balance, W m-2 leaf.
-        ϵ = Rn_leaf - LE - H
+        ### Step 3.5: calcualte energy balance, J m-2 d-1 leaf.
+        # LE occurs at daytime, but H occurs all day.
+        # The update of Tleaf needs W m-2 leaf.
+        ϵ = (Rn_leaf - LE * f_daytime_seconds - H * day_second) / day_second # W m-2 leaf
 
         # convergence: the energy balance error of the canopy (W m-2 ground) is smaller than the tolerance.
         if abs(ϵ) * LAI_l < convergence_Tleaf
@@ -442,7 +458,10 @@ function compute(params::plantHydraulics_PHS, forcing, land, helpers)
         leaf_saturated_pressure = cal_saturated_pressure(params, temp_leaf_degC) # kPa
         sh = leaf_saturated_pressure * kPa_2_hPa * esat_b * esat_c / (esat_c + temp_leaf_degC)^2 # slope of the saturation vapor pressure, hPa K-1
         demonator = ((rhoa * cp) / ra + rhoa * lambda * e_to_q * sh / (ra + rs) + 4 * leaf_emissivity * sigma_SB * (temp_leaf_degC + deg_2_K)^3)
-        temp_leaf_degC = temp_leaf_degC + Wc * ϵ / demonator
+        delta_T = Wc * ϵ / demonator # K
+        ### avoid extreme leaf temperature changes in one iteration, which may cause numerical instability.
+        # delta_T = clamp(delta_T, -1, 1) # K
+        temp_leaf_degC = temp_leaf_degC + delta_T
 
         ### Step 3.7: Update leaf VPD and β_leaf.
         leaf_saturated_pressure = cal_saturated_pressure(params, temp_leaf_degC)
@@ -505,7 +524,7 @@ function compute(params::plantHydraulics_PHS, forcing, land, helpers)
         leaf_temp_diff ⇒ land.diagnostics
     end
 
-    ### RWU, needs ψ_root and phs_transpiration in land.diagnostics.
+    ### RWU.
     land = cal_PHS_root_uptake(params, forcing, land, helpers)
     return land
 end
@@ -527,7 +546,11 @@ function cal_plant_activity(params::plantHydraulics_PHS, forcing, land, helpers)
             active_soil_root = true
         end
     end
-    return LAI > minimum_lai && leaf_saturated_VPD > z_zero && active_soil_root && temp_leaf_degC > z_zero
+    # active = LAI > minimum_lai && leaf_saturated_VPD > z_zero && active_soil_root && temp_leaf_degC > z_zero
+
+    ### The temp_leaf_degC is the effective leaf temperature, and is not a instanous temperature. If I use this temp to set the plant activity, it might ingore the plant activity at noon when the maximum leaf temp is higher than zero. >> Similar, the temperature stressor acts a similar role.
+    active = LAI > minimum_lai && leaf_saturated_VPD > z_zero && active_soil_root
+    return active
 end
 
 ### =========================
@@ -749,7 +772,7 @@ function cal_Phi_o(params::plantHydraulics_PHS, forcing, land, helpers, temp_lea
     ### This function is used to calculate the intrinsic quantum yield (φ0(T), mol C/mol photon).
     f_T = phi_T_a + phi_T_b * temp_leaf_degC - phi_T_c * temp_leaf_degC ^ 2 # dimensionless
     phi_o = at_least_zero(CL * f_T) # dimensionless
-    phi_o = min(phi_o, phi_max) # theoretical maximum value of φ0(T) is 0.125.
+    # phi_o = min(phi_o, phi_max) # theoretical maximum value of φ0(T) is 0.125.
     return phi_o
 end
 
@@ -763,11 +786,12 @@ function cal_Deactivation_High_Temp(params::plantHydraulics_PHS, forcing, land, 
     @unpack_plantHydraulics_PHS params
     @unpack_nt begin
         f_month_air_temperature ⇐ forcing
+        (z_zero, o_one) ⇐ land.constants
     end
     # in CLM4.5, it is the monthly mean temperature in deg C.
     temp_month_C = min(max(f_month_air_temperature, temp_month_min), temp_month_max)
     delta_S = delta_S_intercept - delta_S_slope * temp_month_C # entropy of de-activation, J mol-1 K-1.
-    deactivation_high_temp = (1 + exp((tk_ref * delta_S - Ed) / (tk_ref * k_R))) / (1 + exp((tk * delta_S - Ed) / (tk * k_R)))
+    deactivation_high_temp = (o_one + exp((tk_ref * delta_S - Ed) / (tk_ref * k_R))) / (o_one + exp((tk * delta_S - Ed) / (tk * k_R)))
     return deactivation_high_temp
 end
 
@@ -789,18 +813,51 @@ function cal_Deactivation_Low_Temp(params::plantHydraulics_PHS, forcing, land, h
     return deactivation_low_temp
 end
 
+function Sharpe_Schoolfield_function_Vcmax(params::plantHydraulics_PHS, forcing, land, helpers, tk)
+    @unpack_plantHydraulics_PHS params
+    @unpack_nt begin
+        (z_zero, o_one) ⇐ land.constants
+    end
+    numerator = exp((-Ea_Vc / k_R) * ((o_one / tk) - (o_one / tk_ref)))
+    low_temp = exp((El_Vc / k_R) * ((o_one / tl_Vc) - (o_one / tk)))
+    high_temp = exp((Eh_Vc / k_R) * ((o_one / th_Vc) - (o_one / tk)))
+
+    demoninator = o_one + high_temp
+    Sharpe_Schoolfield_fac_Vc = numerator / demoninator
+    return Sharpe_Schoolfield_fac_Vc
+end
+
+function Sharpe_Schoolfield_function_Jmax(params::plantHydraulics_PHS, forcing, land, helpers, tk)
+    @unpack_plantHydraulics_PHS params
+    @unpack_nt begin
+        (z_zero, o_one) ⇐ land.constants
+    end
+    numerator = exp((-Ea_J / k_R) * ((o_one / tk) - (o_one / tk_ref)))
+    low_temp = exp((El_J / k_R) * ((o_one / tl_J) - (o_one / tk)))
+    high_temp = exp((Eh_J / k_R) * ((o_one / th_J) - (o_one / tk)))
+
+    demoninator = o_one + high_temp
+    Sharpe_Schoolfield_fac_J = numerator / demoninator
+    return Sharpe_Schoolfield_fac_J
+end
+
+function cal_Jmax_Vmax(params::plantHydraulics_PHS, forcing, land, helpers, arrhenius_factor, deactivation_high_temp, deactivation_low_temp, Sharpe_Schoolfield_fac_Vc, Sharpe_Schoolfield_fac_J)
+    @unpack_plantHydraulics_PHS params
+    Jmax25 = Vcmax25 * Jmax25_Vcmax25_ratio # molC m-2 s-1
+    temperature_factor = arrhenius_factor * deactivation_high_temp * deactivation_low_temp
+    ### Notes: the leaf temperature is not an instantaneous temperature, but an effective temperature. The deactivation_low_temp is more suitable for the instantaneous temperature [I guess].
+    temp_fac = arrhenius_factor * deactivation_high_temp
+    temp_fac_vc = Sharpe_Schoolfield_fac_Vc
+    temp_fac_j = Sharpe_Schoolfield_fac_J
+    Vcmax = Vcmax25 * temp_fac_vc # molC m-2 s-1
+    Jmax = Jmax25 * temp_fac_j # molC m-2 s-1
+    return Jmax, Vcmax, temp_fac
+end
+
 function cal_gamma_star(params::plantHydraulics_PHS, forcing, land, helpers, arrhenius_factor, patm)
     @unpack_plantHydraulics_PHS params
     gamma_star = (gs25_0 * patm / k_Po) * arrhenius_factor # Pa
     return gamma_star
-end
-
-function cal_Jmax_Vmax(params::plantHydraulics_PHS, forcing, land, helpers, arrhenius_factor, deactivation_high_temp, deactivation_low_temp)
-    @unpack_plantHydraulics_PHS params
-    Vcmax = Vcmax25 * arrhenius_factor * deactivation_high_temp * deactivation_low_temp # molC m-2 s-1
-    Jmax25 = Vcmax25 * Jmax25_Vcmax25_ratio # molC m-2 s-1
-    Jmax = Jmax25 * arrhenius_factor * deactivation_high_temp * deactivation_low_temp # molC m-2 s-1
-    return Jmax, Vcmax
 end
 
 function cal_efficient_LAI(params::plantHydraulics_PHS, forcing, land, helpers)
@@ -863,9 +920,11 @@ function cal_Farquhar_info(params::plantHydraulics_PHS, forcing, land, helpers, 
     arrhenius_factor = cal_Arrhenius_Factor(params, forcing, land, helpers, patm, temp_leaf_K) # dimensionless
     deactivation_high_temp = cal_Deactivation_High_Temp(params, forcing, land, helpers, temp_leaf_K) # dimensionless
     deactivation_low_temp = cal_Deactivation_Low_Temp(params, forcing, land, helpers, temp_leaf_K) # dimensionless
+    Sharpe_Schoolfield_fac_Vc = Sharpe_Schoolfield_function_Vcmax(params, forcing, land, helpers, temp_leaf_K) # dimensionless
+    Sharpe_Schoolfield_fac_J = Sharpe_Schoolfield_function_Jmax(params, forcing, land, helpers, temp_leaf_K) # dimensionless
 
     KM = cal_KM(params, forcing, land, helpers, patm, temp_leaf_K) # effective Michaelis–Menten coefficient K (Pa)
-    Jmax, Vcmax = cal_Jmax_Vmax(params, forcing, land, helpers, arrhenius_factor, deactivation_high_temp, deactivation_low_temp) # mol C m-2 s-1
+    Jmax, Vcmax, temp_fac = cal_Jmax_Vmax(params, forcing, land, helpers, arrhenius_factor, deactivation_high_temp, deactivation_low_temp, Sharpe_Schoolfield_fac_Vc, Sharpe_Schoolfield_fac_J) # mol C m-2 s-1
     gamma_star = cal_gamma_star(params, forcing, land, helpers, arrhenius_factor, patm) # Pa
     ca_Pa, ca_mol = cal_CO2_Pa(params, forcing, land, helpers, patm, temp_leaf_K)
     efficient_lai = cal_efficient_LAI(params, forcing, land, helpers)
@@ -888,8 +947,8 @@ function cal_Farquhar_info(params::plantHydraulics_PHS, forcing, land, helpers, 
     dark_respiration, factor_LAI_Nitrogen_dark_respiration, dark_respiration_mol = cal_dark_respiration(params, forcing, land, helpers, Vcmax)
 
     @pack_nt begin
-        (KM, patm) ⇒ land.diagnostics
-        (arrhenius_factor, deactivation_high_temp, deactivation_low_temp) ⇒ land.diagnostics
+        (KM, patm, temp_fac) ⇒ land.diagnostics
+        (arrhenius_factor, deactivation_high_temp, deactivation_low_temp, Sharpe_Schoolfield_fac_Vc, Sharpe_Schoolfield_fac_J) ⇒ land.diagnostics
         (Jmax, Vcmax, J_actual) ⇒ land.diagnostics
         (gamma_star, ca_Pa, ca_mol) ⇒ land.diagnostics
         efficient_lai ⇒ land.diagnostics
@@ -909,28 +968,26 @@ function cal_PHS_root_uptake(params::plantHydraulics_PHS, forcing, land, helpers
         PAW ⇐ land.states
         root_over ⇐ land.rootWaterEfficiency
         (Κ_soil, Κ_root, ψ_soil, fraction_root, root_surface_area) ⇐ land.diagnostics
-        (ψ_root, phs_transpiration) ⇐ land.diagnostics
+        (ψ_root, tran_gs) ⇐ land.diagnostics
     end
 
     # the transpiration demand of the canopy is taken up from the soil layers with the normalized root weights, each layer is limited by its available water, and the shortage is taken from the other layers.
     # the transpiration is then equal to the total root water uptake.
-    Q = phs_transpiration * mm_2_m # m d-1
+    Q = tran_gs * mm_2_m # m d-1
     wn, _, _ = _root_layer_weights(params, Κ_soil, Κ_root, ψ_soil, fraction_root, root_surface_area, root_over)
     uptake = _root_water_uptake_layers(params, wn, Q, PAW) # m d-1
     phs_root_water_uptake = uptake * m_to_mm # mm d-1
-    phs_transpiration = sum(uptake) * m_to_mm # mm d-1, water-limited transpiration = total root water uptake
+    delta_RWU_Tr = sum(phs_root_water_uptake) - tran_gs # mm d-1
 
     β_stem = clamp_zero_one(cal_vulnerability_curve(params, ψ_root, p50_stem, shape_factor_stem))
 
     @pack_nt begin
-        (β_stem, phs_transpiration) ⇒ land.diagnostics
+        (β_stem, delta_RWU_Tr) ⇒ land.diagnostics
         phs_root_water_uptake ⇒ land.fluxes
     end
     return land
 end
 
-# normalized root weights of the soil layers: the fraction of the root surface area of the layers that can take up water, sums to 1 (or 0 if no layer can take up water).
-# also returns the soil-to-root resistance (soil + root) of each layer, d m-1, and the sum of the non-normalized weights.
 function _root_layer_weights(params::plantHydraulics_PHS, Κ_soil, Κ_root, ψ_soil, fraction_root, root_surface_area, root_over)
     @unpack_plantHydraulics_PHS params
     T = eltype(ψ_soil)
@@ -950,8 +1007,6 @@ function _root_layer_weights(params::plantHydraulics_PHS, Κ_soil, Κ_root, ψ_s
     return wn, Ω, sum_w
 end
 
-# root water potential as a linear function of the transpiration: ψ_root = A - B * Q.
-# Each layer takes up Q * wn[sl], so the layer root potential is ψ_soil - Ω * Q * wn / root_surface_area, and ψ_root is the weighted mean of them.
 function _root_potential_linear(params::plantHydraulics_PHS, Κ_soil_root, Κ_soil, Κ_root, ψ_soil, fraction_root, root_surface_area, root_over)
     @unpack_plantHydraulics_PHS params
     z_zero = zero(eltype(ψ_soil))
@@ -975,9 +1030,6 @@ function _root_potential_linear(params::plantHydraulics_PHS, Κ_soil_root, Κ_so
     return RootPotentialLinear(1, sum_a, sum_b)
 end
 
-# root water uptake of each soil layer, m d-1.
-# Demand Q is shared by the weights wn. A layer cannot take up more than its available water (PAW), and the shortage is shared by the layers that still have available water.
-# The sum of the uptake equals Q, unless the total available water of the rooted layers is smaller than Q.
 function _root_water_uptake_layers(params::plantHydraulics_PHS, wn, Q, PAW)
     @unpack_plantHydraulics_PHS params
     T = eltype(wn)
@@ -1045,9 +1097,12 @@ function _GPP_Farquhar(params::plantHydraulics_PHS, fq, leaf_stress, ci, leaf_VP
     co2_numerator = at_least_zero(ci - fq.gamma_star)
     Vc_actual = fq.Vcmax * leaf_stress
     Ac_mol_m2_s = Vc_actual * co2_numerator / (ci + fq.KM)
+
     Aj_mol_m2_s = fq.J_actual * co2_numerator / (4 * ci + 8 * fq.gamma_star)
+
     gross_photosynthesis_mol = min(Ac_mol_m2_s, Aj_mol_m2_s)
     gpp_farquhar = gross_photosynthesis_mol * fq.efficient_lai * c_mol_mass * fq.f_daytime_seconds
+
     net_photosynthesis = gpp_farquhar - fq.dark_respiration
     net_photosynthesis_mol = gross_photosynthesis_mol - fq.dark_respiration_mol
     gs = _gs_Medlyn(params, net_photosynthesis_mol, fq.ca_mol, leaf_VPD)
@@ -1110,6 +1165,28 @@ function _brent_root(f::F, a, b, fa, fb, xatol, atol, maxiters) where {F}
         fb = f(b)
     end
     return b
+end
+
+### =========================
+# calcualte plant hydraulic system.
+### =========================
+function _solve_PHS(params::plantHydraulics_PHS, temp_leaf_degC, ψ_leaf_tmp, ra, rs)
+    @unpack_plantHydraulics_PHS params
+    for _ in 1:Int(STEMMUS_max_iterations)
+        ### Step 3.3: calculate leaf latent and heat fluxes.
+        LE, H, transpiration, e_to_q, lambda = cal_latent_heat_fluxes(params, forcing, land, helpers, temp_leaf_degC, ψ_leaf_tmp, ra, rs)
+
+        ### Step 3.4: solve PHS, the leaf transpiration (mm d-1, per m2 leaf) is scaled to whole canopy (m d-1).
+        transpiration = transpiration * LAI_l * con_1e_3 # m d-1
+        ψ_root, ψ_stem, ψ_leaf_tmp = _plant_hydraulic(params, rl, H_canopy, LAI, transpiration)
+
+        if abs(ψ_leaf_act - ψ_leaf_tmp) < convergence_water_potential
+            ψ_leaf_act = ψ_leaf_act + psi_leaf_damping * (ψ_leaf_tmp - ψ_leaf_act)
+            break
+        end
+        ψ_leaf_act = ψ_leaf_act + psi_leaf_damping * (ψ_leaf_tmp - ψ_leaf_act)
+    end
+    return ψ_root, ψ_stem, ψ_leaf_act, LE, H, e_to_q, lambda
 end
 
 function cal_vulnerability_curve(params::plantHydraulics_PHS, psi, psi50, shape_factor)
@@ -1221,11 +1298,23 @@ function cal_latent_heat_fluxes(params::plantHydraulics_PHS, forcing, land, help
 end
 
 ### =========================
-# solve energy balance.
+# update leaf temperature.
 ### =========================
+function _update_leaf_temperature(params::plantHydraulics_PHS, temp_leaf_degC, ra, rs, ϵ)
+    @unpack_plantHydraulics_PHS params
 
+    leaf_saturated_pressure = cal_saturated_pressure(params, temp_leaf_degC) # kPa
+    # slope of the saturation vapor pressure, hPa K-1
+    sh = leaf_saturated_pressure * kPa_2_hPa * esat_b * esat_c / (esat_c + temp_leaf_degC) ^ 2
 
+    demonator = ((rhoa * cp) / ra + rhoa * lambda * e_to_q * sh / (ra + rs) + 4 * leaf_emissivity * sigma_SB * (temp_leaf_degC + deg_2_K)^3)
 
+    # avoid a big update in one step.
+    delta_T = clamp(ϵ / demonator, -1, 1)
+    temp_leaf_degC += delta_T
+
+    return temp_leaf_degC
+end
 
 purpose(::Type{plantHydraulics_PHS}) = "Farquhar-Medlyn-Fick-PHS model framework."
 
@@ -1259,8 +1348,6 @@ $(getModelDocString(plantHydraulics_PHS))
 
  ### _solve_ci_Pa
  1. Medlyn, B. E. et al. Reconciling the optimal and empirical approaches to modelling stomatal conductance. Global Change Biology 17, 2134–2144 (2011).
-
-
 
 *Versions*
  - 1.0 on 21.09.2026 [jzhou]

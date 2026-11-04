@@ -1,4 +1,5 @@
 export prepExperiment
+export prepExperimentForwardParams
 export runExperiment
 export runExperimentCost
 export runExperimentForward
@@ -382,14 +383,32 @@ function runExperimentForwardParams(params_vector::Vector, sindbad_experiment::S
     # forward_output = (; optimized=optimized_output, default=default_output)
     # set_log_level()
 
-    print_info_separator(sep_text="Forward Simulation with Input/Optimized Parameters")
-    set_log_level(log_level)
-    print_info(runExperimentForwardParams, @__FILE__, @__LINE__, "running forward simulation with input/optimized parameters...", n_m=1)
+    info, forcing = prepExperimentForwardParams(sindbad_experiment; replace_info=replace_info)
+    return runExperimentForwardParams(params_vector, info, forcing; log_level=log_level)
+end
+
+"""
+    prepExperimentForwardParams(sindbad_experiment::String; replace_info::Dict=Dict())
+
+Reads the settings and the forcing for `runExperimentForwardParams`, i.e., in the forward + cost mode.
+"""
+function prepExperimentForwardParams(sindbad_experiment::String; replace_info=Dict())
     replace_info = deepcopy(replace_info)
     replace_info["experiment.flags.run_optimization"] = false
     replace_info["experiment.flags.calc_cost"] = true
     replace_info["experiment.flags.run_forward"] = true
-    info, forcing = prepExperiment(sindbad_experiment; replace_info=replace_info)
+    return prepExperiment(sindbad_experiment; replace_info=replace_info)
+end
+
+"""
+    runExperimentForwardParams(params_vector::Vector, info::NamedTuple, forcing::NamedTuple; log_level::Symbol=:info)
+
+Same as above, with the `info` and `forcing` of `prepExperimentForwardParams`, so that the settings can be read before the parameters are known (see `runExperimentOpti`).
+"""
+function runExperimentForwardParams(params_vector::Vector, info::NamedTuple, forcing::NamedTuple; log_level=:info)
+    print_info_separator(sep_text="Forward Simulation with Input/Optimized Parameters")
+    set_log_level(log_level)
+    print_info(runExperimentForwardParams, @__FILE__, @__LINE__, "running forward simulation with input/optimized parameters...", n_m=1)
 
     default_models = info.models.forward;
 
@@ -456,6 +475,22 @@ end
 
 
 """
+    checkDeliveredLoss(delivered_loss, best_loss; rtol=1e-4)
+
+Checks that the loss of the delivered (optimized) parameters, from the forward run, reproduces the lowest loss that the optimizer evaluated, and warns if it does not. A mismatch means that the optimizer and the final run did not evaluate the same model, e.g., because the optimizer reported a best point that differs from the evaluated one (e.g., rounded to Float32), because the settings files were edited between the optimization and the final run, or because the model output is not reproducible (a non-deterministic model, or a model so close to a threshold that tiny parameter changes change the result).
+"""
+function checkDeliveredLoss(delivered_loss, best_loss; rtol=1e-4)
+    isfinite(best_loss) || return nothing
+    if isfinite(delivered_loss) && isapprox(delivered_loss, best_loss; rtol=rtol)
+        print_info(checkDeliveredLoss, @__FILE__, @__LINE__, "the optimized parameters reproduce the lowest loss of the optimization: $(delivered_loss) (optimization: $(best_loss))")
+    else
+        @warn "The optimized parameters do NOT reproduce the lowest loss of the optimization: forward run = $(delivered_loss), optimization = $(best_loss). The optimizer and the final run did not evaluate the same model: check whether the optimizer reports exactly the evaluated best parameters (e.g., not rounded to a lower precision), whether the settings files were changed between the optimization and the final run, and whether the model is reproducible, i.e., the loss of a parameter set does not change between runs or with tiny changes of the parameters (e.g., a model state that collapses close to a threshold)."
+    end
+    return nothing
+end
+
+
+"""
     runExperimentOpti(sindbad_experiment::String; replace_info::Dict=Dict(), log_level::Symbol=:warn)
 
 Run optimization experiment through `runExperiment` function in `DoRunOptimization` mode, followed by forward run with optimized parameters.
@@ -475,16 +510,19 @@ function runExperimentOpti(sindbad_experiment::String; replace_info=Dict(), log_
     replace_info["experiment.flags.calc_cost"] = false
     replace_info["experiment.flags.run_forward"] = false
     info, forcing = prepExperiment(sindbad_experiment; replace_info=replace_info)
+    # the settings of the forward run with the optimized parameters are read now, together with those of the optimization, so that settings files edited while the optimization is running do not change the final run.
+    fp_info, fp_forcing = prepExperimentForwardParams(sindbad_experiment; replace_info=replace_info)
 
     run_helpers = prepTEM(info.models.forward, forcing, info)
     opti_output = runExperiment(info, forcing, info.helpers.run.run_optimization)
     set_log_level(:info)
-    fp_output = runExperimentForwardParams(opti_output.parameters.optimized, sindbad_experiment; replace_info=replace_info)
+    fp_output = runExperimentForwardParams(opti_output.parameters.optimized, fp_info, fp_forcing)
     cost_options = prepCostOptions(opti_output.observation, info.optimization.cost_options)
     loss_vector = metricVector(fp_output.output.optimized, opti_output.observation, cost_options)
     loss_vector_def = metricVector(fp_output.output.default, opti_output.observation, cost_options)
     loss_table = Table((; variable=cost_options.variable, metric=cost_options.cost_metric, loss_opt=loss_vector, loss_def=loss_vector_def))
     display(loss_table)
+    checkDeliveredLoss(combineMetric(loss_vector, info.optimization.run_options.multi_constraint_method), optimizationBestCost())
 
     loss_table_output_file = joinpath(info.output.dirs.data, "$(info.experiment.basics.name)_$(info.experiment.basics.domain)_Loss_Table.csv")
     print_info(runExperimentOpti, @__FILE__, @__LINE__, "saving training process to file: `$(loss_table_output_file)`", n_m=1)

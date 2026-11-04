@@ -6,16 +6,29 @@ function compute(params::gpp_coupled, forcing, land, helpers)
 
     ## unpack land variables
     @unpack_nt begin
+        f_PAR ⇐ forcing
+        fAPAR ⇐ land.states
         transpiration_supply ⇐ land.diagnostics
         gpp_f_soilW ⇐ land.diagnostics
         gpp_demand ⇐ land.diagnostics
         WUE ⇐ land.diagnostics
+        z_zero ⇐ land.constants
     end
+
+    gpp_s = transpiration_supply * WUE
+    gpp_d = gpp_demand * gpp_f_soilW
+    delta_gpp = gpp_d - gpp_s
 
     gpp = min(transpiration_supply * WUE, gpp_demand * gpp_f_soilW)
 
+    APAR = fAPAR * f_PAR
+    lue = APAR != z_zero ? gpp / APAR : z_zero
+
     ## pack land variables
-    @pack_nt gpp ⇒ land.fluxes
+    @pack_nt begin
+        (gpp, gpp_s, gpp_d, delta_gpp) ⇒ land.fluxes
+        (lue) ⇒ land.diagnostics
+    end
     return land
 end
 

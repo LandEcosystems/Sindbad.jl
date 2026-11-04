@@ -32,11 +32,15 @@ function backScaleParameters(parameter_vector_scaled, parameter_table, ::ScaleDe
     return parameter_vector_scaled
 end
 
+# the bounds for back-scaling: in Float64 for the Float64 candidates of the optimizers, as the scaling in prepParameters, so that the round trip is exact (with the Float32 table, ub - lb would be rounded differently); otherwise (e.g. AD numbers) as in the table.
+_scalingBounds(parameter_table, ::AbstractVector{Float64}) = (Float64.(parameter_table.lower), Float64.(parameter_table.upper))
+_scalingBounds(parameter_table, _) = (parameter_table.lower, parameter_table.upper)
+
 function backScaleParameters(parameter_vector_scaled, parameter_table, ::ScaleBounds)
-    ub = parameter_table.upper  # upper bounds
-    lb = parameter_table.lower   # lower bounds
-    parameter_vector_scaled .= lb .+ (ub .- lb) .* parameter_vector_scaled
-    return parameter_vector_scaled
+    lb, ub = _scalingBounds(parameter_table, parameter_vector_scaled)
+    # not in place: the input is the optimizer's candidate (a view into CMA-ES's population matrix) and is reused by the caller, e.g. for the training history.
+    parameter_vector = lb .+ (ub .- lb) .* parameter_vector_scaled
+    return parameter_vector
 end
 
 """

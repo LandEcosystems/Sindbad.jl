@@ -43,11 +43,54 @@ julia> # cost_value = cost(parameter_vector, default_values, selected_models, sp
 const HISTORY_LOCK = ReentrantLock()
 const ITER_COUNTER = Ref(0)
 
-function write_history!(history_file, iter, cost_vec, param_vec)
-    jldopen(history_file, "a") do f
-        f["cost_$iter"] = cost_vec
-        f["params_$iter"] = param_vec
+# Appending to a JLD2 file re-reads its whole group index on every `jldopen`, so a write per evaluation becomes slower as the history grows (~40 ms per write after 50000 evaluations, while holding HISTORY_LOCK). The records are therefore buffered and appended in batches.
+const HISTORY_BUFFER = Tuple{Int,Any,Any}[]
+const HISTORY_STATE = (; file=Ref(""), last_flush=Ref(time()))
+const HISTORY_FLUSH_EVERY = 100
+const HISTORY_FLUSH_SECONDS = 120.0
+
+"""
+    flush_history!()
+
+Write all buffered training-history records to the history file. Call with `HISTORY_LOCK` held (or from a single thread).
+"""
+function flush_history!()
+    file = HISTORY_STATE.file[]
+    if !isempty(HISTORY_BUFFER) && !isempty(file)
+        jldopen(file, "a") do f
+            for (iter, cost_vec, param_vec) in HISTORY_BUFFER
+                f["cost_$iter"] = cost_vec
+                f["params_$iter"] = param_vec
+            end
+        end
+        empty!(HISTORY_BUFFER)
     end
+    HISTORY_STATE.last_flush[] = time()
+    return nothing
+end
+
+function flush_history_locked!()
+    lock(HISTORY_LOCK) do
+        flush_history!()
+    end
+end
+
+const HISTORY_ATEXIT = Ref(false)
+
+function write_history!(history_file, iter, cost_vec, param_vec)
+    if HISTORY_STATE.file[] != history_file
+        flush_history!()
+        HISTORY_STATE.file[] = history_file
+    end
+    if !HISTORY_ATEXIT[]
+        HISTORY_ATEXIT[] = true
+        atexit(flush_history_locked!)
+    end
+    push!(HISTORY_BUFFER, (iter, cost_vec, param_vec))
+    if length(HISTORY_BUFFER) >= HISTORY_FLUSH_EVERY || time() - HISTORY_STATE.last_flush[] > HISTORY_FLUSH_SECONDS
+        flush_history!()
+    end
+    return nothing
 end
 
 function cost end
@@ -57,13 +100,13 @@ function cost(parameter_vector, _, selected_models, space_forcing, space_spinup,
 
     @debug parameter_vector
     updated_models = updateModels(parameter_vector, parameter_updater, parameter_scaling_type, selected_models)
-    runTEM!(updated_models, space_forcing, space_spinup, loc_forcing_t, space_output, space_land, tem_info)
+    runTEM!(updated_models, space_forcing, space_spinup, loc_forcing_t, space_output, evaluationLand(space_land, updated_models, space_forcing, space_spinup, tem_info), tem_info)
     cost_vector = metricVector(output_array, observations, cost_options)
     cost_metric = combineMetric(cost_vector, multi_constraint_method)
     @debug cost_vector, cost_metric
 
-    # TODO: check whether I convert the parameter vector to the original scale correctly.
-    param_vec = parameter_vector .* info.optimization.parameter_table.default
+    # the parameters in original units, as given to the models (collect: the records are buffered, and with ScaleNone this would otherwise be a view into the optimizer's population, overwritten by the next generation).
+    param_vec = collect(backScaleParameters(parameter_vector, parameter_updater, parameter_scaling_type))
     cost_vec = vcat(cost_vector, cost_metric)
 
     lock(HISTORY_LOCK) do
@@ -79,7 +122,7 @@ end
 function cost(parameter_vector, _, selected_models, space_forcing, space_spinup, loc_forcing_t, output_array, space_output, space_land, tem_info, observations, parameter_updater, cost_options, multi_constraint_method, parameter_scaling_type, ::CostModelObs)
     @debug parameter_vector
     updated_models = updateModels(parameter_vector, parameter_updater, parameter_scaling_type, selected_models)
-    runTEM!(updated_models, space_forcing, space_spinup, loc_forcing_t, space_output, space_land, tem_info)
+    runTEM!(updated_models, space_forcing, space_spinup, loc_forcing_t, space_output, evaluationLand(space_land, updated_models, space_forcing, space_spinup, tem_info), tem_info)
     cost_vector = metricVector(output_array, observations, cost_options)
     cost_metric = combineMetric(cost_vector, multi_constraint_method)
     @debug cost_vector, cost_metric
@@ -94,9 +137,9 @@ function cost(parameter_matrix, _, selected_models, space_forcing, space_spinup,
     Threads.@threads for parameter_index in eachindex(1:parameter_set_size)
         idx = Threads.threadid()
         parameter_vector = parameter_matrix[:, parameter_index]
-        local_land = deepcopy(space_land)
         @debug parameter_vector
         updated_models = updateModels(parameter_vector, parameter_updater, parameter_scaling_type, selected_models)
+        local_land = evaluationLand(deepcopy(space_land), updated_models, space_forcing, space_spinup, tem_info)
         coreTEM!(updated_models, space_forcing, space_spinup, loc_forcing_t, space_output[idx], local_land, tem_info)
         cost_vector = metricVector(space_output[idx], observations, cost_options)
         cost_metric = combineMetric(cost_vector, multi_constraint_method)
@@ -177,7 +220,7 @@ function costLand end
 
 function costLand(parameter_vector::AbstractArray, selected_models, forcing, spinup_forcing, loc_forcing_t, land_timeseries, land_init, tem_info, observations, parameter_updater, cost_options, multi_constraint_method, parameter_scaling_type)
     updated_models = updateModels(parameter_vector, parameter_updater, parameter_scaling_type, selected_models)
-    land_wrapper_timeseries = runTEM(updated_models, forcing, spinup_forcing, loc_forcing_t, land_timeseries, land_init, tem_info)
+    land_wrapper_timeseries = runTEM(updated_models, forcing, spinup_forcing, loc_forcing_t, land_timeseries, evaluationLand(land_init, updated_models, forcing, spinup_forcing, tem_info), tem_info)
     cost_vector = metricVector(land_wrapper_timeseries, observations, cost_options)
     cost_metric = combineMetric(cost_vector, multi_constraint_method)
     @debug cost_vector, cost_metric
@@ -186,7 +229,7 @@ end
 
 function costLand(parameter_vector::AbstractArray, selected_models, forcing, spinup_forcing, loc_forcing_t, ::Nothing, land_init, tem_info, observations, parameter_updater, cost_options, multi_constraint_method, parameter_scaling_type)
     updated_models = updateModels(parameter_vector, parameter_updater, parameter_scaling_type, selected_models)
-    land_wrapper_timeseries = runTEM(updated_models, forcing, spinup_forcing, loc_forcing_t, land_init, tem_info)
+    land_wrapper_timeseries = runTEM(updated_models, forcing, spinup_forcing, loc_forcing_t, evaluationLand(land_init, updated_models, forcing, spinup_forcing, tem_info), tem_info)
     cost_vector = metricVector(land_wrapper_timeseries, observations, cost_options)
     cost_metric = combineMetric(cost_vector, multi_constraint_method)
     @debug cost_vector, cost_metric

@@ -256,6 +256,10 @@ function setModelRunInfo(info::NamedTuple)
         info = @set info.settings.experiment.flags.catch_model_errors = true
     end
     run_vals = convertRunFlagsToTypes(info)
+    # the initial land of every run is built with the parameters of that run, unless the experiment asks for the default parameters
+    if !hasproperty(run_vals, :init_land_with_default_parameters)
+        run_vals = set_namedtuple_field(run_vals, (:init_land_with_default_parameters, DoNotInitLandWithDefaultParameters()))
+    end
     # check if lazy run is set, and if so, set output array type to YAXArray regardless of the setting in json, as well as land output type to YAXArray
     run_lazy = get(info.settings.experiment.flags, :run_lazy, false)
 
@@ -567,6 +571,7 @@ function setupInfo(info::NamedTuple)
     if !isnothing(info.settings.experiment.exe_rules.longtuple_size)
         selected_approach_forward = to_longtuple(info.temp.models.forward, info.settings.experiment.exe_rules.longtuple_size)
         info = @set info.temp.models.forward = selected_approach_forward
+        info = @set info.temp.models.forward_default = to_longtuple(info.temp.models.forward_default, info.settings.experiment.exe_rules.longtuple_size)
     end
 
     print_info(setupInfo, @__FILE__, @__LINE__, "Cleaning Info Fields...")

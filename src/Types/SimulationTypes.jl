@@ -23,6 +23,8 @@ export DoStoreSpinup
 export DoNotStoreSpinup
 export DoStoreHistory
 export DoNotStoreHistory
+export DoInitLandWithDefaultParameters
+export DoNotInitLandWithDefaultParameters
 
 
 abstract type RunFlag <: SimulationTypes end
@@ -81,6 +83,12 @@ purpose(::Type{DoStoreHistory}) = "Enable storing of training history during opt
 
 struct DoNotStoreHistory <: RunFlag end
 purpose(::Type{DoNotStoreHistory}) = "Disable storing of training history during optimization"
+
+struct DoInitLandWithDefaultParameters <: RunFlag end
+purpose(::Type{DoInitLandWithDefaultParameters}) = "Build the initial land of every run (the optimization and the forward runs) with the default parameters, as the optimization did before this flag existed, e.g., to reproduce such results"
+
+struct DoNotInitLandWithDefaultParameters <: RunFlag end
+purpose(::Type{DoNotInitLandWithDefaultParameters}) = "Build the initial land of every run (the optimization and the forward runs) with the parameters of that run"
 
 # ------------------------- parallelization options-------------------------
 export ParallelizationPackage

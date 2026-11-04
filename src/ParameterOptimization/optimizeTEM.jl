@@ -1,5 +1,16 @@
 export optimizeTEM
 export optimizeTEMYax
+export optimizationBestCost
+
+# lowest loss evaluated during the last call of optimizeTEM; runExperimentOpti checks that the delivered parameters reproduce it.
+const OPTIMIZATION_BEST_COST = Ref(NaN)
+
+"""
+    optimizationBestCost()
+
+Returns the lowest loss that the optimizer evaluated during the last call of `optimizeTEM` (NaN if none).
+"""
+optimizationBestCost() = OPTIMIZATION_BEST_COST[]
 
 """
     optimizeTEM(forcing::NamedTuple, observations, info::NamedTuple)
@@ -28,8 +39,24 @@ function optimizeTEM(forcing::NamedTuple, observations, info::NamedTuple)
     # get the subset of parameters table that consists of only optimized parameters
     opti_helpers = prepOpti(forcing, observations, info, info.optimization.run_options.cost_method)
 
+    # keep track of the lowest loss the optimizer evaluates (AD numbers of gradient-based optimizers are not tracked)
+    OPTIMIZATION_BEST_COST[] = NaN
+    best_cost = Ref(Inf)
+    best_lock = ReentrantLock()
+    tracked_cost_function = x -> begin
+        c = opti_helpers.cost_function(x)
+        if c isa AbstractFloat && isfinite(c)
+            lock(best_lock) do
+                c < best_cost[] && (best_cost[] = c)
+            end
+        end
+        c
+    end
+
     # run the optimizer
-    optim_para = optimizer(opti_helpers.cost_function, opti_helpers.default_values, opti_helpers.lower_bounds, opti_helpers.upper_bounds, info.optimization.optimizer.options, info.optimization.optimizer.method)
+    optim_para = optimizer(tracked_cost_function, opti_helpers.default_values, opti_helpers.lower_bounds, opti_helpers.upper_bounds, info.optimization.optimizer.options, info.optimization.optimizer.method)
+    flush_history_locked!() # write the records of the last evaluations that are still buffered
+    OPTIMIZATION_BEST_COST[] = isfinite(best_cost[]) ? best_cost[] : NaN
 
     optim_para = backScaleParameters(optim_para, opti_helpers.parameter_table, info.optimization.run_options.parameter_scaling)
 
