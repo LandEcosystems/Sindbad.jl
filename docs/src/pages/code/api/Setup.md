@@ -219,7 +219,9 @@ convertRunFlagsToTypes
 ```julia
 function convertRunFlagsToTypes(info)
     new_run = (;)
-    dr = deepcopy(info.settings.experiment.flags)
+    # a pixel with invalid forcing cannot be simulated, so it is skipped unless the
+    # experiment turns filtering off
+    dr = merge((; filter_nan_pixels=true), deepcopy(info.settings.experiment.flags))
     for pr in propertynames(dr)
         prf = getfield(dr, pr)
         prtoset = nothing
@@ -434,10 +436,12 @@ function createNestedDict(dict::AbstractDict)
                 subkey_name = subkey * string(key_index)
             end
             if subkey == last(key_list)
-                key_dict[subkey_name] = dict[kii]
+                key_dict[subkey_name] = toOrderedDict(dict[kii])
             else
                 if !haskey(key_dict, subkey_name)
-                    key_dict[subkey_name] = Dict()
+                    # an OrderedDict, like the parsed json, so that a level that is new in
+                    # the configuration is converted to a NamedTuple with the others
+                    key_dict[subkey_name] = DataStructures.OrderedDict()
                     key_dict[subkey_name][key_list[key_index+1]] = key_dict[key_list[key_index+1]*string(key_index+1)]
                 else
                     tmp = Dict()

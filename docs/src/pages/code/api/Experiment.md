@@ -76,7 +76,7 @@ end
 function runExperiment(info::NamedTuple, forcing::NamedTuple, ::Union{DoRunForward, DoNotRunOptimization})
     run_output = runForward(forcing, info, info.helpers.run.run_lazy)
     set_log_level()
-    return (; forcing, info, output=run_output.output, restart=run_output.restart, spinup=run_output.spinup)
+    return (; forcing, info, output=run_output.output, restart=run_output.restart, spinup=run_output.spinup, xmap=get(run_output, :xmap, nothing))
 end
 
 function runExperiment(info::NamedTuple, forcing::NamedTuple, ::DoRunOptimization)
@@ -86,7 +86,7 @@ function runExperiment(info::NamedTuple, forcing::NamedTuple, ::DoRunOptimizatio
     run_output = nothing
     if isempty(additionaldims)
         print_info(runExperiment, @__FILE__, @__LINE__, "run optimization per pixel...")
-        run_output = optimizeTEMYax(forcing, info.tem, info.optimization, observations; max_cache=info.settings.experiment.exe_rules.yax_max_cache)
+        run_output = optimizeTEMLazy(forcing, info.tem, info.optimization, observations; max_cache=getYaxMaxCache(info, (forcing.data..., observations.data...); n_forcing=length(forcing.data)))
     else
         print_info(runExperiment, @__FILE__, @__LINE__, "run optimization for spatial domain...")
         obs_array = [Array(_o) for _o in observations.data]; # TODO: necessary now for performance because view of keyedarray is slow
@@ -117,9 +117,11 @@ function runExperimentForward(sindbad_experiment::String; replace_info=Dict(), l
     info, forcing = prepExperiment(sindbad_experiment; replace_info=replace_info)
     run_output = runExperiment(info, forcing, info.helpers.run.run_forward)
     output_dims = getOutDims(info, forcing.helpers)
-    saveOutCubes(info, values(run_output.output), output_dims, info.output.variables)
-    saveRestartCubes(info, run_output.restart)
+    saved_output, lazy_store = lazyRun(info, run_output, info.helpers.run.run_lazy)
+    get(saved_output, :output_saved, false) || saveOutCubes(info, values(saved_output.output), output_dims, info.output.variables)
+    saveRestartCubes(info, saved_output.restart)
     saveSpinupCubes(info, run_output.spinup)
+    removeLazyStore(lazy_store)
     # the figures need the forcing and output in memory, which a lazy run does not
     # have
     info.helpers.run.run_lazy isa DoRunLazy || plotForwardRun(info, forcing, run_output.output, run_output.spinup)
@@ -279,9 +281,11 @@ function runExperimentForward(sindbad_experiment::String; replace_info=Dict(), l
     info, forcing = prepExperiment(sindbad_experiment; replace_info=replace_info)
     run_output = runExperiment(info, forcing, info.helpers.run.run_forward)
     output_dims = getOutDims(info, forcing.helpers)
-    saveOutCubes(info, values(run_output.output), output_dims, info.output.variables)
-    saveRestartCubes(info, run_output.restart)
+    saved_output, lazy_store = lazyRun(info, run_output, info.helpers.run.run_lazy)
+    get(saved_output, :output_saved, false) || saveOutCubes(info, values(saved_output.output), output_dims, info.output.variables)
+    saveRestartCubes(info, saved_output.restart)
     saveSpinupCubes(info, run_output.spinup)
+    removeLazyStore(lazy_store)
     # the figures need the forcing and output in memory, which a lazy run does not
     # have
     info.helpers.run.run_lazy isa DoRunLazy || plotForwardRun(info, forcing, run_output.output, run_output.spinup)

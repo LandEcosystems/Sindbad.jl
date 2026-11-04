@@ -165,6 +165,17 @@ getForcing
 :::details Code
 
 ```julia
+function getForcingVariableInfo(default_info, var_settings, forcing_data_settings)
+    vinfo = merge_namedtuple_prefer_nonempty(default_info, var_settings)
+    dims_fallback = (; space=forcing_data_settings.data_dimension.space, time=forcing_data_settings.data_dimension.time)
+    var_dims = mergeForcingGroup(dims_fallback, :dimension, default_info, var_settings)
+    method_fallback = (; space="None", time="None")
+    var_methods = mergeForcingGroup(method_fallback, :interpolation_method, default_info, var_settings)
+    vinfo = set_namedtuple_field(vinfo, (:dimension, var_dims))
+    vinfo = set_namedtuple_field(vinfo, (:interpolation_method, var_methods))
+    return vinfo
+end
+
 function getForcing(info::NamedTuple)
     nc_default = nothing
     forcing_data_settings = info.experiment.data_settings.forcing
@@ -189,28 +200,86 @@ function getForcing(info::NamedTuple)
     forcing_vars = keys(forcing_data_settings.variables)
     tar_dims = getTargetDimensionOrder(info)
     print_info(getForcing, @__FILE__, @__LINE__, "getting forcing variables. Units given in forcing settings are not strictly enforced but shown for reference. Bounds are applied after unit conversion...", n_m=1)
-    vinfo = nothing
-    f_sizes = nothing
-    f_dimension = nothing
     num_type = Val{info.helpers.numbers.num_type}()
-    incubes = map(forcing_vars) do k
+    loaded_vars = map(forcing_vars) do k
         nc = nc_default
-        vinfo = merge_namedtuple_prefer_nonempty(default_info, forcing_data_settings.variables[k])
+        vinfo = getForcingVariableInfo(default_info, forcing_data_settings.variables[k], forcing_data_settings)
         data_path_v = getAbsDataPath(info, getfield(vinfo, :data_path))
         nc, yax = getYaxFromSource(nc, data_path, data_path_v, vinfo.source_variable)
-        incube = subsetAndProcessYax(yax, forcing_mask, tar_dims, vinfo, info, num_type)
+        yax = renameToCanonicalDims(yax, vinfo.dimension, forcing_data_settings)
+        incube = subsetAndProcessCube(yax, forcing_mask, tar_dims, vinfo, info, num_type)
         v_op = vinfo.additive_unit_conversion ? " + " : " * "
         v_op = v_op * "$(vinfo.source_to_sindbad_unit)"
         v_string = "`$(k)` ($(vinfo.sindbad_unit), $(vinfo.bounds)) = <$(vinfo.space_time_type)> `$(vinfo.source_variable)` ($(vinfo.source_unit)) $(v_op)"
         print_info(nothing, @__FILE__, @__LINE__, v_string, n_m=4)
-        if vinfo.space_time_type == "spatiotemporal" && isnothing(f_sizes)
-            f_sizes = collectForcingSizes(info, incube)
-            f_dimension = getSindbadDims(incube)
-        end
-        incube
+        (k => incube, vinfo)
     end
-    parameters = getParameters(info, f_dimension, NamedTuple{Tuple(forcing_vars)}(Tuple(incubes)))
-    return createForcingNamedTuple(incubes, f_sizes, f_dimension, info; parameters=parameters)
+    incubes = first.(loaded_vars)
+    vinfos = last.(loaded_vars)
+    interpincubes = resampleForcingCubes(incubes, vinfos, forcing_data_settings, num_type)
+    # The sizes are taken after resampling so that they match the target resolution.
+    f_sizes = nothing
+    f_dimension = nothing
+    i_spatiotemporal = findfirst(vinfo -> vinfo.space_time_type == "spatiotemporal", vinfos)
+    if !isnothing(i_spatiotemporal)
+        f_sizes = collectForcingSizes(info, interpincubes[i_spatiotemporal])
+        f_dimension = getSindbadDims(interpincubes[i_spatiotemporal])
+    end
+    parameters = getParameters(info, f_dimension, NamedTuple{Tuple(forcing_vars)}(Tuple(interpincubes)))
+    return createForcingNamedTuple(interpincubes, f_sizes, f_dimension, info; parameters=parameters)
+end
+```
+
+:::
+
+
+----
+
+### getInterpolationMethod
+```@docs
+getInterpolationMethod
+```
+
+:::details Code
+
+```julia
+function getInterpolationMethod end
+
+function getInterpolationMethod(method::InterpolationMethod, axis::Symbol)
+    method isa getInterpolationAxis(axis).method_type || error("`$(nameof(typeof(method)))` is not a $(axis) interpolation method")
+    return method
+end
+
+function getInterpolationMethod(method::InterpolationMethod, axis::Symbol)
+    method isa getInterpolationAxis(axis).method_type || error("`$(nameof(typeof(method)))` is not a $(axis) interpolation method")
+    return method
+end
+
+function getInterpolationMethod(setting::NamedTuple, axis::Symbol)
+    hasproperty(setting, :method) || error("an interpolation_method group needs the name of the method in `method`, got $(setting)")
+    method_name = string(setting.method)
+    method_type = getInterpolationType(method_name, axis)
+    if isnothing(method_type)
+        other_axis = axis == :space ? :time : :space
+        other_note = isnothing(getInterpolationType(method_name, other_axis)) ? "" : " It is a $(other_axis) method."
+        error("unknown $(axis) interpolation_method `$(method_name)`.$(other_note) Valid $(axis) methods are: $(join(getInterpolationMethodNames(axis), ", ")).")
+    end
+    options = Base.structdiff(setting, NamedTuple{(:method,)})
+    unknown = setdiff(keys(options), fieldnames(method_type))
+    if !isempty(unknown)
+        valid_options = isempty(fieldnames(method_type)) ? "none" : join(fieldnames(method_type), ", ")
+        error("$(axis) interpolation_method `$(method_name)` has no option $(join(unknown, ", ")). Its options are: $(valid_options).")
+    end
+    method = method_type(; options...)
+    checkInterpolationMethod(method)
+    return method
+end
+
+function getInterpolationMethodNames(axis::Symbol)
+    axis_info = getInterpolationAxis(axis)
+    concreteSubtypes(T) = isconcretetype(T) ? [T] : reduce(vcat, map(concreteSubtypes, subtypes(T)); init=Type[])
+    type_names = map(T -> replace(string(nameof(T)), Regex("^" * axis_info.prefix) => ""), concreteSubtypes(axis_info.method_type))
+    return sort(map(n -> lowercase(replace(n, r"(?<=[a-z0-9])(?=[A-Z])" => "_")), type_names))
 end
 ```
 
@@ -324,15 +393,15 @@ function getObservation(info::NamedTuple, forcing_helpers::NamedTuple)
         end
         print_info(nothing, @__FILE__, @__LINE__, "harmonize/subset...", n_m=6)
         @debug "      qflag"
-        cyax_qc = subsetAndProcessYax(yax_qc, yax_mask_v, tar_dims, vinfo_qc, info, num_type; clean_data=false)
+        cyax_qc = subsetAndProcessCube(yax_qc, yax_mask_v, tar_dims, vinfo_qc, info, num_type; clean_data=false)
         @debug "      data"
-        cyax = subsetAndProcessYax(yax, yax_mask, tar_dims, vinfo_data, info, num_type; yax_qc=cyax_qc, bounds_qc=bounds_qc)
+        cyax = subsetAndProcessCube(yax, yax_mask, tar_dims, vinfo_data, info, num_type; yax_qc=cyax_qc, bounds_qc=bounds_qc)
         @debug "      unc"
-        cyax_unc = subsetAndProcessYax(yax_unc, yax_mask, tar_dims, vinfo_unc, info, num_type; yax_qc=cyax_qc, bounds_qc=bounds_qc)
+        cyax_unc = subsetAndProcessCube(yax_unc, yax_mask, tar_dims, vinfo_unc, info, num_type; yax_qc=cyax_qc, bounds_qc=bounds_qc)
         @debug "      weight"
-        cyax_wgt = subsetAndProcessYax(yax_wgt, yax_mask, tar_dims, vinfo_wgt, info, num_type; yax_qc=cyax_qc, bounds_qc=bounds_qc)
+        cyax_wgt = subsetAndProcessCube(yax_wgt, yax_mask, tar_dims, vinfo_wgt, info, num_type; yax_qc=cyax_qc, bounds_qc=bounds_qc)
         @debug "      mask"
-        yax_mask_v = subsetAndProcessYax(yax_mask_v, yax_mask_v, tar_dims, vinfo_mask, info, num_type_bool; clean_data=false)
+        yax_mask_v = subsetAndProcessCube(yax_mask_v, yax_mask_v, tar_dims, vinfo_mask, info, num_type_bool; clean_data=false)
 
         push!(obscubes, cyax)
         push!(obscubes, cyax_unc)
@@ -379,13 +448,16 @@ function getParameters(info::NamedTuple, forcing_axes, forcing_cubes=nothing)
         error("A json or zarr/nc parameters input needs a forcing with a spatiotemporal variable to set the locations of the parameters.")
     end
     space_dims = Symbol.(info.experiment.data_settings.forcing.data_dimension.space)
+    time_name = Symbol(info.experiment.data_settings.forcing.data_dimension.time)
     num_type = info.helpers.numbers.num_type
     axes_values = Dict(Symbol(first(f_axis)) => last(f_axis) for f_axis ∈ forcing_axes)
     forcing_space_dims = Tuple(DD.Dim{s_dim}(axes_values[s_dim]) for s_dim ∈ space_dims)
+    forcing_time_dim = haskey(axes_values, time_name) ? DD.Dim{time_name}(axes_values[time_name]) : nothing
     open_files = Dict{String,Any}()
     var_names, var_sources = listParameterVariables(parameter_input, open_files)
     lookup = getParameterLookup(parameter_input)
-    lookup_cube = isnothing(lookup) ? nothing : getLookupCube(lookup, forcing_cubes, space_dims)
+    lookup_cube = isnothing(lookup) ? nothing : getLookupCube(lookup, forcing_cubes, space_dims, time_name)
+    lookup_has_time = !isnothing(lookup_cube) && hasdim(lookup_cube, time_name)
     # the lazy cube of each parameter is computed once for an eager run, which reads
     # it per location
     keep_lazy = info.helpers.run.run_lazy isa DoRunLazy
@@ -396,22 +468,36 @@ function getParameters(info::NamedTuple, forcing_axes, forcing_cubes=nothing)
         dataset = openParameterFile!(open_files, var_source.data_path)
         attributes = readVariableAttributes(dataset, var_source.source_variable, var_source.data_path)
         p_row = resolveParameterVariable(var_name, var_source, parameter_input, attributes, info)
-        p_values = if isnothing(lookup)
-            getParameterValuesByLocation(dataset[var_source.source_variable], forcing_axes, space_dims, p_row, num_type, var_name)
-        else
+        is_spatiotemporal = p_row.space_time_type == "spatiotemporal"
+        p_values = if !isnothing(lookup)
+            if is_spatiotemporal
+                error("The parameter variable `$(var_name)` of the class map by `$(lookup.lookup_variable)` is spatiotemporal. A class map varies in time through its lookup variable, so its variables are spatial.")
+            end
             by_class = getParameterValuesByClass(dataset[var_source.source_variable], lookup, lookup_cube, p_row, num_type, var_name)
             push!(map_classes, by_class.classes)
             by_class
+        elseif is_spatiotemporal
+            isnothing(forcing_time_dim) && error("The parameter variable `$(var_name)` is spatiotemporal, but the forcing has no `$(time_name)` dimension.")
+            getParameterValuesByLocationAndTime(dataset[var_source.source_variable], forcing_axes, space_dims, forcing_time_dim, p_row, num_type, var_name)
+        else
+            getParameterValuesByLocation(dataset[var_source.source_variable], forcing_axes, space_dims, p_row, num_type, var_name)
         end
         push!(table_rows, (; p_row..., n_nan=p_values.n_nan, n_clamped=p_values.n_clamped))
-        print_info(nothing, @__FILE__, @__LINE__, "`$(var_name)` = `$(p_row.name_full)` ($(p_row.units)) from `$(var_source.source_variable)` in `$(var_source.data_path)` * $(p_row.unit_factor)", n_m=4)
-        # kept as a cube on the spatial dimensions and coordinates of the forcing, so
-        # a lazy run can map over it together with the forcing
-        YAXArray(forcing_space_dims, keep_lazy ? p_values.data.data : Array(p_values.data.data))
+        print_info(nothing, @__FILE__, @__LINE__, "`$(var_name)` = <$(p_row.space_time_type)> `$(p_row.name_full)` ($(p_row.units)) from `$(var_source.source_variable)` in `$(var_source.data_path)` * $(p_row.unit_factor)", n_m=4)
+        # kept as a cube on the dimensions and coordinates of the forcing, so a lazy
+        # run can map over it together with the forcing
+        p_dims = hasdim(p_values.data, time_name) ? (forcing_time_dim, forcing_space_dims...) : forcing_space_dims
+        YAXArray(p_dims, keep_lazy ? p_values.data.data : Array(p_values.data.data))
     end
     if !isnothing(lookup)
         allequal(map_classes) || error("The variables of the class map by `$(lookup.lookup_variable)` have different classes. All need the same `$(lookup.lookup_variable)` coordinates.")
-        warnClassesNotInMap(lookup, findClassesNotInMap(lookup_cube, first(map_classes)))
+        if lookup_has_time
+            # counting the classes would read the whole lookup variable, which is far
+            # too much for a global forcing at every time step
+            print_info(nothing, @__FILE__, @__LINE__, "the class map by `$(lookup.lookup_variable)` varies in time, so the classes that are not in the map are not counted", n_m=4)
+        else
+            warnClassesNotInMap(lookup, findClassesNotInMap(lookup_cube, first(map_classes)))
+        end
     end
 
     parameter_table = Table([table_rows...])
@@ -420,7 +506,11 @@ function getParameters(info::NamedTuple, forcing_axes, forcing_cubes=nothing)
     if !isempty(duplicates)
         error("The parameters input sets $(duplicates) more than once. Keep one variable per parameter.")
     end
-    return (; variables=Tuple(var_names), data=Tuple(data), parameter_table=parameter_table)
+    has_time = map(p_data -> hasdim(p_data, time_name), Tuple(data))
+    f_types = map(t -> t ? ForcingWithTime() : ForcingWithoutTime(), has_time)
+    p_dims = map(t -> t ? (time_name,) : (), has_time)
+    lookup_variable = lookup_has_time ? lookup.lookup_variable : nothing
+    return (; variables=Tuple(var_names), data=Tuple(data), parameter_table=parameter_table, f_types=f_types, dims=p_dims, lookup_variable=lookup_variable)
 end
 ```
 
@@ -545,6 +635,106 @@ end
 
 ----
 
+### resampleCube
+```@docs
+resampleCube
+```
+
+:::details Code
+
+```julia
+function resampleCube(incube, target_dims, method::InterpolationMethod, num_type)
+    radius = resampleRadius(method)
+    isnothing(radius) || return getResampleBlock(incube, target_dims, method, num_type, radius)
+    core_names, out_dims, source_axes, target_axes = getResampleAxes(incube, target_dims, method)
+    plan = resamplePlan(method, source_axes, target_axes)
+    out = xmap(resampleSlice!, incube ⊘ core_names;
+        output=XOutput(out_dims...; outtype=num_type, properties=incube.properties),
+        inplace=true,
+        allow_threads=true,
+        function_kwargs=(; source_axes, target_axes, method, num_type, plan))
+    # xmap puts the core dimensions first
+    in_order = DD.name.(DD.dims(incube))
+    return DD.name.(DD.dims(out)) == in_order ? out : permutedims(out, in_order)
+end
+
+function resampleCubeToTarget(incube, target_dims, method_setting, axis, num_type, var_name)
+    isnothing(target_dims) && return incube
+    cube_target_dims = filter(target_dim -> hasdim(incube, DD.name(target_dim)), target_dims)
+    needs_resample = any(cube_target_dims) do target_dim
+        !isSameDim(DD.lookup(incube, DD.name(target_dim)), DD.lookup(target_dim))
+    end
+    needs_resample || return incube
+    method = getInterpolationMethod(method_setting, axis)
+    if method isa Union{SpaceInterpNone,TimeInterpNone}
+        target_names = join(string.(DD.name.(cube_target_dims)), ", ")
+        print_info(nothing, @__FILE__, @__LINE__, "`$(var_name)` keeps its own $(target_names) because its interpolation_method is None", n_m=4)
+        return incube
+    end
+    return resampleCube(incube, cube_target_dims, method, num_type)
+end
+```
+
+:::
+
+
+----
+
+### resampleValues!
+```@docs
+resampleValues!
+```
+
+:::details Code
+
+```julia
+function resampleValues!(_, _, _, _, method::InterpolationMethod, _)
+    error("interpolation method `$(nameof(typeof(method)))` has no resampleValues! method. Add one in src/DataLoaders/resampleCube.jl, see the docstring of resampleValues!.")
+end
+
+function resampleValues!(yout, yin, _, _, method::GridInterpolationMethod, plan)
+    itp = Interpolations.extrapolate(Interpolations.interpolate(yin, interpolationType(method)), getExtrapolation(method.extrapolation))
+    for (I, idx) ∈ zip(CartesianIndices(yout), Iterators.product(plan...))
+        yout[I] = itp(idx...)
+    end
+    return nothing
+end
+
+function resampleValues!(yout, yin, source_axes, target_axes, method::TimeMonotonicInterpolationMethod, _)
+    x = only(source_axes).points
+    y = vec(yin)
+    if x[end] < x[1]
+        x, y = reverse(x), reverse(y)
+    end
+    itp = Interpolations.extrapolate(Interpolations.interpolate(x, y, interpolationType(method)), getExtrapolation(method.extrapolation))
+    for (i, x_target) ∈ enumerate(only(target_axes).points)
+        yout[i] = itp(x_target)
+    end
+    return nothing
+end
+
+function resampleValues!(yout, yin, _, _, ::SpaceInterpZhao2004, plan)
+    for I ∈ CartesianIndices(yout)
+        weighted_sum, weight_sum = 0.0, 0.0
+        for (source_index, weight) ∈ zip(plan.corners[I], plan.weights[I])
+            value = yin[source_index]
+            # an invalid grid is left out and the weights of the others are
+            # normalized among themselves, which the paper does not cover
+            isnan(value) && continue
+            weighted_sum += weight * value
+            weight_sum += weight
+        end
+        yout[I] = weight_sum > 0 ? weighted_sum / weight_sum : NaN
+    end
+    return nothing
+end
+```
+
+:::
+
+
+----
+
 ### saveParameterDataset
 ```@docs
 saveParameterDataset
@@ -567,15 +757,15 @@ end
 
 ----
 
-### subsetAndProcessYax
+### subsetAndProcessCube
 ```@docs
-subsetAndProcessYax
+subsetAndProcessCube
 ```
 
 :::details Code
 
 ```julia
-function subsetAndProcessYax(yax, forcing_mask, tar_dims, _data_info, info, ::Val{num_type}; clean_data=true, yax_qc=nothing, bounds_qc=nothing) where {num_type}
+function subsetAndProcessCube(yax, forcing_mask, tar_dims, _data_info, info, ::Val{num_type}; clean_data=true, yax_qc=nothing, bounds_qc=nothing) where {num_type}
     forcing_data_settings = info.experiment.data_settings.forcing
     if !isnothing(forcing_mask)
         yax = yax #todo: mask the forcing variables here depending on the mask of 1 and 0
@@ -586,12 +776,13 @@ function subsetAndProcessYax(yax, forcing_mask, tar_dims, _data_info, info, ::Va
         @debug "         -> permuting dimensions to $(tar_dims)..."
         yax = permutedims(yax, permutes)
     end
-    if hasproperty(yax, Symbol(forcing_data_settings.data_dimension.time))
+    time_name = Symbol(forcing_data_settings.data_dimension.time)
+    if hasproperty(yax, time_name)
         init_date = DateTime(info.helpers.dates.date_begin)
         # date_end covers its whole timestep, so data stamped within the last period
         # such as a daily value at 11:00 UTC is kept and matches the dates range.
         last_date = DateTime(info.helpers.dates.date_end) + info.helpers.dates.timestep - Millisecond(1)
-        yax = yax[time=(init_date .. last_date)]
+        yax = getindex(yax; (time_name => init_date .. last_date,)...)
     end
 
     if hasproperty(forcing_data_settings, :subset)

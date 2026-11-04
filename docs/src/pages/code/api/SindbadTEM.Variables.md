@@ -443,7 +443,7 @@ Variables are grouped by `land_field` into Fluxes / Pools / States / Diagnostics
 
 ## Diagnostics
 
-:::details Show table (66)
+:::details Show table (67)
 
 | standard_name | units | description | long_name | Key |
 |---|---|---|---|---|
@@ -486,6 +486,7 @@ Variables are grouped by `land_field` into Fluxes / Pools / States / Diagnostics
 | `gpp_f_airT` | `fraction` | effect of air temperature on gpp. 1: no stress, 0: complete stress | `air_temperature_effect_gpp` | `diagnostics__gpp_f_airT` |
 | `gpp_f_climate` | `fraction` | effect of climate on gpp. 1: no stress, 0: complete stress | `net_climate_effect_gpp` | `diagnostics__gpp_f_climate` |
 | `gpp_f_cloud` | `fraction` | effect of cloud on gpp. 1: no stress, 0: complete stress | `cloudiness_index_effect_gpp` | `diagnostics__gpp_f_cloud` |
+| `gpp_f_co2` | `fraction` | effect of ambient co2 on gpp relative to a reference co2. 1: at the reference co2 | `ambient_co2_effect_gpp` | `diagnostics__gpp_f_co2` |
 | `gpp_f_light` | `fraction` | effect of light on gpp. 1: no stress, 0: complete stress | `light_effect_gpp` | `diagnostics__gpp_f_light` |
 | `gpp_f_soilW` | `fraction` | effect of soil moisture on gpp. 1: no stress, 0: complete stress | `soil_moisture_effect_gpp` | `diagnostics__gpp_f_soilW` |
 | `gpp_f_vpd` | `fraction` | effect of vpd on gpp. 1: no stress, 0: complete stress | `vapor_pressure_deficit_effect_gpp` | `diagnostics__gpp_f_vpd` |
@@ -518,7 +519,7 @@ Variables are grouped by `land_field` into Fluxes / Pools / States / Diagnostics
 
 ## Others
 
-:::details Show table (84)
+:::details Show table (85)
 
 **`callocation`** (4)
 
@@ -621,7 +622,7 @@ Variables are grouped by `land_field` into Fluxes / Pools / States / Diagnostics
 |---|---|---|---|---|
 | `percolation` | `mm/time` | amount of moisture percolating to the top soil layer | `soil_water_percolation` | `fluxes__percolation` |
 
-**`properties`** (47)
+**`properties`** (48)
 
 | standard_name | units | description | long_name | Key |
 |---|---|---|---|---|
@@ -630,6 +631,7 @@ Variables are grouped by `land_field` into Fluxes / Pools / States / Diagnostics
 | `k_fc` | `mm/time` | hydraulic conductivity of soil at field capacity per layer | `k_field_capacity` | `properties__k_fc` |
 | `k_sat` | `mm/time` | hydraulic conductivity of soil at saturation per layer | `k_saturated` | `properties__k_sat` |
 | `k_wp` | `mm/time` | hydraulic conductivity of soil at wilting point per layer | `k_wilting_point` | `properties__k_wp` |
+| `layer_depth_fraction` | `fraction` | fraction of the thickness of each soil layer within the soil depth | `soil_layer_fraction_within_soil_depth` | `properties__layer_depth_fraction` |
 | `lit_CN_ratio` | `gC/gN` | carbon-to-nitrogen ratio of litter | `litter_carbon_to_nitrogen_ratio` | `properties__lit_CN_ratio` |
 | `lit_frac_C_lignin` | `fraction` | carbon fraction of lignin | `litter_carbon_fraction_of_lignin` | `properties__lit_frac_C_lignin` |
 | `lit_frac_lignin` | `fraction` | fraction of litter that is lignin | `litter_lignin_fraction` | `properties__lit_frac_lignin` |
@@ -677,7 +679,7 @@ Variables are grouped by `land_field` into Fluxes / Pools / States / Diagnostics
 
 | standard_name | units | description | long_name | Key |
 |---|---|---|---|---|
-| `root_over` | `boolean` | a boolean indicating if the root is allowed to exract water from a given layer depending on maximum rooting depth | `is_root_over` | `rootWaterEfficiency__root_over` |
+| `rooted_fraction` | `fraction` | fraction of the thickness of each soil layer within the maximum rooting depth | `soil_layer_fraction_within_root_depth` | `rootWaterEfficiency__rooted_fraction` |
 
 :::
 
