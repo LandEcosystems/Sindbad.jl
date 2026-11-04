@@ -1,6 +1,6 @@
 export getMaxCacheYax
-export getLoopRangesYax
-export removeArraysZarr
+export getLoopRanges
+export dropVariablesFromStore
 
 """
     TypeHiddenDiskArray{T,N}
@@ -35,7 +35,7 @@ hideCubeType(cube) = YAXArray(DD.dims(cube), TypeHiddenDiskArray(cube.data), cub
 
 
 """
-    withNaNFillYax(cube)
+    fillCubeWithNaN(cube)
 
 Returns `cube` with NaN as its `_FillValue`, which `savedataset` writes as the fill
 value of the zarr array, or `cube` itself when it is not a float array or already has
@@ -45,7 +45,7 @@ a fill or missing value.
 - The fill value is what a chunk that was never written reads as. With NaN, the
   output of a skipped block is the same as that of an invalid grid.
 """
-function withNaNFillYax(cube)
+function fillCubeWithNaN(cube)
     T = Base.nonmissingtype(eltype(cube))
     T <: AbstractFloat || return cube
     any(k -> haskey(cube.properties, k), ("_FillValue", "missing_value")) && return cube
@@ -54,15 +54,15 @@ function withNaNFillYax(cube)
 end
 
 """
-    MAX_CHUNK_BYTES_YAX
+    MAX_CHUNK_BYTES
 
 The largest chunk of an output array of a lazy run, 1 GiB, half the largest buffer
 that the Blosc compressor of zarr can take.
 """
-const MAX_CHUNK_BYTES_YAX = 2^30
+const MAX_CHUNK_BYTES = 2^30
 
 """
-    capChunksYax(chunks, element_size; max_bytes=MAX_CHUNK_BYTES_YAX)
+    getCappedChunks(chunks, element_size; max_bytes=MAX_CHUNK_BYTES)
 
 Returns `chunks`, a Tuple of the chunks of each dimension, split until no chunk has
 more than `max_bytes` of elements of `element_size` bytes.
@@ -72,7 +72,7 @@ more than `max_bytes` of elements of `element_size` bytes.
   length. The blocks of the run already split the others, and each of their chunks
   is then split in the same way, so a block still writes whole chunks.
 """
-function capChunksYax(chunks, element_size; max_bytes=MAX_CHUNK_BYTES_YAX)
+function getCappedChunks(chunks, element_size; max_bytes=MAX_CHUNK_BYTES)
     chunks = collect(Any, chunks)
     while true
         lengths = map(c -> maximum(length, c), chunks)
@@ -90,16 +90,16 @@ function capChunksYax(chunks, element_size; max_bytes=MAX_CHUNK_BYTES_YAX)
 end
 
 """
-    withPropertiesYax(cube, properties)
+    addPropsToCube(cube, properties)
 
 Returns `cube` with `properties` merged into its attributes, keeping its data, or
 `cube` itself when `properties` is `nothing`.
 """
-withPropertiesYax(cube, ::Nothing) = cube
-withPropertiesYax(cube, properties) = YAXArray(DD.dims(cube), cube.data, merge(Dict{String,Any}(cube.properties), properties))
+addPropsToCube(cube, ::Nothing) = cube
+addPropsToCube(cube, properties) = YAXArray(DD.dims(cube), cube.data, merge(Dict{String,Any}(cube.properties), properties))
 
 """
-    removeArraysZarr(store_path, names)
+    dropVariablesFromStore(store_path, names)
 
 Deletes the variables `names` from the zarr store at `store_path`.
 
@@ -110,7 +110,7 @@ Deletes the variables `names` from the zarr store at `store_path`.
 - A lazy run uses it to delete the restart variables from `all_variables.zarr` once
   they are saved to the restart file.
 """
-function removeArraysZarr(store_path, names)
+function dropVariablesFromStore(store_path, names)
     foreach(name -> rm(joinpath(store_path, string(name)); recursive=true, force=true), names)
     array_dims = Dict{String,Vector{String}}()
     for name ∈ readdir(store_path)
@@ -161,7 +161,7 @@ the cache is computed.
   This is kept within `memory_fraction` of the memory that is available when the
   cache is computed, which excludes what the session already holds.
 - With `PmapParallelization`, the threads are those of one worker, and every worker
-  holds its own block, see `getMemoryLimitYax`.
+  holds its own block, see `getCacheMemoryLimit`.
 """
 function getMaxCacheYax(info, in_cubes, out_cubes=(); n_forcing=length(in_cubes), grids_per_thread=4, memory_fraction=0.66)
     max_cache = get(info.experiment.exe_rules, :yax_max_cache, nothing)
@@ -170,15 +170,15 @@ function getMaxCacheYax(info, in_cubes, out_cubes=(); n_forcing=length(in_cubes)
     data_dimension = info.experiment.data_settings.forcing.data_dimension
     space_dims = Symbol.(data_dimension.space)
     time_name = Symbol(data_dimension.time)
-    bytes_per_grid = sum(cube -> getBytesPerGridYax(cube, space_dims), (in_cubes..., out_cubes...))
-    valid_fraction = getValidFractionYax(in_cubes[1:n_forcing], space_dims, time_name)
+    bytes_per_grid = sum(cube -> getBytesPerGrid(cube, space_dims), (in_cubes..., out_cubes...))
+    valid_fraction = getValidGridFraction(in_cubes[1:n_forcing], space_dims, time_name)
     parallelization = info.helpers.run.parallelization
-    n_threads = getBlockThreadsYax(parallelization)
-    n_procs = getBlockProcsYax(parallelization)
+    n_threads = getThreadsPerBlock(parallelization)
+    n_procs = getProcsPerBlock(parallelization)
     n_grids = ceil(Int, grids_per_thread * n_threads / valid_fraction)
     cache = n_grids * bytes_per_grid
     print_info(getMaxCacheYax, @__FILE__, @__LINE__, "computed cache of $(round(cache / 1e9; digits=2)) GB: $(n_grids) grids per block at $(round(bytes_per_grid / 1e6; digits=2)) MB each, for $(grids_per_thread) valid grids on each of $(n_threads) threads with $(round(100 * valid_fraction; digits=1))% of grids valid", n_m=4)
-    memory_limit, available_memory = getMemoryLimitYax(bytes_per_grid, parallelization; memory_fraction=memory_fraction)
+    memory_limit, available_memory = getCacheMemoryLimit(bytes_per_grid, parallelization; memory_fraction=memory_fraction)
     if cache > memory_limit
         @warn "The computed cache of $(round(cache / 1e9; digits=2)) GB needs up to $(round(((n_procs == 1 ? 2 : 2 * n_procs + 1) * cache + n_procs * n_threads * bytes_per_grid) / 1e9; digits=2)) GB for the run, more than $(round(Int, 100 * memory_fraction))% of the $(round(available_memory / 1e9; digits=2)) GB of available memory. It is set to $(round(memory_limit / 1e9; digits=2)) GB, so some threads stay idle."
         cache = memory_limit
@@ -189,7 +189,7 @@ end
 getMaxCacheYax(info, xmap_cubes::NamedTuple; kwargs...) = getMaxCacheYax(info, xmap_cubes.in_cubes, values(xmap_cubes.dataset.cubes); n_forcing=xmap_cubes.n_forcing, kwargs...)
 
 """
-    getMemoryLimitYax(bytes_per_grid, parallelization=ThreadsParallelization();
+    getCacheMemoryLimit(bytes_per_grid, parallelization=ThreadsParallelization();
         memory_fraction=0.66)
 
 Returns the largest cache of a cube run in bytes that keeps the run within
@@ -205,10 +205,10 @@ Returns the largest cache of a cube run in bytes that keeps the run within
   worker. The workers are started before this is computed, so the memory that they
   hold is not available.
 """
-function getMemoryLimitYax(bytes_per_grid, parallelization=ThreadsParallelization(); memory_fraction=0.66)
+function getCacheMemoryLimit(bytes_per_grid, parallelization=ThreadsParallelization(); memory_fraction=0.66)
     available_memory = Sys.free_memory()
-    n_threads = getBlockThreadsYax(parallelization)
-    n_procs = getBlockProcsYax(parallelization)
+    n_threads = getThreadsPerBlock(parallelization)
+    n_procs = getProcsPerBlock(parallelization)
     n_buffers = n_procs == 1 ? 2 : 2 * n_procs + 1
     memory_limit = (memory_fraction * available_memory - n_procs * n_threads * bytes_per_grid) / n_buffers
     memory_limit > bytes_per_grid || error("$(round(Int, 100 * memory_fraction))% of the $(round(available_memory / 1e9; digits=2)) GB of available memory is too small to run $(n_procs) x $(n_threads) threads at $(round(bytes_per_grid / 1e6; digits=2)) MB per grid. Use fewer threads or more memory.")
@@ -216,39 +216,39 @@ function getMemoryLimitYax(bytes_per_grid, parallelization=ThreadsParallelizatio
 end
 
 """
-    getBlockThreadsYax(parallelization)
+    getThreadsPerBlock(parallelization)
 
 Returns the number of threads that run one block of a cube run: those of this session,
 or those of the first worker with `PmapParallelization`.
 """
-getBlockThreadsYax(::ParallelizationPackage) = Threads.nthreads()
-getBlockThreadsYax(::PmapParallelization) = DAE.Distributed.remotecall_fetch(Threads.nthreads, first(DAE.Distributed.workers()))
+getThreadsPerBlock(::ParallelizationPackage) = Threads.nthreads()
+getThreadsPerBlock(::PmapParallelization) = DAE.Distributed.remotecall_fetch(Threads.nthreads, first(DAE.Distributed.workers()))
 
 """
-    getBlockProcsYax(parallelization)
+    getProcsPerBlock(parallelization)
 
 Returns the number of blocks of a cube run that run at once: one, or one per worker
 with `PmapParallelization`.
 """
-getBlockProcsYax(::ParallelizationPackage) = 1
-getBlockProcsYax(::PmapParallelization) = DAE.Distributed.nworkers()
+getProcsPerBlock(::ParallelizationPackage) = 1
+getProcsPerBlock(::PmapParallelization) = DAE.Distributed.nworkers()
 
 """
-    getMaxGridsYax(info, bytes_per_grid)
+    getMaxGridsPerBlock(info, bytes_per_grid)
 
 Returns the most grids that a block of a lazy run can have: those that fit the
 `yax_max_cache` setting when it is a number, or else the memory limit of
-`getMemoryLimitYax`.
+`getCacheMemoryLimit`.
 """
-function getMaxGridsYax(info, bytes_per_grid)
+function getMaxGridsPerBlock(info, bytes_per_grid)
     max_cache = get(info.experiment.exe_rules, :yax_max_cache, nothing)
     isnothing(max_cache) || max_cache isa Real || error("experiment.exe_rules.yax_max_cache must be a number of bytes, or null to compute it, got `$(max_cache)`")
-    cache = isnothing(max_cache) ? first(getMemoryLimitYax(bytes_per_grid, info.helpers.run.parallelization)) : max_cache
+    cache = isnothing(max_cache) ? first(getCacheMemoryLimit(bytes_per_grid, info.helpers.run.parallelization)) : max_cache
     return max(1, floor(Int, cache / bytes_per_grid))
 end
 
 """
-    getLoopRangesYax(info, xmap_cubes; grids_per_thread=8)
+    getLoopRanges(info, xmap_cubes; grids_per_thread=8)
 
 Returns the cache, the block of grids and the run filter of a lazy run, as
 `max_cache`, `loop_ranges` and `run_filter` of `runTEMYax`.
@@ -274,7 +274,7 @@ Returns the cache, the block of grids and the run filter of a lazy run, as
     spatial dimension is the least common multiple of their chunk sizes, so no such
     chunk is read for more than one block. The block grows by whole steps, keeping
     its sides near equal, while its fullest block has at most `grids_per_thread`
-    valid grids per thread and it fits the memory, see `getMaxGridsYax`. With
+    valid grids per thread and it fits the memory, see `getMaxGridsPerBlock`. With
     `PmapParallelization`, these are the threads of one worker. The valid
     grids are counted per block, so a block over land gets the intended work and one
     over ocean has less, instead of every block getting the average.
@@ -288,7 +288,7 @@ Returns the cache, the block of grids and the run filter of a lazy run, as
   by two blocks.
 - The output chunks follow the block in space.
 """
-function getLoopRangesYax(info, xmap_cubes; grids_per_thread=8)
+function getLoopRanges(info, xmap_cubes; grids_per_thread=8)
     setting = something(get(info.experiment.exe_rules, :yax_block_grids, "auto"), "auto")
     data_dimension = info.experiment.data_settings.forcing.data_dimension
     space_dims = Symbol.(data_dimension.space)
@@ -304,17 +304,17 @@ function getLoopRangesYax(info, xmap_cubes; grids_per_thread=8)
     space_sizes = map(i -> op.windowsize[i], i_space)
     expected_sizes = map(d -> length(DD.dims(first(c for c ∈ in_cubes if DD.hasdim(c, d)), d)), Tuple(space_dims))
     space_sizes == expected_sizes || error("the loop sizes $(space_sizes) of the spatial dimensions $(space_dims) do not match their lengths $(expected_sizes)")
-    valid_grids = getValidGridsYax(in_cubes[1:xmap_cubes.n_forcing], space_dims, time_name)
-    valid_sums = getValidSumsYax(valid_grids)
+    valid_grids = getValidGrids(in_cubes[1:xmap_cubes.n_forcing], space_dims, time_name)
+    valid_sums = getValidGridSums(valid_grids)
     run_filter = isnothing(valid_sums) ? nothing : ValidGridsFilterYax(valid_sums, i_space)
     setting == "optimizer" && return getMaxCacheYax(info, xmap_cubes), nothing, run_filter
-    bytes_per_grid = sum(cube -> getBytesPerGridYax(cube, space_dims), (in_cubes..., values(xmap_cubes.dataset.cubes)...))
+    bytes_per_grid = sum(cube -> getBytesPerGrid(cube, space_dims), (in_cubes..., values(xmap_cubes.dataset.cubes)...))
     block = if setting == "auto"
-        steps = map(d -> getChunkStepYax(in_cubes, d, time_name), Tuple(space_dims))
-        max_valid = grids_per_thread * getBlockThreadsYax(info.helpers.run.parallelization)
-        max_grids = getMaxGridsYax(info, bytes_per_grid)
-        fits = b -> prod(b) <= max_grids && maximum(getBlockValidCountsYax(valid_sums, b, space_sizes)) <= max_valid
-        growBlockYax(steps, space_sizes, fits)
+        steps = map(d -> getChunkStep(in_cubes, d, time_name), Tuple(space_dims))
+        max_valid = grids_per_thread * getThreadsPerBlock(info.helpers.run.parallelization)
+        max_grids = getMaxGridsPerBlock(info, bytes_per_grid)
+        fits = b -> prod(b) <= max_grids && maximum(getValidCountsPerBlock(valid_sums, b, space_sizes)) <= max_valid
+        growBlock(steps, space_sizes, fits)
     elseif setting isa AbstractVector && length(setting) == length(space_dims)
         map((n, s) -> clamp(Int(n), 1, s), Tuple(setting), space_sizes)
     else
@@ -326,16 +326,16 @@ function getLoopRangesYax(info, xmap_cubes; grids_per_thread=8)
     end
     n_grids = prod(block)
     n_blocks = prod(cld.(space_sizes, block))
-    valid_counts = getBlockValidCountsYax(valid_sums, block, space_sizes)
+    valid_counts = getValidCountsPerBlock(valid_sums, block, space_sizes)
     n_skipped = count(iszero, valid_counts)
     parallelization = info.helpers.run.parallelization
-    run_threads = "$(getBlockProcsYax(parallelization)) x $(getBlockThreadsYax(parallelization))"
-    print_info(getLoopRangesYax, @__FILE__, @__LINE__, "$(n_blocks) blocks of $(join(block, "x")) grids in $(join(space_dims, "x")), up to $(maximum(valid_counts)) valid grids per block for $(run_threads) threads, $(round(n_grids * bytes_per_grid / 1e9; digits=2)) GB per block. $(n_skipped) blocks without a valid grid are skipped.", n_m=4)
+    run_threads = "$(getProcsPerBlock(parallelization)) x $(getThreadsPerBlock(parallelization))"
+    print_info(getLoopRanges, @__FILE__, @__LINE__, "$(n_blocks) blocks of $(join(block, "x")) grids in $(join(space_dims, "x")), up to $(maximum(valid_counts)) valid grids per block for $(run_threads) threads, $(round(n_grids * bytes_per_grid / 1e9; digits=2)) GB per block. $(n_skipped) blocks without a valid grid are skipped.", n_m=4)
     return n_grids * bytes_per_grid, loop_steps, run_filter
 end
 
 """
-    getChunkStepYax(cubes, dim_name, time_name)
+    getChunkStep(cubes, dim_name, time_name)
 
 Returns the least common multiple of the chunk sizes in the dimension `dim_name` of
 the stored `cubes` with time, or 1 when no such cube has it.
@@ -346,7 +346,7 @@ the stored `cubes` with time, or 1 when no such cube has it.
   the vegetation type stored as one chunk, do not set the step. Nor do cubes without
   stored chunks, e.g., forcing resampled on the fly.
 """
-function getChunkStepYax(cubes, dim_name, time_name)
+function getChunkStep(cubes, dim_name, time_name)
     step = 1
     for cube ∈ cubes
         cube_names = DD.name.(DD.dims(cube))
@@ -360,13 +360,13 @@ function getChunkStepYax(cubes, dim_name, time_name)
 end
 
 """
-    growBlockYax(steps, sizes, fits)
+    growBlock(steps, sizes, fits)
 
 Returns the block that starts at one step in each dimension and grows by whole steps,
 always on its shortest side that can still grow, while `fits(block)` is true. A block
 of one step is returned even when it does not fit.
 """
-function growBlockYax(steps, sizes, fits)
+function growBlock(steps, sizes, fits)
     block = min.(steps, sizes)
     while true
         growable = filter(i -> block[i] < sizes[i], collect(eachindex(block)))
@@ -379,15 +379,15 @@ function growBlockYax(steps, sizes, fits)
 end
 
 """
-    getValidSumsYax(valid_grids)
+    getValidGridSums(valid_grids)
 
 Returns the cumulative counts of the valid grids along every dimension, with a zero
-before the first grid, so that `boxSumYax` counts the valid grids of any block at
-once. Returns `nothing` for `nothing`.
+before the first grid, so that `countValidGridsInBox` counts the valid grids of any
+block at once. Returns `nothing` for `nothing`.
 """
-getValidSumsYax(::Nothing) = nothing
+getValidGridSums(::Nothing) = nothing
 
-function getValidSumsYax(valid_grids)
+function getValidGridSums(valid_grids)
     sums = zeros(Int, size(valid_grids) .+ 1)
     sums[map(n -> 2:n+1, size(valid_grids))...] .= valid_grids
     for d ∈ 1:ndims(sums)
@@ -397,12 +397,12 @@ function getValidSumsYax(valid_grids)
 end
 
 """
-    boxSumYax(sums, ranges)
+    countValidGridsInBox(sums, ranges)
 
 Returns the number of valid grids in the block of `ranges`, one range per dimension,
-from the cumulative counts `sums` of `getValidSumsYax`.
+from the cumulative counts `sums` of `getValidGridSums`.
 """
-function boxSumYax(sums, ranges)
+function countValidGridsInBox(sums, ranges)
     n_dims = length(ranges)
     total = 0
     for corner ∈ CartesianIndices(ntuple(_ -> 0:1, n_dims))
@@ -413,26 +413,26 @@ function boxSumYax(sums, ranges)
 end
 
 """
-    getBlockValidCountsYax(valid_sums, block, sizes)
+    getValidCountsPerBlock(valid_sums, block, sizes)
 
 Returns the number of valid grids in each block of size `block` that tiles a domain of
 `sizes`, from the first grid on. Without valid grids, every grid counts as valid.
 """
-function getBlockValidCountsYax(valid_sums, block, sizes)
+function getValidCountsPerBlock(valid_sums, block, sizes)
     starts = map((b, n) -> 1:b:n, Tuple(block), Tuple(sizes))
     return map(Iterators.product(starts...)) do first_indices
         ranges = map((i, b, n) -> i:min(i + b - 1, n), first_indices, Tuple(block), Tuple(sizes))
-        isnothing(valid_sums) ? prod(length.(ranges)) : boxSumYax(valid_sums, ranges)
+        isnothing(valid_sums) ? prod(length.(ranges)) : countValidGridsInBox(valid_sums, ranges)
     end
 end
 
 """
-    getBytesPerGridYax(cube, space_dims)
+    getBytesPerGrid(cube, space_dims)
 
 Returns the bytes of one grid of `cube`, or zero when it has no spatial
 dimension.
 """
-function getBytesPerGridYax(cube, space_dims)
+function getBytesPerGrid(cube, space_dims)
     cube_dims = DD.dims(cube)
     any(d -> DD.name(d) ∈ space_dims, cube_dims) || return 0
     n_values = prod((length(d) for d ∈ cube_dims if DD.name(d) ∉ space_dims); init=1)
@@ -440,7 +440,7 @@ function getBytesPerGridYax(cube, space_dims)
 end
 
 """
-    getValidGridsYax(forcing_cubes, space_dims, time_name)
+    getValidGrids(forcing_cubes, space_dims, time_name)
 
 Returns whether each grid has no invalid value in the forcing cubes that have every
 spatial dimension and no time, as an array over `space_dims`, or `nothing` when there
@@ -450,7 +450,7 @@ is no such cube.
 - The forcing with time is not read, since that costs as much as the run. A grid that
   is valid here can still be invalid in it, and is then left as NaN by `TEMYax`.
 """
-function getValidGridsYax(forcing_cubes, space_dims, time_name)
+function getValidGrids(forcing_cubes, space_dims, time_name)
     is_valid = nothing
     for cube ∈ forcing_cubes
         cube_names = DD.name.(DD.dims(cube))
@@ -466,13 +466,13 @@ function getValidGridsYax(forcing_cubes, space_dims, time_name)
 end
 
 """
-    getValidFractionYax(forcing_cubes, space_dims, time_name)
+    getValidGridFraction(forcing_cubes, space_dims, time_name)
 
-Returns the share of the valid grids of `getValidGridsYax`, or one when no forcing
+Returns the share of the valid grids of `getValidGrids`, or one when no forcing
 marks them.
 """
-function getValidFractionYax(forcing_cubes, space_dims, time_name)
-    is_valid = getValidGridsYax(forcing_cubes, space_dims, time_name)
+function getValidGridFraction(forcing_cubes, space_dims, time_name)
+    is_valid = getValidGrids(forcing_cubes, space_dims, time_name)
     isnothing(is_valid) && return 1.0
     return max(count(is_valid), 1) / length(is_valid)
 end
@@ -500,7 +500,7 @@ function datasetFromCubes(names, cubes; properties=Dict{String,Any}())
 end
 
 """
-    dropPaddedDimsYax(cube, padded_names)
+    dropPaddedDims(cube, padded_names)
 
 Removes the singleton dimensions that were added to an output cube only because
 DiskArrayEngine needs all output cubes to have the same dimensions, and those that xmap
@@ -511,7 +511,7 @@ adds for the core dimensions of the forcing that the output does not have.
 - `padded_names`: the names of the singleton dimensions added to the cube. The spatial
   dimensions are never among them, even when they have a size of 1.
 """
-function dropPaddedDimsYax(cube, padded_names)
+function dropPaddedDims(cube, padded_names)
     padded = filter(d -> DD.name(d) ∈ padded_names, DD.dims(cube))
     isempty(padded) && return cube
     return cube[map(d -> DD.rebuild(d, 1), padded)...]

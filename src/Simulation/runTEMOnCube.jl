@@ -165,8 +165,8 @@ pass to the zarr store at `store_path`.
 - `store_path`: the path of the zarr store that holds the computed cubes
 - `max_cache`: the cache size for the block that DiskArrayEngine optimizes
 - `loop_ranges`: the steps of each loop dimension in a block, from
-  `getLoopRangesYax`, or `nothing` to let DiskArrayEngine choose the block
-- `run_filter`: a `ValidGridsFilterYax` from `getLoopRangesYax` that skips the blocks
+  `getLoopRanges`, or `nothing` to let DiskArrayEngine choose the block
+- `run_filter`: a `ValidGridsFilterYax` from `getLoopRanges` that skips the blocks
   without a valid grid, or `nothing` to run every block
 - `variable_properties`: a `Dict` of the attributes of each output variable by name,
   or `nothing`
@@ -183,12 +183,12 @@ pass to the zarr store at `store_path`.
 - The cubes keep their padded dimensions until they are computed, since the run can
   only fuse the direct outputs of the `xmap`. The store has them removed.
 - With the attributes, the store can be the final output file. The restart cubes stay
-  in it until they are saved to their own file, see `removeArraysZarr`.
+  in it until they are saved to their own file, see `dropVariablesFromStore`.
 """
 function runTEMYax(xmap_cubes, store_path; max_cache=5e8, loop_ranges=nothing, run_filter=nothing, variable_properties=nothing, global_properties=Dict{String,Any}(), save_kwargs=(;), parallelization=ThreadsParallelization())
     dataset = xmap_cubes.dataset
     if !isnothing(variable_properties)
-        cubes = Any[withPropertiesYax(cube, get(variable_properties, name, nothing)) for (name, cube) ∈ dataset.cubes]
+        cubes = Any[addPropsToCube(cube, get(variable_properties, name, nothing)) for (name, cube) ∈ dataset.cubes]
         dataset = datasetFromCubes(collect(keys(dataset.cubes)), cubes)
     end
     computed = runXmap(dataset, store_path, xmap_cubes.padded_names; max_cache=max_cache, loop_ranges=loop_ranges, run_filter=run_filter, properties=global_properties, save_kwargs=save_kwargs, parallelization=parallelization)
@@ -221,8 +221,8 @@ cubes to a new zarr store at `path`. Returns the `Dataset` of the store.
   - All padded dimensions of a cube are dropped from the store. `compute_to_zarr`
     drops only those that are longer in another cube.
   - The chunks of every array follow the block in all of its dimensions, and are
-    split further where a chunk would be larger than `MAX_CHUNK_BYTES_YAX`, see
-    `capChunksYax`. `compute_to_zarr` loses them for a cube with dropped
+    split further where a chunk would be larger than `MAX_CHUNK_BYTES`, see
+    `getCappedChunks`. `compute_to_zarr` loses them for a cube with dropped
     dimensions, which then gets the default chunks of DiskArrays. Every block then
     writes parts of chunks that other blocks write too.
   - A float array has NaN as its fill value, so the chunks of a block that the run
@@ -259,9 +259,9 @@ function runXmap(dataset, path, padded_names; max_cache=5e8, loop_ranges=nothing
             cube = dataset.cubes[name]
             padded = filter(d -> DD.name(d) ∈ padded_names[name] && length(d) == 1, collect(DD.dims(cube)))
             keep = findall(d -> !any(p -> DD.name(p) == DD.name(d), padded), collect(DD.dims(cube)))
-            stored = withNaNFillYax(dropPaddedDimsYax(cube, DD.name.(padded)))
+            stored = fillCubeWithNaN(dropPaddedDims(cube, DD.name.(padded)))
             element_size = sizeof(Base.nonmissingtype(eltype(stored)))
-            stored = YAXArrays.Datasets.setchunks(stored, DiskArrays.GridChunks(capChunksYax(Tuple(chunk_sizes[keep]), element_size)))
+            stored = YAXArrays.Datasets.setchunks(stored, DiskArrays.GridChunks(getCappedChunks(Tuple(chunk_sizes[keep]), element_size)))
             name => (stored, size(cube))
         end
         op, lr, outputs
@@ -318,12 +318,12 @@ A run filter of DiskArrayEngine that skips every block of a lazy run without a v
 grid, e.g., one over ocean.
 
 # Fields:
-- `valid_sums`: the cumulative counts of the valid grids, see `getValidSumsYax`
+- `valid_sums`: the cumulative counts of the valid grids, see `getValidGridSums`
 - `i_space`: the loop dimension of each spatial dimension of the valid grids
 
 # Notes:
 - A grid is valid when the forcing without time has no invalid value at it, the same
-  grids as in `getValidGridsYax`. `TEMYax` returns NaN at once for the others, so a
+  grids as in `getValidGrids`. `TEMYax` returns NaN at once for the others, so a
   block without a valid grid only costs the reading of its inputs.
 """
 struct ValidGridsFilterYax{S,I}
@@ -331,7 +331,7 @@ struct ValidGridsFilterYax{S,I}
     i_space::I
 end
 
-DAE.need_run(inow, f::ValidGridsFilterYax) = boxSumYax(f.valid_sums, map(i -> inow[i], f.i_space)) > 0
+DAE.need_run(inow, f::ValidGridsFilterYax) = countValidGridsInBox(f.valid_sums, map(i -> inow[i], f.i_space)) > 0
 
 """
     withRunFilterYax(runner, run_filter)

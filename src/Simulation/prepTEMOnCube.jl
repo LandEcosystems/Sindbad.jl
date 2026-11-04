@@ -226,7 +226,7 @@ function prepTEMYax(selected_models, forcing::NamedTuple, info::NamedTuple)
     # that the output does not have, e.g. the soil layers of the texture forcing
     space_dims = Symbol.(info.experiment.data_settings.forcing.data_dimension.space)
     padded_names = Vector{Symbol}[setdiff(DD.name.(DD.dims(o_cube)), (DD.name.(out.outaxes)..., space_dims...)) for (out, o_cube) ∈ zip(collect(Any, all_output), outcubes)]
-    dropped_cubes = Any[dropPaddedDimsYax(o_cube, padded) for (o_cube, padded) ∈ zip(outcubes, padded_names)]
+    dropped_cubes = Any[dropPaddedDims(o_cube, padded) for (o_cube, padded) ∈ zip(outcubes, padded_names)]
     output_ds = datasetFromCubes(varnames, dropped_cubes[1:n_out])
     restart_ds = datasetFromCubes(restart_names, dropped_cubes[(n_out+1):end])
     # a pool can also be an output variable, so the restart cubes get their own keys

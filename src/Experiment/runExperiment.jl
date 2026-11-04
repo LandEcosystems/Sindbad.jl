@@ -516,7 +516,7 @@ are saved.
 - Otherwise the pass writes `lazy_run.zarr` in the data output directory, which is
   copied to the output files and then removed.
 - The block of grids of the pass is set by `exe_rules.yax_block_grids`, see
-  `getLoopRangesYax`.
+  `getLoopRanges`.
 - `exe_rules.parallelization` sets how the blocks run, see `getRunnerYax`.
 """
 function lazyRun end
@@ -525,7 +525,7 @@ lazyRun(_, run_output, ::DoNotRunLazy) = (run_output, nothing)
 
 function lazyRun(info, run_output, ::DoRunLazy)
     xmap_cubes = run_output.xmap
-    max_cache, loop_ranges, run_filter = getLoopRangesYax(info, xmap_cubes)
+    max_cache, loop_ranges, run_filter = getLoopRanges(info, xmap_cubes)
     parallelization = info.helpers.run.parallelization
     if !isLazyOutputFinal(info)
         store_path = joinpath(info.output.dirs.data, "lazy_run.zarr")
@@ -560,4 +560,4 @@ the whole `lazy_run.zarr`, or the restart arrays of the final output file.
 """
 removeLazyStore(::Nothing) = nothing
 removeLazyStore(store_path::AbstractString) = rm(store_path; recursive=true)
-removeLazyStore(lazy_store::NamedTuple) = removeArraysZarr(lazy_store.path, lazy_store.arrays)
+removeLazyStore(lazy_store::NamedTuple) = dropVariablesFromStore(lazy_store.path, lazy_store.arrays)
