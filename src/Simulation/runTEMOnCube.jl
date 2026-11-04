@@ -9,7 +9,7 @@ const DiskArrays = YAXArrays.Cubes.DiskArrays
 const DAE = YAXArrays.Xmap.DAE
 
 """
-    ErasedDiskArray{T,N}
+    TypeHiddenDiskArray{T,N}
 
 A disk array that wraps another array without its type in the type of the wrapper.
 
@@ -21,23 +21,23 @@ A disk array that wraps another array without its type in the type of the wrappe
 - Reading a block dispatches on the wrapped array at run time, which is negligible
   next to reading the block from disk.
 """
-struct ErasedDiskArray{T,N} <: DiskArrays.AbstractDiskArray{T,N}
+struct TypeHiddenDiskArray{T,N} <: DiskArrays.AbstractDiskArray{T,N}
     parent::AbstractArray{T,N}
 end
 
-Base.parent(a::ErasedDiskArray) = a.parent
-Base.size(a::ErasedDiskArray) = size(a.parent)
-DiskArrays.haschunks(a::ErasedDiskArray) = DiskArrays.haschunks(a.parent)
-DiskArrays.eachchunk(a::ErasedDiskArray) = DiskArrays.eachchunk(a.parent)
-DiskArrays.readblock!(a::ErasedDiskArray, aout, r::OrdinalRange...) = DiskArrays.readblock!(a.parent, aout, r...)
+Base.parent(a::TypeHiddenDiskArray) = a.parent
+Base.size(a::TypeHiddenDiskArray) = size(a.parent)
+DiskArrays.haschunks(a::TypeHiddenDiskArray) = DiskArrays.haschunks(a.parent)
+DiskArrays.eachchunk(a::TypeHiddenDiskArray) = DiskArrays.eachchunk(a.parent)
+DiskArrays.readblock!(a::TypeHiddenDiskArray, aout, r::OrdinalRange...) = DiskArrays.readblock!(a.parent, aout, r...)
 
 """
-    eraseCubeType(cube)
+    hideCubeType(cube)
 
-Returns `cube` with its data wrapped in an `ErasedDiskArray`, keeping its dimensions,
-properties and chunks.
+Returns `cube` with its data wrapped in a `TypeHiddenDiskArray`, keeping its
+dimensions, properties and chunks.
 """
-eraseCubeType(cube) = YAXArray(DD.dims(cube), ErasedDiskArray(cube.data), cube.properties; chunks=DiskArrays.eachchunk(cube))
+hideCubeType(cube) = YAXArray(DD.dims(cube), TypeHiddenDiskArray(cube.data), cube.properties; chunks=DiskArrays.eachchunk(cube))
 
 
 """
@@ -148,7 +148,7 @@ function TEMYax(map_cubes...;selected_models, forcing_vars, forcing_sources=Tupl
 end
 
 """
-    TEMYaxErased(map_cubes...; tem_kwargs)
+    TEMYaxFromRef(map_cubes...; tem_kwargs)
 
 Runs `TEMYax` for one location with the keyword arguments held in `tem_kwargs[]`.
 
@@ -158,7 +158,7 @@ Runs `TEMYax` for one location with the keyword arguments held in `tem_kwargs[]`
   and slow to compile, so `runTEMYax` passes them in a `Ref{Any}` instead.
 - `TEMYax` is called dynamically once per location and is specialized as before.
 """
-function TEMYaxErased(map_cubes...; tem_kwargs::Base.RefValue{Any})
+function TEMYaxFromRef(map_cubes...; tem_kwargs::Base.RefValue{Any})
     TEMYax(map_cubes...; tem_kwargs[]...)
     return nothing
 end
@@ -348,7 +348,7 @@ end
 function runTEMYax(selected_models, forcing::NamedTuple, info::NamedTuple)
     # forcing/input information, one cube per source so that no source is read twice
     forcing_cubes, forcing_dims, forcing_sources = shareForcingCubesYax(info, forcing)
-    incubes = map(eraseCubeType, forcing_cubes);
+    incubes = map(hideCubeType, forcing_cubes);
     indims = forcing_dims;
     n_forcing_cubes = length(incubes)
     # a spatial parameter has no core dimensions, so each location gets one value, and a
@@ -389,7 +389,7 @@ function runTEMYax(selected_models, forcing::NamedTuple, info::NamedTuple)
         restart_vars=restart_vars,
         parameter_to_index=parameter_to_index,
         parameter_time=parameter_time)
-    outcubes = xmap(TEMYaxErased,
+    outcubes = xmap(TEMYaxFromRef,
         (incubes .⊘ indims)...;
     # the arguments become part of the type of every function of the xmap run, so they
     # are passed behind a Ref{Any} to keep those types small and fast to compile
@@ -1275,7 +1275,7 @@ of each parameter in the models, for the input cubes of `xmap`.
   input cubes of `xmap` are only the forcing.
 - Otherwise:
   - the cubes of `forcing.parameters.data`, which hold values that are already in run
-    units and within bounds, with their types erased like the forcing cubes
+    units and within bounds, with their types hidden like the forcing cubes
   - the core dimensions of each cube, `(time,)` for a parameter with time, else `()`
   - the `parameter_to_index` from `getParameterIndices`
   - the `getTimeVaryingInfo` of the parameters, `nothing` when none varies in time
@@ -1285,7 +1285,7 @@ function getParameterCubesYax(selected_models, forcing)
     isnothing(forcing_parameters) && return (), (), nothing, nothing
     parameter_to_index = getParameterIndices(selected_models, forcing_parameters.parameter_table)
     parameter_time = getTimeVaryingInfo(selected_models, parameter_to_index, forcing_parameters)
-    parameter_cubes = map(eraseCubeType, Tuple(forcing_parameters.data))
+    parameter_cubes = map(hideCubeType, Tuple(forcing_parameters.data))
     return parameter_cubes, Tuple(forcing_parameters.dims), parameter_to_index, parameter_time
 end
 
