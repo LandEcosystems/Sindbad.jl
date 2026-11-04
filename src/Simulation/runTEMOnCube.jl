@@ -1,6 +1,6 @@
-export runTEMYax
+export prepTEMYax
 export TEMYax
-export computeTEMYax
+export runTEMYax
 export getMaxCacheYax
 export getLoopRangesYax
 export removeArraysZarr
@@ -56,6 +56,11 @@ run the SINBAD CORETEM for a given location
 
 # Returns:
 - the land time series wrapped in a `LandWrapper`
+
+# Notes:
+- Legacy, kept for the old `mapCube` run with a parameter cube, and will be
+  removed in the future. New development goes through `coreTEMYax!`, which the
+  current run uses for each grid.
 """
 function coreTEMYax(selected_models, loc_forcing, loc_land, tem_info, store_restart=nothing)
 
@@ -155,7 +160,7 @@ Runs `TEMYax` for one location with the keyword arguments held in `tem_kwargs[]`
 # Notes:
 - `xmap` makes its function arguments part of the type of every function that runs it.
   The arguments of `TEMYax` hold the models and the land, which makes those types huge
-  and slow to compile, so `runTEMYax` passes them in a `Ref{Any}` instead.
+  and slow to compile, so `prepTEMYax` passes them in a `Ref{Any}` instead.
 - `TEMYax` is called dynamically once per location and is specialized as before.
 """
 function TEMYaxFromRef(map_cubes...; tem_kwargs::Base.RefValue{Any})
@@ -329,23 +334,22 @@ function fillRestartYax(restarts, land, restart_vars)
 end
 
 """
-    runTEMYax(forcing::NamedTuple, output::NamedTuple, tem::NamedTuple, selected_models; max_cache = 1.0e9)
+    prepTEMYax(selected_models, forcing::NamedTuple, info::NamedTuple)
 
-
+Builds the lazy run of the TEM over the forcing cubes with `xmap`, without running
+it. `runTEMYax` runs it.
 
 # Arguments:
-- `forcing`: a forcing NT that contains the forcing time series set for ALL locations
-- `output`: an output NT including the data arrays, as well as information of variables and dimensions
-- `tem`: a nested NT with necessary information of helpers, models, and spinup needed to run SINDBAD TEM and models
 - `selected_models`: a tuple of all models selected in the given model structure
-- `max_cache`: cache size to use for mapCube
+- `forcing`: a forcing NT that contains the forcing time series set for ALL locations
+- `info`: a SINDBAD NT with all information needed for setup and execution of an experiment
 
 # Returns:
 - a NamedTuple with the `output` Dataset, the `restart` Dataset with the pools after
   spinup, the `restart_vars` written to it, and the `spinup_mode` of the step that saved
   the restart
 """
-function runTEMYax(selected_models, forcing::NamedTuple, info::NamedTuple)
+function prepTEMYax(selected_models, forcing::NamedTuple, info::NamedTuple)
     # forcing/input information, one cube per source so that no source is read twice
     forcing_cubes, forcing_dims, forcing_sources = shareForcingCubesYax(info, forcing)
     incubes = map(hideCubeType, forcing_cubes);
@@ -426,16 +430,16 @@ function runTEMYax(selected_models, forcing::NamedTuple, info::NamedTuple)
 end
 
 """
-    computeTEMYax(xmap_cubes, store_path; max_cache=5e8, loop_ranges=nothing,
+    runTEMYax(xmap_cubes, store_path; max_cache=5e8, loop_ranges=nothing,
         run_filter=nothing, variable_properties=nothing,
         global_properties=Dict{String,Any}(), save_kwargs=(;),
         parallelization=ThreadsParallelization())
 
-Computes all output and restart cubes of a lazy run in one pass and writes them to the
-zarr store at `store_path`.
+Runs the lazy run of `prepTEMYax` and writes all its output and restart cubes in one
+pass to the zarr store at `store_path`.
 
 # Arguments:
-- `xmap_cubes`: the `xmap` field returned by `runTEMYax`
+- `xmap_cubes`: the `xmap` field returned by `prepTEMYax`
 - `store_path`: the path of the zarr store that holds the computed cubes
 - `max_cache`: the cache size for the block that DiskArrayEngine optimizes
 - `loop_ranges`: the steps of each loop dimension in a block, from
@@ -452,32 +456,32 @@ zarr store at `store_path`.
 - a NamedTuple with the `output` and `restart` Datasets, read from the store
 
 # Notes:
-- All cubes of `runTEMYax` come from one `xmap`. Saving them one by one runs the model
-  once per cube, while `computeToZarrYax` runs it once for all of them.
+- All cubes of `prepTEMYax` come from one `xmap`. Saving them one by one runs the
+  model once per cube, while `runXmap` runs it once for all of them.
 - The cubes keep their padded dimensions until they are computed, since the run can
   only fuse the direct outputs of the `xmap`. The store has them removed.
 - With the attributes, the store can be the final output file. The restart cubes stay
   in it until they are saved to their own file, see `removeArraysZarr`.
 """
-function computeTEMYax(xmap_cubes, store_path; max_cache=5e8, loop_ranges=nothing, run_filter=nothing, variable_properties=nothing, global_properties=Dict{String,Any}(), save_kwargs=(;), parallelization=ThreadsParallelization())
+function runTEMYax(xmap_cubes, store_path; max_cache=5e8, loop_ranges=nothing, run_filter=nothing, variable_properties=nothing, global_properties=Dict{String,Any}(), save_kwargs=(;), parallelization=ThreadsParallelization())
     dataset = xmap_cubes.dataset
     if !isnothing(variable_properties)
         cubes = Any[withPropertiesYax(cube, get(variable_properties, name, nothing)) for (name, cube) ∈ dataset.cubes]
         dataset = datasetFromCubes(collect(keys(dataset.cubes)), cubes)
     end
-    computed = computeToZarrYax(dataset, store_path, xmap_cubes.padded_names; max_cache=max_cache, loop_ranges=loop_ranges, run_filter=run_filter, properties=global_properties, save_kwargs=save_kwargs, parallelization=parallelization)
+    computed = runXmap(dataset, store_path, xmap_cubes.padded_names; max_cache=max_cache, loop_ranges=loop_ranges, run_filter=run_filter, properties=global_properties, save_kwargs=save_kwargs, parallelization=parallelization)
     output_ds = datasetFromCubes(xmap_cubes.output_names, Any[computed.cubes[name] for name ∈ xmap_cubes.output_names])
     restart_ds = datasetFromCubes(xmap_cubes.restart_names, Any[computed.cubes[key] for key ∈ xmap_cubes.restart_keys])
     return (; output=output_ds, restart=restart_ds)
 end
 
 """
-    computeToZarrYax(dataset, path, padded_names; max_cache=5e8, loop_ranges=nothing,
+    runXmap(dataset, path, padded_names; max_cache=5e8, loop_ranges=nothing,
         run_filter=nothing, properties=Dict{String,Any}(), save_kwargs=(;),
         parallelization=ThreadsParallelization())
 
-Computes the cubes of `dataset`, which come from one `xmap`, in one pass and writes
-them to a new zarr store at `path`. Returns the `Dataset` of the store.
+Runs the `xmap` that the cubes of `dataset` come from in one pass, and writes the
+cubes to a new zarr store at `path`. Returns the `Dataset` of the store.
 
 # Arguments:
 - `padded_names`: the names of the singleton dimensions of each cube that are not
@@ -506,7 +510,7 @@ them to a new zarr store at `path`. Returns the `Dataset` of the store.
 - It uses the internals of DiskArrayEngine 0.3, and is checked against the
   `compute_to_zarr` of YAXArrays when either is updated.
 """
-function computeToZarrYax(dataset, path, padded_names; max_cache=5e8, loop_ranges=nothing, run_filter=nothing, properties=Dict{String,Any}(), save_kwargs=(;), parallelization=ThreadsParallelization())
+function runXmap(dataset, path, padded_names; max_cache=5e8, loop_ranges=nothing, run_filter=nothing, properties=Dict{String,Any}(), save_kwargs=(;), parallelization=ThreadsParallelization())
     graph = DAE.MwopGraph()
     out_nodes = Dict{Symbol,Any}()
     for (name, cube) ∈ dataset.cubes
@@ -730,7 +734,7 @@ the cache is computed.
   experiment
 - `in_cubes`: the input cubes of the run, starting with the forcing
 - `out_cubes`: the output cubes of the run, empty when they are not built yet
-- `xmap_cubes`: the `xmap` field returned by `runTEMYax`, which holds both
+- `xmap_cubes`: the `xmap` field returned by `prepTEMYax`, which holds both
 - `n_forcing`: the number of forcing cubes at the start of `in_cubes`
 - `grids_per_thread`: the number of valid grids per thread in a block
 - `memory_fraction`: the largest share of the available memory for the run
@@ -841,12 +845,12 @@ end
     getLoopRangesYax(info, xmap_cubes; grids_per_thread=8)
 
 Returns the cache, the block of grids and the run filter of a lazy run, as
-`max_cache`, `loop_ranges` and `run_filter` of `computeTEMYax`.
+`max_cache`, `loop_ranges` and `run_filter` of `runTEMYax`.
 
 # Arguments:
 - `info`: a SINDBAD NT with all information needed for setup and execution of an
   experiment
-- `xmap_cubes`: the `xmap` field returned by `runTEMYax`
+- `xmap_cubes`: the `xmap` field returned by `prepTEMYax`
 - `grids_per_thread`: the number of valid grids per thread that an `"auto"` block
   aims for
 
@@ -1132,6 +1136,11 @@ end
 
 """
     psTEMYax(in_pixel_cube...; selected_models, param_to_index, forcing_vars, loc_land::NamedTuple, output_vars, tem::NamedTuple, clean_data)
+
+# Notes:
+- Legacy, kept for the old `mapCube` run with a parameter cube, and will be
+  removed in the future. New development goes through `prepTEMYax` and
+  `runTEMYax`, where the parameters per grid come from `forcing.parameters`.
 """
 function psTEMYax(in_pixel_cube...; selected_models, param_to_index, forcing_vars, loc_land::NamedTuple,
     output_vars, tem::NamedTuple, clean_data)
@@ -1160,6 +1169,10 @@ end
 """
     runTEMYaxParameters(selected_models, forcing::NamedTuple, in_cube_params, tbl_params, info::NamedTuple)
 
+# Notes:
+- Legacy, kept for the old `mapCube` run with a parameter cube, and will be
+  removed in the future. New development goes through `prepTEMYax` and
+  `runTEMYax`, where the parameters per grid come from `forcing.parameters`.
 """
 function runTEMYaxParameters(selected_models, forcing::NamedTuple, in_cube_params, tbl_params, info::NamedTuple)
 
@@ -1325,6 +1338,9 @@ fills the output array position with the input data/vector
 - The number of layers of the output must equal the number of layers of the variable in
   land, the same check as `checkOutputLayers` in a run that is not lazy. It is done once
   per location and variable, not per time step.
+- Legacy, kept for the old `mapCube` run with a parameter cube, and will be
+  removed in the future. New development goes through `prepTEMYax` and
+  `runTEMYax`, where the parameters per grid come from `forcing.parameters`.
 """
 function fillOutputYax(xout, xin, var_pair)
     n_land = length(first(xin))
