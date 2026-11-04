@@ -1,4 +1,4 @@
-export getMaxCacheYax
+export getYaxMaxCache
 export getLoopRanges
 export dropVariablesFromStore
 
@@ -127,9 +127,9 @@ function dropVariablesFromStore(store_path, names)
 end
 
 """
-    getMaxCacheYax(info, in_cubes, out_cubes=(); n_forcing=length(in_cubes),
+    getYaxMaxCache(info, in_cubes, out_cubes=(); n_forcing=length(in_cubes),
         grids_per_thread=4, memory_fraction=0.66)
-    getMaxCacheYax(info, xmap_cubes)
+    getYaxMaxCache(info, xmap_cubes)
 
 Returns the cache size of a cube run, `compute_to_zarr` or `mapCube`, from the
 `yax_max_cache` setting. A number in the setting is used as it is, and with `null`
@@ -140,7 +140,7 @@ the cache is computed.
   experiment
 - `in_cubes`: the input cubes of the run, starting with the forcing
 - `out_cubes`: the output cubes of the run, empty when they are not built yet
-- `xmap_cubes`: the `xmap` field returned by `prepTEMYax`, which holds both
+- `xmap_cubes`: the `xmap` field returned by `prepTEMLazy`, which holds both
 - `n_forcing`: the number of forcing cubes at the start of `in_cubes`
 - `grids_per_thread`: the number of valid grids per thread in a block
 - `memory_fraction`: the largest share of the available memory for the run
@@ -163,7 +163,7 @@ the cache is computed.
 - With `PmapParallelization`, the threads are those of one worker, and every worker
   holds its own block, see `getCacheMemoryLimit`.
 """
-function getMaxCacheYax(info, in_cubes, out_cubes=(); n_forcing=length(in_cubes), grids_per_thread=4, memory_fraction=0.66)
+function getYaxMaxCache(info, in_cubes, out_cubes=(); n_forcing=length(in_cubes), grids_per_thread=4, memory_fraction=0.66)
     max_cache = get(info.experiment.exe_rules, :yax_max_cache, nothing)
     max_cache isa Real && return max_cache
     isnothing(max_cache) || error("experiment.exe_rules.yax_max_cache must be a number of bytes, or null to compute it, got `$(max_cache)`")
@@ -177,7 +177,7 @@ function getMaxCacheYax(info, in_cubes, out_cubes=(); n_forcing=length(in_cubes)
     n_procs = getProcsPerBlock(parallelization)
     n_grids = ceil(Int, grids_per_thread * n_threads / valid_fraction)
     cache = n_grids * bytes_per_grid
-    print_info(getMaxCacheYax, @__FILE__, @__LINE__, "computed cache of $(round(cache / 1e9; digits=2)) GB: $(n_grids) grids per block at $(round(bytes_per_grid / 1e6; digits=2)) MB each, for $(grids_per_thread) valid grids on each of $(n_threads) threads with $(round(100 * valid_fraction; digits=1))% of grids valid", n_m=4)
+    print_info(getYaxMaxCache, @__FILE__, @__LINE__, "computed cache of $(round(cache / 1e9; digits=2)) GB: $(n_grids) grids per block at $(round(bytes_per_grid / 1e6; digits=2)) MB each, for $(grids_per_thread) valid grids on each of $(n_threads) threads with $(round(100 * valid_fraction; digits=1))% of grids valid", n_m=4)
     memory_limit, available_memory = getCacheMemoryLimit(bytes_per_grid, parallelization; memory_fraction=memory_fraction)
     if cache > memory_limit
         @warn "The computed cache of $(round(cache / 1e9; digits=2)) GB needs up to $(round(((n_procs == 1 ? 2 : 2 * n_procs + 1) * cache + n_procs * n_threads * bytes_per_grid) / 1e9; digits=2)) GB for the run, more than $(round(Int, 100 * memory_fraction))% of the $(round(available_memory / 1e9; digits=2)) GB of available memory. It is set to $(round(memory_limit / 1e9; digits=2)) GB, so some threads stay idle."
@@ -186,7 +186,7 @@ function getMaxCacheYax(info, in_cubes, out_cubes=(); n_forcing=length(in_cubes)
     return cache
 end
 
-getMaxCacheYax(info, xmap_cubes::NamedTuple; kwargs...) = getMaxCacheYax(info, xmap_cubes.in_cubes, values(xmap_cubes.dataset.cubes); n_forcing=xmap_cubes.n_forcing, kwargs...)
+getYaxMaxCache(info, xmap_cubes::NamedTuple; kwargs...) = getYaxMaxCache(info, xmap_cubes.in_cubes, values(xmap_cubes.dataset.cubes); n_forcing=xmap_cubes.n_forcing, kwargs...)
 
 """
     getCacheMemoryLimit(bytes_per_grid, parallelization=ThreadsParallelization();
@@ -251,12 +251,12 @@ end
     getLoopRanges(info, xmap_cubes; grids_per_thread=8)
 
 Returns the cache, the block of grids and the run filter of a lazy run, as
-`max_cache`, `loop_ranges` and `run_filter` of `runTEMYax`.
+`max_cache`, `loop_ranges` and `run_filter` of `runTEMLazy`.
 
 # Arguments:
 - `info`: a SINDBAD NT with all information needed for setup and execution of an
   experiment
-- `xmap_cubes`: the `xmap` field returned by `prepTEMYax`
+- `xmap_cubes`: the `xmap` field returned by `prepTEMLazy`
 - `grids_per_thread`: the number of valid grids per thread that an `"auto"` block
   aims for
 
@@ -307,7 +307,7 @@ function getLoopRanges(info, xmap_cubes; grids_per_thread=8)
     valid_grids = getValidGrids(in_cubes[1:xmap_cubes.n_forcing], space_dims, time_name)
     valid_sums = getValidGridSums(valid_grids)
     run_filter = isnothing(valid_sums) ? nothing : ValidGridsFilterYax(valid_sums, i_space)
-    setting == "optimizer" && return getMaxCacheYax(info, xmap_cubes), nothing, run_filter
+    setting == "optimizer" && return getYaxMaxCache(info, xmap_cubes), nothing, run_filter
     bytes_per_grid = sum(cube -> getBytesPerGrid(cube, space_dims), (in_cubes..., values(xmap_cubes.dataset.cubes)...))
     block = if setting == "auto"
         steps = map(d -> getChunkStep(in_cubes, d, time_name), Tuple(space_dims))
@@ -448,7 +448,7 @@ is no such cube.
 
 # Notes:
 - The forcing with time is not read, since that costs as much as the run. A grid that
-  is valid here can still be invalid in it, and is then left as NaN by `TEMYax`.
+  is valid here can still be invalid in it, and is then left as NaN by `TEMLazy`.
 """
 function getValidGrids(forcing_cubes, space_dims, time_name)
     is_valid = nothing

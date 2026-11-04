@@ -30,8 +30,8 @@ This module integrates various components and utilities required to execute the 
 - **`runTEMForLocation.jl`**: Run the TEM for a single location (optional spinup + main loop).
 - **`runTEMInSpace.jl`**: Run the TEM across spatial grids (parallel execution).
 - **`utilsLazy.jl`**: Helpers of lazy runs on `YAXArrays` cubes: the wrapper that hides cube types, the cache and block sizing, and the zarr store helpers.
-- **`prepTEMLazy.jl`**: Build the lazy run of the TEM on `YAXArrays` cubes with `xmap` (`prepTEMYax`).
-- **`runTEMLazy.jl`**: Run the lazy run block by block into a zarr store (`runTEMYax`), and the TEM of each grid in it (`TEMYax`).
+- **`prepTEMLazy.jl`**: Build the lazy run of the TEM on `YAXArrays` cubes with `xmap` (`prepTEMLazy`).
+- **`runTEMLazy.jl`**: Run the lazy run block by block into a zarr store (`runTEMLazy`), and the TEM of each grid in it (`TEMLazy`).
 - **`spinupTEM.jl`**: Spinup routines to initialize the model to steady state.
 - **`spinupSequence.jl`**: Sequential spinup loops for iterative refinement.
 

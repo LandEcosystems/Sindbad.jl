@@ -1,4 +1,4 @@
-export prepTEMYax
+export prepTEMLazy
 
 """
     getTemplateLandYax(selected_models, forcing, info, tem_info, land_init, forcing_data_info)
@@ -23,8 +23,8 @@ end
 """
     getPlaceholderForcingYax(forcing, info, forcing_data_info, test_forcing)
 
-Returns a forcing NT of one location with the same types as the forcing that `TEMYax`
-builds from the cubes.
+Returns a forcing NT of one location with the same types as the forcing that
+`TEMLazy` builds from the cubes.
 
 # Arguments:
 - `test_forcing`: the forcing of one location from `getTestForcing`, whose values are
@@ -97,7 +97,7 @@ merged into `default_forcing` the same way as in `getForcing`.
   `default_forcing`, whose bounds are always typed. The merge is done once here rather
   than for every pixel.
 - Only the fields that `cleanData` reads are kept. The info is part of the argument
-  types of `TEMYax`, and the full settings, e.g., with the `dimension` and
+  types of `TEMLazy`, and the full settings, e.g., with the `dimension` and
   `interpolation_method` groups, make it slow to compile.
 """
 function getForcingDataInfo(info, forcing_vars)
@@ -121,8 +121,8 @@ dimensions, and the index of the cube of each forcing variable.
   file, with the same dimensions and interpolation, e.g., `f_airT` and `f_airT_day`,
   or a placeholder that multiplies a source by zero, then read it more than once.
   Such variables share the cube of the first of them.
-- The units and bounds are applied per variable in `TEMYax`, so variables that share a
-  cube can differ in them.
+- The units and bounds are applied per variable in `TEMLazy`, so variables that share
+  a cube can differ in them.
 - `exe_rules.yax_shared_forcing` set to `false` keeps one cube per variable.
 """
 function shareForcingCubesYax(info, forcing)
@@ -144,10 +144,10 @@ function shareForcingCubesYax(info, forcing)
 end
 
 """
-    prepTEMYax(selected_models, forcing::NamedTuple, info::NamedTuple)
+    prepTEMLazy(selected_models, forcing::NamedTuple, info::NamedTuple)
 
 Builds the lazy run of the TEM over the forcing cubes with `xmap`, without running
-it. `runTEMYax` runs it.
+it. `runTEMLazy` runs it.
 
 # Arguments:
 - `selected_models`: a tuple of all models selected in the given model structure
@@ -159,7 +159,7 @@ it. `runTEMYax` runs it.
   spinup, the `restart_vars` written to it, and the `spinup_mode` of the step that saved
   the restart
 """
-function prepTEMYax(selected_models, forcing::NamedTuple, info::NamedTuple)
+function prepTEMLazy(selected_models, forcing::NamedTuple, info::NamedTuple)
     # forcing/input information, one cube per source so that no source is read twice
     forcing_cubes, forcing_dims, forcing_sources = shareForcingCubesYax(info, forcing)
     incubes = map(hideCubeType, forcing_cubes);
@@ -167,7 +167,8 @@ function prepTEMYax(selected_models, forcing::NamedTuple, info::NamedTuple)
     n_forcing_cubes = length(incubes)
     # a spatial parameter has no core dimensions, so each location gets one value, and a
     # spatiotemporal one has time, so each location gets its values over time like a
-    # forcing. The values set the parameters of the models of the location in TEMYax.
+    # forcing. The values set the parameters of the models of the location in
+    # TEMLazy.
     parameter_cubes, parameter_dims, parameter_to_index, parameter_time = getParameterCubesYax(selected_models, forcing)
     incubes = (incubes..., parameter_cubes...)
     indims = (indims..., parameter_dims...)
@@ -203,7 +204,7 @@ function prepTEMYax(selected_models, forcing::NamedTuple, info::NamedTuple)
         restart_vars=restart_vars,
         parameter_to_index=parameter_to_index,
         parameter_time=parameter_time)
-    outcubes = xmap(TEMYaxFromRef,
+    outcubes = xmap(TEMLazyForGrid,
         (incubes .⊘ indims)...;
     # the arguments become part of the type of every function of the xmap run, so they
     # are passed behind a Ref{Any} to keep those types small and fast to compile

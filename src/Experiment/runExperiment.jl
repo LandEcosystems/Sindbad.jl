@@ -160,7 +160,7 @@ function runExperiment(info::NamedTuple, forcing::NamedTuple, ::DoRunOptimizatio
     run_output = nothing
     if isempty(additionaldims)
         print_info(runExperiment, @__FILE__, @__LINE__, "run optimization per pixel...")
-        run_output = optimizeTEMYax(forcing, info.tem, info.optimization, observations; max_cache=getMaxCacheYax(info, (forcing.data..., observations.data...); n_forcing=length(forcing.data)))
+        run_output = optimizeTEMYax(forcing, info.tem, info.optimization, observations; max_cache=getYaxMaxCache(info, (forcing.data..., observations.data...); n_forcing=length(forcing.data)))
     else
         print_info(runExperiment, @__FILE__, @__LINE__, "run optimization for spatial domain...")
         obs_array = [Array(_o) for _o in observations.data]; # TODO: necessary now for performance because view of keyedarray is slow
@@ -449,12 +449,12 @@ Run a SINDBAD forward simulation, choosing between eager and lazy execution.
 - `info::NamedTuple`: A SINDBAD NamedTuple containing all information needed for setup and execution of an experiment
 - `mode::RunFlag`: Type dispatch parameter determining how the forward run is executed:
   - `DoNotRunLazy`: Run eagerly in memory via `runTEM!`
-  - `DoRunLazy`: Build the lazy run over YAXArrays via `prepTEMYax`, which `lazyRun`
+  - `DoRunLazy`: Build the lazy run over YAXArrays via `prepTEMLazy`, which `lazyRun`
     runs
 
 # Returns
 - A NamedTuple with:
-  - `output`: for `DoNotRunLazy`, a NamedTuple pairing each unique output variable name (from `info.output.variables`) with its computed time series. For `DoRunLazy`, the lazy YAXArray output produced by `prepTEMYax`.
+  - `output`: for `DoNotRunLazy`, a NamedTuple pairing each unique output variable name (from `info.output.variables`) with its computed time series. For `DoRunLazy`, the lazy YAXArray output produced by `prepTEMLazy`.
   - `restart`: the pools of every location after the spinup step with `save_restart`, to be written with `saveRestartCubes`
   - `spinup`: for `DoNotRunLazy` with `store_spinup` true, `cEco` and `TWS` of every
     location at every stored spinup step from `prepSpinupOut`, to be written with
@@ -476,7 +476,7 @@ end
 
 # Explicit-model forms: run an arbitrary set of `selected_models` (e.g. default vs.
 # parameter-updated models), so callers route their forward runs through `runForward`
-# instead of calling `runTEM!`/`prepTEMYax` directly.
+# instead of calling `runTEM!`/`prepTEMLazy` directly.
 function runForward(selected_models, forcing, info, ::DoNotRunLazy)
     run_helpers = prepTEM(selected_models, forcing, info)
     runTEM!(run_helpers.space_selected_models, run_helpers.space_forcing, run_helpers.space_spinup, run_helpers.loc_forcing_t, run_helpers.space_output, run_helpers.space_restart, run_helpers.space_land, run_helpers.tem_info; show_progress=true)
@@ -485,7 +485,7 @@ function runForward(selected_models, forcing, info, ::DoNotRunLazy)
 end
 
 function runForward(selected_models, forcing, info, ::DoRunLazy)
-    run_output = prepTEMYax(selected_models, forcing, info)
+    run_output = prepTEMLazy(selected_models, forcing, info)
     restart = (; dataset=run_output.restart, variables=run_output.restart_vars, spinup_mode=run_output.spinup_mode)
     return (; output=run_output.output, restart=restart, spinup=nothing, xmap=run_output.xmap)
 end
@@ -530,7 +530,7 @@ function lazyRun(info, run_output, ::DoRunLazy)
     if !isLazyOutputFinal(info)
         store_path = joinpath(info.output.dirs.data, "lazy_run.zarr")
         print_info(lazyRun, @__FILE__, @__LINE__, "running the lazy run in one pass to `$(store_path)`", n_m=4)
-        computed = runTEMYax(xmap_cubes, store_path; max_cache=max_cache, loop_ranges=loop_ranges, run_filter=run_filter, parallelization=parallelization)
+        computed = runTEMLazy(xmap_cubes, store_path; max_cache=max_cache, loop_ranges=loop_ranges, run_filter=run_filter, parallelization=parallelization)
         restart = (; run_output.restart..., dataset=computed.restart)
         return (; run_output..., output=computed.output, restart=restart), store_path
     end
@@ -538,7 +538,7 @@ function lazyRun(info, run_output, ::DoRunLazy)
     print_info(lazyRun, @__FILE__, @__LINE__, "running the lazy run in one pass to `$(store_path)`", n_m=4)
     t_step = info.experiment.basics.temporal_resolution
     variable_properties = Dict(Symbol(name) => getVariableInfo(getVarFull(var_pair), t_step) for (name, var_pair) ∈ zip(getUniqueVarNames(info.output.variables), info.output.variables))
-    computed = runTEMYax(xmap_cubes, store_path; max_cache=max_cache, loop_ranges=loop_ranges, run_filter=run_filter, variable_properties=variable_properties, global_properties=info.output.file_info.global_metadata, save_kwargs=getSaveKwargs(info), parallelization=parallelization)
+    computed = runTEMLazy(xmap_cubes, store_path; max_cache=max_cache, loop_ranges=loop_ranges, run_filter=run_filter, variable_properties=variable_properties, global_properties=info.output.file_info.global_metadata, save_kwargs=getSaveKwargs(info), parallelization=parallelization)
     print_info(nothing, @__FILE__, @__LINE__, "saved all variables to `$(store_path)`", n_m=4)
     restart = (; run_output.restart..., dataset=computed.restart)
     return (; run_output..., output=computed.output, restart=restart, output_saved=true), (; path=store_path, arrays=xmap_cubes.restart_keys)

@@ -246,7 +246,7 @@ the restart file. That is the last step unless the settings mark another one.
 - `info`: a SINDBAD NamedTuple with all information needed for setup and execution of an experiment
 - `restart`: the restart data of the run, which is either:
     - a NamedTuple with the `variables`, `dims` and `data` arrays of an eager run (`run_helpers.restart`)
-    - a NamedTuple with the restart `Dataset` and `variables` of a lazy run (`prepTEMYax`)
+    - a NamedTuple with the restart `Dataset` and `variables` of a lazy run (`prepTEMLazy`)
 
 # Notes:
 - The file is `restart` in the data output directory, in the output format, for

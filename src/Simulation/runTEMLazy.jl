@@ -1,5 +1,5 @@
-export TEMYax
-export runTEMYax
+export TEMLazy
+export runTEMLazy
 
 """
     coreTEMYax(selected_models, loc_forcing, loc_forcing_t, loc_land, tem_info, tem_spinup, ::DoSpinupTEM)
@@ -20,7 +20,7 @@ run the SINBAD CORETEM for a given location
 
 # Notes:
 - Legacy, kept for the old `mapCube` run with a parameter cube, and will be
-  removed in the future. New development goes through `coreTEMYax!`, which the
+  removed in the future. New development goes through `coreTEMLazy!`, which the
   current run uses for each grid.
 """
 function coreTEMYax(selected_models, loc_forcing, loc_land, tem_info, store_restart=nothing)
@@ -28,13 +28,13 @@ function coreTEMYax(selected_models, loc_forcing, loc_land, tem_info, store_rest
     loc_forcing_t = getForcingForTimeStep(loc_forcing, deepcopy(loc_forcing), 1, tem_info.vals.forcing_types)
     land_prec = definePrecomputeTEM(selected_models, loc_forcing_t, loc_land, tem_info.model_helpers)
     # land_prec = precomputeTEM(selected_models, loc_forcing_t, land_prec, tem_info.model_helpers) # ? do I need this step here? 
-    land_spin = spinupTEMYax(selected_models, loc_forcing, loc_forcing_t, land_prec, tem_info, tem_info.run.spinup_TEM, store_restart)
+    land_spin = spinupTEMLazy(selected_models, loc_forcing, loc_forcing_t, land_prec, tem_info, tem_info.run.spinup_TEM, store_restart)
     land_time_series = timeLoopTEM(selected_models, loc_forcing, loc_forcing_t, land_spin, tem_info, tem_info.run.debug_model)
     return LandWrapper(land_time_series)
 end
 
 """
-    coreTEMYax!(loc_output, selected_models, loc_forcing, loc_land, tem_info, store_restart=nothing)
+    coreTEMLazy!(loc_output, selected_models, loc_forcing, loc_land, tem_info, store_restart=nothing)
 
 Runs the TEM for one location and writes the output variables of every time step into
 `loc_output`, the same way as `coreTEM!` of an eager run.
@@ -48,20 +48,20 @@ Runs the TEM for one location and writes the output variables of every time step
 - Only the output variables are kept at each time step, whereas `coreTEMYax` keeps the
   whole land of every time step and allocates far more memory.
 """
-function coreTEMYax!(loc_output, selected_models, loc_forcing, loc_land, tem_info, store_restart=nothing)
+function coreTEMLazy!(loc_output, selected_models, loc_forcing, loc_land, tem_info, store_restart=nothing)
     loc_forcing_t = getForcingForTimeStep(loc_forcing, deepcopy(loc_forcing), 1, tem_info.vals.forcing_types)
     # define, precompute and spinup use the parameters of the first time step when
     # they vary in time, and the time loop updates them
     loc_models = initialModels(selected_models)
     land_prec = definePrecomputeTEM(loc_models, loc_forcing_t, loc_land, tem_info.model_helpers)
-    land_spin = spinupTEMYax(loc_models, loc_forcing, loc_forcing_t, land_prec, tem_info, tem_info.run.spinup_TEM, store_restart)
+    land_spin = spinupTEMLazy(loc_models, loc_forcing, loc_forcing_t, land_prec, tem_info, tem_info.run.spinup_TEM, store_restart)
     timeLoopTEM!(selected_models, loc_forcing, loc_forcing_t, loc_output, land_spin, tem_info.vals.forcing_types, tem_info.model_helpers, tem_info.vals.output_vars, tem_info.n_timesteps, tem_info.run.debug_model)
     return nothing
 end
 
 
 """
-    TEMYax(map_cubes; loc_land::NamedTuple, tem::NamedTuple, selected_models, forcing_vars::AbstractArray)
+    TEMLazy(map_cubes; loc_land::NamedTuple, tem::NamedTuple, selected_models, forcing_vars::AbstractArray)
 
 
 
@@ -80,7 +80,7 @@ end
   parameter varies in time. The models of the location are then a
   `TimeVaryingModels`, which the time loop updates.
 """
-function TEMYax(map_cubes...;selected_models, forcing_vars, forcing_sources=Tuple(eachindex(forcing_vars)), loc_land::NamedTuple, output_vars, tem::NamedTuple, clean_data, restart_vars=(), parameter_to_index=nothing, parameter_time=nothing)
+function TEMLazy(map_cubes...;selected_models, forcing_vars, forcing_sources=Tuple(eachindex(forcing_vars)), loc_land::NamedTuple, output_vars, tem::NamedTuple, clean_data, restart_vars=(), parameter_to_index=nothing, parameter_time=nothing)
     # Make NaN check here instead of AllNaN filters
 
 
@@ -109,23 +109,23 @@ function TEMYax(map_cubes...;selected_models, forcing_vars, forcing_sources=Tupl
     store_restart = land -> fillRestartYax(restarts, land, restart_vars)
     # every pixel gets its own copy, as the land has mutable arrays and the pixels can
     # run on different threads
-    coreTEMYax!(outputs, selected_models, loc_forcing, deepcopy(loc_land), tem, store_restart)
+    coreTEMLazy!(outputs, selected_models, loc_forcing, deepcopy(loc_land), tem, store_restart)
     return nothing
 end
 
 """
-    TEMYaxFromRef(map_cubes...; tem_kwargs)
+    TEMLazyForGrid(map_cubes...; tem_kwargs)
 
-Runs `TEMYax` for one location with the keyword arguments held in `tem_kwargs[]`.
+Runs `TEMLazy` for one location with the keyword arguments held in `tem_kwargs[]`.
 
 # Notes:
 - `xmap` makes its function arguments part of the type of every function that runs it.
-  The arguments of `TEMYax` hold the models and the land, which makes those types huge
-  and slow to compile, so `prepTEMYax` passes them in a `Ref{Any}` instead.
-- `TEMYax` is called dynamically once per location and is specialized as before.
+  The arguments of `TEMLazy` hold the models and the land, which makes those types
+  huge and slow to compile, so `prepTEMLazy` passes them in a `Ref{Any}` instead.
+- `TEMLazy` is called dynamically once per location and is specialized as before.
 """
-function TEMYaxFromRef(map_cubes...; tem_kwargs::Base.RefValue{Any})
-    TEMYax(map_cubes...; tem_kwargs[]...)
+function TEMLazyForGrid(map_cubes...; tem_kwargs::Base.RefValue{Any})
+    TEMLazy(map_cubes...; tem_kwargs[]...)
     return nothing
 end
 
@@ -152,16 +152,16 @@ function fillRestartYax(restarts, land, restart_vars)
 end
 
 """
-    runTEMYax(xmap_cubes, store_path; max_cache=5e8, loop_ranges=nothing,
+    runTEMLazy(xmap_cubes, store_path; max_cache=5e8, loop_ranges=nothing,
         run_filter=nothing, variable_properties=nothing,
         global_properties=Dict{String,Any}(), save_kwargs=(;),
         parallelization=ThreadsParallelization())
 
-Runs the lazy run of `prepTEMYax` and writes all its output and restart cubes in one
+Runs the lazy run of `prepTEMLazy` and writes all its output and restart cubes in one
 pass to the zarr store at `store_path`.
 
 # Arguments:
-- `xmap_cubes`: the `xmap` field returned by `prepTEMYax`
+- `xmap_cubes`: the `xmap` field returned by `prepTEMLazy`
 - `store_path`: the path of the zarr store that holds the computed cubes
 - `max_cache`: the cache size for the block that DiskArrayEngine optimizes
 - `loop_ranges`: the steps of each loop dimension in a block, from
@@ -178,14 +178,14 @@ pass to the zarr store at `store_path`.
 - a NamedTuple with the `output` and `restart` Datasets, read from the store
 
 # Notes:
-- All cubes of `prepTEMYax` come from one `xmap`. Saving them one by one runs the
+- All cubes of `prepTEMLazy` come from one `xmap`. Saving them one by one runs the
   model once per cube, while `runXmap` runs it once for all of them.
 - The cubes keep their padded dimensions until they are computed, since the run can
   only fuse the direct outputs of the `xmap`. The store has them removed.
 - With the attributes, the store can be the final output file. The restart cubes stay
   in it until they are saved to their own file, see `dropVariablesFromStore`.
 """
-function runTEMYax(xmap_cubes, store_path; max_cache=5e8, loop_ranges=nothing, run_filter=nothing, variable_properties=nothing, global_properties=Dict{String,Any}(), save_kwargs=(;), parallelization=ThreadsParallelization())
+function runTEMLazy(xmap_cubes, store_path; max_cache=5e8, loop_ranges=nothing, run_filter=nothing, variable_properties=nothing, global_properties=Dict{String,Any}(), save_kwargs=(;), parallelization=ThreadsParallelization())
     dataset = xmap_cubes.dataset
     if !isnothing(variable_properties)
         cubes = Any[addPropsToCube(cube, get(variable_properties, name, nothing)) for (name, cube) ∈ dataset.cubes]
@@ -323,7 +323,7 @@ grid, e.g., one over ocean.
 
 # Notes:
 - A grid is valid when the forcing without time has no invalid value at it, the same
-  grids as in `getValidGrids`. `TEMYax` returns NaN at once for the others, so a
+  grids as in `getValidGrids`. `TEMLazy` returns NaN at once for the others, so a
   block without a valid grid only costs the reading of its inputs.
 """
 struct ValidGridsFilterYax{S,I}
@@ -355,8 +355,8 @@ withRunFilterYax(runner::DAE.PMapRunner, run_filter::ValidGridsFilterYax) = DAE.
 
 # Notes:
 - Legacy, kept for the old `mapCube` run with a parameter cube, and will be
-  removed in the future. New development goes through `prepTEMYax` and
-  `runTEMYax`, where the parameters per grid come from `forcing.parameters`.
+  removed in the future. New development goes through `prepTEMLazy` and
+  `runTEMLazy`, where the parameters per grid come from `forcing.parameters`.
 """
 function psTEMYax(in_pixel_cube...; selected_models, param_to_index, forcing_vars, loc_land::NamedTuple,
     output_vars, tem::NamedTuple, clean_data)
@@ -387,8 +387,8 @@ end
 
 # Notes:
 - Legacy, kept for the old `mapCube` run with a parameter cube, and will be
-  removed in the future. New development goes through `prepTEMYax` and
-  `runTEMYax`, where the parameters per grid come from `forcing.parameters`.
+  removed in the future. New development goes through `prepTEMLazy` and
+  `runTEMLazy`, where the parameters per grid come from `forcing.parameters`.
 """
 function runTEMYaxParameters(selected_models, forcing::NamedTuple, in_cube_params, tbl_params, info::NamedTuple)
 
@@ -416,7 +416,7 @@ function runTEMYaxParameters(selected_models, forcing::NamedTuple, in_cube_param
         clean_data=(; _num_type, _forcing_data_info),
         indims=indims,
         outdims=run_helpers.output_dims,
-        max_cache=getMaxCacheYax(info, in_cubes_all; n_forcing=length(in_cubes_forcing)),
+        max_cache=getYaxMaxCache(info, in_cubes_all; n_forcing=length(in_cubes_forcing)),
         ispar=true,
         )
     return outcubes
@@ -425,7 +425,7 @@ end
 
 
 """
-    spinupTEMYax(selected_models, loc_forcing, loc_forcing_t, land_prec, tem_info, spinup_mode, store_restart=nothing)
+    spinupTEMLazy(selected_models, loc_forcing, loc_forcing_t, land_prec, tem_info, spinup_mode, store_restart=nothing)
 
 Handle TEM spinup according to `spinup_mode`. If spinup is requested, the forcing needed for the Spinup is derived and a normal spinup is performed. If spinup is skipped, the provided precomputed land is returned unchanged.
 
@@ -450,15 +450,15 @@ Handle TEM spinup according to `spinup_mode`. If spinup is requested, the forcin
   it needs via `getLocSpinup`, and calls `spinupTEM` with `tem_info.run.spinup_TEM`.
 - When `DoNotSpinupTEM` is used the input `land_prec` is returned unchanged.
 """
-function spinupTEMYax end
+function spinupTEMLazy end
 
-function spinupTEMYax(selected_models, loc_forcing, loc_forcing_t, land_prec, tem_info, ::DoSpinupTEM, store_restart=nothing)
+function spinupTEMLazy(selected_models, loc_forcing, loc_forcing_t, land_prec, tem_info, ::DoSpinupTEM, store_restart=nothing)
     loc_spinup = getLocSpinup(loc_forcing, tem_info)
     land_spin = spinupTEM(selected_models, loc_spinup, loc_forcing_t, land_prec, tem_info, tem_info.run.spinup_TEM, store_restart)
     return land_spin
 end
 
-function spinupTEMYax(selected_models, loc_forcing, loc_forcing_t, land_prec, tem_info, ::DoNotSpinupTEM, store_restart=nothing)
+function spinupTEMLazy(selected_models, loc_forcing, loc_forcing_t, land_prec, tem_info, ::DoNotSpinupTEM, store_restart=nothing)
     setRestart!(store_restart, land_prec, tem_info)
     return land_prec
 end
@@ -529,8 +529,8 @@ fills the output array position with the input data/vector
   land, the same check as `checkOutputLayers` in a run that is not lazy. It is done once
   per location and variable, not per time step.
 - Legacy, kept for the old `mapCube` run with a parameter cube, and will be
-  removed in the future. New development goes through `prepTEMYax` and
-  `runTEMYax`, where the parameters per grid come from `forcing.parameters`.
+  removed in the future. New development goes through `prepTEMLazy` and
+  `runTEMLazy`, where the parameters per grid come from `forcing.parameters`.
 """
 function fillOutputYax(xout, xin, var_pair)
     n_land = length(first(xin))
