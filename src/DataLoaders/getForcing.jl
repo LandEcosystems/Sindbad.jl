@@ -258,152 +258,6 @@ function renameToCanonicalDims(yax, var_dims, forcing_data_settings)
 end
 
 """
-    getTargetDims(cubes, target_variable, dim_names)
-
-Returns the dimensions of `target_variable` that define the target resolution.
-
-# Arguments:
-- `cubes`: A NamedTuple of the forcing cubes.
-- `target_variable`: The name of the forcing variable that sets the resolution.
-- `dim_names`: The canonical names of the dimensions to take from that variable.
-
-# Returns:
-- A Tuple of the dimensions of the target variable.
-"""
-function getTargetDims(cubes, target_variable, dim_names)
-    target_key = Symbol(target_variable)
-    if !hasproperty(cubes, target_key)
-        error("target_resolution variable `$(target_variable)` is not one of the forcing variables.")
-    end
-    target_cube = getproperty(cubes, target_key)
-    target_dims = Tuple(dims(target_cube, dim_name) for dim_name in dim_names if hasdim(target_cube, dim_name))
-    if isempty(target_dims)
-        error("target_resolution variable `$(target_variable)` has none of the dimensions $(dim_names).")
-    end
-    return target_dims
-end
-
-"""
-    isSameLookup(lookup_a, lookup_b)
-
-Checks whether two dimension lookups have the same values, using `isapprox` for
-numbers.
-"""
-function isSameLookup(lookup_a, lookup_b)
-    length(lookup_a) == length(lookup_b) || return false
-    if eltype(lookup_a) <: Number && eltype(lookup_b) <: Number
-        return isapprox(collect(lookup_a), collect(lookup_b))
-    end
-    return collect(lookup_a) == collect(lookup_b)
-end
-
-"""
-    resampleToTarget(incube, target_dims, method_setting, axis, num_type, var_name)
-
-Puts a forcing or parameter cube on the target dimensions with an interpolation
-method.
-
-# Arguments:
-- `incube`: The forcing cube.
-- `target_dims`: A Tuple of target dimensions, or `nothing` to skip.
-- `method_setting`: The interpolation method, a name or a group with the name in
-  `method` and its options, see `getInterpolationMethod`.
-- `axis`: `:space` or `:time`, which sets the methods that `method_setting` can name.
-- `num_type`: The number type of the remapped cube.
-- `var_name`: The name of the forcing variable, used in the log.
-
-# Returns:
-- The remapped cube. It is returned unchanged when it already matches every target
-  dimension that it has, or when the method is `"None"`.
-
-# Notes:
-- All target dimensions of the cube go to the method together, also one that already
-  matches, so a method can combine them, e.g. latitude and longitude. See
-  `resampleCube`.
-"""
-function resampleToTarget(incube, target_dims, method_setting, axis, num_type, var_name)
-    isnothing(target_dims) && return incube
-    cube_target_dims = filter(target_dim -> hasdim(incube, DD.name(target_dim)), target_dims)
-    needs_resample = any(cube_target_dims) do target_dim
-        !isSameLookup(DD.lookup(incube, DD.name(target_dim)), DD.lookup(target_dim))
-    end
-    needs_resample || return incube
-    method = getInterpolationMethod(method_setting, axis)
-    if method isa Union{SpaceInterpNone,TimeInterpNone}
-        target_names = join(string.(DD.name.(cube_target_dims)), ", ")
-        print_info(nothing, @__FILE__, @__LINE__, "`$(var_name)` keeps its own $(target_names) because its interpolation_method is None", n_m=4)
-        return incube
-    end
-    return resampleCube(incube, cube_target_dims, method, num_type)
-end
-
-"""
-    remapForcing(incubes, vinfos, forcing_data_settings, ::Val{num_type})
-
-Remaps the forcing cubes to the space and time resolution set in `target_resolution`.
-
-# Arguments:
-- `incubes`: A Tuple of `variable_name => cube` pairs.
-- `vinfos`: The merged settings of each variable, in the same order as `incubes`.
-- `forcing_data_settings`: The forcing settings of the experiment.
-- `::Val{num_type}`: The number type of the remapped cubes.
-
-# Returns:
-- A Tuple of the remapped cubes.
-
-# Notes:
-- `target_resolution.space.variable` names the variable whose space grid is used,
-  and `target_resolution.time.variable` the variable whose time axis is used.
-- An axis is skipped when its group is missing, its `variable` is missing or empty,
-  or its `apply` is `false`. `apply` defaults to `true`. Without any axis the cubes
-  are returned unchanged.
-- Space is remapped first with `interpolation_method.space` of each variable, then
-  time with `interpolation_method.time`.
-"""
-function remapForcing(incubes, vinfos, forcing_data_settings, ::Val{num_type}) where {num_type}
-    target_resolution = hasproperty(forcing_data_settings, :target_resolution) ? forcing_data_settings.target_resolution : nothing
-    space_variable = getTargetVariable(target_resolution, :space)
-    time_variable = getTargetVariable(target_resolution, :time)
-    if isnothing(space_variable) && isnothing(time_variable)
-        return last.(incubes)
-    end
-    cubes = (; incubes...)
-    data_dimension = forcing_data_settings.data_dimension
-    space_target = isnothing(space_variable) ? nothing : getTargetDims(cubes, space_variable, toSymbolVector(data_dimension.space))
-    time_target = isnothing(time_variable) ? nothing : getTargetDims(cubes, time_variable, [Symbol(data_dimension.time)])
-    space_note = isnothing(space_variable) ? "switched off" : "`$(space_variable)`"
-    time_note = isnothing(time_variable) ? "switched off" : "`$(time_variable)`"
-    print_info(remapForcing, @__FILE__, @__LINE__, "remapping forcing variables to target resolution. space: $(space_note), time: $(time_note)")
-    return map(incubes, vinfos) do (var_name, incube), vinfo
-        incube = resampleToTarget(incube, space_target, vinfo.interpolation_method.space, :space, num_type, var_name)
-        resampleToTarget(incube, time_target, vinfo.interpolation_method.time, :time, num_type, var_name)
-    end
-end
-
-"""
-    getTargetVariable(target_resolution, axis_name)
-
-Returns `target_resolution.<axis_name>.variable`, or `nothing` when the axis group is
-missing, its `variable` is missing or empty, or its `apply` is `false`.
-"""
-function getTargetVariable(target_resolution, axis_name::Symbol)
-    isnothing(target_resolution) && return nothing
-    hasproperty(target_resolution, axis_name) || return nothing
-    axis_settings = getproperty(target_resolution, axis_name)
-    isnothing(axis_settings) && return nothing
-    if hasproperty(axis_settings, :apply) && axis_settings.apply == false
-        return nothing
-    end
-    hasproperty(axis_settings, :variable) || return nothing
-    target_variable = axis_settings.variable
-    if isnothing(target_variable) || isempty(target_variable)
-        return nothing
-    end
-    return target_variable
-end
-
-
-"""
     getForcing(info::NamedTuple)
 
 Reads forcing data from the `data_path` specified in the experiment configuration and returns a NamedTuple with the forcing data.
@@ -430,9 +284,10 @@ Reads forcing data from the `data_path` specified in the experiment configuratio
   names in `data_dimension` before subsetting.
 - When `target_resolution.space.variable` or `target_resolution.time.variable`
   names a forcing variable and that axis has `apply` set to `true`, all cubes are
-  remapped to its space grid or time axis with the methods in
+  resampled to its space grid or time axis with the methods in
   `interpolation_method.space` and `interpolation_method.time`. A method of `"None"`,
-  which is the default, leaves that variable on its own grid. See `remapForcing`.
+  which is the default, leaves that variable on its own grid. See
+  `resampleForcingCubes`.
 """
 function getForcing(info::NamedTuple)
     nc_default = nothing
@@ -474,8 +329,8 @@ function getForcing(info::NamedTuple)
     end
     incubes = first.(loaded_vars)
     vinfos = last.(loaded_vars)
-    interpincubes = remapForcing(incubes, vinfos, forcing_data_settings, num_type)
-    # The sizes are taken after remapping so that they match the target resolution.
+    interpincubes = resampleForcingCubes(incubes, vinfos, forcing_data_settings, num_type)
+    # The sizes are taken after resampling so that they match the target resolution.
     f_sizes = nothing
     f_dimension = nothing
     i_spatiotemporal = findfirst(vinfo -> vinfo.space_time_type == "spatiotemporal", vinfos)

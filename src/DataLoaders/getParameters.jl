@@ -378,10 +378,11 @@ and time steps of the forcing, ready to use.
 # Notes:
 - The time dimension of the file is `p_row.time_dimension`. Its coordinate is a date,
   or a year as an integer, which is taken as the start of that year.
-- The values are put on the time steps of the run with `resampleToTarget` and the
-  method `p_row.time_method`, as a forcing variable. With the default `Previous`, a
-  value holds from its time stamp until the next one. The steps before the first time
-  stamp take the first value, and those after the last time stamp the last value.
+- The values are put on the time steps of the run with `resampleCubeToTarget` and
+  the method `p_row.time_method`, as a forcing variable. With the default `Previous`,
+  a value holds from its time stamp until the next one. The steps before the first
+  time stamp take the first value, and those after the last time stamp the last
+  value.
 - The counts are taken on the values in the file, before they are put on the time
   steps of the run.
 """
@@ -399,7 +400,7 @@ function getParameterValuesByLocationAndTime(yax, forcing_axes, space_dims, forc
     yax = setParameterTimeStamps(yax, source_time, time_name)
     counts = countReplacedValues(yax.data, p_row, num_type)
     warnReplacedValues(p_row, counts, "values")
-    yax = resampleToTarget(yax, (forcing_time_dim,), p_row.time_method, :time, num_type, var_name)
+    yax = resampleCubeToTarget(yax, (forcing_time_dim,), p_row.time_method, :time, num_type, var_name)
     if length(DD.lookup(yax, time_name)) != length(forcing_time_dim)
         error("The parameter variable `$(var_name)` is not on the time steps of the run, because its time `interpolation_method` is `$(p_row.time_method)`. Use a method such as `Previous`.")
     end

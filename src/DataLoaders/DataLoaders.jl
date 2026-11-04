@@ -26,8 +26,8 @@ Streamline the ingestion and preprocessing of input data for SINDBAD experiments
 # Included Files
 - **`utilsDataLoaders.jl`**: Utility functions for data preprocessing (cleaning, masking, bounds checks).
 - **`spatialSubset.jl`**: Spatial operations (extracting subsets based on spatial dimensions).
-- **`resampleCube.jl`**: Interpolation methods that put a cube on target dimensions, with `resampleValues!` to extend for new methods.
-- **`getForcing.jl`**: Extracting and processing forcing data (environmental drivers).
+- **`resampleCube.jl`**: Interpolation methods that put a cube on target dimensions, with `resampleValues!` to extend for new methods, and `resampleForcingCubes` and `resampleCubeToTarget`, which put the forcing and parameters on the target resolution of the run.
+- **`getForcing.jl`**: Extracting and processing forcing data (environmental drivers), with the settings of each variable merged and its dimensions renamed.
 - **`getParameters.jl`**: Loading and checking the parameters per location from a json or zarr/nc parameters input.
 - **`getObservation.jl`**: Reading and processing observational data for evaluation/validation.
 - **`handleModelObsData.jl`**: Helpers for aligning forcing/observation/model outputs for cost evaluation.
