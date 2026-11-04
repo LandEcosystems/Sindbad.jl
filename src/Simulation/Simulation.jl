@@ -29,7 +29,9 @@ This module integrates various components and utilities required to execute the 
 - **`prepTEM.jl`**: Prepare model-ready inputs and configuration for runs.
 - **`runTEMForLocation.jl`**: Run the TEM for a single location (optional spinup + main loop).
 - **`runTEMInSpace.jl`**: Run the TEM across spatial grids (parallel execution).
-- **`runTEMOnCube.jl`**: Run the TEM on 3D `YAXArrays` cubes (large-scale spatial runs).
+- **`utilsCube.jl`**: Helpers of lazy runs on `YAXArrays` cubes: the wrapper that hides cube types, the cache and block sizing, and the zarr store helpers.
+- **`prepTEMOnCube.jl`**: Build the lazy run of the TEM on `YAXArrays` cubes with `xmap` (`prepTEMYax`).
+- **`runTEMOnCube.jl`**: Run the lazy run block by block into a zarr store (`runTEMYax`), and the TEM of each grid in it (`TEMYax`).
 - **`spinupTEM.jl`**: Spinup routines to initialize the model to steady state.
 - **`spinupSequence.jl`**: Sequential spinup loops for iterative refinement.
 
@@ -56,12 +58,17 @@ module Simulation
    using JSON: parsefile
    using FillArrays: Fill
 
+   const DiskArrays = YAXArrays.Cubes.DiskArrays
+   const DAE = YAXArrays.Xmap.DAE
+
    include("utilsSimulation.jl")
    include("deriveSpinupForcing.jl")
    include("prepTEMOut.jl")
    include("prepTEM.jl")
    include("runTEMForLocation.jl")
    include("runTEMInSpace.jl")
+   include("utilsCube.jl")
+   include("prepTEMOnCube.jl")
    include("runTEMOnCube.jl")
    include("spinupTEM.jl")
    include("spinupSequence.jl")
