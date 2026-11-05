@@ -3228,9 +3228,9 @@ gppVPD
 
 ::::tabs
 
-== gppVPD_Farquhar
+== gppVPD_Farquhar1980
 ```@docs
-gppVPD_Farquhar
+gppVPD_Farquhar1980
 ```
 
 **Calculated using:**
@@ -3240,7 +3240,7 @@ Inputs: :forcing => :f_airT_day, :forcing => :f_VPD_day, :states => :ambient_CO2
 Outputs: :diagnostics => :gpp_f_co2, :diagnostics => :gpp_f_vpd
 ```
 
-[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/gppVPD/gppVPD_Farquhar.jl)
+[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/gppVPD/gppVPD_Farquhar1980.jl)
 
 == gppVPD_MOD17
 ```@docs

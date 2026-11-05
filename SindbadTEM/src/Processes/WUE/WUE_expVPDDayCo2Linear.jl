@@ -42,9 +42,9 @@ $(getModelDocString(WUE_expVPDDayCo2Linear))
 The CO2 effect is ambient_CO2 / ref_ambient_CO2. With a fixed ratio χ of leaf
 internal to ambient CO2, assimilation is g_s Ca (1 - χ) and transpiration is
 1.6 g_s VPD, so WUE grows in proportion to Ca. This is the assumption of
-gppVPD_Farquhar, whose ref_ambient_CO2 should have the same value. The effect has no
-free parameter. ref_ambient_CO2 is not meant to be calibrated, since only its ratio
-to WUE_one_hpa is identifiable.
+gppVPD_Farquhar1980, whose ref_ambient_CO2 should have the same value. The effect has
+no free parameter. ref_ambient_CO2 is not meant to be calibrated, since only its
+ratio to WUE_one_hpa is identifiable.
 
 *References*
 

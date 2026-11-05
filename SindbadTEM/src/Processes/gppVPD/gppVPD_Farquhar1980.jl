@@ -1,7 +1,7 @@
-export gppVPD_Farquhar
+export gppVPD_Farquhar1980
 
 #! format: off
-@bounds @describe @units @timescale @with_kw struct gppVPD_Farquhar{T1,T2,T3,T4,T5,T6,T7} <: gppVPD
+@bounds @describe @units @timescale @with_kw struct gppVPD_Farquhar1980{T1,T2,T3,T4,T5,T6,T7} <: gppVPD
     κ::T1 = 0.4 | (0.06, 0.7) | "sensitivity of GPP to VPD" | "kPa-1" | ""
     c_κ::T2 = 0.0 | (-10.0, 0.0) | "exponent of the change of the VPD sensitivity with ambient CO2" | "" | ""
     χ::T3 = 0.7 | (0.4, 0.9) | "ratio of leaf internal to ambient CO2" | "" | ""
@@ -12,9 +12,9 @@ export gppVPD_Farquhar
 end
 #! format: on
 
-function compute(params::gppVPD_Farquhar, forcing, land, helpers)
+function compute(params::gppVPD_Farquhar1980, forcing, land, helpers)
     ## unpack parameters and forcing
-    @unpack_gppVPD_Farquhar params
+    @unpack_gppVPD_Farquhar1980 params
     @unpack_nt (f_airT_day, f_VPD_day) ⇐ forcing
 
     ## unpack land variables
@@ -44,11 +44,11 @@ function compute(params::gppVPD_Farquhar, forcing, land, helpers)
     return land
 end
 
-purpose(::Type{gppVPD_Farquhar}) = "VPD stress on GPP potential based on Maekelae (2008), with the CO₂ effect of light limited C3 photosynthesis of Farquhar et al. (1980)."
+purpose(::Type{gppVPD_Farquhar1980}) = "VPD stress on GPP potential based on Maekelae (2008), with the CO₂ effect of light limited C3 photosynthesis of Farquhar et al. (1980)."
 
 @doc """
 
-$(getModelDocString(gppVPD_Farquhar))
+$(getModelDocString(gppVPD_Farquhar1980))
 
 ---
 
@@ -85,4 +85,4 @@ The CO2 effect is that of C3 plants. C4 plants respond much less to CO2.
 *Created by*
  - skoirala | @dr-ko
 """
-gppVPD_Farquhar
+gppVPD_Farquhar1980
