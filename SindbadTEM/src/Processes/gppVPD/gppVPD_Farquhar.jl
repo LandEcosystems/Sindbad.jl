@@ -28,8 +28,9 @@ function compute(params::gppVPD_Farquhar, forcing, land, helpers)
     T_air = f_airT_day + oftype(f_airT_day, 273.15)
     Γ_star = Γ_star_25 * exp(ΔH_Γ_star * (T_air - T_25) / (T_25 * gas_constant * T_air))
 
-    ## light limited CO2 response, relative to the reference CO2 at the same Γ_star
-    # so that the temperature of Γ_star is not a stress on GPP here
+    ## CO2 effect of light limited photosynthesis, normalized by its value at
+    # ref_ambient_CO2 with the same Γ_star. The temperature dependence of Γ_star then
+    # changes only the CO2 sensitivity and does not reduce GPP by itself.
     m_CO2 = at_least_zero(χ * ambient_CO2 - Γ_star) / (χ * ambient_CO2 + t_two * Γ_star)
     m_ref = at_least_zero(χ * ref_ambient_CO2 - Γ_star) / (χ * ref_ambient_CO2 + t_two * Γ_star)
     gpp_f_co2 = safe_divide(m_CO2, m_ref)
