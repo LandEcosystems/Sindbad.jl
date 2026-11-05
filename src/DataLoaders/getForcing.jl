@@ -237,17 +237,7 @@ Renames the space and time dimensions of a variable to the names in
 - The YAXArray with renamed dimensions. Dimensions that the cube lacks are skipped.
 """
 function renameToCanonicalDims(yax, var_dims, forcing_data_settings)
-    canonical_space = toSymbolVector(forcing_data_settings.data_dimension.space)
-    var_space = toSymbolVector(var_dims.space)
-    if length(var_space) != length(canonical_space)
-        error("forcing variable space dimensions $(var_space) do not match the number of space dimensions in data_dimension.space $(canonical_space).")
-    end
-    dim_renames = Pair{Symbol,Symbol}[]
-    for (var_dim, canonical_dim) in zip(var_space, canonical_space)
-        if var_dim != canonical_dim && hasdim(yax, var_dim)
-            push!(dim_renames, var_dim => canonical_dim)
-        end
-    end
+    dim_renames = getSpaceDimRenames(yax, var_dims.space, forcing_data_settings.data_dimension.space)
     var_time = Symbol(var_dims.time)
     canonical_time = Symbol(forcing_data_settings.data_dimension.time)
     if var_time != canonical_time && hasdim(yax, var_time)
@@ -255,6 +245,28 @@ function renameToCanonicalDims(yax, var_dims, forcing_data_settings)
     end
     isempty(dim_renames) && return yax
     return set(yax, dim_renames...)
+end
+
+"""
+    getSpaceDimRenames(yax, var_space, canonical_space)
+
+Returns the renames of the space dimensions of `yax` from the names `var_space` to the
+names `canonical_space` in the same order, as `old => new` pairs. A dimension that
+`yax` lacks or that already has its canonical name is skipped.
+"""
+function getSpaceDimRenames(yax, var_space, canonical_space)
+    canonical_space = toSymbolVector(canonical_space)
+    var_space = toSymbolVector(var_space)
+    if length(var_space) != length(canonical_space)
+        error("the space dimensions $(var_space) of a variable do not match the number of space dimensions in data_dimension.space $(canonical_space).")
+    end
+    dim_renames = Pair{Symbol,Symbol}[]
+    for (var_dim, canonical_dim) in zip(var_space, canonical_space)
+        if var_dim != canonical_dim && hasdim(yax, var_dim)
+            push!(dim_renames, var_dim => canonical_dim)
+        end
+    end
+    return dim_renames
 end
 
 """

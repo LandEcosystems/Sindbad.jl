@@ -44,6 +44,10 @@ ready to use in the same way `getForcing` does for the forcing.
 - The values are selected at the coordinates of the forcing, in the order of the
   forcing, so the same spatial index selects the same location in the forcing and in
   the parameters. A file may have more locations than the forcing, in any order.
+- A location map on another grid than the forcing is resampled to the forcing grid
+  with the `space` of `interpolation_method`, `nearest` by default, and its spatial
+  dimensions may have other names, set in the `space` of `dimension`. See
+  `putOnForcingGrid`.
 - Values, `lower`, `upper` and `default` are converted to the time step of the run with
   the `timescale_run` of the input, the same way `setInputParameters` converts a csv.
 - NaN values are replaced by the `default`, and values outside `[lower, upper]` are
@@ -97,9 +101,9 @@ function getParameters(info::NamedTuple, forcing_axes, forcing_cubes=nothing)
             by_class
         elseif is_spatiotemporal
             isnothing(forcing_time_dim) && error("The parameter variable `$(var_name)` is spatiotemporal, but the forcing has no `$(time_name)` dimension.")
-            getParameterValuesByLocationAndTime(dataset[var_source.source_variable], forcing_axes, space_dims, forcing_time_dim, p_row, num_type, var_name)
+            getParameterValuesByLocationAndTime(dataset[var_source.source_variable], forcing_axes, forcing_space_dims, forcing_time_dim, p_row, num_type, var_name)
         else
-            getParameterValuesByLocation(dataset[var_source.source_variable], forcing_axes, space_dims, p_row, num_type, var_name)
+            getParameterValuesByLocation(dataset[var_source.source_variable], forcing_axes, forcing_space_dims, p_row, num_type, var_name)
         end
         push!(table_rows, (; p_row..., n_nan=p_values.n_nan, n_clamped=p_values.n_clamped))
         print_info(nothing, @__FILE__, @__LINE__, "`$(var_name)` = <$(p_row.space_time_type)> `$(p_row.name_full)` ($(p_row.units)) from `$(var_source.source_variable)` in `$(var_source.data_path)` * $(p_row.unit_factor)", n_m=4)
@@ -228,8 +232,9 @@ table of the selected model structure.
 # Returns:
 - A NamedTuple with `model`, `name`, `name_full`, `model_approach`, `units`,
   `timescale_run`, `unit_factor`, `lower`, `upper`, `default`, `source_variable`,
-  `data_path`, `space_time_type`, `time_dimension` and `time_method`. `lower`, `upper`
-  and `default` are in the units of the run.
+  `data_path`, `space_time_type`, `space_dimensions`, `space_method`,
+  `time_dimension` and `time_method`. `lower`, `upper` and `default` are in the
+  units of the run.
 
 # Notes:
 - `space_time_type` is `spatial` or `spatiotemporal`, as for a forcing variable.
@@ -238,6 +243,9 @@ table of the selected model structure.
   default to `time` and `Previous`, so a value holds from its time stamp until the
   next one. `time_method` is kept as set, a name or a group with options, and is
   checked here, see `getInterpolationMethod`.
+- `space_dimensions` and `space_method` are the `space` of the same groups. They
+  default to the `data_dimension.space` of the forcing and `nearest`, see
+  `putOnForcingGrid`.
 """
 function resolveParameterVariable(var_name, var_source, parameter_input, attributes, info)
     var_string = string(var_name)
@@ -278,6 +286,10 @@ function resolveParameterVariable(var_name, var_source, parameter_input, attribu
     time_dimension = string(firstSetValue(:time, "time", getSettingValue(var_settings, :dimension), getSettingValue(default_map, :dimension)))
     time_method = firstSetValue(:time, "Previous", getSettingValue(var_settings, :interpolation_method), getSettingValue(default_map, :interpolation_method))
     getInterpolationMethod(time_method, :time)
+    forcing_space = info.experiment.data_settings.forcing.data_dimension.space
+    space_dimensions = Tuple(toSymbolVector(firstSetValue(:space, forcing_space, getSettingValue(var_settings, :dimension), getSettingValue(default_map, :dimension))))
+    space_method = firstSetValue(:space, "nearest", getSettingValue(var_settings, :interpolation_method), getSettingValue(default_map, :interpolation_method))
+    getInterpolationMethod(space_method, :space)
 
     num_type = info.helpers.numbers.num_type
     timescale_run = string(get_setting(:timescale_run, ""))
@@ -289,7 +301,7 @@ function resolveParameterVariable(var_name, var_source, parameter_input, attribu
         error("The parameter variable of `$(name_full)` has a lower bound $(lower) above its upper bound $(upper).")
     end
 
-    return (; model=model_row.model, name=model_row.name, name_full=name_full, model_approach=model_row.model_approach, units=string(model_row.units), timescale_run=timescale_run, unit_factor=num_type(unit_factor), lower=lower, upper=upper, default=default, source_variable=var_source.source_variable, data_path=var_source.data_path, space_time_type=space_time_type, time_dimension=time_dimension, time_method=time_method)
+    return (; model=model_row.model, name=model_row.name, name_full=name_full, model_approach=model_row.model_approach, units=string(model_row.units), timescale_run=timescale_run, unit_factor=num_type(unit_factor), lower=lower, upper=upper, default=default, source_variable=var_source.source_variable, data_path=var_source.data_path, space_time_type=space_time_type, space_dimensions=space_dimensions, space_method=space_method, time_dimension=time_dimension, time_method=time_method)
 end
 
 
@@ -330,24 +342,31 @@ end
 
 
 """
-    getParameterValuesByLocation(yax, forcing_axes, space_dims, p_row, num_type, var_name)
+    getParameterValuesByLocation(yax, forcing_axes, forcing_space_dims, p_row, num_type, var_name)
 
 Returns the values of one variable of a location map at the locations of the forcing,
 ready to use.
+
+# Arguments:
+- `forcing_space_dims`: the spatial dimensions of the forcing with its coordinates
 
 # Returns:
 - A NamedTuple with the `data` with the spatial dimensions of the forcing in its
   order, and the `n_nan` and `n_clamped` of the values at the forcing locations.
 
 # Notes:
+- The variable is first put on the grid of the forcing, see `putOnForcingGrid`.
 - The coordinates are selected by value, so the file may have more locations than the
   forcing, in any order.
 - An error lists the coordinates of the forcing that are missing in the file.
 - The locations are selected as a view and the values are made ready by `map` with
   `parameterCleaner`, so the `data` is computed only where it is read. The counts are
-  taken in one pass over the selected values, see `countReplacedValues`.
+  taken in one pass over the selected values, see `countReplacedValues`. For a
+  resampled variable that pass computes the resampling once more than the run does.
 """
-function getParameterValuesByLocation(yax, forcing_axes, space_dims, p_row, num_type, var_name)
+function getParameterValuesByLocation(yax, forcing_axes, forcing_space_dims, p_row, num_type, var_name)
+    space_dims = DD.name.(forcing_space_dims)
+    yax = putOnForcingGrid(yax, forcing_space_dims, p_row, num_type, var_name)
     yax = selectForcingLocations(yax, forcing_axes, space_dims, var_name)
     extra_dims = setdiff(DD.name(DD.dims(yax)), space_dims)
     if !isempty(extra_dims)
@@ -360,7 +379,7 @@ function getParameterValuesByLocation(yax, forcing_axes, space_dims, p_row, num_
 end
 
 """
-    getParameterValuesByLocationAndTime(yax, forcing_axes, space_dims, forcing_time_dim, p_row, num_type, var_name)
+    getParameterValuesByLocationAndTime(yax, forcing_axes, forcing_space_dims, forcing_time_dim, p_row, num_type, var_name)
 
 Returns the values of one spatiotemporal variable of a location map at the locations
 and time steps of the forcing, ready to use.
@@ -376,6 +395,7 @@ and time steps of the forcing, ready to use.
   file at the forcing locations.
 
 # Notes:
+- The variable is first put on the grid of the forcing, see `putOnForcingGrid`.
 - The time dimension of the file is `p_row.time_dimension`. Its coordinate is a date,
   or a year as an integer, which is taken as the start of that year.
 - The values are put on the time steps of the run with `resampleCubeToTarget` and
@@ -383,14 +403,18 @@ and time steps of the forcing, ready to use.
   a value holds from its time stamp until the next one. The steps before the first
   time stamp take the first value, and those after the last time stamp the last
   value.
-- The counts are taken on the values in the file, before they are put on the time
-  steps of the run.
+- The counts are taken on the values in the file at the forcing locations, before
+  they are put on the time steps of the run. For a variable on another grid they
+  are taken after it is put on the forcing grid, so the resampling of the time
+  steps of the file is computed once at setup.
 """
-function getParameterValuesByLocationAndTime(yax, forcing_axes, space_dims, forcing_time_dim, p_row, num_type, var_name)
+function getParameterValuesByLocationAndTime(yax, forcing_axes, forcing_space_dims, forcing_time_dim, p_row, num_type, var_name)
     source_time = Symbol(p_row.time_dimension)
     if !hasdim(yax, source_time)
         error("The parameter variable `$(var_name)` is spatiotemporal, but has no `$(source_time)` dimension. Its dimensions are $(DD.name(DD.dims(yax))). Set the `time` of `dimension` for the variable or in `default_parameter_map`.")
     end
+    space_dims = DD.name.(forcing_space_dims)
+    yax = putOnForcingGrid(yax, forcing_space_dims, p_row, num_type, var_name)
     yax = selectForcingLocations(yax, forcing_axes, space_dims, var_name)
     extra_dims = setdiff(DD.name(DD.dims(yax)), (space_dims..., source_time))
     if !isempty(extra_dims)
@@ -418,6 +442,8 @@ the order of the forcing.
 - The coordinates are selected by value, so the file may have more locations than the
   forcing, in any order.
 - An error lists the coordinates of the forcing that are missing in the file.
+- A dimension that already has the coordinates of the forcing, e.g., after
+  `putOnForcingGrid` resampled it, is kept without a view.
 """
 function selectForcingLocations(yax, forcing_axes, space_dims, var_name)
     axes_values = Dict(Symbol(first(f_axis)) => last(f_axis) for f_axis ∈ forcing_axes)
@@ -426,6 +452,7 @@ function selectForcingLocations(yax, forcing_axes, space_dims, var_name)
         hasdim(yax, s_dim) || error("The parameter variable `$(var_name)` has no `$(s_dim)` dimension. Its dimensions are $(DD.name(DD.dims(yax))).")
         forcing_values = axes_values[s_dim]
         file_values = collect(DD.lookup(yax, s_dim))
+        file_values == forcing_values && continue
         missing_values = setdiff(forcing_values, file_values)
         if !isempty(missing_values)
             error("The parameter variable `$(var_name)` has no values for $(length(missing_values)) `$(s_dim)` of the forcing: $(missing_values).")
@@ -434,6 +461,105 @@ function selectForcingLocations(yax, forcing_axes, space_dims, var_name)
         yax = view(yax, DD.Dim{s_dim}(positions))
     end
     return yax
+end
+
+"""
+    putOnForcingGrid(yax, forcing_space_dims, p_row, num_type, var_name)
+
+Returns a parameter variable with the spatial dimension names of the forcing, and on
+the spatial coordinates of the forcing when the file has not all of them.
+
+# Arguments:
+- `yax`: the variable as read from the parameter file
+- `forcing_space_dims`: the spatial dimensions of the forcing with its coordinates
+- `p_row`: the resolved settings of the parameter, see `resolveParameterVariable`
+- `num_type`: the number type of a resampled variable
+- `var_name`: the name of the variable, for the log
+
+# Notes:
+- The spatial dimensions of the file are named `p_row.space_dimensions`, and are
+  renamed to those of the forcing.
+- When every coordinate of the forcing is in the file within a tolerance, the
+  matching coordinates of the file take the exact values of the forcing and nothing
+  is resampled. This covers a file with more locations than the forcing, and
+  coordinates that differ only by rounding.
+- Otherwise numeric spatial dimensions, e.g., latitude and longitude, are resampled
+  to the forcing with `p_row.space_method`, see `resampleCubeToTarget`. The default
+  `nearest` keeps the values of the file. Linear and higher methods mix the values of
+  neighbouring grids, which for calibrated parameters gives values that no
+  calibration gave.
+- The resampled variable is lazy. With `nearest`, `linear` and the other methods
+  with a `resampleRadius`, a block of the forcing only reads the grids of the file
+  around it. A method without one resamples the whole field at every read.
+- A forcing grid beyond the extent of the file takes the value at the edge of the
+  file with the default `flat` extrapolation. These grids are counted in a warning.
+- Coordinates that cannot be resampled, such as site names, and the method `None`
+  leave the variable as it is, and `selectForcingLocations` then reports the missing
+  locations.
+"""
+function putOnForcingGrid(yax, forcing_space_dims, p_row, num_type, var_name)
+    space_dims = DD.name.(forcing_space_dims)
+    dim_renames = getSpaceDimRenames(yax, p_row.space_dimensions, space_dims)
+    yax = isempty(dim_renames) ? yax : set(yax, dim_renames...)
+    all(s_dim -> hasdim(yax, s_dim), space_dims) || return yax
+    snapped = snapToForcingCoordinates(yax, forcing_space_dims)
+    isnothing(snapped) || return snapped
+    is_numeric = all(f_dim -> eltype(DD.lookup(yax, DD.name(f_dim))) <: Real && eltype(DD.lookup(f_dim)) <: Real, forcing_space_dims)
+    is_numeric || return yax
+    method = getInterpolationMethod(p_row.space_method, :space)
+    method isa SpaceInterpNone && return yax
+    warnBeyondFileExtent(yax, forcing_space_dims, var_name)
+    file_size = join(map(s_dim -> length(DD.lookup(yax, s_dim)), space_dims), " × ")
+    forcing_size = join(map(length, forcing_space_dims), " × ")
+    print_info(nothing, @__FILE__, @__LINE__, "`$(var_name)` is resampled from the $(file_size) grids of the file to the $(forcing_size) grids of the forcing with the space interpolation_method `$(nameof(typeof(method)))`", n_m=4)
+    return resampleCubeToTarget(yax, forcing_space_dims, method, :space, num_type, var_name)
+end
+
+"""
+    snapToForcingCoordinates(yax, forcing_space_dims)
+
+Returns `yax` with the spatial coordinates that match a forcing coordinate set to the
+exact forcing value, or `nothing` when a coordinate of the forcing is not in `yax`.
+
+# Notes:
+- Numbers match within an absolute tolerance of 1e-6 and the default relative one of
+  `isapprox`. Other coordinates, such as site names, match only when equal.
+- Only the coordinates change, so a lazy `yax` stays lazy.
+"""
+function snapToForcingCoordinates(yax, forcing_space_dims)
+    new_dims = map(DD.dims(yax)) do y_dim
+        f_index = findfirst(f_dim -> DD.name(f_dim) == DD.name(y_dim), forcing_space_dims)
+        isnothing(f_index) && return y_dim
+        forcing_values = collect(DD.lookup(forcing_space_dims[f_index]))
+        file_values = collect(DD.lookup(y_dim))
+        if !(eltype(file_values) <: Real && eltype(forcing_values) <: Real)
+            return issubset(forcing_values, file_values) ? y_dim : nothing
+        end
+        snapped = Vector{promote_type(eltype(file_values), eltype(forcing_values))}(file_values)
+        for f_value ∈ forcing_values
+            i_file = findfirst(v -> isapprox(v, f_value; atol=1e-6), file_values)
+            isnothing(i_file) && return nothing
+            snapped[i_file] = f_value
+        end
+        return DD.Dim{DD.name(y_dim)}(snapped)
+    end
+    any(isnothing, new_dims) && return nothing
+    return YAXArray(Tuple(new_dims), yax.data, yax.properties)
+end
+
+# One warning for the forcing grids beyond the extent of the parameter file, which
+# take the value at the edge of the file.
+function warnBeyondFileExtent(yax, forcing_space_dims, var_name)
+    for f_dim ∈ forcing_space_dims
+        file_axis = getAxisInfo(DD.dims(yax, DD.name(f_dim)), 0.0)
+        file_min = min(minimum(file_axis.lower), minimum(file_axis.upper))
+        file_max = max(maximum(file_axis.lower), maximum(file_axis.upper))
+        n_beyond = count(v -> !(file_min <= v <= file_max), DD.lookup(f_dim))
+        if n_beyond > 0
+            @warn "The parameter variable `$(var_name)` covers `$(DD.name(f_dim))` from $(file_min) to $(file_max), but $(n_beyond) of $(length(f_dim)) `$(DD.name(f_dim))` of the forcing are beyond it. They take the value at the edge of the file."
+        end
+    end
+    return nothing
 end
 
 """
