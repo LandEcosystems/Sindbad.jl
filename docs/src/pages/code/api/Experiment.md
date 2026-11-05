@@ -101,8 +101,8 @@ function runExperiment(info::NamedTuple, forcing::NamedTuple, ::DoRunOptimizatio
     return (; forcing, info, observation=obs_array, parameters=run_output)
 end
 
-function runExperimentCost(sindbad_experiment::String; replace_info=Dict(), log_level=:info)
-    set_log_level(log_level)
+function runExperimentCost(sindbad_experiment::String; replace_info=Dict(), display_level=:info)
+    set_log_level(display_level)
     setExperimentMode!(replace_info, :cost)
     info, forcing = prepExperiment(sindbad_experiment; replace_info=replace_info)
     cost_output = runExperiment(info, forcing, info.helpers.run.calc_cost)
@@ -110,9 +110,9 @@ function runExperimentCost(sindbad_experiment::String; replace_info=Dict(), log_
     return cost_output
 end
 
-function runExperimentForward(sindbad_experiment::String; replace_info=Dict(), log_level=:info)
+function runExperimentForward(sindbad_experiment::String; replace_info=Dict(), display_level=:info)
     print_info_separator(sep_text="Forward Simulation")
-    set_log_level(log_level)
+    set_log_level(display_level)
     setExperimentMode!(replace_info, :forward)
     info, forcing = prepExperiment(sindbad_experiment; replace_info=replace_info)
     run_output = runExperiment(info, forcing, info.helpers.run.run_forward)
@@ -128,9 +128,9 @@ function runExperimentForward(sindbad_experiment::String; replace_info=Dict(), l
     return run_output
 end
 
-function runExperimentForwardParams(params_vector::Vector, sindbad_experiment::String; replace_info=Dict(), log_level=:info)
+function runExperimentForwardParams(params_vector::Vector, sindbad_experiment::String; replace_info=Dict(), display_level=:info)
     print_info_separator(sep_text="Forward Simulation with Input/Optimized Parameters")
-    set_log_level(log_level)
+    set_log_level(display_level)
     print_info(runExperimentForwardParams, @__FILE__, @__LINE__, "running forward simulation with input/optimized parameters...", n_m=1)
     replace_info = deepcopy(replace_info)
     setExperimentMode!(replace_info, :cost)
@@ -156,9 +156,9 @@ function runExperimentForwardParams(params_vector::Vector, sindbad_experiment::S
     return (; forcing, info, output=forward_output, spinup=optimized_run.spinup)
 end
 
-function runExperimentFullOutput(sindbad_experiment::String; replace_info=Dict(), log_level=:info)
+function runExperimentFullOutput(sindbad_experiment::String; replace_info=Dict(), display_level=:info)
     print_info_separator(sep_text="Forward Simulation + Output of All Variables")
-    set_log_level(log_level)
+    set_log_level(display_level)
     replace_info = deepcopy(replace_info)
     setExperimentMode!(replace_info, :forward)
     info, forcing = prepExperiment(sindbad_experiment; replace_info=replace_info)
@@ -178,9 +178,9 @@ function runExperimentFullOutput(sindbad_experiment::String; replace_info=Dict()
     return (; forcing, info, output=full_output, spinup)
 end
 
-function runExperimentOpti(sindbad_experiment::String; replace_info=Dict(), log_level=:warn)
+function runExperimentOpti(sindbad_experiment::String; replace_info=Dict(), display_level=:warn)
     print_info_separator(sep_text="ParameterOptimization Experiment")
-    set_log_level(log_level)
+    set_log_level(display_level)
     setExperimentMode!(replace_info, :optimization)
     info, forcing = prepExperiment(sindbad_experiment; replace_info=replace_info)
     # the final forward run in runExperimentForwardParams prepares its own info, so
@@ -207,7 +207,7 @@ function runExperimentOpti(sindbad_experiment::String; replace_info=Dict(), log_
     return out_opti
 end
 
-function runExperimentSensitivity(sindbad_experiment::String; replace_info=Dict(), batch=true, log_level=:warn)
+function runExperimentSensitivity(sindbad_experiment::String; replace_info=Dict(), batch=true, display_level=:warn)
     print_info_separator(sep_text="Sensitivity Analysis Experiment")
     setExperimentMode!(replace_info, :optimization)
     info, forcing = prepExperiment(sindbad_experiment; replace_info=replace_info)
@@ -225,7 +225,7 @@ function runExperimentSensitivity(sindbad_experiment::String; replace_info=Dict(
 
     # d_opt = getproperty(Setup, :GSAMorris)()
     method_options =info.optimization.sensitivity_analysis.options
-    set_log_level(log_level)
+    set_log_level(display_level)
 
     sensitivity = globalSensitivity(cost_function, method_options, p_bounds, info.optimization.sensitivity_analysis.method, batch=batch)
     sensitivity_output = (; opti_helpers..., info=info, forcing=forcing, obs_array=obs_array, observations=observations,sensitivity=sensitivity, p_bounds=p_bounds)
@@ -250,8 +250,8 @@ runExperimentCost
 :::details Code
 
 ```julia
-function runExperimentCost(sindbad_experiment::String; replace_info=Dict(), log_level=:info)
-    set_log_level(log_level)
+function runExperimentCost(sindbad_experiment::String; replace_info=Dict(), display_level=:info)
+    set_log_level(display_level)
     setExperimentMode!(replace_info, :cost)
     info, forcing = prepExperiment(sindbad_experiment; replace_info=replace_info)
     cost_output = runExperiment(info, forcing, info.helpers.run.calc_cost)
@@ -273,9 +273,9 @@ runExperimentForward
 :::details Code
 
 ```julia
-function runExperimentForward(sindbad_experiment::String; replace_info=Dict(), log_level=:info)
+function runExperimentForward(sindbad_experiment::String; replace_info=Dict(), display_level=:info)
     print_info_separator(sep_text="Forward Simulation")
-    set_log_level(log_level)
+    set_log_level(display_level)
     setExperimentMode!(replace_info, :forward)
     info, forcing = prepExperiment(sindbad_experiment; replace_info=replace_info)
     run_output = runExperiment(info, forcing, info.helpers.run.run_forward)
@@ -291,9 +291,9 @@ function runExperimentForward(sindbad_experiment::String; replace_info=Dict(), l
     return run_output
 end
 
-function runExperimentForwardParams(params_vector::Vector, sindbad_experiment::String; replace_info=Dict(), log_level=:info)
+function runExperimentForwardParams(params_vector::Vector, sindbad_experiment::String; replace_info=Dict(), display_level=:info)
     print_info_separator(sep_text="Forward Simulation with Input/Optimized Parameters")
-    set_log_level(log_level)
+    set_log_level(display_level)
     print_info(runExperimentForwardParams, @__FILE__, @__LINE__, "running forward simulation with input/optimized parameters...", n_m=1)
     replace_info = deepcopy(replace_info)
     setExperimentMode!(replace_info, :cost)
@@ -333,9 +333,9 @@ runExperimentForwardParams
 :::details Code
 
 ```julia
-function runExperimentForwardParams(params_vector::Vector, sindbad_experiment::String; replace_info=Dict(), log_level=:info)
+function runExperimentForwardParams(params_vector::Vector, sindbad_experiment::String; replace_info=Dict(), display_level=:info)
     print_info_separator(sep_text="Forward Simulation with Input/Optimized Parameters")
-    set_log_level(log_level)
+    set_log_level(display_level)
     print_info(runExperimentForwardParams, @__FILE__, @__LINE__, "running forward simulation with input/optimized parameters...", n_m=1)
     replace_info = deepcopy(replace_info)
     setExperimentMode!(replace_info, :cost)
@@ -375,9 +375,9 @@ runExperimentFullOutput
 :::details Code
 
 ```julia
-function runExperimentFullOutput(sindbad_experiment::String; replace_info=Dict(), log_level=:info)
+function runExperimentFullOutput(sindbad_experiment::String; replace_info=Dict(), display_level=:info)
     print_info_separator(sep_text="Forward Simulation + Output of All Variables")
-    set_log_level(log_level)
+    set_log_level(display_level)
     replace_info = deepcopy(replace_info)
     setExperimentMode!(replace_info, :forward)
     info, forcing = prepExperiment(sindbad_experiment; replace_info=replace_info)
@@ -411,9 +411,9 @@ runExperimentOpti
 :::details Code
 
 ```julia
-function runExperimentOpti(sindbad_experiment::String; replace_info=Dict(), log_level=:warn)
+function runExperimentOpti(sindbad_experiment::String; replace_info=Dict(), display_level=:warn)
     print_info_separator(sep_text="ParameterOptimization Experiment")
-    set_log_level(log_level)
+    set_log_level(display_level)
     setExperimentMode!(replace_info, :optimization)
     info, forcing = prepExperiment(sindbad_experiment; replace_info=replace_info)
     # the final forward run in runExperimentForwardParams prepares its own info, so
@@ -454,7 +454,7 @@ runExperimentSensitivity
 :::details Code
 
 ```julia
-function runExperimentSensitivity(sindbad_experiment::String; replace_info=Dict(), batch=true, log_level=:warn)
+function runExperimentSensitivity(sindbad_experiment::String; replace_info=Dict(), batch=true, display_level=:warn)
     print_info_separator(sep_text="Sensitivity Analysis Experiment")
     setExperimentMode!(replace_info, :optimization)
     info, forcing = prepExperiment(sindbad_experiment; replace_info=replace_info)
@@ -472,7 +472,7 @@ function runExperimentSensitivity(sindbad_experiment::String; replace_info=Dict(
 
     # d_opt = getproperty(Setup, :GSAMorris)()
     method_options =info.optimization.sensitivity_analysis.options
-    set_log_level(log_level)
+    set_log_level(display_level)
 
     sensitivity = globalSensitivity(cost_function, method_options, p_bounds, info.optimization.sensitivity_analysis.method, batch=batch)
     sensitivity_output = (; opti_helpers..., info=info, forcing=forcing, obs_array=obs_array, observations=observations,sensitivity=sensitivity, p_bounds=p_bounds)

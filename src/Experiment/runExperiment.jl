@@ -129,7 +129,6 @@ function runExperiment end
 
 function runExperiment(info::NamedTuple, forcing::NamedTuple, ::DoCalcCost)
     print_info_separator(sep_text="Forward Simulation + Cost Calculation")
-    set_log_level()
     observations = getObservation(info, forcing.helpers)
     obs_array = [Array(_o) for _o in observations.data]; # TODO: necessary now for performance because view of keyedarray is slow
     print_info(runExperiment, @__FILE__, @__LINE__, "do forward run...")
@@ -140,7 +139,6 @@ function runExperiment(info::NamedTuple, forcing::NamedTuple, ::DoCalcCost)
     for _cp in Pair.(Pair.(cost_options.variable, nameof.(typeof.(cost_options.cost_metric))),  loss_vector)
         println(_cp)
     end
-    set_log_level()
     return (; forcing, info, loss=loss_vector, observation=obs_array, output=forward_output)
 end
 
@@ -148,7 +146,6 @@ end
 
 function runExperiment(info::NamedTuple, forcing::NamedTuple, ::Union{DoRunForward, DoNotRunOptimization})
     run_output = runForward(forcing, info, info.helpers.run.run_lazy)
-    set_log_level()
     return (; forcing, info, output=run_output.output, restart=run_output.restart, spinup=run_output.spinup, output_saved=run_output.output_saved, lazy_store=run_output.lazy_store)
 end
 
@@ -171,7 +168,6 @@ function runExperiment(info::NamedTuple, forcing::NamedTuple, ::DoRunOptimizatio
         saveParameterCubes(info, optim_params, forcing.helpers)
         run_output = optim_params
     end
-    set_log_level()
     return (; forcing, info, observation=obs_array, parameters=run_output)
 end
 
@@ -217,20 +213,21 @@ end
 
 
 """
-    runExperimentCost(sindbad_experiment::String; replace_info::Dict=Dict(), log_level::Symbol=:info)
+    runExperimentCost(sindbad_experiment::String; replace_info::Dict=Dict(), display_level::Symbol=:info)
 
 Calculate cost for a given experiment through the `runExperiment` function in `DoCalcCost` mode.
 
 # Arguments
 - `sindbad_experiment::String`: Path to the experiment configuration file
 - `replace_info::Dict`: Dictionary of configuration overrides (default: empty Dict)
-- `log_level::Symbol`: Logging level (default: :info)
+- `display_level::Symbol`: Level of the log and of what `print_info` shows, see
+  `set_log_level` (default: :info)
 
 # Returns
 - A NamedTuple containing the experiment results including cost calculations
 """
-function runExperimentCost(sindbad_experiment::String; replace_info=Dict(), log_level=:info)
-    set_log_level(log_level)
+function runExperimentCost(sindbad_experiment::String; replace_info=Dict(), display_level=:info)
+    set_log_level(display_level)
     setExperimentMode!(replace_info, :cost)
     info, forcing = prepExperiment(sindbad_experiment; replace_info=replace_info)
     cost_output = runExperiment(info, forcing, info.helpers.run.calc_cost)
@@ -240,21 +237,22 @@ end
 
 
 """
-    runExperimentForward(sindbad_experiment::String; replace_info::Dict=Dict(), log_level::Symbol=:info)
+    runExperimentForward(sindbad_experiment::String; replace_info::Dict=Dict(), display_level::Symbol=:info)
 
 Run forward simulation for a given experiment through the `runExperiment` function in `DoRunForward` mode.
 
 # Arguments
 - `sindbad_experiment::String`: Path to the experiment configuration file
 - `replace_info::Dict`: Dictionary of configuration overrides (default: empty Dict)
-- `log_level::Symbol`: Logging level (default: :info)
+- `display_level::Symbol`: Level of the log and of what `print_info` shows, see
+  `set_log_level` (default: :info)
 
 # Returns
 - A NamedTuple containing the experiment results including model outputs
 """
-function runExperimentForward(sindbad_experiment::String; replace_info=Dict(), log_level=:info)
+function runExperimentForward(sindbad_experiment::String; replace_info=Dict(), display_level=:info)
+    set_log_level(display_level)
     print_info_separator(sep_text="Forward Simulation")
-    set_log_level(log_level)
     setExperimentMode!(replace_info, :forward)
     info, forcing = prepExperiment(sindbad_experiment; replace_info=replace_info)
     run_output = runExperiment(info, forcing, info.helpers.run.run_forward)
@@ -273,7 +271,7 @@ end
 
 
 """
-    runExperimentForwardParams(params_vector::Vector, sindbad_experiment::String; replace_info::Dict=Dict(), log_level::Symbol=:info)
+    runExperimentForwardParams(params_vector::Vector, sindbad_experiment::String; replace_info::Dict=Dict(), display_level::Symbol=:info)
 
 Run forward simulation of the model with default as well as modified settings with input/optimized parameters through call of the `runTEM!` function.
 
@@ -281,14 +279,15 @@ Run forward simulation of the model with default as well as modified settings wi
 - `params_vector::Vector`: Vector of parameters to use for the simulation
 - `sindbad_experiment::String`: Path to the experiment configuration file
 - `replace_info::Dict`: Dictionary of configuration overrides (default: empty Dict)
-- `log_level::Symbol`: Logging level (default: :info)
+- `display_level::Symbol`: Level of the log and of what `print_info` shows, see
+  `set_log_level` (default: :info)
 
 # Returns
 - A NamedTuple containing both default and optimized model outputs
 """
-function runExperimentForwardParams(params_vector::Vector, sindbad_experiment::String; replace_info=Dict(), log_level=:info)
+function runExperimentForwardParams(params_vector::Vector, sindbad_experiment::String; replace_info=Dict(), display_level=:info)
+    set_log_level(display_level)
     print_info_separator(sep_text="Forward Simulation with Input/Optimized Parameters")
-    set_log_level(log_level)
     print_info(runExperimentForwardParams, @__FILE__, @__LINE__, "running forward simulation with input/optimized parameters...", n_m=1)
     replace_info = deepcopy(replace_info)
     setExperimentMode!(replace_info, :cost)
@@ -316,21 +315,22 @@ end
 
 
 """
-    runExperimentFullOutput(sindbad_experiment::String; replace_info::Dict=Dict(), log_level::Symbol=:info)
+    runExperimentFullOutput(sindbad_experiment::String; replace_info::Dict=Dict(), display_level::Symbol=:info)
 
 Run forward simulation of the model through `runExperiment` function in `DoRunForward` mode but with all output variables saved.
 
 # Arguments
 - `sindbad_experiment::String`: Path to the experiment configuration file
 - `replace_info::Dict`: Dictionary of configuration overrides (default: empty Dict)
-- `log_level::Symbol`: Logging level (default: :info)
+- `display_level::Symbol`: Level of the log and of what `print_info` shows, see
+  `set_log_level` (default: :info)
 
 # Returns
 - A NamedTuple containing the complete model outputs
 """
-function runExperimentFullOutput(sindbad_experiment::String; replace_info=Dict(), log_level=:info)
+function runExperimentFullOutput(sindbad_experiment::String; replace_info=Dict(), display_level=:info)
+    set_log_level(display_level)
     print_info_separator(sep_text="Forward Simulation + Output of All Variables")
-    set_log_level(log_level)
     replace_info = deepcopy(replace_info)
     setExperimentMode!(replace_info, :forward)
     info, forcing = prepExperiment(sindbad_experiment; replace_info=replace_info)
@@ -352,21 +352,22 @@ end
 
 
 """
-    runExperimentOpti(sindbad_experiment::String; replace_info::Dict=Dict(), log_level::Symbol=:warn)
+    runExperimentOpti(sindbad_experiment::String; replace_info::Dict=Dict(), display_level::Symbol=:warn)
 
 Run optimization experiment through `runExperiment` function in `DoRunOptimization` mode, followed by forward run with optimized parameters.
 
 # Arguments
 - `sindbad_experiment::String`: Path to the experiment configuration file
 - `replace_info::Dict`: Dictionary of configuration overrides (default: empty Dict)
-- `log_level::Symbol`: Logging level (default: :warn)
+- `display_level::Symbol`: Level of the log and of what `print_info` shows, see
+  `set_log_level` (default: :warn)
 
 # Returns
 - A NamedTuple containing optimization results, model outputs, and cost metrics
 """
-function runExperimentOpti(sindbad_experiment::String; replace_info=Dict(), log_level=:warn)
+function runExperimentOpti(sindbad_experiment::String; replace_info=Dict(), display_level=:warn)
+    set_log_level(display_level)
     print_info_separator(sep_text="ParameterOptimization Experiment")
-    set_log_level(log_level)
     setExperimentMode!(replace_info, :optimization)
     info, forcing = prepExperiment(sindbad_experiment; replace_info=replace_info)
     # the final forward run in runExperimentForwardParams prepares its own info, so
@@ -374,7 +375,6 @@ function runExperimentOpti(sindbad_experiment::String; replace_info=Dict(), log_
     info = withoutSpinupStore(info)
     run_helpers = prepTEM(info.models.forward, forcing, info)
     opti_output = runExperiment(info, forcing, info.helpers.run.run_optimization)
-    set_log_level(:info)
     fp_output = runExperimentForwardParams(opti_output.parameters.optimized, sindbad_experiment; replace_info=replace_info)
     print_info_separator()
     cost_options = prepCostOptions(opti_output.observation, info.optimization.cost_options)
@@ -396,7 +396,7 @@ end
 
 
 """
-    runExperimentSensitivity(sindbad_experiment::String; replace_info::Dict=Dict(), batch::Bool=true, log_level::Symbol=:warn)
+    runExperimentSensitivity(sindbad_experiment::String; replace_info::Dict=Dict(), batch::Bool=true, display_level::Symbol=:warn)
 
 Run sensitivity analysis for a given experiment.
 
@@ -404,12 +404,14 @@ Run sensitivity analysis for a given experiment.
 - `sindbad_experiment::String`: Path to the experiment configuration file
 - `replace_info::Dict`: Dictionary of configuration overrides (default: empty Dict)
 - `batch::Bool`: Whether to run sensitivity analysis in batch mode (default: true)
-- `log_level::Symbol`: Logging level (default: :warn)
+- `display_level::Symbol`: Level of the log and of what `print_info` shows, see
+  `set_log_level` (default: :warn)
 
 # Returns
 - A NamedTuple containing sensitivity analysis results and related data
 """
-function runExperimentSensitivity(sindbad_experiment::String; replace_info=Dict(), batch=true, log_level=:warn)
+function runExperimentSensitivity(sindbad_experiment::String; replace_info=Dict(), batch=true, display_level=:warn)
+    set_log_level(display_level)
     print_info_separator(sep_text="Sensitivity Analysis Experiment")
     setExperimentMode!(replace_info, :optimization)
     info, forcing = prepExperiment(sindbad_experiment; replace_info=replace_info)
@@ -427,7 +429,6 @@ function runExperimentSensitivity(sindbad_experiment::String; replace_info=Dict(
 
     # d_opt = getproperty(Setup, :GSAMorris)()
     method_options =info.optimization.sensitivity_analysis.options
-    set_log_level(log_level)
 
     sensitivity = globalSensitivity(cost_function, method_options, p_bounds, info.optimization.sensitivity_analysis.method, batch=batch)
     sensitivity_output = (; opti_helpers..., info=info, forcing=forcing, obs_array=obs_array, observations=observations,sensitivity=sensitivity, p_bounds=p_bounds)
