@@ -8,6 +8,18 @@ export gppSoilW_Horn
 end
 #! format: on
 
+"""
+	rootZoneWStressor(soilW, w_wp, w_awc, rooted_fraction)
+
+Available water of the root zone normalized by its capacity, in [0, 1]. Each layer is
+weighted by rooted_fraction.
+"""
+function rootZoneWStressor(soilW, w_wp, w_awc, rooted_fraction)
+	max_AWC = sum(rooted_fraction .* w_awc)
+	actAWC = sum(rooted_fraction .* at_least_zero.(soilW .- w_wp))
+	return at_most_one(safe_divide(actAWC, max_AWC))
+end
+
 function define(params::gppSoilW_Horn, forcing, land, helpers)
 	## unpack parameters and land
 	@unpack_gppSoilW_Horn params
@@ -18,9 +30,7 @@ function define(params::gppSoilW_Horn, forcing, land, helpers)
 	end
 
 	## initialize filtered soil moisture with current normalized soil moisture
-	max_AWC = sum(rooted_fraction .* w_awc)
-	actAWC = sum(rooted_fraction .* at_least_zero.(soilW .- w_wp))
-	Wf_prev = at_most_one(safe_divide(actAWC, max_AWC))
+	Wf_prev = rootZoneWStressor(soilW, w_wp, w_awc, rooted_fraction)
 
 	## pack land variables
 	@pack_nt Wf_prev ⇒ land.diagnostics
@@ -41,10 +51,7 @@ function compute(params::gppSoilW_Horn, forcing, land, helpers)
 		Wf_prev ⇐ land.diagnostics
 	end
 
-	## normalize soil moisture of the root zone: W_k in [0, 1]
-	max_AWC = sum(rooted_fraction .* w_awc)
-	actAWC = sum(rooted_fraction .* at_least_zero.(soilW .+ ΔsoilW .- w_wp))
-	Wk = at_most_one(safe_divide(actAWC, max_AWC))
+	Wk = rootZoneWStressor(soilW .+ ΔsoilW, w_wp, w_awc, rooted_fraction)
 
 	## filtered soil moisture: W_f,k = (1 - α) * W_k + α * W_f,k-1
 	Wf = (one(α) - α) * Wk + α * Wf_prev
