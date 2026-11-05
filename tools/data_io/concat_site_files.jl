@@ -160,7 +160,7 @@ function concatParameterFiles(param_paths, out_path; site_dim=:site)
     params_ds.properties["parameter_source"] = "concatenation"
     saveParameterDataset(params_ds, out_path)
     json_path = first(splitext(rstrip(out_path, '/'))) * ".json"
-    writeParameterInputJson(json_path, abspath(out_path), combined.variable_attributes)
+    writeParameterInputJson(json_path, abspath(out_path), combined.variable_attributes; space_dimensions=[site_dim])
     println("wrote $(length(combined.variable_attributes)) parameters for $(length(combined.sites)) sites to $(out_path) and $(json_path)")
     return (; out_path, json_path)
 end

@@ -439,7 +439,7 @@ function saveParameterCubes(info, parameter_table, forcing_helpers)
     DataLoaders.saveParameterDataset(params_ds, data_path)
 
     json_path = first(splitext(rstrip(data_path, '/'))) * ".json"
-    writeParameterInputJson(json_path, abspath(data_path), variable_attributes)
+    writeParameterInputJson(json_path, abspath(data_path), variable_attributes; space_dimensions=space_dims)
     print_info(nothing, @__FILE__, @__LINE__, "saved the parameters input of the parameter file to `$(json_path)`", n_m=4)
     return (; data_path, json_path)
 end
