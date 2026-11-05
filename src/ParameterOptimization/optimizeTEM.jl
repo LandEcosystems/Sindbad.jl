@@ -1,5 +1,5 @@
 export optimizeTEM
-export optimizeTEMYax
+export optimizeTEMLazy
 
 """
     optimizeTEM(forcing::NamedTuple, observations, info::NamedTuple)
@@ -40,7 +40,7 @@ end
 
 
 """
-    optimizeTEMYax(forcing::NamedTuple, output::NamedTuple, tem::NamedTuple, optim::NamedTuple, observations::NamedTuple; max_cache=1e9)
+    optimizeTEMLazy(forcing::NamedTuple, output::NamedTuple, tem::NamedTuple, optim::NamedTuple, observations::NamedTuple; max_cache=1e9)
 
 Optimizes the Terrestrial Ecosystem Model (TEM) parameters for each pixel by mapping over the YAXcube(s).
 
@@ -58,7 +58,7 @@ Optimizes the Terrestrial Ecosystem Model (TEM) parameters for each pixel by map
 # Returns
 Optimized TEM parameters cube
 """
-function optimizeTEMYax(forcing::NamedTuple, observations::NamedTuple, info; max_cache=1e9)
+function optimizeTEMLazy(forcing::NamedTuple, observations::NamedTuple, info; max_cache=1e9)
     incubes = (forcing.data..., observations.data...)
     indims = (forcing.dims..., observations.dims...)
     forcing_vars = collect(forcing.variables)
@@ -66,13 +66,13 @@ function optimizeTEMYax(forcing::NamedTuple, observations::NamedTuple, info; max
     out = output.land_init
     obs_vars = collect(observations.variables)
 
-    params = mapCube(optimizeYax, (incubes...,); out=out, info=info, forcing_vars=forcing_vars, obs_vars=obs_vars, indims=indims, outdims=outdims, max_cache=max_cache)
+    params = mapCube(optimizeLazy, (incubes...,); out=out, info=info, forcing_vars=forcing_vars, obs_vars=obs_vars, indims=indims, outdims=outdims, max_cache=max_cache)
     return params
 end
 
 
 """   
-    optimizeYax(map_cubes...; out::NamedTuple, tem::NamedTuple, optim::NamedTuple, forcing_vars::AbstractArray, obs_vars::AbstractArray)
+    optimizeLazy(map_cubes...; out::NamedTuple, tem::NamedTuple, optim::NamedTuple, forcing_vars::AbstractArray, obs_vars::AbstractArray)
 
 A helper function to optimize parameters for each pixel by mapping over the YAXcube(s).
 
@@ -84,7 +84,7 @@ A helper function to optimize parameters for each pixel by mapping over the YAXc
 - `forcing_vars::AbstractArray`: Array of forcing variables used in optimization
 - `obs_vars::AbstractArray`: Array of observation variables used in optimization
 """
-function optimizeYax(map_cubes...; forcing_vars::AbstractArray, obs_vars::AbstractArray)
+function optimizeLazy(map_cubes...; forcing_vars::AbstractArray, obs_vars::AbstractArray)
     output, forcing, observation = unpackYaxOpti(map_cubes; forcing_vars)
     forcing = (; Pair.(forcing_vars, forcing)...)
     observation = (; Pair.(obs_vars, observation)...)

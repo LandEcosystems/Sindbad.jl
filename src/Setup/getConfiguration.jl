@@ -49,7 +49,7 @@ Dict{String, Int64} with 2 entries:
 
 julia> nested_dict = createNestedDict(dict)
 Dict{Any, Any} with 1 entry:
-  "a" => Dict{Any, Any}("b"=>Dict{Any, Any}("c"=>2, "d"=>3))
+  "a" => OrderedDict{Any, Any}("b"=>OrderedDict{Any, Any}("c"=>2, "d"=>3))
 ```
 """
 function createNestedDict(dict::AbstractDict)
@@ -65,10 +65,12 @@ function createNestedDict(dict::AbstractDict)
                 subkey_name = subkey * string(key_index)
             end
             if subkey == last(key_list)
-                key_dict[subkey_name] = dict[kii]
+                key_dict[subkey_name] = toOrderedDict(dict[kii])
             else
                 if !haskey(key_dict, subkey_name)
-                    key_dict[subkey_name] = Dict()
+                    # an OrderedDict, like the parsed json, so that a level that is new in
+                    # the configuration is converted to a NamedTuple with the others
+                    key_dict[subkey_name] = DataStructures.OrderedDict()
                     key_dict[subkey_name][key_list[key_index+1]] = key_dict[key_list[key_index+1]*string(key_index+1)]
                 else
                     tmp = Dict()
@@ -82,6 +84,12 @@ function createNestedDict(dict::AbstractDict)
     end
     return nested_dict
 end
+
+# A dictionary given as a value in replace_info becomes an OrderedDict, like the parsed
+# json. dict_to_namedtuple converts only OrderedDicts, so a plain Dict that adds a new
+# field to the configuration would otherwise stay a Dict in info.
+toOrderedDict(dict::AbstractDict) = DataStructures.OrderedDict{Any,Any}(k => toOrderedDict(v) for (k, v) ∈ dict)
+toOrderedDict(value) = value
 
 """
     deepMerge(d::AbstractDict...) = merge(deepMerge, d...)
@@ -379,9 +387,10 @@ end
 """
     checkReplaceInfoKeys(info::AbstractDict, replace_dict::AbstractDict)
 
-Throws an error when a key of `replace_dict` does not exist in `info`, so that a
-mistyped key does not silently add a new field to the configuration. Every key is
-checked against the keys of `info` at the level it replaces, except the optional
+Warns when a key of `replace_dict` does not exist in `info`, so that a mistyped key
+does not silently add a new field to the configuration. The key is still added, since
+it can be a setting that is valid but not given in the configuration files. Every key
+is checked against the keys of `info` at the level it replaces, except the optional
 settings in `OPTIONAL_CONFIG_KEYS`.
 """
 function checkReplaceInfoKeys(info::AbstractDict, replace_dict::AbstractDict)
@@ -394,14 +403,16 @@ function checkReplaceInfoKeys(info::AbstractDict, replace_dict::AbstractDict)
         level_text = isempty(level) ? "the top level" : "`$(level)`"
         "  - `$(k)`: not found at $(level_text). Available keys there: $(join(sort(available), ", "))."
     end, "\n")
-    error("replace_info has keys that do not exist in the configuration:\n$(msg)")
+    @warn "replace_info has keys that do not exist in the configuration. They are added, so check that none is mistyped:\n$(msg)"
+    return nothing
 end
 
 """
     replaceInfoFields(info::AbstractDict, replace_dict::AbstractDict)
 
 Replaces fields in the `info` dictionary with values from the `replace_dict`, after
-checking with `checkReplaceInfoKeys` that every key exists.
+warning with `checkReplaceInfoKeys` about the keys that do not exist. Those keys are
+added.
 
 # Arguments:
 - `info::AbstractDict`: The original dictionary.

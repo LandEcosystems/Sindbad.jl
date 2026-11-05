@@ -8,19 +8,29 @@ export gppSoilW_Horn
 end
 #! format: on
 
+"""
+	rootZoneWStressor(soilW, w_wp, w_awc, rooted_fraction)
+
+Available water of the root zone normalized by its capacity, in [0, 1]. Each layer is
+weighted by rooted_fraction.
+"""
+function rootZoneWStressor(soilW, w_wp, w_awc, rooted_fraction)
+	max_AWC = sum(rooted_fraction .* w_awc)
+	actAWC = sum(rooted_fraction .* at_least_zero.(soilW .- w_wp))
+	return at_most_one(safe_divide(actAWC, max_AWC))
+end
+
 function define(params::gppSoilW_Horn, forcing, land, helpers)
 	## unpack parameters and land
 	@unpack_gppSoilW_Horn params
 	@unpack_nt begin
-		(∑w_fc, ∑w_wp) ⇐ land.properties
+		(w_awc, w_wp) ⇐ land.properties
+		rooted_fraction ⇐ land.rootWaterEfficiency
 		soilW ⇐ land.pools
 	end
 
 	## initialize filtered soil moisture with current normalized soil moisture
-	SM = sum(soilW)
-	max_AWC = at_least_zero(∑w_fc - ∑w_wp)
-	actAWC = at_least_zero(SM - ∑w_wp)
-	Wf_prev = at_most_one(actAWC / max_AWC)
+	Wf_prev = rootZoneWStressor(soilW, w_wp, w_awc, rooted_fraction)
 
 	## pack land variables
 	@pack_nt Wf_prev ⇒ land.diagnostics
@@ -35,16 +45,13 @@ function compute(params::gppSoilW_Horn, forcing, land, helpers)
 	@unpack_gppSoilW_Horn params
 
 	@unpack_nt begin
-		(∑w_fc, ∑w_wp) ⇐ land.properties
-		soilW ⇐ land.pools
+		(w_awc, w_wp) ⇐ land.properties
+		rooted_fraction ⇐ land.rootWaterEfficiency
+		(soilW, ΔsoilW) ⇐ land.pools
 		Wf_prev ⇐ land.diagnostics
 	end
 
-	## normalize soil moisture: W_k in [0, 1]
-	SM = sum(soilW)
-	max_AWC = at_least_zero(∑w_fc - ∑w_wp)
-	actAWC = at_least_zero(SM - ∑w_wp)
-	Wk = at_most_one(actAWC / max_AWC)
+	Wk = rootZoneWStressor(soilW .+ ΔsoilW, w_wp, w_awc, rooted_fraction)
 
 	## filtered soil moisture: W_f,k = (1 - α) * W_k + α * W_f,k-1
 	Wf = (one(α) - α) * Wk + α * Wf_prev
@@ -78,6 +85,10 @@ purpose(::Type{gppSoilW_Horn}) = "Soil moisture stress on GPP using Horn and Sch
 
 *Versions*
  - 1.0 on 10.03.2026 [xshan]
+ - 1.1 on 02.11.2026 [skoirala | @dr-ko]: available water and its capacity over
+   the root zone, each layer weighted by rooted_fraction, instead of the whole
+   soil column. PAW is not used, as its root water efficiency of root carbon
+   limits the extraction, which acts on GPP through transpiration_supply.
 
 *Created by*
  - xshan

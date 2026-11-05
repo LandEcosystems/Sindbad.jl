@@ -246,7 +246,7 @@ the restart file. That is the last step unless the settings mark another one.
 - `info`: a SINDBAD NamedTuple with all information needed for setup and execution of an experiment
 - `restart`: the restart data of the run, which is either:
     - a NamedTuple with the `variables`, `dims` and `data` arrays of an eager run (`run_helpers.restart`)
-    - a NamedTuple with the restart `Dataset` and `variables` of a lazy run (`runTEMYax`)
+    - a NamedTuple with the restart `Dataset` and `variables` of a lazy run (`prepTEMLazy`)
 
 # Notes:
 - The file is `restart` in the data output directory, in the output format, for
@@ -439,7 +439,7 @@ function saveParameterCubes(info, parameter_table, forcing_helpers)
     DataLoaders.saveParameterDataset(params_ds, data_path)
 
     json_path = first(splitext(rstrip(data_path, '/'))) * ".json"
-    writeParameterInputJson(json_path, abspath(data_path), variable_attributes)
+    writeParameterInputJson(json_path, abspath(data_path), variable_attributes; space_dimensions=space_dims)
     print_info(nothing, @__FILE__, @__LINE__, "saved the parameters input of the parameter file to `$(json_path)`", n_m=4)
     return (; data_path, json_path)
 end

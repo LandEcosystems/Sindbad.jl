@@ -23,8 +23,11 @@ function checkWaterBalanceError(forcing, land, water_balance, tolerance, total_w
     if is_invalid_number(water_balance)
         throwError(forcing, land, "water balance is invalid", water_balance, total_water, total_water_prev, WBP, precip, runoff, evapotranspiration)
     end
-    if abs(water_balance) > tolerance
-        throwError(forcing, land, "water balance is larger than tolerance: $tolerance", water_balance, total_water, total_water_prev, WBP, precip, runoff, evapotranspiration)
+    # Large stores such as snow on ice sheets cannot resolve storage changes finer than
+    # the float spacing of total_water, so allow two spacings of rounding on top.
+    wb_tolerance = tolerance + 2 * eps(max(abs(total_water), abs(total_water_prev)))
+    if abs(water_balance) > wb_tolerance
+        throwError(forcing, land, "water balance is larger than tolerance: $wb_tolerance", water_balance, total_water, total_water_prev, WBP, precip, runoff, evapotranspiration)
     end
     return nothing
 end

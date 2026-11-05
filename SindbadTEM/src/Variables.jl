@@ -504,6 +504,13 @@ sindbad_tem_variables = orD{Symbol,orD{Symbol,String}}(
         :land_field => "diagnostics",
         :description => "effect of soil moisture on gpp. 1: no stress, 0: complete stress"
     ),
+    :diagnostics__gpp_f_co2 => orD(
+        :standard_name => "gpp_f_co2",
+        :long_name => "ambient_co2_effect_gpp",
+        :units => "fraction",
+        :land_field => "diagnostics",
+        :description => "effect of ambient co2 on gpp relative to a reference co2. 1: at the reference co2"
+    ),
     :diagnostics__gpp_f_vpd => orD(
         :standard_name => "gpp_f_vpd",
         :long_name => "vapor_pressure_deficit_effect_gpp",
@@ -987,6 +994,20 @@ sindbad_tem_variables = orD{Symbol,orD{Symbol,String}}(
         :land_field => "gppDiffRadiation",
         :description => "minimum of cloudiness index until the time step from the beginning of simulation (including spinup)"
     ),
+    :gppVPD__T_0 => orD(
+        :standard_name => "T_0",
+        :long_name => "zero_celsius_in_kelvin",
+        :units => "K",
+        :land_field => "gppVPD",
+        :description => "0 °C in K, to convert the air temperature for the CO2 compensation point"
+    ),
+    :gppVPD__T_25 => orD(
+        :standard_name => "T_25",
+        :long_name => "reference_temperature_of_CO2_compensation_point",
+        :units => "K",
+        :land_field => "gppVPD",
+        :description => "25 °C in K, the reference temperature of the CO2 compensation point Γ_star_25"
+    ),
     :models__c_model => orD(
         :standard_name => "c_model",
         :long_name => "base_carbon_model",
@@ -1309,6 +1330,13 @@ sindbad_tem_variables = orD{Symbol,orD{Symbol,String}}(
         :land_field => "properties",
         :description => "total soil depth of the location as the sum of soil layer thicknesses"
     ),
+    :properties__layer_depth_fraction => orD(
+        :standard_name => "layer_depth_fraction",
+        :long_name => "soil_layer_fraction_within_soil_depth",
+        :units => "fraction",
+        :land_field => "properties",
+        :description => "fraction of the thickness of each soil layer within the soil depth"
+    ),
     :properties__soil_layer_thickness => orD(
         :standard_name => "soil_layer_thickness",
         :long_name => "soil_thickness_per_layer",
@@ -1505,12 +1533,12 @@ sindbad_tem_variables = orD{Symbol,orD{Symbol,String}}(
         :land_field => "properties",
         :description => "amount of water in the soil at wiliting point per layer"
     ),
-    :rootWaterEfficiency__root_over => orD(
-        :standard_name => "root_over",
-        :long_name => "is_root_over",
-        :units => "boolean",
+    :rootWaterEfficiency__rooted_fraction => orD(
+        :standard_name => "rooted_fraction",
+        :long_name => "soil_layer_fraction_within_root_depth",
+        :units => "fraction",
         :land_field => "rootWaterEfficiency",
-        :description => "a boolean indicating if the root is allowed to exract water from a given layer depending on maximum rooting depth"
+        :description => "fraction of the thickness of each soil layer within the maximum rooting depth"
     ),
     :states__ambient_CO2 => orD(
         :standard_name => "ambient_CO2",

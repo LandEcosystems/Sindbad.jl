@@ -85,6 +85,8 @@ $(methods_of(SpatialSubsetter))
   the locations, such as a restart file written by a subset run.
 - Every value must exist in the spatial dimension of `v`, otherwise an error is thrown.
   Floating point coordinates such as latitudes must match the stored values exactly.
+- Values that form one contiguous, increasing block of the dimension are selected with a
+  range of indices, see `getSubsetSelector`.
 - The function dynamically selects the appropriate field in `v` based on the spatial type provided.
 - The spatial type determines the field name (e.g., `site`, `lat`, `longitude`, `id`, etc.) used for subsetting.
 
@@ -104,34 +106,55 @@ julia> # subset = spatialSubset(data, ["DE-Hai", "DE-Tha"], Spacesite())
 """
 function spatialSubset end
 
+"""
+    getSubsetSelector(v, dim_name, ss_range)
+
+Returns the selector of the values `ss_range` in the dimension `dim_name` of `v`.
+
+# Notes:
+- When the values are one contiguous, increasing block of the dimension, the selector is
+  the range of their indices. Otherwise it is `At(ss_range)`, which selects with a vector
+  of indices.
+- A range keeps a lazy array a contiguous view. A vector of indices makes DiskArrays read
+  it in batches, and the types of a lazy run on such inputs are very slow to compile.
+"""
+function getSubsetSelector(v, dim_name, ss_range)
+    dim_values = collect(DD.lookup(v, dim_name))
+    indices = map(x -> findfirst(isequal(x), dim_values), ss_range)
+    any(isnothing, indices) && return At(ss_range)
+    first_index = first(indices)
+    indices == first_index:(first_index + length(indices) - 1) && return first_index:last(indices)
+    return At(ss_range)
+end
+
 function spatialSubset(v, ss_range, ::Spacesite)
-    return v[site=At(ss_range)]
+    return v[site=getSubsetSelector(v, :site, ss_range)]
 end
 
 function spatialSubset(v, ss_range, ::Spacelat)
-    return v[lat=At(ss_range)]
+    return v[lat=getSubsetSelector(v, :lat, ss_range)]
 end
 
 function spatialSubset(v, ss_range, ::Spacelatitude)
-    return v[latitude=At(ss_range)]
+    return v[latitude=getSubsetSelector(v, :latitude, ss_range)]
 end
 
 function spatialSubset(v, ss_range, ::Spacelon)
-    return v[lon=At(ss_range)]
+    return v[lon=getSubsetSelector(v, :lon, ss_range)]
 end
 
 function spatialSubset(v, ss_range, ::Spacelongitude)
-    return v[longitude=At(ss_range)]
+    return v[longitude=getSubsetSelector(v, :longitude, ss_range)]
 end
 
 function spatialSubset(v, ss_range, ::Spaceid)
-    return v[id=At(ss_range)]
+    return v[id=getSubsetSelector(v, :id, ss_range)]
 end
 
 function spatialSubset(v, ss_range, ::SpaceId)
-    return v[Id=At(ss_range)]
+    return v[Id=getSubsetSelector(v, :Id, ss_range)]
 end
 
 function spatialSubset(v, ss_range, ::SpaceID)
-    return v[ID=At(ss_range)]
+    return v[ID=getSubsetSelector(v, :ID, ss_range)]
 end

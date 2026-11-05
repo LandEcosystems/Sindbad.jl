@@ -37,7 +37,7 @@ replace_info = Dict("experiment.basics.name" => "WROASTED_threaded_gsa",
     "optimization.optimization_cost_threaded"  => true)
 
 
-out_sensitivity = runExperimentSensitivity(experiment_json; replace_info=replace_info, log_level=:info);
+out_sensitivity = runExperimentSensitivity(experiment_json; replace_info=replace_info, display_level=:info);
 info = out_sensitivity.info;
 parameter_names=String.(out_sensitivity.parameter_table.name);
 

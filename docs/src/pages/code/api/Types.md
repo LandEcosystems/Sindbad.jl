@@ -481,6 +481,13 @@ InputYAXArray
 
 ----
 
+### InterpolationMethod
+```@docs
+InterpolationMethod
+```
+
+----
+
 ### LandTypes
 ```@docs
 LandTypes
@@ -845,6 +852,13 @@ ParameterScaling
 
 ----
 
+### PmapParallelization
+```@docs
+PmapParallelization
+```
+
+----
+
 ### PolyesterForwardDiffGrad
 ```@docs
 PolyesterForwardDiffGrad
@@ -992,6 +1006,13 @@ SimulationTypes
 
 ----
 
+### SpaceGridInterpolationMethod
+```@docs
+SpaceGridInterpolationMethod
+```
+
+----
+
 ### SpaceID
 ```@docs
 SpaceID
@@ -1002,6 +1023,76 @@ SpaceID
 ### SpaceId
 ```@docs
 SpaceId
+```
+
+----
+
+### SpaceInterpNearest
+```@docs
+SpaceInterpNearest
+```
+
+----
+
+### SpaceInterpCubic
+```@docs
+SpaceInterpCubic
+```
+
+----
+
+### SpaceInterpLanczos
+```@docs
+SpaceInterpLanczos
+```
+
+----
+
+### SpaceInterpLanczosOpencv
+```@docs
+SpaceInterpLanczosOpencv
+```
+
+----
+
+### SpaceInterpLinear
+```@docs
+SpaceInterpLinear
+```
+
+----
+
+### SpaceInterpNearest
+```@docs
+SpaceInterpNearest
+```
+
+----
+
+### SpaceInterpNone
+```@docs
+SpaceInterpNone
+```
+
+----
+
+### SpaceInterpQuadratic
+```@docs
+SpaceInterpQuadratic
+```
+
+----
+
+### SpaceInterpZhao2004
+```@docs
+SpaceInterpZhao2004
+```
+
+----
+
+### SpaceInterpolationMethod
+```@docs
+SpaceInterpolationMethod
 ```
 
 ----
@@ -1142,6 +1233,146 @@ Spinup_cEco_TWS
 ### ThreadsParallelization
 ```@docs
 ThreadsParallelization
+```
+
+----
+
+### TimeGridInterpolationMethod
+```@docs
+TimeGridInterpolationMethod
+```
+
+----
+
+### TimeInterpAkimaMonotonic
+```@docs
+TimeInterpAkimaMonotonic
+```
+
+----
+
+### TimeInterpCardinalMonotonic
+```@docs
+TimeInterpCardinalMonotonic
+```
+
+----
+
+### TimeInterpNearest
+```@docs
+TimeInterpNearest
+```
+
+----
+
+### TimeInterpCubic
+```@docs
+TimeInterpCubic
+```
+
+----
+
+### TimeInterpFiniteDifferenceMonotonic
+```@docs
+TimeInterpFiniteDifferenceMonotonic
+```
+
+----
+
+### TimeInterpFritschButlandMonotonic
+```@docs
+TimeInterpFritschButlandMonotonic
+```
+
+----
+
+### TimeInterpFritschCarlsonMonotonic
+```@docs
+TimeInterpFritschCarlsonMonotonic
+```
+
+----
+
+### TimeInterpLanczos
+```@docs
+TimeInterpLanczos
+```
+
+----
+
+### TimeInterpLanczosOpencv
+```@docs
+TimeInterpLanczosOpencv
+```
+
+----
+
+### TimeInterpLinear
+```@docs
+TimeInterpLinear
+```
+
+----
+
+### TimeInterpLinearMonotonic
+```@docs
+TimeInterpLinearMonotonic
+```
+
+----
+
+### TimeInterpNearest
+```@docs
+TimeInterpNearest
+```
+
+----
+
+### TimeInterpNext
+```@docs
+TimeInterpNext
+```
+
+----
+
+### TimeInterpNone
+```@docs
+TimeInterpNone
+```
+
+----
+
+### TimeInterpPrevious
+```@docs
+TimeInterpPrevious
+```
+
+----
+
+### TimeInterpQuadratic
+```@docs
+TimeInterpQuadratic
+```
+
+----
+
+### TimeInterpSteffenMonotonic
+```@docs
+TimeInterpSteffenMonotonic
+```
+
+----
+
+### TimeInterpolationMethod
+```@docs
+TimeInterpolationMethod
+```
+
+----
+
+### TimeMonotonicInterpolationMethod
+```@docs
+TimeMonotonicInterpolationMethod
 ```
 
 ----

@@ -173,6 +173,117 @@ function getForcingV(v::AbstractArray{<:Any,0}, _, ::ForcingWithoutTime)
     v[]
 end
 
+
+"""
+    TimeVaryingModels{M,P,I,T,L}
+
+The models of one location whose parameters vary in time, with the values that the
+time loop uses to update them.
+
+# Fields:
+- `models`: the models with the parameter values of the first time step
+- `parameters`: the values of each parameter at the location, a vector over the time
+  steps for a parameter with time, else a 0-dimensional array
+- `parameter_indices`: the indices of the parameters per model, from
+  `getParameterIndicesPerModel`
+- `parameter_types`: `ForcingWithTime()` or `ForcingWithoutTime()` per parameter
+- `lookup`: `Val(lookup_variable)` of a class map whose lookup variable has time, so a
+  change of the class also updates the models, else `nothing`
+
+# Notes:
+- define, precompute and spinup use `models`, see `initialModels`. The time loop
+  updates the models when the values change, see `timeLoopTEM!`.
+"""
+struct TimeVaryingModels{M,P,I,T,L}
+    models::M
+    parameters::P
+    parameter_indices::I
+    parameter_types::T
+    lookup::L
+end
+
+"""
+    initialModels(selected_models)
+
+Returns the models with the parameter values of the first time step, i.e., the models
+themselves unless their parameters vary in time.
+"""
+initialModels(selected_models) = selected_models
+initialModels(selected_models::TimeVaryingModels) = selected_models.models
+
+"""
+    getTimeVaryingInfo(selected_models, parameter_to_index, forcing_parameters)
+
+Returns what every location needs to update its models in the time loop, or `nothing`
+when no parameter varies in time.
+
+# Arguments:
+- `selected_models`: a tuple of all models selected in the given model structure
+- `parameter_to_index`: the index of each parameter in the models, from
+  `getParameterIndices`
+- `forcing_parameters`: the `parameters` of the forcing, from `getParameters`, or
+  `nothing`
+
+# Returns:
+- `nothing`, or a NamedTuple with the `parameter_indices` per model, the
+  `parameter_types` and the `lookup` of `TimeVaryingModels`
+"""
+getTimeVaryingInfo(selected_models, parameter_to_index, ::Nothing) = nothing
+
+function getTimeVaryingInfo(selected_models, parameter_to_index, forcing_parameters)
+    any(f_type -> f_type isa ForcingWithTime, forcing_parameters.f_types) || return nothing
+    lookup_variable = forcing_parameters.lookup_variable
+    return (; parameter_indices=getParameterIndicesPerModel(parameter_to_index, selected_models),
+        parameter_types=forcing_parameters.f_types,
+        lookup=isnothing(lookup_variable) ? nothing : Val(lookup_variable))
+end
+
+"""
+    setTimeVaryingModels(loc_models, loc_parameters, time_varying)
+
+Returns the models of one location, wrapped in a `TimeVaryingModels` with the values of
+its parameters when they vary in time.
+
+# Arguments:
+- `loc_models`: the models of the location with the values of the first time step
+- `loc_parameters`: the values of each parameter at the location
+- `time_varying`: the `getTimeVaryingInfo`, or `nothing`
+"""
+setTimeVaryingModels(loc_models, _, ::Nothing) = loc_models
+
+function setTimeVaryingModels(loc_models, loc_parameters, time_varying)
+    return TimeVaryingModels(loc_models, Tuple(loc_parameters), time_varying.parameter_indices, time_varying.parameter_types, time_varying.lookup)
+end
+
+"""
+    getParametersForTimeStep(parameters, ts, parameter_types)
+
+Returns the value of each parameter at time step `ts` as a tuple, the same way as
+`getForcingForTimeStep` with `getForcingV`.
+"""
+function getParametersForTimeStep(parameters, ts, parameter_types)
+    return map((p_values, p_type) -> getForcingV(p_values, ts, p_type), parameters, parameter_types)
+end
+
+"""
+    getParameterChangeKey(tv_models::TimeVaryingModels, forcing_t, ts)
+
+Returns what decides whether the models change at time step `ts`: the values of the
+parameters, and the class of a class map whose lookup variable has time.
+
+# Notes:
+- The class counts as well, because two classes with the same parameters can still
+  differ in the model, e.g., the vegetation type that `vegClass` resolves in
+  precompute.
+"""
+function getParameterChangeKey(tv_models::TimeVaryingModels, forcing_t, ts)
+    p_ts = getParametersForTimeStep(tv_models.parameters, ts, tv_models.parameter_types)
+    return addLookupClass(p_ts, forcing_t, tv_models.lookup)
+end
+
+addLookupClass(p_ts, _, ::Nothing) = p_ts
+addLookupClass(p_ts, forcing_t, ::Val{lookup_variable}) where {lookup_variable} = (p_ts, getfield(forcing_t, lookup_variable))
+
 """
     getLocData(forcing, output_array, loc_ind)
 

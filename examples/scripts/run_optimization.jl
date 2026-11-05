@@ -60,4 +60,4 @@ optim_result = optimizeTEM(forcing, obs_array, info);
 
 # Equivalent one-liner -- also runs a forward pass with the optimized parameters afterward and
 # prints a default-vs-optimized loss table:
-# out_opti = runExperimentOpti(experiment_json; replace_info=replace_info, log_level=:info);
+# out_opti = runExperimentOpti(experiment_json; replace_info=replace_info, display_level=:info);

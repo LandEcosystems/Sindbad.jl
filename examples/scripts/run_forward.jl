@@ -51,4 +51,4 @@ runTEM!(
 
 # Equivalent one-liner -- also writes the output cubes to `output_path`, which the steps
 # above do not do:
-# out_forward = runExperimentForward(experiment_json; replace_info=replace_info, log_level=:info);
+# out_forward = runExperimentForward(experiment_json; replace_info=replace_info, display_level=:info);

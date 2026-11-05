@@ -223,9 +223,14 @@ that is also set by the parameters input taken from that input.
 - The value is in the units of the run, like the table, and is clamped to the bounds of
   the optimization. The bounds and everything else come from the optimization settings.
 - The optimized value replaces the input values of the parameter at every location.
+- Parameters that vary in time are only supported in forward runs, so they stop the
+  optimization with an error.
 """
 function setInitialFromParameterInput(opti_table, applied_parameters)
     isnothing(applied_parameters) && return opti_table
+    if get(applied_parameters, :time_varying, false)
+        error("The parameters input has parameters that vary in time, which only forward runs support. Use a parameters input without time to optimize.")
+    end
     applied_table = applied_parameters.parameter_table
     both = inputParametersToOptimize(applied_table, opti_table)
     isempty(both) && return opti_table

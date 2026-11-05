@@ -27,8 +27,9 @@ function compute(params::gppVPD_PRELES, forcing, land, helpers)
     ## calculate variables
     fVPD_VPD = exp(-κ * f_VPD_day * (base_ambient_CO2 / ambient_CO2)^-c_κ)
     fCO2_CO2 = o_one + (ambient_CO2 - base_ambient_CO2) / (ambient_CO2 - base_ambient_CO2 + sat_ambient_CO2)
-    # gpp_f_vpd = clamp_zero_one(fVPD_VPD * fCO2_CO2)
-    gpp_f_vpd = fVPD_VPD * fCO2_CO2
+    # fCO2_CO2 is negative when ambient_CO2 < base_ambient_CO2 - sat_ambient_CO2 / 2.
+    # Not capped at 1, so CO2 above base_ambient_CO2 still enhances GPP.
+    gpp_f_vpd = at_least_zero(fVPD_VPD * fCO2_CO2)
 
     ## pack land variables
     @pack_nt fVPD_VPD ⇒ land.diagnostics

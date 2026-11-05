@@ -42,7 +42,7 @@ run_helpers = prepTEM(forcing, info);
 
 # @time output_default = runExperimentForward(experiment_json; replace_info=replace_info);
 # @time output_cost = runExperimentCost(experiment_json; replace_info=replace_info);
-@time out_opti = runExperimentOpti(experiment_json; replace_info=replace_info, log_level=:warn);
+@time out_opti = runExperimentOpti(experiment_json; replace_info=replace_info, display_level=:warn);
 
 # some plots
 plotTimeSeries(out_opti)

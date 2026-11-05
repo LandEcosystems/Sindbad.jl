@@ -20,7 +20,6 @@ function compute(params::drainage_wFC, forcing, land, helpers)
         soilW ⇐ land.pools
         ΔsoilW ⇐ land.pools
         z_zero ⇐ land.constants
-        tolerance ⇐ helpers.numbers
     end
 
     ## calculate drainage
@@ -29,7 +28,7 @@ function compute(params::drainage_wFC, forcing, land, helpers)
         lossCap = soilW[sl] + ΔsoilW[sl]
         drain_over = at_least_zero(soilW[sl] + ΔsoilW[sl] - w_fc[sl])
         drain = min(drain_over, holdCap, lossCap)
-        tmp = drain > tolerance ? drain : zero(drain)
+        tmp = at_least_zero(drain)
         @rep_elem tmp ⇒ (drainage, sl)
         @add_to_elem -tmp ⇒ (ΔsoilW, sl)
         @add_to_elem tmp ⇒ (ΔsoilW, sl + 1)

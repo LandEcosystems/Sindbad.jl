@@ -21,7 +21,6 @@ function compute(params::drainage_kUnsat, forcing, land, helpers)
         soilW ⇐ land.pools
         ΔsoilW ⇐ land.pools
         (z_zero, o_one) ⇐ land.constants
-        tolerance ⇐ helpers.numbers
     end
 
     ## calculate drainage
@@ -31,7 +30,7 @@ function compute(params::drainage_kUnsat, forcing, land, helpers)
         lossCap = min(soilW[sl] + ΔsoilW[sl], max_drain)
         k = unsatK(land, helpers, sl, unsat_k_model)
         drain = min(k, holdCap, lossCap)
-        tmp = drain > tolerance ? drain : zero(drain)
+        tmp = at_least_zero(drain)
         @rep_elem tmp ⇒ (drainage, sl)
         @add_to_elem -tmp ⇒ (ΔsoilW, sl)
         @add_to_elem tmp ⇒ (ΔsoilW, sl + 1)

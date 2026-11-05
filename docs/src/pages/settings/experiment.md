@@ -64,7 +64,9 @@ The `exe_rules` section defines model execution settings and performance configu
     "model_number_type": "Numeric type used in models",
     "parallelization": "Parallelization backend for spatial operations",
     "tolerance": "Numerical tolerance for error checking",
-    "yax_max_cache": "Cache size for YaxArray-based model runs"
+    "yax_max_cache": "Cache size in bytes for YaxArray-based model runs, or null to compute it from the threads and valid locations, so that the run needs at most 66% of the available memory",
+    "yax_block_grids": "Block of grids of a lazy run: \"auto\" (default) for whole chunks of the inputs with time, grown until its fullest block has 8 valid grids per thread or it fills the memory; [n_lat, n_lon] in the order of data_dimension.space for a fixed block; or \"optimizer\" for the block that DiskArrayEngine optimizes. A block without a valid grid, e.g. over ocean, is skipped and not read. The output chunks follow the block in space, split to at most 1 GiB",
+    "yax_shared_forcing": "true (default) to read every source of a lazy run once when forcing variables share it, e.g. f_airT and f_airT_day; false for one input per variable"
 }
 ```
 
@@ -77,7 +79,9 @@ The `exe_rules` section defines model execution settings and performance configu
     "model_number_type": "Float32",
     "parallelization": "threads",
     "tolerance": 1.0e-2,
-    "yax_max_cache": 2e9
+    "yax_max_cache": 2e9,
+    "yax_block_grids": "auto",
+    "yax_shared_forcing": true
 }
 ```
 :::
@@ -94,7 +98,7 @@ The `flags` section controls experiment execution modes and features. All fields
     "calc_cost": "Enable/disable cost calculation against observations",
     "catch_model_errors": "Stop execution on internal model errors",
     "debug_model": "Run single time step with diagnostics",
-    "filter_nan_pixels": "Remove NaN pixels from input arrays",
+    "filter_nan_pixels": "Skip pixels with an invalid forcing value at any time step (default: true)",
     "inline_update": "Update model state within time step",
     "run_forward": "Enable forward model run",
     "run_optimization": "Enable parameter calibration",
@@ -111,7 +115,7 @@ The `flags` section controls experiment execution modes and features. All fields
     "calc_cost": true,
     "catch_model_errors": false,
     "debug_model": false,
-    "filter_nan_pixels": false,
+    "filter_nan_pixels": true,
     "inline_update": false,
     "run_forward": true,
     "run_optimization": true,

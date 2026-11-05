@@ -259,7 +259,7 @@ replace_info = Dict(
 out_opti = runExperimentOpti(experiment_json; replace_info=replace_info)
 
 # Run with different logging level
-out_opti = runExperimentOpti(experiment_json; log_level=:debug)
+out_opti = runExperimentOpti(experiment_json; display_level=:debug)
 ```
 
 Returns a NamedTuple containing:
@@ -275,7 +275,7 @@ Returns a NamedTuple containing:
 Calculates cost between model output and observations.
 
 ```julia
-output_cost = runExperimentCost(experiment_json; replace_info=Dict(), log_level=:info)
+output_cost = runExperimentCost(experiment_json; replace_info=Dict(), display_level=:info)
 ```
 
 Returns a NamedTuple containing:
@@ -290,7 +290,7 @@ Returns a NamedTuple containing:
 Runs a forward simulation without optimization.
 
 ```julia
-output_forward = runExperimentForward(experiment_json; replace_info=Dict(), log_level=:info)
+output_forward = runExperimentForward(experiment_json; replace_info=Dict(), display_level=:info)
 ```
 
 Returns a NamedTuple containing:
@@ -303,7 +303,7 @@ Returns a NamedTuple containing:
 Runs forward simulation with specified parameters.
 
 ```julia
-output_params = runExperimentForwardParams(params_vector, experiment_json; replace_info=Dict(), log_level=:info)
+output_params = runExperimentForwardParams(params_vector, experiment_json; replace_info=Dict(), display_level=:info)
 ```
 
 Returns a NamedTuple containing:
@@ -316,7 +316,7 @@ Returns a NamedTuple containing:
 Runs forward simulation with all output variables saved.
 
 ```julia
-output_full = runExperimentFullOutput(experiment_json; replace_info=Dict(), log_level=:info)
+output_full = runExperimentFullOutput(experiment_json; replace_info=Dict(), display_level=:info)
 ```
 
 Returns a NamedTuple containing:
@@ -329,7 +329,7 @@ Returns a NamedTuple containing:
 Runs sensitivity analysis for a given experiment.
 
 ```julia
-output_sensitivity = runExperimentSensitivity(experiment_json; replace_info=Dict(), batch=true, log_level=:warn)
+output_sensitivity = runExperimentSensitivity(experiment_json; replace_info=Dict(), batch=true, display_level=:warn)
 ```
 
 Returns a NamedTuple containing:
@@ -344,4 +344,4 @@ Returns a NamedTuple containing:
 All experiment running functions accept these common parameters:
 - `experiment_json::String`: Path to the experiment configuration file
 - `replace_info::Dict`: Dictionary of configuration overrides
-- `log_level::Symbol`: Logging level (:info, :warn, :debug, etc.)
+- `display_level::Symbol`: Level of the log and of what `print_info` shows (:debug, :info, :warn, :error)

@@ -63,8 +63,8 @@ for setup in setups, mode in modes, kind in kinds
     @info "running" os_name setup mode kind
     row = try
         stats = @timed begin
-            kind == :forward ? runExperimentForward(experiment_json; replace_info=replace_info, log_level=:warn) :
-            runExperimentOpti(experiment_json; replace_info=replace_info, log_level=:warn)
+            kind == :forward ? runExperimentForward(experiment_json; replace_info=replace_info, display_level=:warn) :
+            runExperimentOpti(experiment_json; replace_info=replace_info, display_level=:warn)
         end
         gpp = kind == :forward ? stats.value.output.gpp : stats.value.output.optimized.gpp
         # total optimized cost (sum of loss_opt across all observational_constraints, matching

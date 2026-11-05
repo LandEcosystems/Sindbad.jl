@@ -3,7 +3,7 @@ export mapCleanData
 export cleanData
 export applyUnitConversion
 export applyQCBound
-export subsetAndProcessYax
+export subsetAndProcessCube
 export yaxCubeToKeyedArray
 export toDimStackArray
 export AllNaN
@@ -318,7 +318,7 @@ end
 
 
 """
-    subsetAndProcessYax(yax, forcing_mask, tar_dims, _data_info, info, ::Val{num_type}; clean_data=true, yax_qc=nothing, bounds_qc=nothing) where {num_type}
+    subsetAndProcessCube(yax, forcing_mask, tar_dims, _data_info, info, ::Val{num_type}; clean_data=true, yax_qc=nothing, bounds_qc=nothing) where {num_type}
 
 Subset and process YAX data according to specified parameters and quality control criteria.
 
@@ -342,7 +342,7 @@ Processed and subset YAX data according to specified parameters and quality cont
 # Type Parameters
 - `num_type`: Numerical type specification for the processed data
 """
-function subsetAndProcessYax(yax, forcing_mask, tar_dims, _data_info, info, ::Val{num_type}; clean_data=true, yax_qc=nothing, bounds_qc=nothing) where {num_type}
+function subsetAndProcessCube(yax, forcing_mask, tar_dims, _data_info, info, ::Val{num_type}; clean_data=true, yax_qc=nothing, bounds_qc=nothing) where {num_type}
     forcing_data_settings = info.experiment.data_settings.forcing
     if !isnothing(forcing_mask)
         yax = yax #todo: mask the forcing variables here depending on the mask of 1 and 0
@@ -353,12 +353,13 @@ function subsetAndProcessYax(yax, forcing_mask, tar_dims, _data_info, info, ::Va
         @debug "         -> permuting dimensions to $(tar_dims)..."
         yax = permutedims(yax, permutes)
     end
-    if hasproperty(yax, Symbol(forcing_data_settings.data_dimension.time))
+    time_name = Symbol(forcing_data_settings.data_dimension.time)
+    if hasproperty(yax, time_name)
         init_date = DateTime(info.helpers.dates.date_begin)
         # date_end covers its whole timestep, so data stamped within the last period
         # such as a daily value at 11:00 UTC is kept and matches the dates range.
         last_date = DateTime(info.helpers.dates.date_end) + info.helpers.dates.timestep - Millisecond(1)
-        yax = yax[time=(init_date .. last_date)]
+        yax = getindex(yax; (time_name => init_date .. last_date,)...)
     end
 
     if hasproperty(forcing_data_settings, :subset)

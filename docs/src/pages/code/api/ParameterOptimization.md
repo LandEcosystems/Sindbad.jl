@@ -402,7 +402,7 @@ function optimizeTEM(forcing::NamedTuple, observations, info::NamedTuple)
     return opti_helpers.parameter_table
 end
 
-function optimizeTEMYax(forcing::NamedTuple, observations::NamedTuple, info; max_cache=1e9)
+function optimizeTEMLazy(forcing::NamedTuple, observations::NamedTuple, info; max_cache=1e9)
     incubes = (forcing.data..., observations.data...)
     indims = (forcing.dims..., observations.dims...)
     forcing_vars = collect(forcing.variables)
@@ -410,7 +410,7 @@ function optimizeTEMYax(forcing::NamedTuple, observations::NamedTuple, info; max
     out = output.land_init
     obs_vars = collect(observations.variables)
 
-    params = mapCube(optimizeYax, (incubes...,); out=out, info=info, forcing_vars=forcing_vars, obs_vars=obs_vars, indims=indims, outdims=outdims, max_cache=max_cache)
+    params = mapCube(optimizeLazy, (incubes...,); out=out, info=info, forcing_vars=forcing_vars, obs_vars=obs_vars, indims=indims, outdims=outdims, max_cache=max_cache)
     return params
 end
 ```
@@ -420,15 +420,15 @@ end
 
 ----
 
-### optimizeTEMYax
+### optimizeTEMLazy
 ```@docs
-optimizeTEMYax
+optimizeTEMLazy
 ```
 
 :::details Code
 
 ```julia
-function optimizeTEMYax(forcing::NamedTuple, observations::NamedTuple, info; max_cache=1e9)
+function optimizeTEMLazy(forcing::NamedTuple, observations::NamedTuple, info; max_cache=1e9)
     incubes = (forcing.data..., observations.data...)
     indims = (forcing.dims..., observations.dims...)
     forcing_vars = collect(forcing.variables)
@@ -436,7 +436,7 @@ function optimizeTEMYax(forcing::NamedTuple, observations::NamedTuple, info; max
     out = output.land_init
     obs_vars = collect(observations.variables)
 
-    params = mapCube(optimizeYax, (incubes...,); out=out, info=info, forcing_vars=forcing_vars, obs_vars=obs_vars, indims=indims, outdims=outdims, max_cache=max_cache)
+    params = mapCube(optimizeLazy, (incubes...,); out=out, info=info, forcing_vars=forcing_vars, obs_vars=obs_vars, indims=indims, outdims=outdims, max_cache=max_cache)
     return params
 end
 ```

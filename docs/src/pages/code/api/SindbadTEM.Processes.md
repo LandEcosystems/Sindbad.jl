@@ -270,6 +270,20 @@ WUE
 
 ::::tabs
 
+== WUE_Farquhar1980
+```@docs
+WUE_Farquhar1980
+```
+
+**Calculated using:**
+
+```julia
+Inputs: :forcing => :f_VPD_day, :states => :ambient_CO2
+Outputs: :diagnostics => :WUENoCO2, :diagnostics => :WUE
+```
+
+[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/WUE/WUE_Farquhar1980.jl)
+
 == WUE_Medlyn2011
 ```@docs
 WUE_Medlyn2011
@@ -3157,7 +3171,7 @@ gppSoilW_Horn
 **Calculated using:**
 
 ```julia
-Inputs: :properties => :∑w_fc, :properties => :∑w_wp, :pools => :soilW, :diagnostics => :Wf_prev
+Inputs: :properties => :w_awc, :properties => :w_wp, :rootWaterEfficiency => :rooted_fraction, :pools => :soilW, :pools => :ΔsoilW, :diagnostics => :Wf_prev
 Outputs: :diagnostics => :gpp_f_soilW, :diagnostics => :Wf_prev
 ```
 
@@ -3213,6 +3227,20 @@ gppVPD
 :::::details gppVPD approaches
 
 ::::tabs
+
+== gppVPD_Farquhar1980
+```@docs
+gppVPD_Farquhar1980
+```
+
+**Calculated using:**
+
+```julia
+Inputs: :forcing => :f_airT_day, :forcing => :f_VPD_day, :states => :ambient_CO2, :constants => :t_two, :constants => :t_three, :gppVPD => :T_25, :gppVPD => :T_0
+Outputs: :diagnostics => :gpp_f_co2, :diagnostics => :gpp_f_vpd
+```
+
+[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/gppVPD/gppVPD_Farquhar1980.jl)
 
 == gppVPD_MOD17
 ```@docs
@@ -3719,7 +3747,7 @@ rootWaterEfficiency_expCvegRoot
 **Calculated using:**
 
 ```julia
-Inputs: :rootWaterEfficiency => :root_over, :diagnostics => :root_water_efficiency, :pools => :cEco, :pools => :soilW
+Inputs: :rootWaterEfficiency => :rooted_fraction, :diagnostics => :root_water_efficiency, :pools => :cEco, :pools => :soilW
 Outputs: :diagnostics => :root_water_efficiency
 ```
 

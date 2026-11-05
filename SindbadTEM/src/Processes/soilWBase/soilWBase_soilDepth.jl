@@ -9,6 +9,7 @@ function define(params::soilWBase_soilDepth, forcing, land, helpers)
     end
 
     # instatiate variables
+    layer_depth_fraction = zero(soilW)
     soil_layer_thickness = zero(soilW)
     w_fc = zero(soilW)
     w_wp = zero(soilW)
@@ -38,7 +39,7 @@ function define(params::soilWBase_soilDepth, forcing, land, helpers)
     idx_soilW_end = lastindex(soilW)
 
     @pack_nt begin
-        (idx_soilW_end, soil_depth) ⇒ land.properties
+        (idx_soilW_end, soil_depth, layer_depth_fraction) ⇒ land.properties
         (cumulative_soil_depths, k_fc, k_sat, k_wp, soil_layer_thickness, w_awc, w_fc, w_sat, w_wp, ∑w_awc, ∑w_fc, ∑w_sat, ∑w_wp, soil_α, soil_β, θ_fc, θ_sat, θ_wp, ψ_fc, ψ_sat, ψ_wp) ⇒ land.properties
     end
     return land
@@ -50,7 +51,7 @@ function precompute(params::soilWBase_soilDepth, forcing, land, helpers)
         f_soil_depth ⇐ forcing
         (sp_k_fc, sp_k_sat, sp_k_wp, sp_α, sp_β, sp_θ_fc, sp_θ_sat, sp_θ_wp, sp_ψ_fc, sp_ψ_sat, sp_ψ_wp) ⇐ land.properties
         (k_fc, k_sat, k_wp, soil_layer_thickness, w_awc, w_fc, w_sat, w_wp, ∑w_awc, ∑w_fc, ∑w_sat, ∑w_wp, soil_α, soil_β, θ_fc, θ_sat, θ_wp, ψ_fc, ψ_sat, ψ_wp) ⇐ land.properties
-        idx_soilW_end ⇐ land.properties
+        (idx_soilW_end, layer_depth_fraction) ⇐ land.properties
         soilW ⇐ land.pools
         soil_depths = soilW ⇐ helpers.pools.layer_thickness
     end
@@ -75,9 +76,12 @@ function precompute(params::soilWBase_soilDepth, forcing, land, helpers)
         # thickness of the layer within the soil depth. layers fully above the
         # soil depth keep their thickness, the layer holding it is cut at the
         # depth, and layers below it get zero thickness.
-        sd_sl = clamp(soil_depth - layer_top, z_zero_sd, convert(typeof(soil_depth), soil_depths[sl]))
-        layer_top = layer_top + convert(typeof(soil_depth), soil_depths[sl])
-        is_active = sd_sl > z_zero_sd
+        layer_sl = convert(typeof(soil_depth), soil_depths[sl])
+        sd_sl = clamp(soil_depth - layer_top, z_zero_sd, layer_sl)
+        layer_top = layer_top + layer_sl
+        layer_depth_fraction_sl = sd_sl / layer_sl
+        @rep_elem layer_depth_fraction_sl ⇒ (layer_depth_fraction, sl)
+        is_active = layer_depth_fraction_sl > z_zero_sd
         if is_active
             idx_soilW_end = sl
         end
@@ -127,7 +131,7 @@ function precompute(params::soilWBase_soilDepth, forcing, land, helpers)
     ∑w_awc = sum(w_awc)
 
     @pack_nt begin
-        (idx_soilW_end, soil_depth) ⇒ land.properties
+        (idx_soilW_end, soil_depth, layer_depth_fraction) ⇒ land.properties
         (cumulative_soil_depths, k_fc, k_sat, k_wp, soil_layer_thickness, w_awc, w_fc, w_sat, w_wp, ∑w_awc, ∑w_fc, ∑w_sat, ∑w_wp, soil_α, soil_β, θ_fc, θ_sat, θ_wp, ψ_fc, ψ_sat, ψ_wp) ⇒ land.properties
         soilW ⇒ land.pools
     end
@@ -152,6 +156,12 @@ that thickness. Layers below the soil depth get zero thickness, storage capacity
 and conductivity, and their initial water is removed. The number of layers stays
 the same for all locations.
 
+The fraction of each layer within the soil depth is saved as layer_depth_fraction.
+It is one for layers above the soil depth, between zero and one for the layer that
+holds it, and zero for layers below it. The thickness and storage capacities of a
+layer scale with it. The properties per volume of soil, θ, ψ, soil_α and soil_β,
+do not, and the conductivities are only set to zero where it is zero.
+
 The index of the deepest layer with non-zero thickness is saved as
 idx_soilW_end. Drainage, capillary flow and the exchange with groundwater use
 it as the bottom of the soil column.
@@ -171,6 +181,8 @@ thickness, and a message is shown once.
  - 1.2 on 18.10.2026 [skoirala]: use the first layer for an invalid soil depth
    and all layers for a soil depth deeper than the soil column instead of
    throwing an error
+ - 1.3 on 02.11.2026 [skoirala]: save the fraction of each layer within the soil
+   depth as `layer_depth_fraction`
 
 *Created by*
  - skoirala | @dr-ko

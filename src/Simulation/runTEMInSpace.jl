@@ -9,7 +9,9 @@ Executes the core SINDBAD Terrestrial Ecosystem Model (TEM) for a single locatio
 
 
 # Arguments:
-- `selected_models`: A tuple of all models selected in the given model structure.
+- `selected_models`: A tuple of all models selected in the given model structure, or
+  a `TimeVaryingModels` when parameters vary in time. Precompute and spinup then use
+  the parameters of the first time step, and `timeLoopTEM!` updates them.
 - `loc_forcing`: A forcing NamedTuple containing the time series of environmental drivers for a single location.
 - `loc_spinup`: A NamedTuple with the spinup `sequence` of the location and the `forcing` derived from it, used to initialize the model to a steady state (only used if spinup is enabled).
 - `loc_forcing_t`: A forcing NamedTuple for a single location and a single time step.
@@ -33,11 +35,14 @@ end
 function coreTEM!(selected_models, loc_forcing, loc_spinup, loc_forcing_t, loc_output, loc_restart, loc_land, tem_info)
     # update the loc_forcing with the actual location
     loc_forcing_t = getForcingForTimeStep(loc_forcing, loc_forcing_t, 1, tem_info.vals.forcing_types)
+    # precompute and spinup use the parameters of the first time step when they vary
+    # in time, and the time loop updates them
+    loc_models = initialModels(selected_models)
     # run precompute
-    land_prec = precomputeTEM(selected_models, loc_forcing_t, loc_land, tem_info.model_helpers) 
+    land_prec = precomputeTEM(loc_models, loc_forcing_t, loc_land, tem_info.model_helpers)
     # run spinup, which stores the pools for the restart file after the spinup step with
     # `save_restart`
-    land_spin = spinupTEM(selected_models, loc_spinup, loc_forcing_t, land_prec, tem_info, tem_info.run.spinup_TEM, loc_restart)
+    land_spin = spinupTEM(loc_models, loc_spinup, loc_forcing_t, land_prec, tem_info, tem_info.run.spinup_TEM, loc_restart)
 
     timeLoopTEM!(selected_models, loc_forcing, loc_forcing_t, loc_output, land_spin, tem_info.vals.forcing_types, tem_info.model_helpers, tem_info.vals.output_vars, tem_info.n_timesteps, tem_info.run.debug_model)
     return nothing
@@ -60,6 +65,8 @@ Parallelizes the SINDBAD Terrestrial Ecosystem Model (TEM) across multiple locat
 - `parallelization_mode`: A type dispatch that determines the parallelization backend to use:
     - `ThreadsParallelization`: Uses Julia's `Threads.@threads` for parallel execution.
     - `QbmapParallelization`: Uses `qbmap` for parallel execution.
+    - `PmapParallelization`: Not supported, since the arrays of this run are not shared
+      between processes. It only runs a lazy run, see `getBlockRunner`.
 - `show_progress`: keyword to show a progress bar that advances when a location is
   done, `false` by default
 
@@ -107,6 +114,10 @@ function parallelizeTEM!(space_selected_models::Vector, space_forcing, space_spi
     end
     finish!(progress)
     return nothing
+end
+
+function parallelizeTEM!(space_selected_models::Vector, space_forcing, space_spinup, loc_forcing_t, space_output, space_restart, space_land, tem_info, ::PmapParallelization; show_progress=false)
+    error("parallelization `pmap` only runs a lazy run, set `experiment.flags.run_lazy` to true or use `threads`")
 end
 
 """
@@ -259,6 +270,33 @@ function timeLoopTEM!(selected_models, loc_forcing, loc_forcing_t, loc_output, l
         land = computeTEM(selected_models, f_ts, land, model_helpers)
         setOutputForTimeStep!(loc_output, land, ts, output_vars)
     end
+end
+
+# The parameters vary in time. The models start with the values of the first time
+# step, which precompute and spinup used, and are updated when the values change.
+# Precompute runs again then, since some parameters act only there, while define never
+# runs again so that the pools and the memories of the models carry over.
+function timeLoopTEM!(tv_models::TimeVaryingModels, loc_forcing, loc_forcing_t, loc_output, land, forcing_types, model_helpers, output_vars, n_timesteps, ::DoNotDebugModel)
+    selected_models = tv_models.models
+    f_ts = getForcingForTimeStep(loc_forcing, loc_forcing_t, 1, forcing_types)
+    change_key = getParameterChangeKey(tv_models, f_ts, 1)
+    for ts ∈ 1:n_timesteps
+        f_ts = getForcingForTimeStep(loc_forcing, loc_forcing_t, ts, forcing_types)
+        ts_key = getParameterChangeKey(tv_models, f_ts, ts)
+        if !isequal(ts_key, change_key)
+            p_ts = getParametersForTimeStep(tv_models.parameters, ts, tv_models.parameter_types)
+            selected_models = setTypedParameters(selected_models, tv_models.parameter_indices, p_ts)
+            land = precomputeTEM(selected_models, f_ts, land, model_helpers)
+            change_key = ts_key
+        end
+        land = computeTEM(selected_models, f_ts, land, model_helpers)
+        setOutputForTimeStep!(loc_output, land, ts, output_vars)
+    end
+end
+
+# the debug run is a single time step, which uses the parameters of the first one
+function timeLoopTEM!(tv_models::TimeVaryingModels, loc_forcing, loc_forcing_t, loc_output, land, forcing_types, model_helpers, output_vars, n_timesteps, debug_mode::DoDebugModel)
+    return timeLoopTEM!(tv_models.models, loc_forcing, loc_forcing_t, loc_output, land, forcing_types, model_helpers, output_vars, n_timesteps, debug_mode)
 end
 
 

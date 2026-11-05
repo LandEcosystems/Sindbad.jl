@@ -111,7 +111,7 @@ end
 
 
 """
-    writeParameterInputJson(json_path, data_path, variable_attributes)
+    writeParameterInputJson(json_path, data_path, variable_attributes; space_dimensions=nothing)
 
 Writes the `params.json` of a parameter file, which can be given as the `parameters`
 config file of another experiment.
@@ -121,11 +121,19 @@ config file of another experiment.
 - `data_path`: the absolute path of the parameter file
 - `variable_attributes`: an ordered collection of variable name and attribute pairs,
   e.g., from `parameterVariableAttributes`
+- `space_dimensions`: the names of the spatial dimensions of the parameter file, e.g.,
+  the `data_dimension.space` of the experiment that wrote it, or `nothing`
 
 # Returns:
 - `json_path`
+
+# Notes:
+- `default_parameter_map` gets the `space` of `dimension` when `space_dimensions` is
+  given, and always the `space` of `interpolation_method` as `nearest`, so the json
+  shows how another experiment reads the file, see `putOnForcingGrid`. The file is
+  `spatial`, so no time settings are written.
 """
-function writeParameterInputJson(json_path, data_path, variable_attributes)
+function writeParameterInputJson(json_path, data_path, variable_attributes; space_dimensions=nothing)
     variables = DataStructures.OrderedDict{String,Any}()
     for (variable_name, attributes) ∈ variable_attributes
         entry = DataStructures.OrderedDict{String,Any}()
@@ -134,6 +142,10 @@ function writeParameterInputJson(json_path, data_path, variable_attributes)
         variables[string(variable_name)] = entry
     end
     default_map = DataStructures.OrderedDict{String,Any}("data_path" => data_path, "space_time_type" => "spatial")
+    if !isnothing(space_dimensions)
+        default_map["dimension"] = DataStructures.OrderedDict{String,Any}("space" => string.(collect(space_dimensions)))
+    end
+    default_map["interpolation_method"] = DataStructures.OrderedDict{String,Any}("space" => "nearest")
     parameter_input = DataStructures.OrderedDict{String,Any}("default_parameter_map" => default_map, "variables" => variables)
     open(json_path, "w") do io
         write(io, json(parameter_input; pretty=true))
