@@ -270,6 +270,20 @@ WUE
 
 ::::tabs
 
+== WUE_Farquhar1980
+```@docs
+WUE_Farquhar1980
+```
+
+**Calculated using:**
+
+```julia
+Inputs: :forcing => :f_VPD_day, :states => :ambient_CO2
+Outputs: :diagnostics => :WUENoCO2, :diagnostics => :WUE
+```
+
+[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/WUE/WUE_Farquhar1980.jl)
+
 == WUE_Medlyn2011
 ```@docs
 WUE_Medlyn2011
@@ -331,20 +345,6 @@ Outputs: :diagnostics => :WUENoCO2, :diagnostics => :WUE
 ```
 
 [View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/WUE/WUE_expVPDDayCo2.jl)
-
-== WUE_expVPDDayCo2Linear
-```@docs
-WUE_expVPDDayCo2Linear
-```
-
-**Calculated using:**
-
-```julia
-Inputs: :forcing => :f_VPD_day, :states => :ambient_CO2
-Outputs: :diagnostics => :WUENoCO2, :diagnostics => :WUE
-```
-
-[View Source](https://github.com/LandEcosystems/Sindbad.jl/blob/main/SindbadTEM/src/Processes/WUE/WUE_expVPDDayCo2Linear.jl)
 
 
 ::::
