@@ -714,7 +714,7 @@ function resampleForcingCubes(incubes, vinfos, forcing_data_settings, ::Val{num_
     end
     cubes = (; incubes...)
     data_dimension = forcing_data_settings.data_dimension
-    space_target = isnothing(space_variable) ? nothing : getTargetVariableDims(cubes, space_variable, toSymbolVector(data_dimension.space))
+    space_target = isnothing(space_variable) ? nothing : getTargetVariableDims(cubes, space_variable, getDimsVector(data_dimension.space))
     time_target = isnothing(time_variable) ? nothing : getTargetVariableDims(cubes, time_variable, [Symbol(data_dimension.time)])
     space_note = isnothing(space_variable) ? "switched off" : "`$(space_variable)`"
     time_note = isnothing(time_variable) ? "switched off" : "`$(time_variable)`"

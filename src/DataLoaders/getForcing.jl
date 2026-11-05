@@ -156,13 +156,13 @@ function collectTypesTiDim(incube::YAXArrays.YAXArray, time_dim_name::Symbol)
 end
 
 """
-    toSymbolVector(dim_names)
+    getDimsVector(dim_names)
 
 Returns the dimension names as a vector of Symbols. A single name such as `"site"` is
 wrapped into a one element vector.
 """
-toSymbolVector(dim_names::Union{AbstractString,Symbol}) = [Symbol(dim_names)]
-toSymbolVector(dim_names) = Symbol.(collect(dim_names))
+getDimsVector(dim_names::Union{AbstractString,Symbol}) = [Symbol(dim_names)]
+getDimsVector(dim_names) = Symbol.(collect(dim_names))
 
 """
     mergeForcingGroup(group_fallback, group_name, setting_sources...)
@@ -255,8 +255,8 @@ names `canonical_space` in the same order, as `old => new` pairs. A dimension th
 `yax` lacks or that already has its canonical name is skipped.
 """
 function getSpaceDimRenames(yax, var_space, canonical_space)
-    canonical_space = toSymbolVector(canonical_space)
-    var_space = toSymbolVector(var_space)
+    canonical_space = getDimsVector(canonical_space)
+    var_space = getDimsVector(var_space)
     if length(var_space) != length(canonical_space)
         error("the space dimensions $(var_space) of a variable do not match the number of space dimensions in data_dimension.space $(canonical_space).")
     end

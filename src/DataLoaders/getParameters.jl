@@ -287,7 +287,7 @@ function resolveParameterVariable(var_name, var_source, parameter_input, attribu
     time_method = firstSetValue(:time, "Previous", getSettingValue(var_settings, :interpolation_method), getSettingValue(default_map, :interpolation_method))
     getInterpolationMethod(time_method, :time)
     forcing_space = info.experiment.data_settings.forcing.data_dimension.space
-    space_dimensions = Tuple(toSymbolVector(firstSetValue(:space, forcing_space, getSettingValue(var_settings, :dimension), getSettingValue(default_map, :dimension))))
+    space_dimensions = Tuple(getDimsVector(firstSetValue(:space, forcing_space, getSettingValue(var_settings, :dimension), getSettingValue(default_map, :dimension))))
     space_method = firstSetValue(:space, "nearest", getSettingValue(var_settings, :interpolation_method), getSettingValue(default_map, :interpolation_method))
     getInterpolationMethod(space_method, :space)
 
