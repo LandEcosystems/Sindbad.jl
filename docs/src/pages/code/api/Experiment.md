@@ -117,11 +117,10 @@ function runExperimentForward(sindbad_experiment::String; replace_info=Dict(), l
     info, forcing = prepExperiment(sindbad_experiment; replace_info=replace_info)
     run_output = runExperiment(info, forcing, info.helpers.run.run_forward)
     output_dims = getOutDims(info, forcing.helpers)
-    saved_output, lazy_store = lazyRun(info, run_output, info.helpers.run.run_lazy)
-    get(saved_output, :output_saved, false) || saveOutCubes(info, values(saved_output.output), output_dims, info.output.variables)
-    saveRestartCubes(info, saved_output.restart)
+    run_output.output_saved || saveOutCubes(info, values(run_output.output), output_dims, info.output.variables)
+    saveRestartCubes(info, run_output.restart)
     saveSpinupCubes(info, run_output.spinup)
-    removeLazyStore(lazy_store)
+    removeLazyStore(run_output.lazy_store)
     # the figures need the forcing and output in memory, which a lazy run does not
     # have
     info.helpers.run.run_lazy isa DoRunLazy || plotForwardRun(info, forcing, run_output.output, run_output.spinup)
@@ -281,11 +280,10 @@ function runExperimentForward(sindbad_experiment::String; replace_info=Dict(), l
     info, forcing = prepExperiment(sindbad_experiment; replace_info=replace_info)
     run_output = runExperiment(info, forcing, info.helpers.run.run_forward)
     output_dims = getOutDims(info, forcing.helpers)
-    saved_output, lazy_store = lazyRun(info, run_output, info.helpers.run.run_lazy)
-    get(saved_output, :output_saved, false) || saveOutCubes(info, values(saved_output.output), output_dims, info.output.variables)
-    saveRestartCubes(info, saved_output.restart)
+    run_output.output_saved || saveOutCubes(info, values(run_output.output), output_dims, info.output.variables)
+    saveRestartCubes(info, run_output.restart)
     saveSpinupCubes(info, run_output.spinup)
-    removeLazyStore(lazy_store)
+    removeLazyStore(run_output.lazy_store)
     # the figures need the forcing and output in memory, which a lazy run does not
     # have
     info.helpers.run.run_lazy isa DoRunLazy || plotForwardRun(info, forcing, run_output.output, run_output.spinup)
