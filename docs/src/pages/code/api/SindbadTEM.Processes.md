@@ -3236,7 +3236,7 @@ gppVPD_Farquhar1980
 **Calculated using:**
 
 ```julia
-Inputs: :forcing => :f_airT_day, :forcing => :f_VPD_day, :states => :ambient_CO2, :constants => :t_two
+Inputs: :forcing => :f_airT_day, :forcing => :f_VPD_day, :states => :ambient_CO2, :constants => :t_two, :constants => :t_three, :gppVPD => :T_25, :gppVPD => :T_0
 Outputs: :diagnostics => :gpp_f_co2, :diagnostics => :gpp_f_vpd
 ```
 

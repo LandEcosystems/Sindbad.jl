@@ -994,6 +994,20 @@ sindbad_tem_variables = orD{Symbol,orD{Symbol,String}}(
         :land_field => "gppDiffRadiation",
         :description => "minimum of cloudiness index until the time step from the beginning of simulation (including spinup)"
     ),
+    :gppVPD__T_0 => orD(
+        :standard_name => "T_0",
+        :long_name => "zero_celsius_in_kelvin",
+        :units => "K",
+        :land_field => "gppVPD",
+        :description => "0 °C in K, to convert the air temperature for the CO2 compensation point"
+    ),
+    :gppVPD__T_25 => orD(
+        :standard_name => "T_25",
+        :long_name => "reference_temperature_of_CO2_compensation_point",
+        :units => "K",
+        :land_field => "gppVPD",
+        :description => "25 °C in K, the reference temperature of the CO2 compensation point Γ_star_25"
+    ),
     :models__c_model => orD(
         :standard_name => "c_model",
         :long_name => "base_carbon_model",
