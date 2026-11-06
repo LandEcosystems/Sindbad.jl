@@ -57,7 +57,7 @@ module MachineLearning
     using ..Types
     using ..DataLoaders: AllNaN
     using ..DataLoaders: yaxCubeToKeyedArray, Cube, At
-    using ..Setup: updateModels, getParameterIndices
+    using ..Setup: updateModels, updateModelParameters, getParameterIndices, prepGradientParameterUpdater
     using ..Simulation: coreTEM!, prepTEM
     using ..DataLoaders: prepCostOptions
     using ..ParameterOptimization: metricVector, combineMetric
