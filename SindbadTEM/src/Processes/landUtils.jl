@@ -84,12 +84,13 @@ julia> addToElem(v, 5.0, 2)
 """
 function addToElem end
 
-function addToElem(v::SVector{N}, Δv, ind::Int) where {N}
+function addToElem(v::SVector{N,T}, Δv, ind::Int) where {N,T}
     # Same NaN/Inf-safe per-element selection as repElem: pick each position
     # instead of masking v with a zero/one vector, since `0 * Inf` and `0 * NaN`
     # are themselves NaN. N is static, so this unrolls to plain scalar selects
     # with no heap allocation.
-    return SVector(ntuple(i -> i == ind ? v[i] + Δv : v[i], Val(N)))
+    S = promote_type(T, typeof(Δv))
+    return SVector{N,S}(ntuple(i -> i == ind ? convert(S, v[i] + Δv) : convert(S, v[i]), Val(N)))
 end
 
 function addToElem(v::AbstractVector, Δv, ind::Int)
@@ -704,13 +705,14 @@ function repElem(v::AbstractVector, v_elem, ind::Int)
     return v
 end
 
-function repElem(v::SVector{N}, v_elem, ind::Int) where {N}
+function repElem(v::SVector{N,T}, v_elem, ind::Int) where {N,T}
     # Written as a per-element tuple selection (rather than a zero/one mask
     # multiplied into v) because that arithmetic is not exact when v holds NaN or
     # Inf: `0 * Inf` and `0 * NaN` are themselves NaN, so the mask poisons every
     # position of v, not just the one being replaced. N is static, so this unrolls
     # to plain scalar selects with no heap allocation.
-    return SVector(ntuple(i -> i == ind ? v_elem : v[i], Val(N)))
+    S = promote_type(T, typeof(v_elem))
+    return SVector{N,S}(ntuple(i -> i == ind ? convert(S, v_elem) : convert(S, v[i]), Val(N)))
 end
 
 """

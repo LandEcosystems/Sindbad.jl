@@ -347,6 +347,7 @@ const OPTIONAL_CONFIG_KEYS = (
     "experiment.flags.run_lazy",
     "experiment.model_output.plot_resolution",
     "experiment.basics.config_files.parameters",
+    "experiment.basics.config_files.hybrid",
     "model_structure.sindbad_models",
 )
 
