@@ -141,7 +141,7 @@ function metricVector(model_output, observations, cost_options)
     loss_vector = map(cost_options) do cost_option
         lossMetric = cost_option.cost_metric
         (y, yσ, ŷ) = getData(model_output, observations, cost_option)
-        (y, yσ, ŷ) = getDataWithoutNaN(y, yσ, ŷ, cost_option.valids)
+        (y, yσ, ŷ) = getDataWithoutNaN(y, yσ, ŷ, cost_option.valid_indices)
         # (y, yσ, ŷ) = getDataWithoutNaN(y, yσ, ŷ, cost_option.valids)
         metr = metric(lossMetric, ŷ, y, yσ) * cost_option.cost_weight
         if isnan(metr)
