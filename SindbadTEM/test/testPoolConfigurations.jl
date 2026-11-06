@@ -10,7 +10,6 @@
     P = SindbadTEM.Processes
     edge_counts = Dict(
         P.cCycleBase_GSI => 11,
-        P.cCycleBase_GSI_PlantForm => 11,
         P.cCycleBase_MGMT  => 11,
         P.cCycleBase_CASA => 22,
     )
@@ -106,7 +105,6 @@ end
     P = SindbadTEM.Processes
     edge_counts = Dict(
         P.cCycleBase_GSI => 11,
-        P.cCycleBase_GSI_PlantForm => 11,
         P.cCycleBase_MGMT  => 11,
         P.cCycleBase_CASA => 22,
     )
@@ -232,12 +230,16 @@ end
         return land, helpers, pool_names, givers, takers, n_flows
     end
 
-    # which flow positions this approach moves away from the neutral one
+    # which flow positions this approach moves away from the neutral value that its define
+    # sets. Comparing with define, rather than with a fixed value, keeps the check right
+    # whether the factors combine by product, with 1 as neutral, or by sum, with 0.
     function ownedFlows(approach_instance, diagnostic, land, helpers)
         l = P.define(approach_instance, nothing, land, helpers)
+        # copied, since precompute writes into a plain vector in place
+        neutral = copy(getproperty(l.diagnostics, diagnostic))
         l = P.precompute(approach_instance, nothing, l, helpers)
         factor = getproperty(l.diagnostics, diagnostic)
-        return Set(findall(!=(1.0), factor))
+        return Set(findall(factor .!= neutral))
     end
 
     groups = ((P.cMicrobialEfficiencycLit_constant(), :c_flow_ME_f_cLit, :cLit),
@@ -326,7 +328,9 @@ end
     # every CASA_TAU_NON_VEG_POOLS/CASA_CN_ratio entry) and the three branch groups
     # meCASAFlowsLitter/meCASAFlowsSoil match against (cLitLeaf, cLitRootFine, cSoil)
     zixOf(prefix) = Tuple(findall(nm -> startswith(String(nm), prefix), pool_names))
-    group_names = (pool_names..., :cLitLeaf, :cLitRootFine, :cSoil)
+    # plus the groups that cCycleBaseZixGroups reads in define. CASA has no product
+    # pools, so cProducts is empty.
+    group_names = (pool_names..., :cLitLeaf, :cLitRootFine, :cVeg, :cLit, :cMic, :cSoil, :cProducts)
     zix = NamedTuple{Tuple(group_names)}(Tuple(zixOf(String(nm)) for nm in group_names))
     helpers = (; pools = (; zix = zix, components = (; cEco = pool_names),
                             zeros = (; cEco = zeros(n_pools)), ones = (; cEco = ones(n_pools))))
@@ -355,14 +359,16 @@ end
     end
 
     # the two texture-driven edges are not seeded here: no cMicrobialEfficiency approach
-    # was run, so they keep the neutral default cFlowStructure allocated.
-    @test valueAt(:cMicSoil_to_cSoilSlow) == 1.0
-    @test valueAt(:cMicSoil_to_cSoilOld) == 1.0
+    # was run, so they keep the neutral default cFlowStructure allocated. The factors
+    # are combined by sum, so the neutral value is 0.
+    @test valueAt(:cMicSoil_to_cSoilSlow) == 0.0
+    @test valueAt(:cMicSoil_to_cSoilOld) == 0.0
 
-    # vegetation-to-litter transfers are litterfall, not decomposition, and stay neutral
+    # vegetation-to-litter transfers are litterfall, not decomposition, and stay at the
+    # neutral 0
     for edge in (:cVegRootFine_to_cLitRootFineFast, :cVegRootFine_to_cLitRootFineSlow,
                  :cVegRootCoarse_to_cLitRootCoarse, :cVegWood_to_cLitWood,
                  :cVegLeaf_to_cLitLeafFast, :cVegLeaf_to_cLitLeafSlow)
-        @test valueAt(edge) == 1.0
+        @test valueAt(edge) == 0.0
     end
 end
