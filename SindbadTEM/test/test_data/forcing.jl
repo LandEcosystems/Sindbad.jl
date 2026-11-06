@@ -2,7 +2,6 @@
 # Regenerate with: julia --project=. tools/benchmark/TestSindbadTEM/derive_sindbadTEM_test_data.jl
 
 using SindbadTEM
-using StaticArrays: SVector
 using Dates
 
 tmp_forcing = (;
@@ -10,6 +9,10 @@ tmp_forcing = (;
     f_clay = Float32[0.23; 0.2; 0.22; 0.25; 0.27; 0.28; 0.28;;],
     f_dist_intensity = 0.0f0,
     f_burnt_area = 0.0f0,
+    f_crop_harvest_efficiency = 0.0f0,
+    f_crop_harvest_intensity = 0.0f0,
+    f_is_crop_harvested = 0.0f0,
+    f_is_wood_harvested = 0.0f0,
     f_tree_frac = 0.0f0,
     f_frac_vegetation = 1.0f0,
     f_pft = 5.0f0,
@@ -25,6 +28,8 @@ tmp_forcing = (;
     f_airT_day = 21.237083f0,
     f_VPD = 0.8669716f0,
     f_VPD_day = 1.1897867f0,
+    f_wood_harvest_efficiency = 0.0f0,
+    f_wood_harvest_intensity = 0.0f0,
     f_EVI = 0.98906744f0,
     f_LAI = 1.0023049f0,
     f_NDVI = 0.98906744f0,
@@ -37,6 +42,7 @@ tmp_forcing = (;
     f_psurf_day = 110.0f0,
     f_AWC = 25.0f0,
     f_RDmax = 50.0f0,
+    f_soil_depth = 500.0f0,
     f_RDeff = 40.0f0,
     f_SWCmax = 55.0f0,
     f_frac_frozen_soil = 0.0f0

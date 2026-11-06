@@ -18,7 +18,7 @@ function update(params::groundWSurfaceWInteraction, forcing, land, helpers)
     ## unpack variables
     @unpack_nt begin
         (surfaceW, groundW) ⇐ land.pools
-        (ΔsurfaceW, ΔgroundW) ⇐ land.states
+        (ΔsurfaceW, ΔgroundW) ⇐ land.pools
     end
 
     ## update storage pools
@@ -26,10 +26,10 @@ function update(params::groundWSurfaceWInteraction, forcing, land, helpers)
     surfaceW = addVec(surfaceW, ΔsurfaceW)
 
     for l in eachindex(ΔgroundW)
-        @rep_elem zero(eltype(ΔgroundW)) ⇒ (ΔgroundW, l, :groundW)
+        @rep_elem zero(eltype(ΔgroundW)) ⇒ (ΔgroundW, l)
     end
     for l in eachindex(ΔsurfaceW)
-        @rep_elem zero(eltype(ΔsurfaceW)) ⇒ (ΔsurfaceW, l, :surfaceW)
+        @rep_elem zero(eltype(ΔsurfaceW)) ⇒ (ΔsurfaceW, l)
     end
 
     ## pack land variables

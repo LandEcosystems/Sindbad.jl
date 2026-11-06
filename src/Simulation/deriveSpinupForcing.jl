@@ -1,4 +1,5 @@
 export getAllSpinupForcing
+export accumulateSpinupForcing
 
 """
     getAllSpinupForcing(forcing, spin_seq, tem_helpers)
@@ -21,17 +22,36 @@ julia> # Prepare spinup forcing for all sequences
 julia> # spinup_forcing = getAllSpinupForcing(forcing, spin_sequences, tem_helpers)
 ```
 """
-function getAllSpinupForcing(forcing, spin_sequences::Vector{SpinupSequenceWithAggregator}, tem_helpers)
-    spinup_forcing = (;)
-    for seq ∈ spin_sequences
-        forc = getfield(seq, :forcing)
-        forc_name = forc
-        if forc_name ∉ keys(spinup_forcing)
-            seq_forc = getSpinupForcing(forcing, seq, tem_helpers.vals.forcing_types)
-            spinup_forcing = set_namedtuple_field(spinup_forcing, (forc_name, seq_forc))
-        end
+function getAllSpinupForcing(forcing, spin_sequences::Tuple{Vararg{SpinupStepWithAggregator}}, tem_helpers)
+    return accumulateSpinupForcing(spin_sequences, forcing, tem_helpers, (;))
+end
+
+"""
+    accumulateSpinupForcing(spin_sequences, forcing, tem_helpers, spinup_forcing)
+
+Derive the spinup forcing for each sequence in `spin_sequences` and collect them into a NamedTuple keyed by the forcing name, deriving each distinct name only once.
+
+# Arguments:
+- `spin_sequences`: a tuple of spinup sequences still to be processed
+- `forcing`: a forcing NT that contains the forcing time series set for a location
+- `tem_helpers`: helper NT with necessary objects for model run and type consistencies
+- `spinup_forcing`: the NamedTuple of forcings accumulated so far
+
+# Notes:
+- The sequences are consumed recursively with `Base.tail` rather than with a `for` loop, so that each sequence is handled by its own method specialisation. The forcing name is read from the sequence's type parameter, which lets the "already derived" check resolve at compile time.
+"""
+function accumulateSpinupForcing end
+
+accumulateSpinupForcing(::Tuple{}, _, _, spinup_forcing) = spinup_forcing
+
+accumulateSpinupForcing(spin_sequences::Tuple{SpinupStepWithAggregator{:none},Vararg}, forcing, tem_helpers, spinup_forcing) = accumulateSpinupForcing(Base.tail(spin_sequences), forcing, tem_helpers, spinup_forcing)
+
+function accumulateSpinupForcing(spin_sequences::Tuple{SpinupStepWithAggregator{F},Vararg}, forcing, tem_helpers, spinup_forcing) where {F}
+    if F ∉ keys(spinup_forcing)
+        seq_forc = getSpinupForcing(forcing, first(spin_sequences), tem_helpers.vals.forcing_types)
+        spinup_forcing = set_namedtuple_field(spinup_forcing, (F, seq_forc))
     end
-    return spinup_forcing
+    return accumulateSpinupForcing(Base.tail(spin_sequences), forcing, tem_helpers, spinup_forcing)
 end
 
 """
@@ -44,7 +64,7 @@ prepare the spinup forcing set for a given spinup sequence
 - `sequence`: a with all information needed to run a spinup sequence
 - `:Val{forcing_types}`: a type dispatch with the tuple of pairs of forcing name and time/no time types
 """
-function getSpinupForcing(forcing, sequence::SpinupSequenceWithAggregator, ::Val{forcing_types}) where {forcing_types}
+function getSpinupForcing(forcing, sequence::SpinupStepWithAggregator, ::Val{forcing_types}) where {forcing_types}
     seq_forcing = map(forcing_types) do fnt
         f_name = first(fnt)
         f_type = last(fnt)
@@ -66,7 +86,7 @@ get the aggregated spinup forcing variable
 - `sequence`: a with all information needed to run a spinup sequence
 - `::ForcingWithTime`: a type dispatch to indicate that the variable has a time axis
 """
-function getSpinupForcingVariable(v, sequence::SpinupSequenceWithAggregator, ::ForcingWithTime)
+function getSpinupForcingVariable(v, sequence::SpinupStepWithAggregator, ::ForcingWithTime)
     timeAggregateForcingV(v, sequence.aggregator_indices, sequence.aggregator, sequence.aggregator_type)
 end
 
@@ -91,11 +111,11 @@ aggregate the forcing variable with time where an aggregation/collection is need
 
 # Arguments:
 - `v`: a forcing variable
-- `aggregator`: a time aggregator object needed to time aggregate the data 
-- `ag_type::TimeNoDiff`: a type dispatch to indicate that the variable has to be aggregated in time
+- `aggregator`: a `TimeResampler` that was built once for the spinup forcing name
+- `::TimeNoDiff`: a type dispatch to indicate that the variable has to be aggregated in time
 """
-function timeAggregateForcingV(v, _, aggregator, ag_type::TimeNoDiff)
-    vt=do_time_sampling(v, aggregator, ag_type)
+function timeAggregateForcingV(v, _, aggregator, ::TimeNoDiff)
+    vt = time_resample(v, aggregator)
     vt[:]
 end
 

@@ -23,7 +23,7 @@ function compute(params::rainSnow_forcing, forcing, land, helpers)
     precip = rain + snow
 
     # add snowfall to snowpack of the first layer
-    @add_to_elem snow ⇒ (ΔsnowW, 1, :snowW)
+    @add_to_elem snow ⇒ (ΔsnowW, 1)
 
     ## pack land variables
     @pack_nt begin

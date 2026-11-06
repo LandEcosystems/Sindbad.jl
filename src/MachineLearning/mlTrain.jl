@@ -64,7 +64,7 @@ function trainML(hybrid_helpers, ::MixedGradient)
             x_feat_batch = xfeatures(; site=sites_batch)
             new_params, pullback_func = getPullback(pullback_method, flat, re, x_feat_batch)
             scaled_params_batch = getParamsAct(new_params, parameter_table)
-            @debug "  Epoch $(epoch): training on batch with $(length(sites_batch)) sites, scaled_params: minimum=$(minimum(scaled_params_batch)), maximum=$(maximum(scaled_params_batch))"
+            # @debug "  Epoch $(epoch): training on batch with $(length(sites_batch)) sites, scaled_params: minimum=$(minimum(scaled_params_batch)), maximum=$(maximum(scaled_params_batch))"
 
             gradientBatch!(gradient_options.method, grads_batch, gradient_options.options, loss_functions, scaled_params_batch, sites_batch; showprog=false)
 

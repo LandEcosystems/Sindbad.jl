@@ -50,7 +50,7 @@ struct kSaxton2006 end
     i1::TN = 0.097 | (-Inf, Inf) | "Saxton Parameters" | "" | ""
     i2::TN = 0.043 | (-Inf, Inf) | "Saxton Parameters" | "" | ""
     n02::TN = 0.2 | (-Inf, Inf) | "Saxton Parameters" | "" | ""
-    n24::TN = 24.0 | (-Inf, Inf) | "Saxton Parameters" | "" | ""
+    n24::TN = 24.0 | (-Inf, Inf) | "Saxton Parameters" | "" | "day"
     n33::TN = 33.0 | (-Inf, Inf) | "Saxton Parameters" | "" | ""
     n36::TN = 36.0 | (-Inf, Inf) | "Saxton Parameters" | "" | ""
     n1500::TN = 1500.0 | (-Inf, Inf) | "Saxton Parameters" | "" | ""
@@ -97,17 +97,17 @@ function precompute(params::soilProperties_Saxton2006, forcing, land, helpers)
     # calculate & set the soil hydraulic properties for each layer
     for sl in eachindex(sp_α)
         (α, β, k_sat, θ_sat, ψ_sat, k_fc, θ_fc, ψ_fc, k_wp, θ_wp, ψ_wp) = calcPropsSaxton2006(params, land, helpers, sl)
-        @rep_elem α ⇒ (sp_α, sl, :soilW)
-        @rep_elem β ⇒ (sp_β, sl, :soilW)
-        @rep_elem k_fc ⇒ (sp_k_fc, sl, :soilW)
-        @rep_elem θ_fc ⇒ (sp_θ_fc, sl, :soilW)
-        @rep_elem ψ_fc ⇒ (sp_ψ_fc, sl, :soilW)
-        @rep_elem k_wp ⇒ (sp_k_wp, sl, :soilW)
-        @rep_elem θ_wp ⇒ (sp_θ_wp, sl, :soilW)
-        @rep_elem ψ_wp ⇒ (sp_ψ_wp, sl, :soilW)
-        @rep_elem k_sat ⇒ (sp_k_sat, sl, :soilW)
-        @rep_elem θ_sat ⇒ (sp_θ_sat, sl, :soilW)
-        @rep_elem ψ_sat ⇒ (sp_ψ_sat, sl, :soilW)
+        @rep_elem α ⇒ (sp_α, sl)
+        @rep_elem β ⇒ (sp_β, sl)
+        @rep_elem k_fc ⇒ (sp_k_fc, sl)
+        @rep_elem θ_fc ⇒ (sp_θ_fc, sl)
+        @rep_elem ψ_fc ⇒ (sp_ψ_fc, sl)
+        @rep_elem k_wp ⇒ (sp_k_wp, sl)
+        @rep_elem θ_wp ⇒ (sp_θ_wp, sl)
+        @rep_elem ψ_wp ⇒ (sp_ψ_wp, sl)
+        @rep_elem k_sat ⇒ (sp_k_sat, sl)
+        @rep_elem θ_sat ⇒ (sp_θ_sat, sl)
+        @rep_elem ψ_sat ⇒ (sp_ψ_sat, sl)
     end
 
     ## pack land variables
@@ -177,6 +177,7 @@ function unsatK(land, helpers, sl, ::kSaxton2006)
 
     ## calculate variables
     w_sat = w_sat[sl]
+    w_sat > z_zero || return zero(eltype(k_sat))
     θ_dos = (soilW[sl] + ΔsoilW[sl]) / w_sat
     θ_dos = clamp_zero_one(θ_dos)
     β = soil_β[sl]
@@ -230,6 +231,8 @@ function calcPropsSaxton2006(params::soilProperties_Saxton2006, land, helpers, s
     clay = st_clay[sl]
     sand = st_sand[sl]
     orgm = zero(st_orgm[sl])
+    # @show sl, clay, sand, orgm
+    # orgm = st_orgm[sl]
     # orgm = sp_orgm[sl]
     # orgm = z_zero
     # clay = clay
@@ -240,6 +243,7 @@ function calcPropsSaxton2006(params::soilProperties_Saxton2006, land, helpers, s
     # θ_1500: 1500 kPa moisture; #v
     θ_1500t = a1 * sand + a2 * clay + a3 * orgm + a4 * (sand * orgm) - a5 * (clay * orgm) + a6 * (sand * clay) + a7
     θ_1500 = θ_1500t + (b1 * θ_1500t - b2)
+    θ_1500 = max(θ_1500, typeof(θ_1500)(0.01))
     # θ_33t: 33 kPa moisture; first solution; #v
     # θ_33: 33 kPa moisture; normal density; #v
     θ_33t = c1 * sand + c2 * clay + c3 * orgm + c4 * (sand * orgm) - c5 * (clay * orgm) + c6 * (sand * clay) + c7

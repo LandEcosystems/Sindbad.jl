@@ -12,4 +12,5 @@ This extension is loaded automatically by Julia when `Flux` is available.
 - [`MachineLearningMLModels.jl`](https://github.com/LandEcosystems/Sindbad/blob/main/ext/SindbadFluxExt/MachineLearningMLModels.jl)
 - [`MachineLearningNeuralNetwork.jl`](https://github.com/LandEcosystems/Sindbad/blob/main/ext/SindbadFluxExt/MachineLearningNeuralNetwork.jl)
 - [`MachineLearningOneHots.jl`](https://github.com/LandEcosystems/Sindbad/blob/main/ext/SindbadFluxExt/MachineLearningOneHots.jl)
+- [`MachineLearningParameters.jl`](https://github.com/LandEcosystems/Sindbad/blob/main/ext/SindbadFluxExt/MachineLearningParameters.jl)
 - [`SindbadFluxExt.jl`](https://github.com/LandEcosystems/Sindbad/blob/main/ext/SindbadFluxExt/SindbadFluxExt.jl)

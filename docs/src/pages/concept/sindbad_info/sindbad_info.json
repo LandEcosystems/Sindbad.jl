@@ -62,8 +62,7 @@
             { "name": "mod_ind", "value": 1 },
             { "name": "mod_field", "value": 1 },
             { "name": "mod_subfield", "value": 1 },
-            { "name": "temporal_aggr", "value": 1 },
-            { "name": "temporal_aggr_type", "value": 1 }
+            { "name": "temporal_aggr", "value": 1 }
           ]
         },
         { "name": "parameter_table", "value": 1 }
@@ -441,7 +440,7 @@
                     { "name": "autoRespiration,RMN", "value": 1 },
                     { "name": "autoRespiration,YG", "value": 1 },
                     { "name": "autoRespirationAirT,Q10", "value": 1 },
-                    { "name": "cCycleBase,c_remain", "value": 1 },
+                    { "name": "cCycleBase,c_remain_scalar", "value": 1 },
                     { "name": "cCycleBase,ηH", "value": 1 },
                     { "name": "cFlow,f_τ", "value": 1 },
                     { "name": "cFlow,k_shedding", "value": 1 },
@@ -1141,8 +1140,7 @@
     {
       "name": "spinup",
       "children": [
-        { "name": "restart_file", "value": 1 },
-        { "name": "sequence", "value": 1 }
+        { "name": "spinup_sequence", "value": 1 }
       ]
     },
     {

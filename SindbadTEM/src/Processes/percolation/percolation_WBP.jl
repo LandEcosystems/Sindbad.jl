@@ -19,7 +19,7 @@ function compute(params::percolation_WBP, forcing, land, helpers)
     to_allocate = o_one * percolation
     for sl ∈ eachindex(land.pools.soilW)
         allocated = min(w_sat[sl] - (soilW[sl] + ΔsoilW[sl]), to_allocate)
-        @add_to_elem allocated ⇒ (ΔsoilW, sl, :soilW)
+        @add_to_elem allocated ⇒ (ΔsoilW, sl)
         to_allocate = to_allocate - allocated
     end
     to_groundW = to_allocate / n_groundW

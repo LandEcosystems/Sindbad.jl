@@ -3,7 +3,7 @@ export mapCleanData
 export cleanData
 export applyUnitConversion
 export applyQCBound
-export subsetAndProcessYax
+export subsetAndProcessCube
 export yaxCubeToKeyedArray
 export toDimStackArray
 export AllNaN
@@ -66,28 +66,32 @@ end
 
 
 """
-    cleanData(_data, _data_fill, _data_info, ::Val{T}) where {T}
+    cleanData(_data, _data_info, ::Val{T}) where {T}
 
-Applies a series of cleaning steps to the data, including replacing invalid data, applying unit conversion, and clamping to bounds.
+Applies the unit conversion and the bounds to a data point. An invalid data point, i.e.,
+`nothing`, `missing`, `NaN` or `Inf`, is not filled with another value: it is returned
+as `NaN`, without unit conversion or clamping, so that it stays invalid.
 
 # Arguments
 - `_data`: The raw data to be cleaned
-- `_data_fill`: Fill values or parameters for handling missing/invalid data
 - `_data_info`: Information about the data structure and cleaning requirements
 - `::Val{T}`: Value type parameter for dispatch
 
 # Returns
 Cleaned data according to the specified type parameter T
 """
-function cleanData(_data, _data_fill, _data_info, ::Val{T}) where {T}
-    _data = replace_invalid_number(_data, _data_fill)
+function cleanData(_data, _data_info, ::Val{T}) where {T}
+    is_invalid_number(_data) && return T(NaN)::T
     _data = applyUnitConversion(_data, _data_info.source_to_sindbad_unit,
         _data_info.additive_unit_conversion)
     bounds = _data_info.bounds
-    if !isnothing(bounds)
+    # no bounds, given as null or an empty list, means no clamping
+    if !isnothing(bounds) && !isempty(bounds)
         _data = clamp(_data, first(bounds), last(bounds))
     end
-    return T(_data)
+    # the assertion keeps the cleaned data concretely typed when the bounds are an
+    # untyped empty list, for which the type of the clamp cannot be inferred
+    return T(_data)::T
 end
 
 
@@ -114,23 +118,34 @@ end
 
 """
     getDimPermutation(datDims, permDims)
+
 Returns the permutation indices required to rearrange dimensions from `datDims` to match `permDims`.
 
+If a target dimension is missing from the source data, such as time for a purely
+spatial variable, it is left out of the permutation since it does not exist in
+this array. If the source data has a dimension that is not part of the target
+list at all, such as soil_depth for a spatiovertical variable, that dimension is
+kept and placed before the matched target dims, in its original relative order.
+This guarantees the target dims always end up trailing, in the order given by
+`permDims`, no matter how many dimensions the source variable has or what
+physical order they are stored in. Downstream callers such as
+`OmniTools.view_at_trailing_indices` rely on this trailing order when indexing a
+per-pixel location out of the array.
+
 # Arguments
-- `datDims`: Array of current dimension names or indices
-- `permDims`: Array of target dimension names or indices in desired order
+- `datDims`: array of current dimension names
+- `permDims`: array of target dimension names in desired order
 
 # Returns
-- Array of indices representing the required permutation
+- array of indices representing the required permutation
 """
 function getDimPermutation(datDims, permDims)
+    matched_dims = [pd for pd ∈ permDims if pd in datDims]
+    extra_dims = [dd for dd ∈ datDims if !(dd in permDims)]
+    desired_order = vcat(extra_dims, matched_dims)
     new_dim = Int[]
-    for pd ∈ permDims
-        datIndex = length(permDims)
-        if pd in datDims
-            datIndex = findfirst(isequal(pd), datDims)
-        end
-        push!(new_dim, datIndex)
+    for dd ∈ desired_order
+        push!(new_dim, findfirst(isequal(dd), datDims))
     end
     return new_dim
 end
@@ -275,35 +290,35 @@ function getYaxFromSource(nc, data_path, data_path_v, source_variable)
 end
 
 """
-Maps and cleans data based on quality control parameters and fills missing values.
+Maps and cleans data based on quality control parameters.
 
 # Arguments
 - `_data`: Raw input data to be cleaned
 - `_data_qc`: Quality control data corresponding to input data
-- `_data_fill`: Fill values for replacing invalid/missing data
 - `bounds_qc`: Quality control bounds/thresholds
 - `_data_info`: Additional information about the data
 - `::Val{T}`: Value type parameter for dispatch
 
 # Returns
-Cleaned and mapped data with invalid values replaced according to QC criteria
+Cleaned and mapped data. Data points that fail the QC and invalid data points are NaN.
 
 # Note
 This function performs quality control checks and data cleaning based on the provided
-bounds and fill values. The exact behavior depends on the value type T.
+bounds. Invalid data points are not filled, see `cleanData`. The exact behavior depends
+on the value type T.
 """
-function mapCleanData(_data, _data_qc, _data_fill, bounds_qc, _data_info, ::Val{T}) where {T}
+function mapCleanData(_data, _data_qc, bounds_qc, _data_info, ::Val{T}) where {T}
     if !isnothing(bounds_qc) && !isnothing(_data_qc)
-        _data = map((da, dq) -> applyQCBound(da, dq, bounds_qc, _data_fill), _data, _data_qc)
+        _data = map((da, dq) -> applyQCBound(da, dq, bounds_qc, NaN), _data, _data_qc)
     end
     vT = Val{T}()
-    _data = map(data_point -> cleanData(data_point, _data_fill, _data_info, vT), _data)
+    _data = map(data_point -> cleanData(data_point, _data_info, vT), _data)
     return _data
 end
 
 
 """
-    subsetAndProcessYax(yax, forcing_mask, tar_dims, _data_info, info, ::Val{num_type}; clean_data=true, fill_nan=false, yax_qc=nothing, bounds_qc=nothing) where {num_type}
+    subsetAndProcessCube(yax, forcing_mask, tar_dims, _data_info, info, ::Val{num_type}; clean_data=true, yax_qc=nothing, bounds_qc=nothing) where {num_type}
 
 Subset and process YAX data according to specified parameters and quality control criteria.
 
@@ -314,8 +329,10 @@ Subset and process YAX data according to specified parameters and quality contro
 - `_data_info`: Data information
 - `info`: a SINDBAD NT that includes all information needed for setup and execution of an experiment
 - `::Val{num_type}`: Value type parameter for numerical type specification
-- `clean_data=true`: Boolean flag to enable/disable data cleaning
-- `fill_nan=false`: Boolean flag to control NaN filling
+- `clean_data=true`: Boolean flag to enable/disable data cleaning. With cleaning, invalid
+  data points stay invalid as NaN, see `cleanData`. Without cleaning, which is used for
+  masks and QC flags, invalid points are set to zero, as a mask cannot be NaN and a NaN
+  QC flag would pass every QC bound.
 - `yax_qc=nothing`: Optional quality control parameters for YAX data
 - `bounds_qc=nothing`: Optional boundary quality control parameters
 
@@ -325,7 +342,7 @@ Processed and subset YAX data according to specified parameters and quality cont
 # Type Parameters
 - `num_type`: Numerical type specification for the processed data
 """
-function subsetAndProcessYax(yax, forcing_mask, tar_dims, _data_info, info, ::Val{num_type}; clean_data=true, fill_nan=false, yax_qc=nothing, bounds_qc=nothing) where {num_type}
+function subsetAndProcessCube(yax, forcing_mask, tar_dims, _data_info, info, ::Val{num_type}; clean_data=true, yax_qc=nothing, bounds_qc=nothing) where {num_type}
     forcing_data_settings = info.experiment.data_settings.forcing
     if !isnothing(forcing_mask)
         yax = yax #todo: mask the forcing variables here depending on the mask of 1 and 0
@@ -336,28 +353,27 @@ function subsetAndProcessYax(yax, forcing_mask, tar_dims, _data_info, info, ::Va
         @debug "         -> permuting dimensions to $(tar_dims)..."
         yax = permutedims(yax, permutes)
     end
-    if hasproperty(yax, Symbol(forcing_data_settings.data_dimension.time))
+    time_name = Symbol(forcing_data_settings.data_dimension.time)
+    if hasproperty(yax, time_name)
         init_date = DateTime(info.helpers.dates.date_begin)
-        last_date = DateTime(info.helpers.dates.date_end)
-        yax = yax[time=(init_date .. last_date)]
+        # date_end covers its whole timestep, so data stamped within the last period
+        # such as a daily value at 11:00 UTC is kept and matches the dates range.
+        last_date = DateTime(info.helpers.dates.date_end) + info.helpers.dates.timestep - Millisecond(1)
+        yax = getindex(yax; (time_name => init_date .. last_date,)...)
     end
 
     if hasproperty(forcing_data_settings, :subset)
         yax = getSpatialSubset(forcing_data_settings.subset, yax)
     end
 
-    #todo mean of the data instead of zero or nan
     # do a proper check on input type for forcing and if is not lazy do the cleanup
-    if info.experiment.exe_rules.land_output_type == "array"
-        vfill = 0.0
-        if fill_nan
-            vfill = NaN
-        end
+    if info.helpers.run.run_lazy isa DoNotRunLazy
         vNT = Val{num_type}()
         if clean_data
-            yax = mapCleanData(yax, yax_qc, vfill, bounds_qc, _data_info, vNT)
+            yax = mapCleanData(yax, yax_qc, bounds_qc, _data_info, vNT)
         else
-            yax = map(yax_point -> replace_invalid_number(yax_point, vfill), yax)
+            # masks and QC flags: an invalid point is zero, i.e., false for a mask
+            yax = map(yax_point -> replace_invalid_number(yax_point, 0.0), yax)
             yax = map(num_type, yax)
         end
     end

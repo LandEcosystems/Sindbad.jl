@@ -21,7 +21,7 @@ function update(params::runoffBase, forcing, land, helpers)
     end
     groundW = addVec(groundW, ΔgroundW)
     for l in eachindex(ΔgroundW)
-        @rep_elem zero(eltype(ΔgroundW)) ⇒ (ΔgroundW, l, :groundW)
+        @rep_elem zero(eltype(ΔgroundW)) ⇒ (ΔgroundW, l)
     end
 
     ## pack land variables

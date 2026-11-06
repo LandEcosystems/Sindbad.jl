@@ -29,7 +29,7 @@ function compute(params::wCycle_simple, forcing, land, helpers)
 
     # reset moisture changes to zero
     for l in eachindex(ΔsoilW)
-        @rep_elem zero(eltype(ΔsoilW)) ⇒ (ΔsoilW, l, :soilW)
+        @rep_elem zero(eltype(ΔsoilW)) ⇒ (ΔsoilW, l)
     end
 
     total_water = totalS(soilW)

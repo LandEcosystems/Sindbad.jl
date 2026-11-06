@@ -39,19 +39,16 @@
     "format": "zarr",
     "output_array_type": "array",
     "path": null,
-    "plot_model_output": false,
+    "plot_resolution": 100,
     "save_single_file": true,
     "variables": {
     }
   },
-  "model_spinup": {
-    "restart_file": null,
-    "sequence": [
+  "spinup_sequence": [
       {
         "forcing": "all_years",
         "n_repeat": 1,
         "spinup_mode": "all_forward_models"
       }
     ]
-  }
 }

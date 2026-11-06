@@ -128,8 +128,10 @@ open(joinpath(@__DIR__, "./src/pages/code/api/SindbadTEM.Processes.md"), "w") do
         # write(o_file, "== $(sm)\n")
         write(o_file, "```@docs\n$(sm)\n```\n")
         
-        write(o_file, ":::details $(sm) approaches\n\n")
-        write(o_file, ":::tabs\n\n")
+        # Outer fences are longer than the `:::` that docstring admonitions render to,
+        # so an admonition's closing fence cannot close the tabs or the details block.
+        write(o_file, ":::::details $(sm) approaches\n\n")
+        write(o_file, "::::tabs\n\n")
 
         foreach(SindbadTEM.subtypes(getfield(SindbadTEM, sm))) do apr
             apr_str = string(apr)
@@ -154,7 +156,8 @@ open(joinpath(@__DIR__, "./src/pages/code/api/SindbadTEM.Processes.md"), "w") do
                 end
             end
         end
-        write(o_file, "\n:::\n\n")
+        write(o_file, "\n::::\n\n")
+        write(o_file, ":::::\n\n")
         write(o_file, "\n----\n\n")
     end
 

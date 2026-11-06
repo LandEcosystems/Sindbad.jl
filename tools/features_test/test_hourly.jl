@@ -46,7 +46,7 @@ parameter_table = info.optimization.parameter_table;
 forcing = getForcing(info);
 
 run_helpers = prepTEM(forcing, info);
-@time runTEM!(run_helpers.space_selected_models, run_helpers.space_forcing, run_helpers.space_spinup_forcing, run_helpers.loc_forcing_t, run_helpers.space_output, run_helpers.space_land, run_helpers.tem_info);
+@time runTEM!(run_helpers.space_selected_models, run_helpers.space_forcing, run_helpers.space_spinup, run_helpers.loc_forcing_t, run_helpers.space_output, run_helpers.space_land, run_helpers.tem_info);
 
 @time output_all = runExperimentFullOutput(experiment_json; replace_info=replace_info);
 output_data = values(output_all.output)

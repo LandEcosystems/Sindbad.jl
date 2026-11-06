@@ -20,6 +20,7 @@ Converts model run-related flags from the experiment configuration into types fo
 - Flags are processed recursively:
   - If a flag is a `NamedTuple`, its subfields are converted into types.
   - If a flag is a scalar, it is directly converted into a type using `getTypeInstanceForFlags`.
+- `filter_nan_pixels` is true when the experiment does not set it.
 - The resulting `new_run` NamedTuple is used for type-based dispatch in SINDBAD's model execution.
 
 # Examples
@@ -32,7 +33,9 @@ julia> # new_run = convertRunFlagsToTypes(info)
 """
 function convertRunFlagsToTypes(info)
     new_run = (;)
-    dr = deepcopy(info.settings.experiment.flags)
+    # a pixel with invalid forcing cannot be simulated, so it is skipped unless the
+    # experiment turns filtering off
+    dr = merge((; filter_nan_pixels=true), deepcopy(info.settings.experiment.flags))
     for pr in propertynames(dr)
         prf = getfield(dr, pr)
         prtoset = nothing
@@ -247,7 +250,9 @@ Retrieves a type instance for a named option based on its string or symbol repre
 - If the input is a `Symbol`, it is converted to a `String` before processing.
 - The function capitalizes the first letter of each word in the option name and removes underscores to match the type naming convention.
 - This is used for type-based dispatch in SINDBAD's configuration and execution.
-- The type for temporal aggregation is set using `get_TimeSampler` in `Utils`. It uses a similar approach and prefixes `Time` to type.
+- Temporal aggregation settings are resolved by `get_TimeSampler` from TimeSamplers.jl instead.
+  It accepts the same snake case names, which it prefixes with `Time`, and also period specs
+  such as `"8-day_msc"`.
 
 # Examples
 ```jldoctest

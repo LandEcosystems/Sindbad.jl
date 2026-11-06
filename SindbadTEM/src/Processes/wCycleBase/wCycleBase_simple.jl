@@ -19,7 +19,7 @@ function adjustPackPoolComponents(land, helpers, ::wCycleBase_simple)
     if hasproperty(land.pools, :groundW)
         @unpack_nt groundW ⇐ land.pools
         for (lw, l) in enumerate(zix.groundW)
-            @rep_elem TWS[l] ⇒ (groundW, lw, :groundW)
+            @rep_elem TWS[l] ⇒ (groundW, lw)
         end
         @pack_nt groundW ⇒ land.pools
     end
@@ -27,7 +27,7 @@ function adjustPackPoolComponents(land, helpers, ::wCycleBase_simple)
     if hasproperty(land.pools, :snowW)
         @unpack_nt snowW ⇐ land.pools
         for (lw, l) in enumerate(zix.snowW)
-            @rep_elem TWS[l] ⇒ (snowW, lw, :snowW)
+            @rep_elem TWS[l] ⇒ (snowW, lw)
         end
         @pack_nt snowW ⇒ land.pools
     end
@@ -35,7 +35,7 @@ function adjustPackPoolComponents(land, helpers, ::wCycleBase_simple)
     if hasproperty(land.pools, :soilW)
         @unpack_nt soilW ⇐ land.pools
         for (lw, l) in enumerate(zix.soilW)
-            @rep_elem TWS[l] ⇒ (soilW, lw, :soilW)
+            @rep_elem TWS[l] ⇒ (soilW, lw)
         end
         @pack_nt soilW ⇒ land.pools
     end
@@ -43,7 +43,7 @@ function adjustPackPoolComponents(land, helpers, ::wCycleBase_simple)
     if hasproperty(land.pools, :surfaceW)
         @unpack_nt surfaceW ⇐ land.pools
         for (lw, l) in enumerate(zix.surfaceW)
-            @rep_elem TWS[l] ⇒ (surfaceW, lw, :surfaceW)
+            @rep_elem TWS[l] ⇒ (surfaceW, lw)
         end
         @pack_nt surfaceW ⇒ land.pools
     end
@@ -58,28 +58,28 @@ function adjustPackMainPool(land, helpers, ::wCycleBase_simple)
     if hasproperty(land.pools, :groundW)
         @unpack_nt groundW ⇐ land.pools
         for (lw, l) in enumerate(zix.groundW)
-            @rep_elem groundW[lw] ⇒ (TWS, l, :TWS)
+            @rep_elem groundW[lw] ⇒ (TWS, l)
         end
     end
 
     if hasproperty(land.pools, :snowW)
         @unpack_nt snowW ⇐ land.pools
         for (lw, l) in enumerate(zix.snowW)
-            @rep_elem snowW[lw] ⇒ (TWS, l, :TWS)
+            @rep_elem snowW[lw] ⇒ (TWS, l)
         end
     end
 
     if hasproperty(land.pools, :soilW)
         @unpack_nt soilW ⇐ land.pools
         for (lw, l) in enumerate(zix.soilW)
-            @rep_elem soilW[lw] ⇒ (TWS, l, :TWS)
+            @rep_elem soilW[lw] ⇒ (TWS, l)
         end
     end
 
     if hasproperty(land.pools, :surfaceW)
         @unpack_nt surfaceW ⇐ land.pools
         for (lw, l) in enumerate(zix.surfaceW)
-            @rep_elem surfaceW[lw] ⇒ (TWS, l, :TWS)
+            @rep_elem surfaceW[lw] ⇒ (TWS, l)
         end
     end
 

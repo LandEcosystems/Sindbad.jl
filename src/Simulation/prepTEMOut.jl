@@ -1,6 +1,8 @@
 
 export getOutDims
 export getOutDimsArrays
+export getRestartDimsArrays
+export prepSpinupOut
 export prepTEMOut
 export setupOptiOutput
 
@@ -121,7 +123,7 @@ function getOutDims(info, forcing_helpers, ::OutputYAXArray)
         backend = outformat == "nc" ? :netcdf : :zarr
         out_dim = YAXArrays.XOutput(vdims...)#=;
         properties = _properties,
-        path=info.output.file_info.file_prefix * "_$(vname).$(outformat)",
+        path=joinpath(info.output.dirs.data, "$(vname).$(outformat)"),
         backend=backend,
         overwrite=true)=#
         v_index += 1
@@ -213,7 +215,7 @@ function getOutDimsArrays(info, forcing_helpers, oayax::OutputYAXArray)
 end
 
 """
-    getOutDimsPairs(tem_output, forcing_helpers; dthres=1)
+    getOutDimsPairs(tem_output, forcing_helpers; dthres=1, with_time=true)
 
 Creates dimension pairs for each output variable based on forcing dimensions and depth information.
 
@@ -221,6 +223,7 @@ Creates dimension pairs for each output variable based on forcing dimensions and
 - `tem_output`: A NamedTuple containing information about output variables and depth dimensions of output arrays.
 - `forcing_helpers`: A NamedTuple with information on forcing sizes, dimensions, and optional permutations.
 - `dthres`: (Optional) A threshold for the number of depth layers to define depth as a new dimension. Defaults to `1`.
+- `with_time`: (Optional) Whether to include the leading time dimension. Defaults to `true`. The restart file sets it to `false`.
 
 # Returns:
 - A vector of tuples, where each tuple contains dimension pairs for an output variable. Each dimension pair is represented as a `Pair` of a dimension name and its corresponding range or size.
@@ -249,7 +252,7 @@ outdims_pairs = getOutDimsPairs(tem_output, forcing_helpers)
 outdims_pairs = getOutDimsPairs(tem_output, forcing_helpers; dthres=2)
 ```
 """
-function getOutDimsPairs(tem_output, forcing_helpers; dthres=1)
+function getOutDimsPairs(tem_output, forcing_helpers; dthres=1, with_time=true)
     forcing_axes = forcing_helpers.axes
     dim_loops = first.(forcing_axes)
     axes_dims_pairs = []
@@ -273,7 +276,7 @@ function getOutDimsPairs(tem_output, forcing_helpers; dthres=1)
         depth_size = first(depth_info)
         depth_name = last(depth_info)
         od = []
-        push!(od, axes_dims_pairs[1])
+        with_time && push!(od, axes_dims_pairs[1])
         if depth_size > dthres
             if depth_size == 1
                 depth_name = "idx"
@@ -287,6 +290,153 @@ function getOutDimsPairs(tem_output, forcing_helpers; dthres=1)
         Tuple(od)
     end
     return outdims_pairs
+end
+
+
+"""
+    getRestartDimsArrays(info, forcing_helpers, loc_land)
+
+Prepares the variables, dimensions and arrays of the restart file, which holds the main
+pools after the spinup step with `save_restart`.
+
+# Arguments:
+- `info`: A SINDBAD NamedTuple containing all information needed for setup and execution of an experiment.
+- `forcing_helpers`: A NamedTuple with information on forcing sizes and dimensions.
+- `loc_land`: The land of one location after a model run of one time step.
+
+# Returns:
+- A NamedTuple with:
+  - `variables`: the field and subfield pairs from `getRestartVars`.
+  - `dims_pairs`: the dimension pairs of each variable without the time dimension.
+    A layer dimension is only included for variables with more than one layer.
+  - `dims`: the `Dim` objects built from `dims_pairs`, used for saving.
+  - `data`: one array per variable with the layout `(1, depth, space...)`.
+
+# Notes:
+- The arrays keep a leading time dimension of size 1 so that `getLocData` and
+  `setOutputForTimeStep!` work on them the same way as on the output arrays.
+"""
+function getRestartDimsArrays(info, forcing_helpers, loc_land)
+    restart_vars = getRestartVars(info, loc_land)
+    # the dimension names follow the output settings, but the sizes always come from
+    # land so that every layer of a variable is stored
+    depth_info = map(restart_vars, getLandVarDepthInfo(info, loc_land, restart_vars)) do var_pair, d_info
+        length(getproperty(getproperty(loc_land, first(var_pair)), last(var_pair))), last(d_info)
+    end
+    restart_info = (; variables=restart_vars, depth_info=depth_info)
+    dims_pairs = getOutDimsPairs(restart_info, forcing_helpers; with_time=false)
+    restart_dims = map(dims_pairs) do dim_pairs
+        Tuple(YAXArrays.Dim{first(_dim)}(last(_dim)) for _dim in dim_pairs)
+    end
+    num_type = info.helpers.numbers.num_type
+    space_sizes = Base.tail(values(forcing_helpers.sizes))
+    restart_array = map(depth_info) do d_info
+        fill(num_type(NaN), 1, first(d_info), space_sizes...)
+    end
+    return (; variables=restart_vars, dims_pairs=dims_pairs, dims=restart_dims, data=[restart_array...])
+end
+
+
+"""
+    prepSpinupOut(info, run_helpers)
+
+Collects the stored spinup of every location into arrays for the spinup file.
+
+# Arguments:
+- `info`: A SINDBAD NamedTuple containing all information needed for setup and
+  execution of an experiment.
+- `run_helpers`: the run helpers of an eager run, after `runTEM!`
+
+# Returns:
+- `nothing` when `store_spinup` is false. Otherwise a NamedTuple with:
+  - `variables`: the field and subfield pairs of the stored pools, e.g. `(:pools,
+    :cEco)`. The step index has `nothing` as its pair.
+  - `names`: the variable names in the file, the pool names and
+    `spinup_sequence_step`
+  - `dims`: the `Dim` objects of each variable
+  - `data`: one array per variable
+  - `sequences`: the spinup sequence of every location
+  - `space_ind`: the spatial indices of every location, in the order of `sequences`
+
+# Notes:
+- Each pool has the dimensions `(spinup_step, layer, space...)`. The layer and
+  spatial dimensions are those of the same pool in the restart file, so the layer
+  dimension is dropped for a pool with one layer.
+- The locations can have sequences of different lengths, e.g. with
+  `sequence_with_age`. The `spinup_step` dimension has the length of the longest one,
+  and the rows after the end of a shorter sequence are NaN.
+- `spinup_sequence_step` has the dimensions `(spinup_step, space...)`. It is the
+  index of the step of the spinup sequence that wrote each row, 0 for the state
+  before the spinup, and -1 for the padding rows.
+"""
+function prepSpinupOut end
+
+prepSpinupOut(info, run_helpers) = prepSpinupOut(info, run_helpers, info.helpers.run.store_spinup)
+
+prepSpinupOut(_, _, ::DoNotStoreSpinup) = nothing
+
+function prepSpinupOut(info, run_helpers, ::DoStoreSpinup)
+    restart = run_helpers.restart
+    space_land = run_helpers.space_land
+    space_ind = run_helpers.space_ind
+    sequences = [loc_spinup.sequence for loc_spinup ∈ run_helpers.space_spinup]
+    sequence_steps = map(getSpinupSequenceSteps, sequences)
+    n_max = maximum(length, sequence_steps)
+    step_dim = YAXArrays.Dim{:spinup_step}(1:n_max)
+    num_type = info.helpers.numbers.num_type
+    variables = []
+    names = Symbol[]
+    dims = []
+    data = []
+    space_dims = ()
+    for pool_name ∈ (:cEco, :TWS)
+        store_name = Symbol("spinup_", pool_name)
+        loc_store = getproperty(first(space_land).states, store_name)
+        isnothing(loc_store) && continue
+        var_index = findfirst(==((:pools, pool_name)), restart.variables)
+        isnothing(var_index) && continue
+        n_layers = size(loc_store, 2)
+        space_sizes = size(restart.data[var_index])[3:end]
+        pool_data = fill(num_type(NaN), n_max, n_layers, space_sizes...)
+        for (loc_land, loc_ind) ∈ zip(space_land, space_ind)
+            loc_store = getproperty(loc_land.states, store_name)
+            view_at_trailing_indices(pool_data, loc_ind)[1:size(loc_store, 1), :] .= loc_store
+        end
+        pool_dims = restart.dims[var_index]
+        if n_layers == 1
+            pool_data = dropdims(pool_data; dims=2)
+        end
+        space_dims = Tuple(pool_dims)[end-length(space_sizes)+1:end]
+        push!(variables, (:pools, pool_name))
+        push!(names, pool_name)
+        push!(dims, (step_dim, pool_dims...))
+        push!(data, pool_data)
+    end
+    isempty(data) && return nothing
+    space_sizes = size(last(data))[end-length(space_dims)+1:end]
+    step_data = fill(-1, n_max, space_sizes...)
+    for (loc_steps, loc_ind) ∈ zip(sequence_steps, space_ind)
+        view_at_trailing_indices(step_data, loc_ind)[1:length(loc_steps)] .= loc_steps
+    end
+    push!(variables, nothing)
+    push!(names, :spinup_sequence_step)
+    push!(dims, (step_dim, space_dims...))
+    push!(data, step_data)
+    return (; variables, names, dims, data, sequences, space_ind)
+end
+
+"""
+    getSpinupSequenceSteps(sequence)
+
+Returns the index of the spinup sequence step for every stored row of a location,
+with 0 for the first row, which is the state before the spinup.
+"""
+function getSpinupSequenceSteps(sequence)
+    steps = [0]
+    for (seq_index, spin_seq) ∈ enumerate(sequence)
+        append!(steps, fill(seq_index, spin_seq.n_repeat * spinupStoreSteps(spin_seq)))
+    end
+    return steps
 end
 
 

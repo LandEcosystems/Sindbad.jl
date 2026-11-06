@@ -15,7 +15,7 @@ plotting model outputs, diagnostics, and experiment metadata via `Plots.jl`.
 - `namedTupleToFlareJSON` and `getAllVariables` (`utilsVisualization.jl`) have no external plotting dependency and are always available.
 
 ## Optional (via `SindbadPlotsExt`)
-- `plotPerformanceHistograms`, `plotTimeSeries`, and `plotIOModelStructure` dispatch on a `VisualizationTypes` backend value read from `info.helpers.run.visualization_backend` (set from `exe_rules.visualization_backend` in the experiment config, defaulting to `"Types"`). The default `VisualizationTypes` backend logs an info message and returns `nothing`. Setting `visualization_backend = "Plots"` in the config selects the `VisualizationPlots` backend, whose real plotting methods are only added once `Plots.jl` is loaded, at which point Julia's package extension mechanism loads `SindbadPlotsExt` (see root `Project.toml` `[weakdeps]` + `[extensions]`). `using Sindbad` alone is sufficient once `Plots` is also loaded in the session — end users typically should not `using SindbadPlotsExt` directly.
+- `plotPerformanceHistograms`, `plotTimeSeries`, `plotForcing`, `plotSpinup`, and `plotIOModelStructure` dispatch on a `VisualizationTypes` backend value read from `info.helpers.run.visualization_backend` (set from `exe_rules.visualization_backend` in the experiment config, defaulting to `"Types"`). The default `VisualizationTypes` backend logs an info message and returns `nothing`. Setting `visualization_backend = "Plots"` in the config selects the `VisualizationPlots` backend, whose real plotting methods are only added once `Plots.jl` is loaded, at which point Julia's package extension mechanism loads `SindbadPlotsExt` (see root `Project.toml` `[weakdeps]` + `[extensions]`). `using Sindbad` alone is sufficient once `Plots` is also loaded in the session — end users typically should not `using SindbadPlotsExt` directly.
 - `plotTimeSeriesWithObs` and `plotTimeSeriesDebug` are deprecated-but-supported aliases of `plotTimeSeries`, kept for backward compatibility with their original signatures.
 
 # Notes
@@ -30,7 +30,19 @@ using Sindbad, Plots
 
 plotPerformanceHistograms(opt_results)
 plotIOModelStructure(info)
+plotCarbonFlows(cCycleBase_CASA)  # writes tmp_carbon_flow_matrix_cCycleBase_CASA_default.pdf
 ```
+
+`plotCarbonFlows` draws a `cCycleBase` approach's carbon flow topology as a
+giver-by-taker matrix, labelled with each flow's turnover time, allocation fraction,
+microbial efficiency and quality-partition fraction. Called with just the approach,
+it needs no experiment or run and writes
+`tmp_carbon_flow_matrix_<approach>_default.pdf` (`_actual.pdf` with a real `land`
+given, `tmp_`-prefixed so it's gitignored); a second positional argument names the
+file, `nothing` skips the write. Called as `plotCarbonFlows(info, approach)`, it
+resolves the backend from `info.helpers.run.visualization_backend` and saves into
+`info.output.dirs.figure` instead -- the form `getExperimentInfo` calls
+automatically when a `cCycleBase` approach is selected.
 """
 module Visualization
     using SindbadTEM.OmniTools
@@ -41,6 +53,9 @@ module Visualization
     export plotTimeSeriesWithObs
     export plotTimeSeriesDebug
     export plotIOModelStructure
+    export plotCarbonFlows
+    export plotForcing
+    export plotSpinup
 
     # Thin convenience wrappers: resolve the configured visualization backend from `info`
     # (or `out`/`out_opti`, which carry `.info`) and forward to the 4-arg method that
@@ -55,15 +70,55 @@ module Visualization
     # no matching method for this function — i.e. its extension (e.g. `SindbadPlotsExt`)
     # isn't actually loaded — so a mismatch between config and loaded packages degrades
     # gracefully to the info message instead of a `MethodError`.
+    #
+    # `hasmethod` alone is not enough: the untyped wrapper of the next arity also
+    # matches, e.g. `plotTimeSeries(out, cost_options)` accepts `(out_opti, backend)`.
+    # So the matched method must be typed on the backend argument.
     function _resolvedBackend(f, backend, args...)
-        hasmethod(f, Tuple{map(typeof, args)..., typeof(backend)}) ? backend : VisualizationTypes()
+        types = Tuple{map(typeof, args)..., typeof(backend)}
+        hasmethod(f, types) || return VisualizationTypes()
+        sig = Base.unwrap_unionall(which(f, types).sig)
+        return sig.parameters[end] === Any ? VisualizationTypes() : backend
     end
 
+    """
+        plotPerformanceHistograms(out_opti)
+
+    Plots histograms of the performance metrics of the default and optimized runs of
+    an optimization.
+
+    # Arguments
+    - `out_opti`: the output of an optimization run, which carries `.info`
+
+    # Notes
+    - The backend is read from `info.helpers.run.visualization_backend`. Without a
+      loaded plotting backend, it logs an info message and returns `nothing`.
+    """
     function plotPerformanceHistograms(out_opti)
         backend = out_opti.info.helpers.run.visualization_backend
         return plotPerformanceHistograms(out_opti, _resolvedBackend(plotPerformanceHistograms, backend, out_opti))
     end
 
+    """
+        plotTimeSeries(out_opti)
+        plotTimeSeries(out, cost_options)
+        plotTimeSeries(info, opt_dat, def_dat; forcing_helpers=nothing)
+
+    Plots the time series of the model output, with the observations where there are
+    any, and saves one figure per variable in `info.output.dirs.figure`.
+
+    # Arguments
+    - `out_opti`: the output of an optimization run, which carries `.info`
+    - `out`: the output of a run, which carries `.info` and `.observation`
+    - `cost_options`: the cost options that pair model variables with observations
+    - `info`: Information structure containing experiment details
+    - `opt_dat`, `def_dat`: the optimized and default model output
+    - `forcing_helpers`: gives the spatial dimensions, which a spatial run needs
+
+    # Notes
+    - The backend is read from `info.helpers.run.visualization_backend`. Without a
+      loaded plotting backend, it logs an info message and returns `nothing`.
+    """
     function plotTimeSeries(out_opti)
         backend = out_opti.info.helpers.run.visualization_backend
         return plotTimeSeries(out_opti, _resolvedBackend(plotTimeSeries, backend, out_opti))
@@ -74,9 +129,11 @@ module Visualization
         return plotTimeSeries(out, cost_options, _resolvedBackend(plotTimeSeries, backend, out, cost_options))
     end
 
-    function plotTimeSeries(info, opt_dat, def_dat)
+    # `forcing_helpers` gives the spatial dimensions, which the figures of a spatial
+    # run need
+    function plotTimeSeries(info, opt_dat, def_dat; forcing_helpers=nothing)
         backend = info.helpers.run.visualization_backend
-        return plotTimeSeries(info, opt_dat, def_dat, _resolvedBackend(plotTimeSeries, backend, info, opt_dat, def_dat))
+        return plotTimeSeries(info, opt_dat, def_dat, _resolvedBackend(plotTimeSeries, backend, info, opt_dat, def_dat); forcing_helpers=forcing_helpers)
     end
 
     # Backward-compatible aliases: old names/signatures forward onto the unified
@@ -87,14 +144,173 @@ module Visualization
     # point's shape (the 2-arg plotTimeSeries derives obs_array from
     # out.observation instead), so it resolves its own backend and forwards to the
     # explicit-argument method directly, preserving the exact old behavior/signature.
+    """
+        plotTimeSeriesWithObs(out_opti)
+        plotTimeSeriesWithObs(out, obs_array, cost_options)
+
+    Deprecated alias of [`plotTimeSeries`](@ref), kept with its original signatures.
+    """
     plotTimeSeriesWithObs(out_opti) = plotTimeSeries(out_opti)
-    plotTimeSeriesDebug(info, opt_dat, def_dat) = plotTimeSeries(info, opt_dat, def_dat)
+
+    """
+        plotTimeSeriesDebug(info, opt_dat, def_dat; kwargs...)
+
+    Deprecated alias of [`plotTimeSeries`](@ref), kept with its original signature.
+    """
+    plotTimeSeriesDebug(info, opt_dat, def_dat; kwargs...) = plotTimeSeries(info, opt_dat, def_dat; kwargs...)
 
     function plotTimeSeriesWithObs(out, obs_array, cost_options)
         backend = out.info.helpers.run.visualization_backend
         return plotTimeSeries(out.info, obs_array, cost_options, out.output, _resolvedBackend(plotTimeSeries, backend, out.info, obs_array, cost_options, out.output))
     end
 
+    """
+        plotForcing(out)
+        plotForcing(info, forcing)
+
+    Saves figures of every forcing variable in `info.output.dirs.figure`, as
+    `forcing_<variable>.png` for one location.
+
+    # Arguments
+    - `out`: the output of an experiment run, which carries `.info` and `.forcing`
+    - `info`: Information structure containing experiment details
+    - `forcing`: the forcing NamedTuple with the `variables` and their `data`
+
+    # Notes
+    - The backend is read from `info.helpers.run.visualization_backend`. Without a
+      loaded plotting backend, it logs an info message and returns `nothing`.
+    """
+    plotForcing(out) = plotForcing(out.info, out.forcing)
+
+    function plotForcing(info, forcing)
+        backend = info.helpers.run.visualization_backend
+        return plotForcing(info, forcing, _resolvedBackend(plotForcing, backend, info, forcing))
+    end
+
+    """
+        plotSpinup(out; kwargs...)
+        plotSpinup(info, spinup; loc_index=1, output=nothing)
+
+    Plots `cEco` and `TWS` at every stored step of the spinup of one location and saves
+    one figure per pool, `spinup_<pool>.png`, in `info.output.dirs.figure`.
+
+    # Arguments
+    - `out`: the output of a forward or optimization run, which carries `.info`, the
+      stored `.spinup` and the `.output` of the forward run that followed it
+    - `info`: Information structure containing experiment details
+    - `spinup`: the stored spinup from `prepSpinupOut`
+    - `loc_index`: the index of the location in `spinup.sequences`
+    - `output`: the output of the forward run after the spinup, appended to the plot
+      when given
+
+    # Notes
+    - The spinup is only stored with `store_spinup` set to true.
+    - The backend is read from `info.helpers.run.visualization_backend`. Without a
+      loaded plotting backend, it logs an info message and returns `nothing`.
+    """
+    plotSpinup(out; kwargs...) = plotSpinup(out.info, out.spinup; output=_forwardOutput(out), kwargs...)
+
+    # the output of the run whose spinup is stored, which is the optimized one when
+    # there are both
+    function _forwardOutput(out)
+        hasproperty(out, :output) || return nothing
+        return hasproperty(out.output, :optimized) ? out.output.optimized : out.output
+    end
+
+    function plotSpinup(info, spinup; kwargs...)
+        backend = info.helpers.run.visualization_backend
+        return plotSpinup(info, spinup, _resolvedBackend(plotSpinup, backend, info, spinup); kwargs...)
+    end
+
+    # falls back to land.models.c_model when approach is omitted, so a real `land` is
+    # enough on its own; errors if neither is given.
+    function _approachName(approach, kwargs)
+        !isnothing(approach) && return nameof(approach isa Type ? approach : typeof(approach))
+        land = get(kwargs, :land, nothing)
+        isnothing(land) && error("plotCarbonFlows needs `approach`, or `land` to derive " *
+            "it from `land.models.c_model`.")
+        return nameof(typeof(land.models.c_model))
+    end
+
+    # No `info` to read a backend from, so VisualizationPlots() is asked for directly.
+    # `tmp_`-prefixed (unlike the info-taking form below): it lands in the working
+    # directory, not an experiment's output dir, and `tmp_*` is gitignored.
+    """
+        plotCarbonFlows(approach=nothing; kwargs...)
+        plotCarbonFlows(approach, file_path; kwargs...)
+        plotCarbonFlows(info::NamedTuple, approach=nothing; kwargs...)
+
+    Draws the carbon flow topology of a `cCycleBase` approach as a giver by taker
+    matrix, labelled with each flow's turnover time, allocation fraction, microbial
+    efficiency and quality-partition fraction.
+
+    # Arguments
+    - `approach`: the `cCycleBase` approach, or `nothing` to take it from a `land`
+      given in `kwargs`
+    - `file_path`: where the figure is saved, or `nothing` to skip saving
+    - `info`: Information structure containing experiment details. The backend is read
+      from it and the figure is saved in `info.output.dirs.figure`.
+
+    # Notes
+    - Without `info` or `file_path`, the figure is
+      `tmp_carbon_flow_matrix_<approach>_default.pdf` in the working directory, or
+      `_actual.pdf` when a real `land` is given.
+    - Without a loaded plotting backend, it logs an info message and returns `nothing`.
+    """
+    function plotCarbonFlows(approach=nothing; kwargs...)
+        suffix = isnothing(get(kwargs, :land, nothing)) ? "default" : "actual"
+        file_path = "tmp_carbon_flow_matrix_$(_approachName(approach, kwargs))_$(suffix).pdf"
+        return plotCarbonFlows(approach, file_path; kwargs...)
+    end
+
+    function plotCarbonFlows(approach, file_path; kwargs...)
+        backend = VisualizationPlots()
+        return plotCarbonFlows(approach, file_path, _resolvedBackend(plotCarbonFlows, backend, approach, file_path); kwargs...)
+    end
+
+    # The experiment's actually resolved carbon pool structure (set by setPoolsInfo from
+    # model_structure.pools.carbon), or nothing if info carries none. This is the same
+    # structure a real run's land.cCycleBase.pool_names is built from, so passing it as
+    # plotCarbonFlows' pool_configuration keeps the synthetic ("default") diagram from
+    # disagreeing with a real run's diagram when settings override the pool structure
+    # independently of the selected cCycleBase approach (e.g. cCycleBase.approach =
+    # "MGMT" with pools.carbon = "GSI").
+    function _experimentPoolConfiguration(info)
+        hasproperty(info, :pool_structure) || return nothing
+        hasproperty(info.pool_structure, :carbon) || return nothing
+        return info.pool_structure.carbon
+    end
+
+    # Called automatically by getExperimentInfo when a cCycleBase approach is selected;
+    # unlike the methods above, reads the configured backend from info and saves into
+    # info.output.dirs.figure, named like plotIOModelStructure's own files.
+    function plotCarbonFlows(info::NamedTuple, approach=nothing; kwargs...)
+        backend = info.helpers.run.visualization_backend
+        suffix = isnothing(get(kwargs, :land, nothing)) ? "default" : "actual"
+        approach_name = _approachName(approach, kwargs)
+        file_path = joinpath(info.output.dirs.figure,
+            "carbon_flow_matrix_$(approach_name)_$(suffix).pdf")
+        # an explicit pool_configuration or helpers in kwargs (rare) wins over info's,
+        # since it comes later in this merge
+        kwargs = (; pool_configuration=_experimentPoolConfiguration(info), helpers=info.helpers, kwargs...)
+        return plotCarbonFlows(approach, file_path, _resolvedBackend(plotCarbonFlows, backend, approach, file_path); kwargs...)
+    end
+
+    """
+        plotIOModelStructure(info, which_function=:compute, which_field=[:input, :output])
+
+    Plots which variables each selected model reads and writes in one of its functions,
+    and saves the figure as a PDF in the experiment's output directory.
+
+    # Arguments
+    - `info`: Information structure containing experiment details
+    - `which_function`: the model function to analyze, e.g. `:compute` or `:define`
+    - `which_field`: a `Symbol` or a vector of `Symbol`s among `:input` and `:output`
+
+    # Notes
+    - The backend is read from `info.helpers.run.visualization_backend`. Without a
+      loaded plotting backend, it logs an info message and returns `nothing`.
+    """
     plotIOModelStructure(info) = plotIOModelStructure(info, :compute)
     plotIOModelStructure(info, which_function) = plotIOModelStructure(info, which_function, [:input, :output])
     function plotIOModelStructure(info, which_function, which_field)
@@ -134,7 +350,7 @@ module Visualization
         return nothing
     end
 
-    function plotTimeSeries(info, opt_dat, def_dat, ::VisualizationTypes)
+    function plotTimeSeries(info, opt_dat, def_dat, ::VisualizationTypes; kwargs...)
         print_info(plotTimeSeries, @__FILE__, @__LINE__, _visualizationFallbackMessage(plotTimeSeries, info.helpers.run.visualization_backend), n_f=4)
         return nothing
     end
@@ -142,8 +358,23 @@ module Visualization
     # Needed so the legacy 3-arg plotTimeSeriesWithObs(out, obs_array, cost_options)
     # alias (which forwards straight to this arity, bypassing the arity-2 wrapper above)
     # still degrades gracefully when no Plots backend is loaded.
-    function plotTimeSeries(info, obs_array, cost_options, def_dat, ::VisualizationTypes)
+    function plotTimeSeries(info, obs_array, cost_options, def_dat, ::VisualizationTypes; kwargs...)
         print_info(plotTimeSeries, @__FILE__, @__LINE__, _visualizationFallbackMessage(plotTimeSeries, info.helpers.run.visualization_backend), n_f=4)
+        return nothing
+    end
+
+    function plotForcing(info, forcing, ::VisualizationTypes)
+        print_info(plotForcing, @__FILE__, @__LINE__, _visualizationFallbackMessage(plotForcing, info.helpers.run.visualization_backend), n_f=4)
+        return nothing
+    end
+
+    function plotSpinup(info, spinup, ::VisualizationTypes; kwargs...)
+        print_info(plotSpinup, @__FILE__, @__LINE__, _visualizationFallbackMessage(plotSpinup, info.helpers.run.visualization_backend), n_f=4)
+        return nothing
+    end
+
+    function plotCarbonFlows(approach, file_path, ::VisualizationTypes; kwargs...)
+        print_info(plotCarbonFlows, @__FILE__, @__LINE__, _visualizationFallbackMessage(plotCarbonFlows, VisualizationPlots()), n_f=4)
         return nothing
     end
 

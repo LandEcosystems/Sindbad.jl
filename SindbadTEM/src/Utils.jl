@@ -14,8 +14,11 @@ module Utils
     export getSindbadModels
     export getTypedModel
     export getUnitConversionForParameter
+    export isValidTimescale
+    export parseTemporalResolution
     export modelParameter
     export modelParameters
+    export print_info_once
 
 """
     getInOutModel(model::LandEcosystem)
@@ -350,8 +353,7 @@ function getTypedModel(model::Symbol, model_timestep="day", num_type=Float64)
     if length(parameter_names) > 0
         parameter_vals = []
         for pn ∈ parameter_names
-            param = getParameterValue(model_obj(), pn, model_timestep)
-            # param = getfield(model_obj(), pn)
+            param = getParameterValue(model_instance, pn, model_timestep)
             parameter_typed = if typeof(param) <: Array
                 num_type.(param)
             else
@@ -406,6 +408,51 @@ end
 
 
 """
+    parseTemporalResolution(resolution)
+
+Parses a temporal resolution string into an integer count and a base unit string.
+
+Accepts either a bare unit (e.g. "day", "hour") or an n-unit string of the form
+`"<positive integer>-<unit>"` (e.g. `"6-hour"`, `"2-day"`, `"3-month"`). A bare unit is
+equivalent to `"1-<unit>"`.
+
+# Arguments:
+- `resolution`: a temporal resolution string, e.g. "day", "6-hour", "3-month"
+
+# Returns:
+- `(n::Int, unit::String)`: the multiplier count and the base unit string.
+"""
+function parseTemporalResolution(resolution)
+    parts = split(String(resolution), "-")
+    if length(parts) == 1
+        return 1, String(parts[1])
+    elseif length(parts) == 2
+        n = tryparse(Int, parts[1])
+        if isnothing(n)
+            error("invalid temporal resolution \"$(resolution)\": count \"$(parts[1])\" is not an integer. Expected format \"<integer>-<unit>\", e.g. \"6-hour\".")
+        elseif n <= 0
+            error("invalid temporal resolution \"$(resolution)\": count must be a positive integer, got $(n).")
+        end
+        return n, String(parts[2])
+    else
+        error("invalid temporal resolution \"$(resolution)\": expected a bare unit (e.g. \"day\") or \"<integer>-<unit>\" (e.g. \"6-hour\"), got $(length(parts)) dash-separated parts.")
+    end
+end
+
+"""
+    isValidTimescale(timescale)
+
+Checks whether a parameter `timescale` string is either blank (not time-dependent) or
+one of the units in `SindbadTEM.Processes.TIMESCALE_DAY_MULTIPLIER`, optionally
+prefixed with a positive integer count (e.g. "8-day"). Propagates any error
+`parseTemporalResolution` raises for a malformed `<n>-<unit>` prefix.
+"""
+function isValidTimescale(timescale)
+    _, unit = parseTemporalResolution(timescale)
+    return isempty(unit) || haskey(SindbadTEM.Processes.TIMESCALE_DAY_MULTIPLIER, unit)
+end
+
+"""
     getUnitConversionForParameter(p_timescale, model_timestep)
 
 helper/wrapper function to get unit conversion factors for model parameters that are timescale dependent
@@ -415,52 +462,24 @@ helper/wrapper function to get unit conversion factors for model parameters that
 - `model_timestep`: time step of the model run
 """
 function getUnitConversionForParameter(p_timescale, model_timestep)
-    conversion = 1
-    time_multiplier = 1
-    # time multiplier compared to daily time steps
-    if model_timestep == "second"
-        time_multiplier = 1/(60* 60 * 24)
-    elseif model_timestep == "minute"
-        time_multiplier = 1/(60 * 24)
-    elseif model_timestep == "halfhour"
-        time_multiplier = 1/48
-    elseif model_timestep == "hour"
-        time_multiplier = 1/24
-    elseif model_timestep == "day"
-        time_multiplier = 1
-    elseif model_timestep == "week"
-        time_multiplier = 7
-    elseif model_timestep == "month"
-        time_multiplier = 30
-    elseif model_timestep == "year"
-        time_multiplier = 365
-    elseif model_timestep == "decade"
-        time_multiplier = 365 * 10
-    else
-        error("running model at $(model_timestep) is not supported")
+    p_n, p_unit = parseTemporalResolution(p_timescale)
+    m_n, m_unit = parseTemporalResolution(model_timestep)
+    if p_n != 1 || m_n != 1
+        base_conversion = getUnitConversionForParameter(p_unit, m_unit)
+        # an empty p_unit means the parameter has no declared timescale (not time-dependent),
+        # so it must stay a no-op regardless of any n-unit multiplier on either side
+        return isempty(p_unit) ? base_conversion : base_conversion * m_n / p_n
     end
 
-    # modelling at other time steps
-    if p_timescale == "second"
-        conversion = 60 * 60 * 24 * time_multiplier
-    elseif p_timescale == "minute"
-        conversion = 60 * 24 * time_multiplier
-    elseif p_timescale == "halfhour"
-        conversion = 48 * time_multiplier
-    elseif p_timescale == "hour"
-        conversion = 24 * time_multiplier
-    elseif p_timescale == "day"
-        conversion = 1 * time_multiplier
-    elseif p_timescale == "week"
-        conversion = 1/7 * time_multiplier
-    elseif p_timescale == "month"
-        conversion = 1/30 * time_multiplier
-    elseif p_timescale == "year"
-        conversion = 1/365 * time_multiplier
-    elseif p_timescale == "decade"
-        conversion = 1/(365 * 10) * time_multiplier
-    end
-    return conversion
+    haskey(SindbadTEM.Processes.TIMESCALE_DAY_MULTIPLIER, m_unit) || error("running model at $(model_timestep) is not supported")
+    m_days = SindbadTEM.Processes.TIMESCALE_DAY_MULTIPLIER[m_unit]
+
+    isempty(p_unit) && return 1
+
+    haskey(SindbadTEM.Processes.TIMESCALE_DAY_MULTIPLIER, p_unit) || error("parameter timescale \"$(p_timescale)\" is not supported")
+    p_days = SindbadTEM.Processes.TIMESCALE_DAY_MULTIPLIER[p_unit]
+
+    return m_days / p_days
 end
 
 
@@ -553,6 +572,28 @@ function modelParameter(model::LandEcosystem, show=true)
         end
     end
     return p_vec
+end
+
+const _printed_once = Set{Tuple{String,Int}}()
+const _printed_once_lock = ReentrantLock()
+
+"""
+    print_info_once(func, file_name, line_number, info_message; kwargs...)
+
+Calls `print_info` only the first time a given `file_name` and `line_number` is reached
+in a session. Use it for warnings in `define` or `precompute` of processes, which run
+once per location in spatial runs and would otherwise repeat for every pixel.
+
+# Arguments:
+- same as `print_info`
+"""
+function print_info_once(func, file_name, line_number, info_message; kwargs...)
+    key = (String(file_name), Int(line_number))
+    is_new = lock(_printed_once_lock) do
+        key in _printed_once ? false : (push!(_printed_once, key); true)
+    end
+    is_new && print_info(func, file_name, line_number, info_message; kwargs...)
+    return nothing
 end
 
 end # module Utils

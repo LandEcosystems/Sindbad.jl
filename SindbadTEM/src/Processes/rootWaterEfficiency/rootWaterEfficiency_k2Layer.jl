@@ -15,7 +15,7 @@ function define(params::rootWaterEfficiency_k2Layer, forcing, land, helpers)
 
     # check if the number of soil layers is equal to 2
     if length(soilW) != 2
-        @warn "rootWaterEfficiency_k2Layer approach is conceptualized/designed for 2 soil layers only, but model has $(length(soilW)) layers. This approach will just update the first two layers of root water efficiency. Please check your model structure."
+        print_info_once(nothing, @__FILE__, @__LINE__, "rootWaterEfficiency_k2Layer approach is conceptualized/designed for 2 soil layers only, but model has $(length(soilW)) layers. This approach will just update the first two layers of root water efficiency. Please check your model structure.", n_m=4)
     end
     # create the arrays to fill in the soil properties
     root_water_efficiency = one.(soilW)
@@ -37,9 +37,9 @@ function compute(params::rootWaterEfficiency_k2Layer, forcing, land, helpers)
     k2_root_water_efficiency = k2 # the fraction of water that a root can uptake from the 1st soil layer
     # set the properties
     # 1st Layer
-    @rep_elem k1_root_water_efficiency ⇒ (root_water_efficiency, 1, :soilW)
+    @rep_elem k1_root_water_efficiency ⇒ (root_water_efficiency, 1)
     # 2nd Layer
-    @rep_elem k2_root_water_efficiency ⇒ (root_water_efficiency, 2, :soilW)
+    @rep_elem k2_root_water_efficiency ⇒ (root_water_efficiency, 2)
 
 
     ## pack land variables

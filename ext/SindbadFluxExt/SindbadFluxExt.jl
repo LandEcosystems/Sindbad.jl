@@ -8,4 +8,5 @@ module SindbadFluxExt
     include("MachineLearningNeuralNetwork.jl")
     include("MachineLearningOneHots.jl")
     include("GPPNeuralNetwork.jl")
+    include("MachineLearningParameters.jl")
 end

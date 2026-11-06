@@ -49,7 +49,7 @@ Dict{String, Int64} with 2 entries:
 
 julia> nested_dict = createNestedDict(dict)
 Dict{Any, Any} with 1 entry:
-  "a" => Dict{Any, Any}("b"=>Dict{Any, Any}("c"=>2, "d"=>3))
+  "a" => OrderedDict{Any, Any}("b"=>OrderedDict{Any, Any}("c"=>2, "d"=>3))
 ```
 """
 function createNestedDict(dict::AbstractDict)
@@ -65,10 +65,12 @@ function createNestedDict(dict::AbstractDict)
                 subkey_name = subkey * string(key_index)
             end
             if subkey == last(key_list)
-                key_dict[subkey_name] = dict[kii]
+                key_dict[subkey_name] = toOrderedDict(dict[kii])
             else
                 if !haskey(key_dict, subkey_name)
-                    key_dict[subkey_name] = Dict()
+                    # an OrderedDict, like the parsed json, so that a level that is new in
+                    # the configuration is converted to a NamedTuple with the others
+                    key_dict[subkey_name] = DataStructures.OrderedDict()
                     key_dict[subkey_name][key_list[key_index+1]] = key_dict[key_list[key_index+1]*string(key_index+1)]
                 else
                     tmp = Dict()
@@ -82,6 +84,12 @@ function createNestedDict(dict::AbstractDict)
     end
     return nested_dict
 end
+
+# A dictionary given as a value in replace_info becomes an OrderedDict, like the parsed
+# json. dict_to_namedtuple converts only OrderedDicts, so a plain Dict that adds a new
+# field to the configuration would otherwise stay a Dict in info.
+toOrderedDict(dict::AbstractDict) = DataStructures.OrderedDict{Any,Any}(k => toOrderedDict(v) for (k, v) ∈ dict)
+toOrderedDict(value) = value
 
 """
     deepMerge(d::AbstractDict...) = merge(deepMerge, d...)
@@ -253,6 +261,9 @@ end
 
 Reads the experiment configuration files (JSON or CSV) and returns a dictionary.
 
+The `parameters` config file can also be a zarr or netCDF parameter file. It is
+then stored as a parameter input with only its `data_path`, see `getParameterInput`.
+
 # Arguments:
 - `info_exp::AbstractDict`: The experiment configuration dictionary.
 - `base_path::String`: The base path for resolving relative file paths.
@@ -274,6 +285,11 @@ function readConfiguration(info_exp::AbstractDict, base_path::String)
             prm = CSV.File(config_path)
             tmp = Table(prm)
             info[k] = tmp
+        elseif k == "parameters" && isParameterFile(v)
+            # a parameter file given directly uses all its variables, and their
+            # settings are read from the attributes in getParameters
+            default_map = DataStructures.OrderedDict{String,Any}("data_path" => config_path)
+            info[k] = DataStructures.OrderedDict{String,Any}("default_parameter_map" => default_map, "variables" => DataStructures.OrderedDict{String,Any}())
         end
     end
 
@@ -291,6 +307,15 @@ function readConfiguration(info_exp::AbstractDict, base_path::String)
     info["experiment"] = info_exp["experiment"]
     return info
 end
+
+
+"""
+    isParameterFile(path)
+
+Returns true when `path` is a zarr or netCDF file, which can be given directly as the
+`parameters` config file to set the parameters per location.
+"""
+isParameterFile(path) = any(ext -> endswith(rstrip(path, '/'), ext), (".zarr", ".nc"))
 
 
 """
@@ -312,10 +337,83 @@ function removeComments(inputDict::AbstractDict)
 end
 removeComments(input) = input
 
+# replace_info keys that may be missing from the configuration files, because the code
+# reads them only when they are set. `*` matches any one key, and keys below these are
+# not checked.
+const OPTIONAL_CONFIG_KEYS = (
+    "forcing.subset",
+    "forcing.variables.*.data_path",
+    "optimization.observations.variables.*.*.data_path",
+    "experiment.flags.run_lazy",
+    "experiment.model_output.plot_resolution",
+    "experiment.basics.config_files.parameters",
+    "experiment.basics.config_files.hybrid",
+    "model_structure.sindbad_models",
+)
+
+function isOptionalConfigKey(path_parts)
+    return any(OPTIONAL_CONFIG_KEYS) do optional_key
+        optional_parts = split(optional_key, ".")
+        length(path_parts) >= length(optional_parts) || return false
+        all(o == "*" || o == k for (k, o) ∈ zip(path_parts, optional_parts))
+    end
+end
+
+# Walks `path_parts[depth:end]` from `config` and records in `missing_keys` every key
+# that does not exist in `config` at its level.
+function collectMissingConfigKeys!(missing_keys, config, path_parts, depth, value)
+    key = path_parts[depth]
+    if !haskey(config, key)
+        # only the optional key itself may be missing, not a level above it
+        isOptionalConfigKey(path_parts[1:depth]) && return missing_keys
+        push!(missing_keys, (join(path_parts, "."), join(path_parts[1:depth-1], "."), String.(collect(keys(config)))))
+        return missing_keys
+    end
+    next_config = config[key]
+    # an existing value that is not a dictionary is replaced whole, so nothing below it
+    # is checked
+    next_config isa AbstractDict || return missing_keys
+    if depth < length(path_parts)
+        return collectMissingConfigKeys!(missing_keys, next_config, path_parts, depth + 1, value)
+    end
+    # a dictionary value is merged into the existing dictionary, so its keys are checked
+    if value isa AbstractDict
+        for (sub_key, sub_value) ∈ value
+            collectMissingConfigKeys!(missing_keys, next_config, [path_parts; String(sub_key)], depth + 1, sub_value)
+        end
+    end
+    return missing_keys
+end
+
+"""
+    checkReplaceInfoKeys(info::AbstractDict, replace_dict::AbstractDict)
+
+Warns when a key of `replace_dict` does not exist in `info`, so that a mistyped key
+does not silently add a new field to the configuration. The key is still added, since
+it can be a setting that is valid but not given in the configuration files. Every key
+is checked against the keys of `info` at the level it replaces, except the optional
+settings in `OPTIONAL_CONFIG_KEYS`.
+"""
+function checkReplaceInfoKeys(info::AbstractDict, replace_dict::AbstractDict)
+    missing_keys = []
+    for (full_key, value) ∈ replace_dict
+        collectMissingConfigKeys!(missing_keys, info, String.(split(full_key, ".")), 1, value)
+    end
+    isempty(missing_keys) && return nothing
+    msg = join(map(missing_keys) do (k, level, available)
+        level_text = isempty(level) ? "the top level" : "`$(level)`"
+        "  - `$(k)`: not found at $(level_text). Available keys there: $(join(sort(available), ", "))."
+    end, "\n")
+    @warn "replace_info has keys that do not exist in the configuration. They are added, so check that none is mistyped:\n$(msg)"
+    return nothing
+end
+
 """
     replaceInfoFields(info::AbstractDict, replace_dict::AbstractDict)
 
-Replaces fields in the `info` dictionary with values from the `replace_dict`.
+Replaces fields in the `info` dictionary with values from the `replace_dict`, after
+warning with `checkReplaceInfoKeys` about the keys that do not exist. Those keys are
+added.
 
 # Arguments:
 - `info::AbstractDict`: The original dictionary.
@@ -325,6 +423,7 @@ Replaces fields in the `info` dictionary with values from the `replace_dict`.
 - A new dictionary with the replaced fields.
 """
 function replaceInfoFields(info::AbstractDict, replace_dict::AbstractDict)
+    checkReplaceInfoKeys(info, replace_dict)
     nested_replace_dict = createNestedDict(replace_dict)
     info = deepMerge(Dict(info), nested_replace_dict)
     return info

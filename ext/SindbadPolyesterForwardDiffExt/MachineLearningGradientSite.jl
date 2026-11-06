@@ -7,10 +7,18 @@ This file is included from the extension module and can use `PolyesterForwardDif
 # Bring the target function into scope for adding methods. This should be done using `import` and not `using`.
 import Sindbad.MachineLearning:
     gradientSite,
-    gradientBatch!
+    gradientBatch!,
+    gradientParameterType
 
 # get all the types needed to dispatch the function. These types should defined in a corresponding file in Sindbad so that they can be used for dispatching and setup, if that were needed.
 using Sindbad: PolyesterForwardDiffGrad
+
+# threaded_gradient! is called without its check argument, so it builds its duals with
+# the tag `nothing` and the chunk size of the gradient options. That type is known
+# before the loss functions are built, so getGradientLand can build the land in it.
+function gradientParameterType(::PolyesterForwardDiffGrad, n_parameters, ::Type{V}, gradient_options) where {V}
+    return ForwardDiff.Dual{Nothing,V,Int(gradient_options.chunk_size)}
+end
 
 function gradientSite(::PolyesterForwardDiffGrad, x_vals, gradient_options::NamedTuple, loss_f::F) where {F}
     ∇x = similar(x_vals) # pre-allocate

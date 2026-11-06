@@ -28,17 +28,20 @@ function define(params::soilWBase_smax2fRD4, forcing, land, helpers)
     soil_layer_thickness = helpers.pools.layer_thickness.soilW
     # check if the number of soil layers and number of elements in soil thickness arrays are the same & are equal to 2 
     if n_soilW != 2
-        @warn "soilWBase_smax2fRD4 approach needs exactly 2 soil layers in model_structure.json, but model has $n_soilW layers. This approach will just update the first two layers of soil water properties. Please check your model structure."
+        print_info_once(nothing, @__FILE__, @__LINE__, "soilWBase_smax2fRD4 approach needs exactly 2 soil layers in model_structure.json, but model has $n_soilW layers. This approach will just update the first two layers of soil water properties. Please check your model structure.", n_m=4)
     end
 
     ## Instantiate variables
     w_sat = zero(soilW)
     w_fc = zero(soilW)
     w_wp = zero(soilW)
+    idx_soilW_end = lastindex(soilW)
+    cumulative_soil_depths = cumsum(soil_layer_thickness)
+    soil_depth = sum(soil_layer_thickness)
 
     ## pack land variables
     @pack_nt begin
-        (soil_layer_thickness, w_sat, w_fc, w_wp) ⇒ land.properties
+        (cumulative_soil_depths, idx_soilW_end, soil_depth, soil_layer_thickness, w_sat, w_fc, w_wp) ⇒ land.properties
         rootwater_capacities ⇒ land.soilWBase
     end
     return land
@@ -57,20 +60,20 @@ function compute(params::soilWBase_smax2fRD4, forcing, land, helpers)
 
     ## calculate variables
     # get the rooting depth data & scale them
-    rootwater_capacities = repElem(rootwater_capacities, f_RDmax[1] * scalar_Fan, rootwater_capacities, rootwater_capacities, 1)
-    rootwater_capacities = repElem(rootwater_capacities, f_RDeff[1] * scalar_Yang, rootwater_capacities, rootwater_capacities, 2)
-    rootwater_capacities = repElem(rootwater_capacities, f_SWCmax[1] * scalar_Wang, rootwater_capacities, rootwater_capacities, 3)
+    rootwater_capacities = repElem(rootwater_capacities, f_RDmax * scalar_Fan, 1)
+    rootwater_capacities = repElem(rootwater_capacities, f_RDeff * scalar_Yang, 2)
+    rootwater_capacities = repElem(rootwater_capacities, f_SWCmax * scalar_Wang, 3)
     AWC_tmp = is_invalid_number(f_AWC) ? smax_Tian : f_AWC
-    rootwater_capacities = repElem(rootwater_capacities, AWC_tmp * scalar_Tian, rootwater_capacities, rootwater_capacities, 4)
+    rootwater_capacities = repElem(rootwater_capacities, AWC_tmp * scalar_Tian, 4)
 
     # set the properties for each soil layer
     # 1st layer
-    @rep_elem smax1 * soil_layer_thickness[1] ⇒ (w_sat, 1, :soilW)
-    @rep_elem smax1 * soil_layer_thickness[1] ⇒ (w_fc, 1, :soilW)
+    @rep_elem smax1 * soil_layer_thickness[1] ⇒ (w_sat, 1)
+    @rep_elem smax1 * soil_layer_thickness[1] ⇒ (w_fc, 1)
 
     # 2nd layer - fill in by linaer combination of the RD data
-    @rep_elem sum(rootwater_capacities) ⇒ (w_sat, 2, :soilW)
-    @rep_elem sum(rootwater_capacities) ⇒ (w_fc, 2, :soilW)
+    @rep_elem sum(rootwater_capacities) ⇒ (w_sat, 2)
+    @rep_elem sum(rootwater_capacities) ⇒ (w_fc, 2)
 
     # get the plant available water available (all the water is plant available)
     w_awc = w_sat
@@ -98,6 +101,8 @@ $(getModelDocString(soilWBase_smax2fRD4))
 
 *Versions*
  - 1.0 on 10.02.2020 [ttraut]
+ - 1.1 on 15.10.2026 [skoirala]: use the spatial forcings directly as they are scalars
+   at the time step
 
 *Created by*
  - ttraut

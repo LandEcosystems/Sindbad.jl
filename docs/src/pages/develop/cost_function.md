@@ -39,7 +39,7 @@ For example, the existing cost methods are (but can change, use `show_methods_of
 In `cost.jl`, implement your cost calculation function with the following signature:
 
 ```julia
-function cost(parameter_vector, default_values, selected_models, space_forcing, space_spinup_forcing, 
+function cost(parameter_vector, default_values, selected_models, space_forcing, space_spinup, 
             loc_forcing_t, output_array, space_output, space_land, tem_info, observations, 
             parameter_updater, cost_options, multi_constraint_method, parameter_scaling_type, 
             ::YourNewCostMethod)
@@ -54,7 +54,7 @@ The function should:
 
 Example implementation structure:
 ```julia
-function cost(parameter_vector, _, selected_models, space_forcing, space_spinup_forcing, 
+function cost(parameter_vector, _, selected_models, space_forcing, space_spinup, 
             loc_forcing_t, output_array, space_output, space_land, tem_info, observations, 
             parameter_updater, cost_options, multi_constraint_method, parameter_scaling_type, 
             ::YourNewCostMethod)
@@ -62,7 +62,7 @@ function cost(parameter_vector, _, selected_models, space_forcing, space_spinup_
     updated_models = updateModels(parameter_vector, parameter_updater, parameter_scaling_type, selected_models)
     
     # Run the model simulation
-    runTEM!(updated_models, space_forcing, space_spinup_forcing, loc_forcing_t, space_output, space_land, tem_info)
+    runTEM!(updated_models, space_forcing, space_spinup, loc_forcing_t, space_output, space_land, tem_info)
     
     # Calculate cost vector
     cost_vector = metricVector(output_array, observations, cost_options)
@@ -100,7 +100,7 @@ struct CostModelObsWeighted <: CostMethod end
 
 2. In `cost.jl`:
 ```julia
-function cost(parameter_vector, _, selected_models, space_forcing, space_spinup_forcing, 
+function cost(parameter_vector, _, selected_models, space_forcing, space_spinup, 
              loc_forcing_t, output_array, space_output, space_land, tem_info, observations, 
              parameter_updater, cost_options, multi_constraint_method, parameter_scaling_type, 
              ::CostModelObsWeighted)
@@ -108,7 +108,7 @@ function cost(parameter_vector, _, selected_models, space_forcing, space_spinup_
     updated_models = updateModels(parameter_vector, parameter_updater, parameter_scaling_type, selected_models)
     
     # Run simulation
-    runTEM!(updated_models, space_forcing, space_spinup_forcing, loc_forcing_t, space_output, space_land, tem_info)
+    runTEM!(updated_models, space_forcing, space_spinup, loc_forcing_t, space_output, space_land, tem_info)
     
     # Calculate weighted cost vector
     cost_vector = metricVector(output_array, observations, cost_options)

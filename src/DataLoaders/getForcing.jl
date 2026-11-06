@@ -98,12 +98,13 @@ Creates a NamedTuple containing forcing data and metadata.
   - `variables`: The names of the forcing variables.
   - `f_types`: The types of the forcing data (e.g., `ForcingWithTime` or `ForcingWithoutTime`).
   - `helpers`: Helper information for the forcing data.
+  - `parameters`: The parameters per location from `getParameters`, or `nothing`.
 
 # Notes:
 - Processes the input cubes to determine their types and dimensions.
 - Helper information is generated using `collectForcingHelpers`.
 """
-function createForcingNamedTuple(incubes, f_sizes, f_dimensions, info)
+function createForcingNamedTuple(incubes, f_sizes, f_dimensions, info; parameters=nothing)
     print_info(getForcing, @__FILE__, @__LINE__, "processing forcing helpers...")
     @debug "     ::dimensions::"
     indims = getDataDims.(incubes, Ref(Symbol.(info.experiment.data_settings.forcing.data_dimension.space)))
@@ -120,11 +121,12 @@ function createForcingNamedTuple(incubes, f_sizes, f_dimensions, info)
     f_types =  Tuple(Tuple.(Pair.(forcing_vars, data_ts_type)))
     print_info_separator()
     forcing = (;
-        data=typed_cubes,
+        data=(; zip(forcing_vars, typed_cubes)...),
         dims=indims,
         variables=forcing_vars,
         f_types = f_types,
-        helpers=f_helpers)
+        helpers=f_helpers,
+        parameters=parameters)
     return forcing
 end
 
@@ -146,13 +148,126 @@ end
  collectTypesTiDim(incube::YAXArrays.YAXArray, time_dim_name::Symbol)
 """
 function collectTypesTiDim(incube::YAXArrays.YAXArray, time_dim_name::Symbol)
-    if hasdim(incube, DD.Dim{time_dim_name})
+    if hasdim(incube, time_dim_name)
         return ForcingWithTime()
     else
         return ForcingWithoutTime()
     end
 end
 
+"""
+    getDimsVector(dim_names)
+
+Returns the dimension names as a vector of Symbols. A single name such as `"site"` is
+wrapped into a one element vector.
+"""
+getDimsVector(dim_names::Union{AbstractString,Symbol}) = [Symbol(dim_names)]
+getDimsVector(dim_names) = Symbol.(collect(dim_names))
+
+"""
+    mergeForcingGroup(group_fallback, group_name, setting_sources...)
+
+Merges a grouped forcing setting such as `dimension` or `interpolation_method` key by
+key, so that a variable can override only one key of the group.
+
+# Arguments:
+- `group_fallback`: A NamedTuple with the values used when no source sets a key.
+- `group_name`: The name of the group, e.g. `:dimension`.
+- `setting_sources`: The settings to merge in increasing priority, e.g. the default
+  forcing settings and then the settings of one variable.
+
+# Returns:
+- A NamedTuple with the merged group.
+"""
+function mergeForcingGroup(group_fallback::NamedTuple, group_name::Symbol, setting_sources...)
+    merged_group = group_fallback
+    for setting_source in setting_sources
+        if hasproperty(setting_source, group_name) && !isnothing(getproperty(setting_source, group_name))
+            merged_group = merge_namedtuple_prefer_nonempty(merged_group, getproperty(setting_source, group_name))
+        end
+    end
+    return merged_group
+end
+
+"""
+    getForcingVariableInfo(default_info, var_settings, forcing_data_settings)
+
+Merges the default forcing settings with the settings of one variable.
+
+# Arguments:
+- `default_info`: The `default_forcing` settings.
+- `var_settings`: The settings of one forcing variable.
+- `forcing_data_settings`: The forcing settings of the experiment.
+
+# Returns:
+- The merged settings of the variable, where `dimension` and `interpolation_method`
+  always have the keys `space` and `time`.
+
+# Notes:
+- `dimension` falls back to `data_dimension.space` and `data_dimension.time`.
+- `interpolation_method` falls back to `"None"`, so a variable is not interpolated
+  along an axis unless `default_forcing` or the variable itself sets a method. A
+  method is a name or a group with the name in `method` and its options, see
+  `getInterpolationMethod`. The setting of the variable for an axis replaces that of
+  `default_forcing` as a whole.
+"""
+function getForcingVariableInfo(default_info, var_settings, forcing_data_settings)
+    vinfo = merge_namedtuple_prefer_nonempty(default_info, var_settings)
+    dims_fallback = (; space=forcing_data_settings.data_dimension.space, time=forcing_data_settings.data_dimension.time)
+    var_dims = mergeForcingGroup(dims_fallback, :dimension, default_info, var_settings)
+    method_fallback = (; space="None", time="None")
+    var_methods = mergeForcingGroup(method_fallback, :interpolation_method, default_info, var_settings)
+    vinfo = set_namedtuple_field(vinfo, (:dimension, var_dims))
+    vinfo = set_namedtuple_field(vinfo, (:interpolation_method, var_methods))
+    return vinfo
+end
+
+"""
+    renameToCanonicalDims(yax, var_dims, forcing_data_settings)
+
+Renames the space and time dimensions of a variable to the names in
+`data_dimension`, so that all forcing cubes share the same dimension names.
+
+# Arguments:
+- `yax`: The YAXArray of one forcing variable.
+- `var_dims`: The merged `dimension` group of the variable, with `space` and `time`.
+- `forcing_data_settings`: The forcing settings of the experiment.
+
+# Returns:
+- The YAXArray with renamed dimensions. Dimensions that the cube lacks are skipped.
+"""
+function renameToCanonicalDims(yax, var_dims, forcing_data_settings)
+    dim_renames = getSpaceDimRenames(yax, var_dims.space, forcing_data_settings.data_dimension.space)
+    var_time = Symbol(var_dims.time)
+    canonical_time = Symbol(forcing_data_settings.data_dimension.time)
+    if var_time != canonical_time && hasdim(yax, var_time)
+        push!(dim_renames, var_time => canonical_time)
+    end
+    isempty(dim_renames) && return yax
+    return set(yax, dim_renames...)
+end
+
+"""
+    getSpaceDimRenames(yax, var_space, canonical_space)
+
+Returns the renames of the space dimensions of `yax` from the names `var_space` to the
+names `canonical_space` in the same order, as `old => new` pairs. A dimension that
+`yax` lacks or that already has its canonical name is skipped.
+"""
+function getSpaceDimRenames(yax, var_space, canonical_space)
+    canonical_space = getDimsVector(canonical_space)
+    var_space = getDimsVector(var_space)
+    if length(var_space) != length(canonical_space)
+        error("the space dimensions $(var_space) of a variable do not match the number of space dimensions in data_dimension.space $(canonical_space).")
+    end
+    dim_renames = Pair{Symbol,Symbol}[]
+    for (var_dim, canonical_dim) in zip(var_space, canonical_space)
+        if var_dim != canonical_dim && hasdim(yax, var_dim)
+            push!(dim_renames, var_dim => canonical_dim)
+        end
+    end
+    return dim_renames
+end
 
 """
     getForcing(info::NamedTuple)
@@ -169,11 +284,22 @@ Reads forcing data from the `data_path` specified in the experiment configuratio
   - `variables`: The names of the forcing variables.
   - `f_types`: The types of the forcing data (e.g., `ForcingWithTime` or `ForcingWithoutTime`).
   - `helpers`: Helper information for the forcing data.
+  - `parameters`: The parameters per location set by a json or zarr/nc `parameters`
+    input, or `nothing`. They are kept apart from `data`, see `getParameters`.
 
 # Notes:
 - Reads forcing data from the specified data path and processes it using the SINDBAD framework.
 - Handles spatiotemporal and spatial-only forcing data.
 - Applies masks and subsets to the forcing data if specified in the configuration.
+- Each variable can name its own source dimensions in `dimension.space`, as a vector
+  or a single name such as `"site"`, and `dimension.time`. They are renamed to the
+  names in `data_dimension` before subsetting.
+- When `target_resolution.space.variable` or `target_resolution.time.variable`
+  names a forcing variable and that axis has `apply` set to `true`, all cubes are
+  resampled to its space grid or time axis with the methods in
+  `interpolation_method.space` and `interpolation_method.time`. A method of `"None"`,
+  which is the default, leaves that variable on its own grid. See
+  `resampleForcingCubes`.
 """
 function getForcing(info::NamedTuple)
     nc_default = nothing
@@ -199,25 +325,31 @@ function getForcing(info::NamedTuple)
     forcing_vars = keys(forcing_data_settings.variables)
     tar_dims = getTargetDimensionOrder(info)
     print_info(getForcing, @__FILE__, @__LINE__, "getting forcing variables. Units given in forcing settings are not strictly enforced but shown for reference. Bounds are applied after unit conversion...", n_m=1)
-    vinfo = nothing
-    f_sizes = nothing
-    f_dimension = nothing
     num_type = Val{info.helpers.numbers.num_type}()
-    incubes = map(forcing_vars) do k
+    loaded_vars = map(forcing_vars) do k
         nc = nc_default
-        vinfo = merge_namedtuple_prefer_nonempty(default_info, forcing_data_settings.variables[k])
+        vinfo = getForcingVariableInfo(default_info, forcing_data_settings.variables[k], forcing_data_settings)
         data_path_v = getAbsDataPath(info, getfield(vinfo, :data_path))
         nc, yax = getYaxFromSource(nc, data_path, data_path_v, vinfo.source_variable)
-        incube = subsetAndProcessYax(yax, forcing_mask, tar_dims, vinfo, info, num_type)
+        yax = renameToCanonicalDims(yax, vinfo.dimension, forcing_data_settings)
+        incube = subsetAndProcessCube(yax, forcing_mask, tar_dims, vinfo, info, num_type)
         v_op = vinfo.additive_unit_conversion ? " + " : " * "
         v_op = v_op * "$(vinfo.source_to_sindbad_unit)"
         v_string = "`$(k)` ($(vinfo.sindbad_unit), $(vinfo.bounds)) = <$(vinfo.space_time_type)> `$(vinfo.source_variable)` ($(vinfo.source_unit)) $(v_op)"
         print_info(nothing, @__FILE__, @__LINE__, v_string, n_m=4)
-        if vinfo.space_time_type == "spatiotemporal" && isnothing(f_sizes)
-            f_sizes = collectForcingSizes(info, incube)
-            f_dimension = getSindbadDims(incube)
-        end
-        incube
+        (k => incube, vinfo)
     end
-    return createForcingNamedTuple(incubes, f_sizes, f_dimension, info)
+    incubes = first.(loaded_vars)
+    vinfos = last.(loaded_vars)
+    interpincubes = resampleForcingCubes(incubes, vinfos, forcing_data_settings, num_type)
+    # The sizes are taken after resampling so that they match the target resolution.
+    f_sizes = nothing
+    f_dimension = nothing
+    i_spatiotemporal = findfirst(vinfo -> vinfo.space_time_type == "spatiotemporal", vinfos)
+    if !isnothing(i_spatiotemporal)
+        f_sizes = collectForcingSizes(info, interpincubes[i_spatiotemporal])
+        f_dimension = getSindbadDims(interpincubes[i_spatiotemporal])
+    end
+    parameters = getParameters(info, f_dimension, NamedTuple{Tuple(forcing_vars)}(Tuple(interpincubes)))
+    return createForcingNamedTuple(interpincubes, f_sizes, f_dimension, info; parameters=parameters)
 end

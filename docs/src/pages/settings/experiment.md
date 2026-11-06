@@ -25,7 +25,7 @@ The `basics` section defines core experiment settings and metadata.
     "time": {
       "date_begin": "Start date of the experiment (YYYY-MM-DD)",
       "date_end": "End date of the experiment (YYYY-MM-DD)",
-      "temporal_resolution": "Model simulation time step (one of: 'second', 'minute', 'halfhour', 'hour', 'day', 'week', 'month', 'year', 'decade')"
+      "temporal_resolution": "Model simulation time step (one of: 'second', 'minute', 'hour', 'day', 'month', 'year', optionally prefixed with an integer count, e.g. '8-day', '6-hour')"
     }
 }
 ```
@@ -64,7 +64,9 @@ The `exe_rules` section defines model execution settings and performance configu
     "model_number_type": "Numeric type used in models",
     "parallelization": "Parallelization backend for spatial operations",
     "tolerance": "Numerical tolerance for error checking",
-    "yax_max_cache": "Cache size for YaxArray-based model runs"
+    "yax_max_cache": "Cache size in bytes for YaxArray-based model runs, or null to compute it from the threads and valid locations, so that the run needs at most 66% of the available memory",
+    "yax_block_grids": "Block of grids of a lazy run: \"auto\" (default) for whole chunks of the inputs with time, grown until its fullest block has 8 valid grids per thread or it fills the memory; [n_lat, n_lon] in the order of data_dimension.space for a fixed block; or \"optimizer\" for the block that DiskArrayEngine optimizes. A block without a valid grid, e.g. over ocean, is skipped and not read. The output chunks follow the block in space, split to at most 1 GiB",
+    "yax_shared_forcing": "true (default) to read every source of a lazy run once when forcing variables share it, e.g. f_airT and f_airT_day; false for one input per variable"
 }
 ```
 
@@ -77,7 +79,9 @@ The `exe_rules` section defines model execution settings and performance configu
     "model_number_type": "Float32",
     "parallelization": "threads",
     "tolerance": 1.0e-2,
-    "yax_max_cache": 2e9
+    "yax_max_cache": 2e9,
+    "yax_block_grids": "auto",
+    "yax_shared_forcing": true
 }
 ```
 :::
@@ -94,7 +98,7 @@ The `flags` section controls experiment execution modes and features. All fields
     "calc_cost": "Enable/disable cost calculation against observations",
     "catch_model_errors": "Stop execution on internal model errors",
     "debug_model": "Run single time step with diagnostics",
-    "filter_nan_pixels": "Remove NaN pixels from input arrays",
+    "filter_nan_pixels": "Skip pixels with an invalid forcing value at any time step (default: true)",
     "inline_update": "Update model state within time step",
     "run_forward": "Enable forward model run",
     "run_optimization": "Enable parameter calibration",
@@ -111,7 +115,7 @@ The `flags` section controls experiment execution modes and features. All fields
     "calc_cost": true,
     "catch_model_errors": false,
     "debug_model": false,
-    "filter_nan_pixels": false,
+    "filter_nan_pixels": true,
     "inline_update": false,
     "run_forward": true,
     "run_optimization": true,
@@ -139,7 +143,7 @@ The `model_output` section configures output format, variables, and storage sett
     "format": "Output format ('zarr' or 'nc')",
     "output_array_type": "Output array backend",
     "path": "Custom output path (null for default)",
-    "plot_model_output": "Enable output plotting",
+    "plot_resolution": "Dots per inch of the saved raster figures (default 100 when null or missing)",
     "save_single_file": "Save all variables in one file",
     "variables": {
       "field.name:depth/layers": "Layer specification (null for 1 layer, string for depth dimension, or number for layers)"
@@ -159,7 +163,7 @@ The `model_output` section configures output format, variables, and storage sett
     "format": "zarr",
     "output_array_type": "array",
     "path": null,
-    "plot_model_output": false,
+    "plot_resolution": 100,
     "save_single_file": true,
     "variables": {
       "diagnostics.auto_respiration_f_airT": null,
@@ -176,37 +180,45 @@ Variables follow the `field.subfield` convention of the `land` structure.
 
 :::
 
-### Model Spinup
+### Spinup Sequence
 
-The `model_spinup` section configures model initialization procedures.
+The `spinup_sequence` entry configures the model spinup. It is either a list of spinup steps run in order, or a sequence method with its options, e.g. `{"method": "sequence_with_age", "options": {...}}`. When it is missing or null, the default sequence is used.
+
+The pools for the restart file are saved after the step with `"save_restart": true`. A step without the field is false. When no step is true, the last step saves the restart, and more than one true step is an error.
 
 :::tabs
 
 == Explanation
 ```json
-"model_spinup": {
-    "restart_file": "Path to restart file (null for no restart)",
-    "sequence": [
-      {
-        "forcing": "Forcing data source for sequence block",
-        "n_repeat": "Number of sequence repetitions",
-        "spinup_mode": "Models or methods to use in block"
-      }
-    ]
-}
+"spinup_sequence": [
+  {
+    "forcing": "Forcing data source for sequence block",
+    "n_repeat": "Number of sequence repetitions",
+    "spinup_mode": "Models or methods to use in block",
+    "save_restart": "Optional. true to save the pools for the restart file after this step"
+  }
+]
 ```
 
 == Example
 ```json
-"model_spinup": {
-    "restart_file": null,
-    "sequence": [
-      {
-        "forcing": "first_year",
-        "n_repeat": 200,
-        "spinup_mode": "all_forward_models"
-      }
-    ]
-}
+"spinup_sequence": [
+  {
+    "forcing": "first_year",
+    "n_repeat": 200,
+    "spinup_mode": "all_forward_models"
+  }
+]
 ```
+:::
+
+::: info Spinup forcing
+
+The `forcing` of a sequence block is resolved with TimeSamplers.jl:
+- `"all_years"`, `"first_year"`, `"random_year"` and `"shuffle_years"` select timesteps of the forcing, which then runs at the model timestep.
+- `"day_MSC"`, `"month_MSC"` and period specs such as `"hour_msc"` or `"8-day_msc"` average the forcing into a mean seasonal cycle. Each value of the cycle is one spinup timestep.
+- Anomalies are not allowed as spinup forcing.
+
+The forcing is averaged for every variable, and the models run with their parameters at the model timestep. When the bins are longer than the model timestep, for example `"day_MSC"` on an hourly model, each spinup timestep therefore covers a whole bin with parameters and forcing amounts per model timestep. For a spinup at the model timestep, use the cycle at that resolution, such as `"hour_msc"` for an hourly model.
+
 :::

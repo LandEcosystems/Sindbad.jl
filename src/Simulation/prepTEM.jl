@@ -41,7 +41,7 @@ function addErrorCatcher end
 function addErrorCatcher(loc_land, ::DoDebugModel) # print land when debug model is true/on
     SindbadTEM.eval(:(error_catcher = []))
     push!(SindbadTEM.error_catcher, loc_land)
-    tc_print(loc_land)
+    # tc_print(loc_land)
     return nothing
 end
 
@@ -50,112 +50,156 @@ function addErrorCatcher(_, ::DoNotDebugModel) # do nothing debug model is false
 end
 
 """
-    addSpinupLog(loc_land, sequence, ::SpinupLogType)
+    addSpinupStore(loc_land, sequence, store_spinup_mode)
 
-Adds or skips the preallocated holder for storing the spinup log during model spinup, depending on the specified `SpinupLogType`.
+Adds or skips the preallocated arrays that store `cEco` and `TWS` at every time step
+of the spinup, depending on the specified `store_spinup_mode`.
 
 # Arguments:
 - `loc_land`: A core SINDBAD NamedTuple containing all variables for a given time step, which is overwritten at every time step.
-- `sequence`: The spinup sequence, which defines the number of repeats and timesteps for the spinup process.
-- `::SpinupLogType`: A type dispatch that determines whether to store the spinup log:
-    - `DoStoreSpinup`: Enables storing the spinup log for each repeat of the spinup process. Set `store_spinup` to true in flag section of experiment_json.
-    - `DoNotStoreSpinup`: Skips storing the spinup log. Set `store_spinup` to false in flag section of experiment_json.
+- `sequence`: The spinup sequence of the location, which sets the number of stored
+  rows.
+- `store_spinup_mode`: A type dispatch that determines whether to store the spinup:
+    - `DoStoreSpinup`: Adds the arrays. Set `store_spinup` to true in flag section of
+      experiment_json.
+    - `DoNotStoreSpinup`: Returns `loc_land` as is. Set `store_spinup` to false in
+      flag section of experiment_json.
 
 # Returns:
-- `loc_land`: The updated `loc_land` NamedTuple, potentially with the spinup log added.
+- `loc_land`: The `loc_land` NamedTuple, with `spinup_cEco`, `spinup_TWS` and
+  `spinup_step` in `land.states` when the spinup is stored.
 
 # Notes:
-- When `DoStoreSpinup` is used:
-    - The function calculates the total number of repeats in the spinup sequence.
-    - Preallocates a vector to store the spinup log for each repeat.
-    - Updates the `loc_land` NamedTuple with the spinup log.
-- When `DoNotStoreSpinup` is used, the function simply returns `loc_land` without modifications.
-
-# Examples:
-1. **Storing the spinup log**:
-```julia
-loc_land = (pools = rand(10), states = rand(10))
-sequence = [(n_repeat = 3, n_timesteps = 10), (n_repeat = 2, n_timesteps = 5)]
-loc_land = addSpinupLog(loc_land, sequence, DoStoreSpinup())
-```
-
-2. **Skipping the spinup log**:
-```julia
-loc_land = (pools = rand(10), states = rand(10))
-sequence = [(n_repeat = 3, n_timesteps = 10), (n_repeat = 2, n_timesteps = 5)]
-loc_land = addSpinupLog(loc_land, sequence, DoNotStoreSpinup())
-```
+- `spinup_cEco` and `spinup_TWS` have one row per stored step and one column per
+  layer. Row 1 is the state before the spinup. A `LoopTEM` step stores every time
+  step of every repeat, and any other spinup mode stores one row per repeat. See
+  `spinupStoreSteps`.
+- A pool that is not in `land.pools` gets `nothing` instead of an array.
+- `spinup_step` is a one-element vector with the last written row.
+- The arrays are sized from the sequence of the location. `getSpaceLand` gives every
+  location its own land, so each location gets arrays of its own size.
+- The arrays have the number type of the pools at setup, so they cannot hold the dual
+  numbers of `PreAllocArrayFD`.
 """
-function addSpinupLog end
+function addSpinupStore end
 
-function addSpinupLog(loc_land, sequence, ::DoStoreSpinup) # when history is true
-    n_repeat = 1
-    for _seq in sequence
-        n_repeat = n_repeat + _seq.n_repeat
-    end
-    spinuplog = Vector{typeof(loc_land.pools)}(undef, n_repeat)
-    @pack_nt spinuplog ⇒ loc_land.states
+function addSpinupStore(loc_land, sequence, ::DoStoreSpinup)
+    n_rows = 1 + sum(seq -> seq.n_repeat * spinupStoreSteps(seq), sequence; init=0)
+    spinup_cEco = getSpinupOutArray(loc_land.pools, :cEco, n_rows)
+    spinup_TWS = getSpinupOutArray(loc_land.pools, :TWS, n_rows)
+    spinup_step = [0]
+    @pack_nt (spinup_cEco, spinup_TWS, spinup_step) ⇒ loc_land.states
     return loc_land
 end
 
-function addSpinupLog(loc_land, _, ::DoNotStoreSpinup) # when history is false
+function addSpinupStore(loc_land, _, ::DoNotStoreSpinup)
     return loc_land
+end
+
+"""
+    spinupStoreSteps(spin_seq)
+
+Returns the number of rows stored for one repeat of a spinup step, which is the
+number of time steps for `LoopTEM` and one for any other spinup mode.
+"""
+spinupStoreSteps(spin_seq) = spin_seq.spinup_mode isa LoopTEM ? spin_seq.n_timesteps : 1
+
+"""
+    getSpinupOutArray(pools, pool_name, n_rows)
+
+Returns a NaN-filled array of `n_rows` rows and one column per layer of the pool, or
+`nothing` when the pool is not in `pools`.
+"""
+function getSpinupOutArray(pools, pool_name, n_rows)
+    hasproperty(pools, pool_name) || return nothing
+    pool = getproperty(pools, pool_name)
+    return fill(convert(eltype(pool), NaN), n_rows, length(pool))
 end
 
 
 """
-    filterNanPixels(forcing, loc_space_maps, filter_nan_pixels_mode)
+    filterNanGrids(forcing, loc_space_maps, filter_nan_grids_mode)
 
-Filters out spatial pixels where all timesteps contain NaN values, based on the specified filtering mode.
+Filters out the grids that have an invalid value, i.e., `nothing`, `missing`, `NaN` or
+`Inf`, in any forcing variable at any time step, based on the filtering mode. The
+model is not run for these grids.
 
 # Arguments:
-- `forcing`: A forcing NamedTuple containing the time series of environmental drivers for all locations.
+- `forcing`: A forcing NamedTuple containing the time series of environmental drivers
+  for all locations.
 - `loc_space_maps`: A collection of local spatial coordinates for all input points.
-- `filter_nan_pixels_mode`: A type dispatch that determines whether to filter NaN-only pixels:
-    - `DoFilterNanPixels`: Filters out pixels where all timesteps are NaN. Set `filter_nan_pixels` to true in flag section of experiment_json.
-    - `DoNotFilterNanPixels`: Does not filter any pixels, returning the input `loc_space_maps` unchanged. Set `filter_nan_pixels` to false in flag section of experiment_json.
+- `filter_nan_grids_mode`: A type dispatch that determines whether to filter grids:
+    - `DoFilterNanPixels`: Filters out grids with an invalid value in any forcing
+      variable at any time step. Set `filter_nan_pixels` to true in flag section of
+      experiment_json.
+    - `DoNotFilterNanPixels`: Does not filter any grids, returning the input
+      `loc_space_maps` unchanged. Set `filter_nan_pixels` to false in flag section of
+      experiment_json.
 
 # Returns:
-- `loc_space_maps`: The filtered or unfiltered spatial coordinates, depending on the filtering mode.
+- `loc_space_maps`: The filtered or unfiltered spatial coordinates, depending on the
+  filtering mode.
 
 # Notes:
+- The flag types keep the name of the `filter_nan_pixels` setting they are built from.
 - When `DoFilterNanPixels` is used:
-    - The function iterates through all spatial locations and checks if all timesteps for a given location are NaN. NOTE THAT THIS WILL BE SLOW FOR LARGE DATASETS AS ALL LAZILY-LOADED DATA ARE STORED IN MEMORY.
-    - Locations with all NaN values are excluded from the returned `loc_space_maps`.
-- When `DoNotFilterNanPixels` is used, the function simply returns the input `loc_space_maps` without any modifications.
+    - The function checks every forcing variable of every location. NOTE THAT THIS
+      WILL BE SLOW FOR LARGE DATASETS AS ALL LAZILY-LOADED DATA ARE STORED IN MEMORY.
+    - Invalid values of the forcing are not filled when it is loaded, see `cleanData`,
+      so they are seen here.
+    - Locations with an invalid value in any variable at any time step are excluded
+      from the returned `loc_space_maps`, and their output stays NaN.
+    - An error is thrown when no location is left.
+- When `DoNotFilterNanPixels` is used, the function simply returns the input
+  `loc_space_maps` without any modifications.
 
 # Examples:
-1. **Filtering NaN-only pixels**:
+1. **Filtering grids with invalid forcing**:
 ```julia
 forcing = (data = ..., variables = ...)
 loc_space_maps = [(1, 2), (3, 4), (5, 6)]
-filtered_maps = filterNanPixels(forcing, loc_space_maps, DoFilterNanPixels())
+filtered_maps = filterNanGrids(forcing, loc_space_maps, DoFilterNanPixels())
 ```
 
-2. **Skipping NaN filtering**:
+2. **Skipping the filtering**:
 ```julia
 forcing = (data = ..., variables = ...)
 loc_space_maps = [(1, 2), (3, 4), (5, 6)]
-filtered_maps = filterNanPixels(forcing, loc_space_maps, DoNotFilterNanPixels())
+filtered_maps = filterNanGrids(forcing, loc_space_maps, DoNotFilterNanPixels())
 ```
 """
-function filterNanPixels end
+function filterNanGrids end
 
-function filterNanPixels(_, loc_space_maps, ::DoNotFilterNanPixels)
+function filterNanGrids(_, loc_space_maps, ::DoNotFilterNanPixels)
     return loc_space_maps
 end
 
 
-function filterNanPixels(forcing, loc_space_maps, ::DoFilterNanPixels)
-    forcing_nt_array = namedtuple_from_names_values(forcing.data, forcing.variables)
-    allNans = Bool[]
-    for i ∈ eachindex(loc_space_maps)
-        loc_ind = Tuple(last.(loc_space_maps[i]))
-        loc_forcing = getLocData(forcing_nt_array, loc_ind)
-        push!(allNans, all(isnan, loc_forcing[1]))
+function filterNanGrids(forcing, loc_space_maps, ::DoFilterNanPixels)
+    forcing_nt_array = namedtuple_from_names_values(values(forcing.data), forcing.variables)
+    # a value of a variable without a time dimension is a number, otherwise an array
+    hasInvalid(v) = v isa Number ? is_invalid_number(v) : any(is_invalid_number, v)
+    # one row per grid and one column per forcing variable, true where the variable
+    # has an invalid value at some time step of the grid
+    invalid_by_var = map(loc_space_maps) do loc_space_map
+        loc_forcing = getLocData(forcing_nt_array, Tuple(last.(loc_space_map)))
+        map(hasInvalid, Tuple(loc_forcing))
     end
-    loc_space_maps = loc_space_maps[allNans.==false]
-    return loc_space_maps
+    has_invalid = map(any, invalid_by_var)
+    n_grids = length(loc_space_maps)
+    n_invalid = count(has_invalid)
+    print_info(filterNanGrids, @__FILE__, @__LINE__,
+        "filtered out $(n_invalid) of $(n_grids) grids with an invalid value in any forcing variable at any time step, $(n_grids - n_invalid) grids are run", n_f=6)
+    # the grids with an invalid value of each variable, which can add up to more than
+    # the filtered grids when a grid has invalid values in several variables
+    for (v_index, v_name) ∈ enumerate(forcing.variables)
+        n_var = count(p -> p[v_index], invalid_by_var)
+        n_var > 0 || continue
+        print_info(nothing, @__FILE__, @__LINE__,
+            "→→→    `$(v_name)`: $(n_var) grids with an invalid value", n_m=8)
+    end
+    n_invalid == n_grids && error("every grid has an invalid value in a forcing variable at some time step, so no grid is left to run. Fill the gaps of the forcing before running the simulation.")
+    return loc_space_maps[.!collect(has_invalid)]
 end
 
 
@@ -174,8 +218,10 @@ function getRunTEMInfo(info, forcing)
     @debug "     preparing vals for generated functions"
     vals = (; forcing_types=Val(forcing.f_types), output_vars=Val(output_vars))
     upd_tem_helpers = (;)
-    tem_dates = tem_helpers.dates
-    tem_dates = (;)
+    # Stripped down to temporal_resolution alone -- the rest of tem_helpers.dates
+    # (the full timestep range, etc.) is not needed by any model and not worth
+    # carrying into every per-location, per-timestep model call.
+    tem_dates = (; temporal_resolution=tem_helpers.dates.temporal_resolution)
     # upd_tem_helpers = set_namedtuple_field(upd_tem_helpers, (:dates, tem_dates))
     time_size = getproperty(forcing.helpers.sizes, Symbol(forcing.helpers.dimensions.time))
     upd_tem_helpers = set_namedtuple_field(upd_tem_helpers, (:n_timesteps, time_size))
@@ -190,10 +236,11 @@ function getRunTEMInfo(info, forcing)
     upd_tem_helpers = set_namedtuple_field(upd_tem_helpers, (:vals, vals))
     upd_tem_helpers = set_namedtuple_field(upd_tem_helpers, (:model_helpers, model_helpers))
     upd_tem_helpers = set_namedtuple_field(upd_tem_helpers, (:run, tem_helpers.run))
-    # upd_tem_helpers = set_namedtuple_field(upd_tem_helpers, (:spinup_sequence, getSpinupTemLite(info.spinup.sequence)))
-    # don't do `getSpinupTemLite` here, but rather later on more inner functions! 
-    # ! BECAUSE THIS IS LOADING ALL THE DATA
-    upd_tem_helpers = set_namedtuple_field(upd_tem_helpers, (:spinup_sequence, info.spinup.sequence))
+    upd_tem_helpers = set_namedtuple_field(upd_tem_helpers, (:spinup, info.spinup))
+    # the full date range is stripped from model_helpers above because it would then reach
+    # every per-timestep model call. tem_info.spinup_dates never does, and building a
+    # sequence needs the range, so it is carried here instead.
+    upd_tem_helpers = set_namedtuple_field(upd_tem_helpers, (:spinup_dates, tem_helpers.dates))
 
     return upd_tem_helpers
 end
@@ -201,9 +248,10 @@ end
 
 """
     getSpatialInfo(forcing_helpers)
-    getSpatialInfo(forcing, filterNanPixels)
+    getSpatialInfo(forcing, filter_nan_pixels)
 
-get the information of the indices of the data to run the model for. The second variant additionally filter pixels with all nan data
+get the information of the indices of the data to run the model for. The second variant
+additionally filters out the grids with invalid forcing, see `filterNanGrids`.
 
 # Arguments:
 - `forcing`: a forcing NT that contains the forcing time series set for ALL locations
@@ -229,7 +277,7 @@ end
 
 function getSpatialInfo(forcing, filter_nan_pixels)
     space_ind, loc_space_maps = getSpatialInfo(forcing.helpers)
-    loc_space_maps = filterNanPixels(forcing, loc_space_maps, filter_nan_pixels)
+    loc_space_maps = filterNanGrids(forcing, loc_space_maps, filter_nan_pixels)
     space_ind = Tuple([Tuple(last.(loc_space_map)) for loc_space_map ∈ loc_space_maps])
     return space_ind
 end
@@ -237,22 +285,219 @@ end
 
 
 """
-    getSpinupTemLite(tem_spinup)
+    getLocSpinup(loc_forcing, tem_info, aggregator_cache=Dict{Symbol,Any}())
 
-a helper to just get the spinup sequence to pass to inner functions
+Build the spinup sequence of one location together with the forcing derived for it.
 
 # Arguments:
-- `tem_spinup_sequence`: a NT with all spinup information
-"""
-function getSpinupTemLite(tem_spinup_sequence)
-    newseqs = []
-    for seq in tem_spinup_sequence
-        ns = (; forcing=seq.forcing, n_repeat= seq.n_repeat, n_timesteps=seq.n_timesteps, spinup_mode=seq.spinup_mode, options=seq.options)
-        push!(newseqs, ns)
-    end
-    sequence = [_s for _s in newseqs]
-    return sequence
+- `loc_forcing`: a forcing NT for a single location
+- `tem_info`: helper NT with necessary objects for model run and type consistencies
+- `aggregator_cache`: a Dict of already built temporal aggregators, shared across locations
 
+# Returns:
+- a NT with the `sequence` of the location and the spinup `forcing` derived from it
+
+# Notes:
+- The sequence and the forcing derived from it are kept together so that they cannot drift
+  apart, and so that a per-location sequence reaches `spinupTEM` without threading an extra
+  argument through the whole parallelization chain.
+"""
+function getLocSpinup(loc_forcing, tem_info, aggregator_cache=Dict{Symbol,Any}())
+    sequence = getSpinupSequence(tem_info.spinup.method, tem_info.spinup, loc_forcing, tem_info.spinup_dates, aggregator_cache)
+    return (; sequence=sequence, forcing=getAllSpinupForcing(loc_forcing, sequence, tem_info))
+end
+
+"""
+    getSpaceSpinup(space_forcing, tem_info)
+
+Build the spinup sequence and the spinup forcing of every location.
+
+# Arguments:
+- `space_forcing`: a collection of forcing NTs, one per location
+- `tem_info`: helper NT with necessary objects for model run and type consistencies
+
+# Notes:
+- A sequence method may give different locations sequences of different lengths or modes, in
+  which case the returned collection is heterogeneous and `coreTEM!` is dispatched dynamically
+  once per location. That is once per location rather than per timestep, and the inner
+  `runSpinupSequences` recursion still specialises on each concrete sequence type.
+"""
+function getSpaceSpinup(space_forcing, tem_info)
+    aggregator_cache = Dict{Symbol,Any}()
+    return map(space_forcing) do loc_forcing
+        getLocSpinup(loc_forcing, tem_info, aggregator_cache)
+    end
+end
+
+"""
+    getSpaceLand(space_selected_models, space_forcing, space_spinup, land_init, tem_info)
+
+Builds the initial land NT of every location from the models and the forcing of that
+location, with a spinup store sized to its own sequence.
+
+# Arguments:
+- `space_selected_models`: a collection of the models of each location, from
+  `getLocationModels`
+- `space_forcing`: a collection of forcing NTs, one per location
+- `space_spinup`: a collection of spinup NTs, one per location
+- `land_init`: the initial land NT before any model is run
+- `tem_info`: helper NT with necessary objects for model run and type consistencies
+
+# Notes:
+- Each land comes from `runTEMOne` for its own location. `coreTEM!` runs only the
+  precompute step, so the variables set in the define step, e.g., soil properties
+  from static forcing or values from parameters per location, would otherwise be
+  those of the first location everywhere.
+- A `SpinupInput` step at the start of a sequence is run here once, see `getLocLand`,
+  so the returned spinup NTs are without it.
+
+# Returns:
+- a tuple of the land NT of every location
+- the spinup NT of every location
+"""
+function getSpaceLand(space_selected_models, space_forcing, space_spinup, land_init, tem_info)
+    space_land_spinup = map(space_selected_models, space_forcing, space_spinup) do loc_models, loc_forcing, loc_spinup
+        getLocLand(loc_models, loc_forcing, loc_spinup, land_init, tem_info)
+    end
+    return Tuple(first.(space_land_spinup)), last.(space_land_spinup)
+end
+
+"""
+    getLocLand(loc_models, loc_forcing, loc_spinup, land_init, tem_info)
+
+Builds the initial land NT of one location, and sets its pools from the forcing when
+its spinup sequence starts with a `SpinupInput` step.
+
+# Returns:
+- the land NT of the location
+- the spinup NT of the location, without the `SpinupInput` step
+
+# Notes:
+- The pools read from the forcing do not depend on the parameters, so they are set
+  once here instead of at the start of every spinup. The step is then dropped from
+  the sequence, and a location with no other step gets an empty sequence.
+- The precompute step of every run comes after this, so a precompute that changes
+  pools, e.g., the removal of water above the capacity of the soil layers, now acts
+  on the pools from the forcing.
+- With `spinup_TEM` false, the `SpinupInput` step is skipped like every other spinup
+  step, and the land keeps the initial pools, the same as in a lazy run.
+"""
+function getLocLand(loc_models, loc_forcing, loc_spinup, land_init, tem_info)
+    sequence = loc_spinup.sequence
+    has_input = !isempty(sequence) && first(sequence).spinup_mode isa SpinupInput
+    if has_input
+        loc_spinup = (; loc_spinup..., sequence=Base.tail(sequence))
+    end
+    # parameters that vary in time are at their values of the first time step here
+    loc_models = initialModels(loc_models)
+    # runTEMOne adds the spinup store for the sequence of this location
+    loc_forcing_t, loc_land = runTEMOne(loc_models, loc_forcing, deepcopy(land_init), tem_info, loc_spinup.sequence)
+    if has_input && tem_info.run.spinup_TEM isa DoSpinupTEM
+        loc_land = spinup(loc_models, nothing, loc_forcing_t, loc_land, tem_info, 1, SpinupInput())
+    end
+    return loc_land, loc_spinup
+end
+
+
+"""
+    checkOutputLayers(output_vars, depth_info, loc_land)
+
+Checks that every output variable has as many layers in the settings as the variable
+has in land, and throws an error otherwise.
+
+# Arguments:
+- `output_vars`: the field and subfield pairs of the output variables
+- `depth_info`: the number of layers and the name of the depth dimension of each output
+  variable, from the `model_output.variables` settings
+- `loc_land`: the land of one location after a model run of one time step
+
+# Notes:
+- It runs once during setup, so it adds no cost to the time loop. Without it, an output
+  with more layers than the variable keeps unused layers of NaN, and one with fewer
+  layers fails during the run.
+- Only numbers and arrays in land are checked.
+"""
+function checkOutputLayers(output_vars, depth_info, loc_land)
+    foreach(output_vars, depth_info) do var_pair, d_info
+        land_value = getproperty(getproperty(loc_land, first(var_pair)), last(var_pair))
+        (land_value isa Number || land_value isa AbstractArray) || return nothing
+        n_land = length(land_value)
+        n_land == first(d_info) || throwOutputLayerError(var_pair, first(d_info), n_land, last(d_info))
+        return nothing
+    end
+    return nothing
+end
+
+"""
+    throwOutputLayerError(var_pair, n_out, n_land, dim_name="")
+
+Throws the error for an output variable whose number of layers in the settings differs
+from the number of layers of the variable in land.
+"""
+@noinline function throwOutputLayerError(var_pair, n_out, n_land, dim_name="")
+    dim_text = isempty(string(dim_name)) ? "" : " (depth dimension `$(dim_name)`)"
+    error("The output `$(first(var_pair)).$(last(var_pair))` has $(n_out) layer(s) in the settings$(dim_text), but land has $(n_land). Set its depth dimension in `model_output.variables` of the experiment settings to one with $(n_land) layer(s).")
+end
+
+
+"""
+    getLocationModels(selected_models, forcing, space_ind)
+
+Returns the models of every location, with the parameters per location from the
+parameters input applied.
+
+# Arguments:
+- `selected_models`: a tuple of all models selected in the given model structure
+- `forcing`: a forcing NamedTuple, whose `parameters` field holds the parameters per
+  location from `getParameters`, or `nothing`
+- `space_ind`: the spatial indices of the locations to run
+
+# Returns:
+- A NamedTuple with:
+  - `space_selected_models`: a vector with one tuple of models per location. Without
+    parameters per location, every element is `selected_models`. Otherwise the
+    parameters of each element are set to the values at that location. When a
+    parameter varies in time, each element is a `TimeVaryingModels` whose models have
+    the values of the first time step.
+  - `parameters`: `nothing` without parameters per location. Otherwise a NamedTuple
+    with the `parameter_table` of what was applied, for reference, and `time_varying`,
+    whether a parameter varies in time. The table is that of `forcing.parameters` with
+    `initial` and `optimized` set to the mean over the locations and time steps, and
+    with their `min` and `max`.
+
+# Notes:
+- The values are used as they are, because `getParameters` already converted their
+  units, replaced NaN and clamped them to their bounds.
+- All elements have the same concrete type, see `setTypedParameters`.
+"""
+function getLocationModels(selected_models, forcing, space_ind)
+    forcing_parameters = get(forcing, :parameters, nothing)
+    if isnothing(forcing_parameters)
+        return (; space_selected_models=[[selected_models for _ ∈ 1:length(space_ind)]...], parameters=nothing)
+    end
+    print_info(getLocationModels, @__FILE__, @__LINE__, "setting the parameters of the models of each location", n_f=6)
+    input_table = forcing_parameters.parameter_table
+    parameter_to_index = getParameterIndices(selected_models, input_table)
+    time_varying = getTimeVaryingInfo(selected_models, parameter_to_index, forcing_parameters)
+    # the values of a location, a 0-dimensional array for a spatial parameter and a
+    # vector over time for one that varies in time
+    space_parameters = map([space_ind...]) do loc_ind
+        map(p_data -> Array(view_at_trailing_indices(p_data.data, loc_ind)), collect(forcing_parameters.data))
+    end
+    space_selected_models = map(space_parameters) do loc_parameters
+        loc_models = setTypedParameters(selected_models, parameter_to_index, map(first, loc_parameters))
+        setTimeVaryingModels(loc_models, loc_parameters, time_varying)
+    end
+
+    p_indices = eachindex(input_table.name_full)
+    p_mean = [sum(sum(lp[p_i]) / length(lp[p_i]) for lp ∈ space_parameters) / length(space_parameters) for p_i ∈ p_indices]
+    p_min = [minimum(minimum(lp[p_i]) for lp ∈ space_parameters) for p_i ∈ p_indices]
+    p_max = [maximum(maximum(lp[p_i]) for lp ∈ space_parameters) for p_i ∈ p_indices]
+    parameter_table = Table(input_table; initial=p_mean, optimized=copy(p_mean), min=p_min, max=p_max)
+    foreach(p_indices) do p_i
+        print_info(nothing, @__FILE__, @__LINE__, "→→→    `$(input_table.name_full[p_i])`: mean $(p_mean[p_i]), min $(p_min[p_i]), max $(p_max[p_i])", n_m=8)
+    end
+    return (; space_selected_models, parameters=(; parameter_table, time_varying=!isnothing(time_varying)))
 end
 
 """
@@ -273,7 +518,7 @@ Prepares the necessary information and objects needed to run the SINDBAD Terrest
 # Returns:
 - A NamedTuple (`run_helpers`) containing preallocated data and configurations required to run the TEM, including:
     - Spatial forcing data.
-    - Spinup forcing data.
+    - Per-location spinup sequences and the forcing derived from them.
     - Output arrays.
     - Land variables.
     - Temporal and spatial indices.
@@ -292,6 +537,8 @@ Prepares the necessary information and objects needed to run the SINDBAD Terrest
 - The function dynamically prepares the required data structures based on the specified `PreAllocputType`.
 - It handles spatial and temporal data preparation, including filtering NaN pixels, initializing land variables, and setting up forcing and output arrays.
 - This function is a key step in preparing the SINDBAD TEM for execution.
+- If a `cCycleBase` approach is selected, its carbon flow matrix is plotted from this
+  `loc_land` and saved into `info.output.dirs.figure` (see `plotActualCarbonFlows`).
 
 # Examples
 ```jldoctest
@@ -309,6 +556,98 @@ run_helpers = helpPrepTEM(selected_models, info, forcing, observations, output, 
 """
 function helpPrepTEM end
 
+"""
+    prepRestart(info, forcing_helpers, loc_land, space_ind, space_spinup, tem_info)
+
+Prepares the arrays that collect the main pools after the spinup step with
+`save_restart` from the restart file.
+
+# Arguments:
+- `info`: a SINDBAD NT with all information needed for setup and execution of an experiment
+- `forcing_helpers`: a NT with information on forcing sizes and dimensions
+- `loc_land`: the land of one location after a model run of one time step
+- `space_ind`: the spatial indices of all locations
+- `space_spinup`: the spinup sequence and forcing of every location
+- `tem_info`: helper NT with necessary objects for model run and type consistencies
+
+# Returns:
+- `restart`: a NT with the `variables`, `dims` and `data` of the restart file, and the
+  `spinup_mode` of the spinup step that saves the restart
+- `space_restart`: the per-location views into `restart.data`
+- `tem_info`: `tem_info` with `vals.restart_vars` set for the generated output writer
+
+# Notes:
+- The arrays are only filled by the forward runs that take `space_restart`. The
+  optimization and cost runs never touch them.
+"""
+function prepRestart(info, forcing_helpers, loc_land, space_ind, space_spinup, tem_info)
+    restart = getRestartDimsArrays(info, forcing_helpers, loc_land)
+    spinup_mode = getSaveRestartSpinupMode([loc_spinup.sequence for loc_spinup in space_spinup], tem_info.run.spinup_TEM)
+    restart = (; restart..., spinup_mode)
+    space_restart = map([space_ind...]) do lsi
+        getLocData(restart.data, lsi)
+    end
+    tem_info =  (; tem_info..., vals=(; tem_info.vals..., restart_vars=Val(restart.variables)))
+    return restart, space_restart, tem_info
+end
+
+"""
+    getSaveRestartSpinupMode(sequences, spinup_flag)
+    getSaveRestartSpinupMode(info)
+
+Returns the name of the spinup mode type of the spinup step that saves the restart,
+e.g., `LoopTEM` or `SpinupInput`.
+
+# Arguments:
+- `sequences`: the spinup sequence of every location
+- `spinup_flag`: `DoSpinupTEM` or `DoNotSpinupTEM`
+- `info`: a SINDBAD NT with the spinup settings, used when the sequences of the
+  locations are not built, as in the lazy run
+
+# Notes:
+- Without spinup the restart holds the pools before the time loop, and the mode is `none`.
+- When the locations save the restart after steps with different modes, all of them are
+  given, separated by commas.
+- From the settings alone, a sequence method that builds the steps per location, such
+  as `SequenceWithAge`, gives `per_location`.
+"""
+function getSaveRestartSpinupMode(sequences, spinup_flag)
+    spinup_flag isa DoNotSpinupTEM && return "none"
+    modes = unique([string(nameof(typeof(step.spinup_mode))) for sequence ∈ sequences for step ∈ sequence if step.save_restart])
+    return isempty(modes) ? "none" : join(modes, ", ")
+end
+
+function getSaveRestartSpinupMode(info)
+    info.helpers.run.spinup_TEM isa DoNotSpinupTEM && return "none"
+    method = info.spinup.method
+    steps = if method isa SequenceList
+        info.spinup.options.steps
+    elseif method isa SequenceDefault
+        prepSequenceDefault(; nrepeat_base=info.spinup.options.n_repeat_base, forcing_msc=info.spinup.options.forcing_msc)
+    else
+        return "per_location"
+    end
+    isempty(steps) && return "none"
+    save_step = steps[findfirst(Setup.getSaveRestartFlags(steps))]
+    mode_name, _ = Setup.getSpinupModeName(save_step["spinup_mode"])
+    return string(nameof(typeof(getTypeInstanceForNamedOptions(mode_name))))
+end
+
+"""
+    plotActualCarbonFlows(info, land)
+
+If `land.models.c_model` exists (only a `cCycleBase` approach's `define` packs it),
+plot its carbon flow matrix with `land`'s real values into `info.output.dirs.figure`.
+A no-op otherwise.
+"""
+function plotActualCarbonFlows(info, land)
+    hasproperty(land.models, :c_model) || return nothing
+    print_info(plotActualCarbonFlows, @__FILE__, @__LINE__,
+        "plotting the actual carbon flow matrix of the selected carbon cycle model...", n_f=6)
+    Base.moduleroot(@__MODULE__).Visualization.plotCarbonFlows(info; land=land)
+    return nothing
+end
+
 function helpPrepTEM(selected_models, info, forcing::NamedTuple, output::NamedTuple, ::PreAllocArray)
 
     print_info(helpPrepTEM, @__FILE__, @__LINE__, "preparing spatial and tem helpers", n_f=6)
@@ -318,39 +657,44 @@ function helpPrepTEM(selected_models, info, forcing::NamedTuple, output::NamedTu
     tem_info = getRunTEMInfo(info, forcing);
 
 
-    ## run the model for one time step
-    print_info(helpPrepTEM, @__FILE__, @__LINE__, "model run for one location and time step", n_f=6)
-    forcing_nt_array = namedtuple_from_names_values(forcing.data, forcing.variables)
+    forcing_nt_array = forcing.data
+    # forcing_nt_array = namedtuple_from_names_values(forcing.data, forcing.variables)
+
     land_init = output.land_init
-    loc_forcing = getLocData(forcing_nt_array, space_ind[1])
-    loc_forcing_t, loc_land = runTEMOne(selected_models, loc_forcing, land_init, tem_info)
-
-    addErrorCatcher(loc_land, info.helpers.run.debug_model)
-
-    output_array = output.data
-    output_vars = output.variables
-    output_dims = output.dims
 
     # collect local data and create copies
     print_info(helpPrepTEM, @__FILE__, @__LINE__, "preallocating local, threaded, and spatial data", n_f=6)
     space_forcing = map([space_ind...]) do lsi
         getLocData(forcing_nt_array, lsi)
     end
-    space_spinup_forcing = map(space_forcing) do loc_forcing
-        getAllSpinupForcing(loc_forcing, info.spinup.sequence, tem_info);
-    end
+    space_spinup = getSpaceSpinup(space_forcing, tem_info)
+
+    ## run the model for one time step
+    print_info(helpPrepTEM, @__FILE__, @__LINE__, "model run for one location and time step", n_f=6)
+    loc_forcing_t, loc_land = runTEMOne(selected_models, space_forcing[1], land_init, tem_info, space_spinup[1].sequence)
+    checkOutputLayers(info.output.variables, info.output.depth_info, loc_land)
+
+    addErrorCatcher(loc_land, info.helpers.run.debug_model)
+    plotActualCarbonFlows(info, loc_land)
+
+    output_array = output.data
+    output_vars = output.variables
+    output_dims = output.dims
 
     space_output = map([space_ind...]) do lsi
         getLocData(output_array, lsi)
     end
 
-    space_land = Tuple([deepcopy(loc_land) for _ ∈ 1:length(space_ind)])
+    restart, space_restart, tem_info = prepRestart(info, forcing.helpers, loc_land, space_ind, space_spinup, tem_info)
 
-    space_selected_models = [[selected_models for _ ∈ 1:length(space_ind)]...]
+    space_selected_models, parameters = getLocationModels(selected_models, forcing, space_ind)
+
+    # the land of each location is built from its own models and forcing
+    space_land, space_spinup = getSpaceLand(space_selected_models, space_forcing, space_spinup, land_init, tem_info)
 
     forcing_nt_array = nothing
 
-    run_helpers = (; space_selected_models, space_forcing, space_ind, space_spinup_forcing, loc_forcing_t, output_array, space_output, space_land, loc_land, output_dims, output_vars, tem_info)
+    run_helpers = (; space_selected_models, space_forcing, space_ind, space_spinup, loc_forcing_t, output_array, space_output, space_land, loc_land, output_dims, output_vars, restart, space_restart, tem_info, parameters)
     return run_helpers
 end
 
@@ -362,39 +706,43 @@ function helpPrepTEM(selected_models, info, forcing::NamedTuple, output::NamedTu
     # generate vals for dispatch of forcing and output
     tem_info = getRunTEMInfo(info, forcing);
 
-    ## run the model for one time step
-    print_info(helpPrepTEM, @__FILE__, @__LINE__, "model run for one location and time step", n_f=6)
-    forcing_nt_array = namedtuple_from_names_values(forcing.data, forcing.variables)
+    forcing_nt_array = forcing.data
+    # forcing_nt_array = namedtuple_from_names_values(forcing.data, forcing.variables)
+
     land_init = output.land_init
-    loc_forcing = getLocData(forcing_nt_array, space_ind[1])
-    loc_forcing_t, loc_land = runTEMOne(selected_models, loc_forcing, land_init, tem_info)
-
-    addErrorCatcher(loc_land, info.helpers.run.debug_model)
-
-    info = setModelOutputLandAll(info, loc_land)
-    tem_info = @set tem_info.vals.output_vars = Val(info.output.variables)
-    output_dims, output_array = getOutDimsArrays(info, forcing.helpers)
 
     # collect local data and create copies
     print_info(helpPrepTEM, @__FILE__, @__LINE__, "preallocating local, threaded, and spatial data", n_f=6)
     space_forcing = map([space_ind...]) do lsi
         getLocData(forcing_nt_array, lsi)
     end
-    space_spinup_forcing = map(space_forcing) do loc_forcing
-        getAllSpinupForcing(loc_forcing, info.spinup.sequence, tem_info);
-    end
+    space_spinup = getSpaceSpinup(space_forcing, tem_info)
+
+    ## run the model for one time step
+    print_info(helpPrepTEM, @__FILE__, @__LINE__, "model run for one location and time step", n_f=6)
+    loc_forcing_t, loc_land = runTEMOne(selected_models, space_forcing[1], land_init, tem_info, space_spinup[1].sequence)
+
+    addErrorCatcher(loc_land, info.helpers.run.debug_model)
+    plotActualCarbonFlows(info, loc_land)
+
+    info = setModelOutputLandAll(info, loc_land)
+    tem_info = @set tem_info.vals.output_vars = Val(info.output.variables)
+    output_dims, output_array = getOutDimsArrays(info, forcing.helpers)
 
     space_output = map([space_ind...]) do lsi
         getLocData(output_array, lsi)
     end
 
-    space_land = Tuple([deepcopy(loc_land) for _ ∈ 1:length(space_ind)])
+    restart, space_restart, tem_info = prepRestart(info, forcing.helpers, loc_land, space_ind, space_spinup, tem_info)
 
-    space_selected_models = [[selected_models for _ ∈ 1:length(space_ind)]...]
+    space_selected_models, parameters = getLocationModels(selected_models, forcing, space_ind)
+
+    # the land of each location is built from its own models and forcing
+    space_land, space_spinup = getSpaceLand(space_selected_models, space_forcing, space_spinup, land_init, tem_info)
 
     forcing_nt_array = nothing
 
-    run_helpers = (; space_selected_models, space_forcing, space_ind, space_spinup_forcing, loc_forcing_t, output_array, space_output, space_land, loc_land, output_dims, output_vars=info.output.variables, tem_info)
+    run_helpers = (; space_selected_models, space_forcing, space_ind, space_spinup, loc_forcing_t, output_array, space_output, space_land, loc_land, output_dims, output_vars=info.output.variables, restart, space_restart, tem_info, parameters)
     return run_helpers
 end
 
@@ -409,15 +757,11 @@ function helpPrepTEM(selected_models, info, forcing::NamedTuple, output::NamedTu
     tem_info = getRunTEMInfo(info, forcing);
 
 
-    ## run the model for one time step
-    print_info(helpPrepTEM, @__FILE__, @__LINE__, "model run for one location and time step", n_f=6)
-    forcing_nt_array = namedtuple_from_names_values(forcing.data, forcing.variables)
+    forcing_nt_array = forcing.data
+    # forcing_nt_array = namedtuple_from_names_values(forcing.data, forcing.variables)
+
     land_init = output.land_init
     output_array = output.data
-    loc_forcing = getLocData(forcing_nt_array, space_ind[1])
-    loc_forcing_t, loc_land = runTEMOne(selected_models, loc_forcing, land_init, tem_info)
-
-    addErrorCatcher(loc_land, info.helpers.run.debug_model)
 
     # collect local data and create copies
     print_info(helpPrepTEM, @__FILE__, @__LINE__, "preallocating local, threaded, and spatial data", n_f=6)
@@ -425,19 +769,25 @@ function helpPrepTEM(selected_models, info, forcing::NamedTuple, output::NamedTu
         getLocData(forcing_nt_array, lsi)
     end
 
-    space_spinup_forcing = map(space_forcing) do loc_forcing
-        getAllSpinupForcing(loc_forcing, info.spinup.sequence, tem_info);
-    end
+    space_spinup = getSpaceSpinup(space_forcing, tem_info)
+
+    ## run the model for one time step
+    print_info(helpPrepTEM, @__FILE__, @__LINE__, "model run for one location and time step", n_f=6)
+    loc_forcing_t, loc_land = runTEMOne(selected_models, space_forcing[1], land_init, tem_info, space_spinup[1].sequence)
+    checkOutputLayers(info.output.variables, info.output.depth_info, loc_land)
+
+    addErrorCatcher(loc_land, info.helpers.run.debug_model)
+    plotActualCarbonFlows(info, loc_land)
 
     space_output = map([space_ind...]) do lsi
         getLocData(output_array, lsi)
     end
 
-    space_selected_models = [[selected_models for _ ∈ 1:length(space_ind)]...]
+    space_selected_models, parameters = getLocationModels(selected_models, forcing, space_ind)
 
     forcing_nt_array = nothing
 
-    run_helpers = (; space_selected_models, space_forcing, space_ind, space_spinup_forcing, loc_forcing_t, space_output, loc_land, output_vars=output.variables, tem_info)
+    run_helpers = (; space_selected_models, space_forcing, space_ind, space_spinup, loc_forcing_t, space_output, loc_land, output_vars=output.variables, tem_info, parameters)
 
     return run_helpers
 end
@@ -459,18 +809,15 @@ function helpPrepTEM(selected_models, info, forcing::NamedTuple, output::NamedTu
 
     run_helpers = helpPrepTEM(selected_models, info, forcing, output, PreAllocArray())
 
-    forcing_helpers_with_parameter_set = updateForcingHelpers(deepcopy(forcing.helpers), info.optimization.run_options.n_threads_cost);
-
-    output_mt = prepTEMOut(info, forcing_helpers_with_parameter_set)
-    output_array_mt = output_mt.data
-
-    space_ind_mt, _ = getSpatialInfo(forcing_helpers_with_parameter_set)
-
-    space_output_mt = map([space_ind_mt...]) do lsi
-        getLocData(output_array_mt, lsi)
+    # one copy of the output of the first location per parallel task of the threaded
+    # cost, which only runs for single location runs. The copies have the shape of the
+    # serial output, so the metric of both costs is computed on the same data.
+    output_array_mt = [deepcopy(run_helpers.output_array) for _ in 1:info.optimization.run_options.n_threads_cost]
+    space_output_mt = map(output_array_mt) do output_array
+        getLocData(output_array, run_helpers.space_ind[1])
     end
 
-    run_helpers = (; run_helpers..., space_output_mt=space_output_mt, space_ind_mt=space_ind_mt, output_array_mt=output_array_mt, output_dims_mt=output_mt.dims, forcing_helpers_with_parameter_set=forcing_helpers_with_parameter_set)
+    run_helpers = (; run_helpers..., space_output_mt=space_output_mt, output_array_mt=output_array_mt)
     return run_helpers
 end
 
@@ -486,19 +833,23 @@ function helpPrepTEM(selected_models, info, forcing::NamedTuple, output::NamedTu
     ## run the model for one time step
     print_info(helpPrepTEM, @__FILE__, @__LINE__, "model run for one location and time step", n_f=6)
     land_init = output.land_init
-    forcing_nt_array = namedtuple_from_names_values(forcing.data, forcing.variables)
+    forcing_nt_array = forcing.data
+    # forcing_nt_array = namedtuple_from_names_values(forcing.data, forcing.variables)
+
     loc_forcing = getLocData(forcing_nt_array, space_ind[1])
-    loc_spinup_forcing = getAllSpinupForcing(loc_forcing, info.spinup.sequence, tem_info);
-    loc_forcing_t, loc_land = runTEMOne(selected_models, loc_forcing, land_init, tem_info)
+    loc_spinup = getLocSpinup(loc_forcing, tem_info)
+    loc_forcing_t, loc_land = runTEMOne(selected_models, loc_forcing, land_init, tem_info, loc_spinup.sequence)
+    checkOutputLayers(info.output.variables, info.output.depth_info, loc_land)
     addErrorCatcher(loc_land, info.helpers.run.debug_model)
+    plotActualCarbonFlows(info, loc_land)
 
     output_vars = output.variables
     output_dims = output.dims
 
-    space_selected_models = [[selected_models for _ ∈ 1:length(space_ind)]...]
+    space_selected_models, parameters = getLocationModels(selected_models, forcing, space_ind)
 
     land_time_series = nothing
-    run_helpers = (; loc_forcing, loc_forcing_t, loc_spinup_forcing, loc_land, land_time_series, space_selected_models, space_ind, output_dims, output_vars, tem_info)
+    run_helpers = (; loc_forcing, loc_forcing_t, loc_spinup, loc_land, land_time_series, space_selected_models, space_ind, output_dims, output_vars, tem_info, parameters)
     return run_helpers
 end
 
@@ -515,7 +866,6 @@ function helpPrepTEM(selected_models, info, forcing::NamedTuple, output::NamedTu
 
     # generate vals for dispatch of forcing and output
     tem_info = getRunTEMInfo(info, forcing);
-    # tem_info = @set tem_info.spinup = info.spinup.sequence
 
     loc_land = output.land_init
     output_vars = output.variables
@@ -546,7 +896,7 @@ Prepares the SINDBAD Terrestrial Ecosystem Model (TEM) for execution by setting 
 # Returns:
 - `run_helpers`: A NamedTuple containing preallocated data and configurations required to run the TEM, including:
     - Spatial forcing data.
-    - Spinup forcing data.
+    - Per-location spinup sequences and the forcing derived from them.
     - Output arrays.
     - Land variables.
     - Temporal and spatial indices.
@@ -603,7 +953,7 @@ end
 
 
 """
-    runTEMOne(selected_models, forcing, output_array::AbstractArray, land_init, loc_ind, tem)
+    runTEMOne(selected_models, loc_forcing, land_init, tem, spinup_sequence)
 
 run the SINDBAD TEM for one time step
 
@@ -612,24 +962,98 @@ run the SINDBAD TEM for one time step
 - `loc_forcing`: a forcing NT for a single location
 - `land_init`: initial SINDBAD land with all fields and subfields
 - `tem`: a nested NT with necessary information of helpers, models, and spinup needed to run SINDBAD TEM and models
+- `spinup_sequence`: the spinup sequence of the location, used to size the spinup
+  store
 
 # Returns:
 - `loc_forcing_t`: the forcing NT for the current time step
 - `loc_land`: the SINDBAD land NT after a run of model for one time step. This contains all the variables from the selected models and their structure and type will remain the same across the experiment.
+
+# Notes:
+- The time step is run to fill every field of the land, but its pools are set back to
+  their values before the step. The land is the start of the runs of eager
+  experiments, see `getLocLand`, so otherwise the first time step would change the
+  pools twice, unlike in a lazy run.
 """
-function runTEMOne(selected_models, loc_forcing, land_init, tem)
+function runTEMOne(selected_models, loc_forcing, land_init, tem, spinup_sequence)
     loc_forcing_t = getForcingForTimeStep(loc_forcing, loc_forcing, 1, tem.vals.forcing_types)
-    loc_land = definePrecomputeTEM(selected_models, loc_forcing_t, land_init,
-        tem.model_helpers)
-    loc_land = computeTEM(selected_models, loc_forcing_t, loc_land, tem.model_helpers)
-    # loc_land = drop_empty_namedtuple_fields(loc_land)
-    loc_land = addSpinupLog(loc_land, tem.spinup_sequence, tem.run.store_spinup)
-    # loc_land = definePrecomputeTEM(selected_models, loc_forcing_t, loc_land,
-        # tem.model_helpers)
-    # loc_land = precomputeTEM(selected_models, loc_forcing_t, loc_land,
-        # tem.model_helpers)
-    # loc_land = computeTEM(selected_models, loc_forcing_t, loc_land, tem.model_helpers)
+    loc_land = buildFullLand(selected_models, loc_forcing_t, land_init, tem.model_helpers)
+    loc_land = addSpinupStore(loc_land, spinup_sequence, tem.run.store_spinup)
+    checkSpinupInput(loc_land, loc_forcing_t, spinup_sequence)
     return loc_forcing_t, loc_land
+end
+
+"""
+    buildFullLand(selected_models, loc_forcing_t, land_init, model_helpers)
+
+Builds the land with every field of the selected models in its final type, by running
+define, precompute and compute of the models for one time step.
+
+# Arguments:
+- `selected_models`: a tuple of all models selected in the given model structure
+- `loc_forcing_t`: the forcing NT of one location for one time step
+- `land_init`: the initial land from `createInitLand`
+- `model_helpers`: the model helpers of `tem_info`
+
+# Notes:
+- The pools are set back to their values before the time step.
+- The groups of the land named after the models that no model fills are dropped, see
+  `dropEmptyProcessGroups`.
+"""
+function buildFullLand(selected_models, loc_forcing_t, land_init, model_helpers)
+    loc_land = definePrecomputeTEM(selected_models, loc_forcing_t, land_init, model_helpers)
+    # copied, since the step can update the pool arrays in place
+    pools_before = deepcopy(loc_land.pools)
+    loc_land = computeTEM(selected_models, loc_forcing_t, loc_land, model_helpers)
+    loc_land = (; loc_land..., pools=pools_before)
+    return dropEmptyProcessGroups(loc_land)
+end
+
+const LAND_MAIN_GROUPS = (:fluxes, :pools, :states, :diagnostics, :properties, :models, :constants)
+
+"""
+    dropEmptyProcessGroups(land)
+
+Drops the groups of the land that are named after a model and are empty after a time
+step of all models.
+
+# Notes:
+- `createInitLand` adds one group per model, but most models never fill theirs. The
+  empty groups are part of the type of the land and make every function that takes the
+  land slower to compile.
+- The main groups, such as `states`, are always kept, since a model can add to them
+  later, e.g., the spinup store.
+"""
+function dropEmptyProcessGroups(land)
+    keep = filter(k -> k ∈ LAND_MAIN_GROUPS || !isempty(getfield(land, k)), keys(land))
+    return NamedTuple{keep}(map(k -> getfield(land, k), keep))
+end
+
+"""
+    checkSpinupInput(loc_land, loc_forcing_t, spinup_sequence)
+
+Checks the use of `SpinupInput` in the spinup sequence once during setup. It does
+nothing when the sequence has no `SpinupInput` step.
+
+# Notes:
+- `SpinupInput` sets the initial pools from the forcing, so it must be the first step
+  of the sequence. Any other position throws an error.
+- A warning is shown when the forcing has no variable with the name of a pool, in which
+  case the `SpinupInput` step does nothing.
+"""
+function checkSpinupInput(loc_land, loc_forcing_t, spinup_sequence)
+    input_steps = findall(seq -> seq.spinup_mode isa SpinupInput, collect(spinup_sequence))
+    isempty(input_steps) && return nothing
+    if input_steps != [1]
+        error("The spinup mode `SpinupInput` must be the first step of the spinup sequence, and only once, but it is at step(s) $(input_steps). Move it to the start of the sequence.")
+    end
+    matched_vars = intersect(propertynames(loc_land.pools), propertynames(loc_forcing_t))
+    if isempty(matched_vars)
+        @warn "The spinup mode `SpinupInput` replaces land.pools with forcing variables of the same name, but the forcing has none of them. Add the variables of the restart file to the forcing settings."
+    else
+        print_info(checkSpinupInput, @__FILE__, @__LINE__, "`SpinupInput` replaces $(matched_vars) from the forcing", n_f=6)
+    end
+    return nothing
 end
 
 function updateForcingHelpers(new_forcing_helpers, parameter_set_size)

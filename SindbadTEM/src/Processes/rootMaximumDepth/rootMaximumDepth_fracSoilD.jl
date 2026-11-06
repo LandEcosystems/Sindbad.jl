@@ -22,14 +22,19 @@ end
 function precompute(params::rootMaximumDepth_fracSoilD, forcing, land, helpers)
     ## unpack parameters
     @unpack_rootMaximumDepth_fracSoilD params
-    @unpack_nt ∑soil_depth ⇐ land.properties
+    @unpack_nt soil_layer_thickness ⇐ land.properties
     ## calculate variables
+    # sum here and not only in define, as define runs only for the first pixel
+    ∑soil_depth = sum(soil_layer_thickness)
     # get the soil thickness & root distribution information from input
     max_root_depth = ∑soil_depth * constant_frac_max_root_depth
     # disp(["the maxRootD scalar: " constant_frac_max_root_depth])
 
     ## pack land variables
-    @pack_nt max_root_depth ⇒ land.diagnostics
+    @pack_nt begin
+        ∑soil_depth ⇒ land.properties
+        max_root_depth ⇒ land.diagnostics
+    end
     return land
 end
 

@@ -138,10 +138,10 @@ function gradsNaNCheck!(grads_batch, _params_batch, sites_batch, parameter_table
                 site_name_tmp = sites_batch[si]
                 p_vec_tmp = _params_batch(site=site_name_tmp)
                 parameter_values =  Pair(parameter_table.name[p_index_tmp], (p_vec_tmp[p_index_tmp], parameter_table.lower[p_index_tmp], parameter_table.upper[p_index_tmp]))
-                @info "site: $site_name_tmp, parameter: $parameter_values"
+                # @info "site: $site_name_tmp, parameter: $parameter_values"
             end
         end
-        @warn "NaNs in grads, replacing all by 0.0f0"
+        println("NaNs in grads, replacing all by 0.0f0")
         replace!(grads_batch, NaN => eltype(grads_batch)(replace_value))
     end
 end

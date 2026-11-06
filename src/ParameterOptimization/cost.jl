@@ -3,7 +3,7 @@ export costLand
 
 
 """
-    cost(parameter_vector, default_values, selected_models, space_forcing, space_spinup_forcing, loc_forcing_t, output_array, space_output, space_land, tem_info, observations, parameter_updater, cost_options, multi_constraint_method, parameter_scaling_type, cost_method<: CostMethod)
+    cost(parameter_vector, default_values, selected_models, space_forcing, space_spinup, loc_forcing_t, output_array, space_output, space_land, tem_info, observations, parameter_updater, cost_options, multi_constraint_method, parameter_scaling_type, cost_method<: CostMethod)
 
 Calculate the cost for a parameter vector.
 
@@ -12,7 +12,7 @@ Calculate the cost for a parameter vector.
 - 'default_values': Default values for model parameters
 - `selected_models`: Collection of selected models for simulation
 - `space_forcing`: Forcing data for the main simulation period
-- `space_spinup_forcing`: Forcing data for the spin-up period
+- `space_spinup`: A collection of spinup NTs, one per location, each with the `sequence` of that location and the `forcing` derived from it
 - `loc_forcing_t`: Time-specific forcing data
 - `output_array`: Array to store simulation outputs
 - `space_output`: Spatial output configuration
@@ -25,8 +25,13 @@ Calculate the cost for a parameter vector.
 - `parameter_scaling_type`: Type of parameter scaling
 -  `sindbad_cost_method <: CostMethod`: a type parameter indicating cost calculation method
 
+With `CostModelObsMT`, the first argument is a matrix with one parameter set per column,
+and `output_array`, `space_output` and `space_land` are vectors with one buffer per
+parallel task, for a single location.
+
 # Returns
-Cost value representing the difference between model outputs and observations
+Cost value representing the difference between model outputs and observations, or a
+vector with one cost per column with `CostModelObsMT`
 
 # sindbad\\_cost\\_method:
 $(methods_of(CostMethod))
@@ -36,54 +41,55 @@ $(methods_of(CostMethod))
 julia> using Sindbad
 
 julia> # Calculate cost for a parameter vector
-julia> # cost_value = cost(parameter_vector, default_values, selected_models, space_forcing, space_spinup_forcing, loc_forcing_t, output_array, space_output, space_land, tem_info, observations, parameter_updater, cost_options, multi_constraint_method, parameter_scaling_type, CostModelObs())
+julia> # cost_value = cost(parameter_vector, default_values, selected_models, space_forcing, space_spinup, loc_forcing_t, output_array, space_output, space_land, tem_info, observations, parameter_updater, cost_options, multi_constraint_method, parameter_scaling_type, CostModelObs())
 ```
 """
 function cost end
 
-function cost(parameter_vector, _, selected_models, space_forcing, space_spinup_forcing, loc_forcing_t, output_array, space_output, space_land, tem_info, observations, parameter_updater, cost_options, multi_constraint_method, parameter_scaling_type, ::CostModelObs)
-    @debug parameter_vector
+function cost(parameter_vector, _, selected_models, space_forcing, space_spinup, loc_forcing_t, output_array, space_output, space_land, tem_info, observations, parameter_updater, cost_options, multi_constraint_method, parameter_scaling_type, ::CostModelObs)
     updated_models = updateModels(parameter_vector, parameter_updater, parameter_scaling_type, selected_models)
-    runTEM!(updated_models, space_forcing, space_spinup_forcing, loc_forcing_t, space_output, space_land, tem_info)
+    runTEM!(updated_models, space_forcing, space_spinup, loc_forcing_t, space_output, space_land, tem_info)
     cost_vector = metricVector(output_array, observations, cost_options)
     cost_metric = combineMetric(cost_vector, multi_constraint_method)
-    @debug cost_vector, cost_metric
     return cost_metric
 end
 
 
-function cost(parameter_matrix, _, selected_models, space_forcing, space_spinup_forcing, loc_forcing_t, output_array, space_output, space_land, tem_info, observations, parameter_updater, cost_options, multi_constraint_method, parameter_scaling_type, cost_out::Vector, ::CostModelObsMT)
-    @debug "parameter_matrix:: ", size(parameter_matrix)
+# The columns of `parameter_matrix` are split into one chunk per output buffer, and each
+# chunk runs in its own task with its own output and land. The buffers are not indexed
+# by `threadid`, since a task can move between threads and the thread ids of the default
+# pool do not start at 1 when there are interactive threads. A new cost vector is
+# returned for every call, since CMA-ES keeps the costs of an earlier call while it
+# reevaluates part of the population with noise handling.
+function cost(parameter_matrix, _, selected_models, space_forcing, space_spinup, loc_forcing_t, output_array_mt, space_output_mt, space_land_mt, tem_info, observations, parameter_updater, cost_options, multi_constraint_method, parameter_scaling_type, ::CostModelObsMT)
     parameter_set_size = size(parameter_matrix, 2)
-    done_params=1
-    Threads.@threads for parameter_index in eachindex(1:parameter_set_size)
-        idx = Threads.threadid()
-        parameter_vector = parameter_matrix[:, parameter_index]
-        @debug parameter_vector
-        updated_models = updateModels(parameter_vector, parameter_updater, parameter_scaling_type, selected_models)
-        coreTEM!(updated_models, space_forcing, space_spinup_forcing, loc_forcing_t, space_output[idx], space_land, tem_info)
-        cost_vector = metricVector(space_output[idx], observations, cost_options)
-        cost_metric = combineMetric(cost_vector, multi_constraint_method)
-        cost_out[parameter_index] = cost_metric
-        @debug "Parameter column:: ", idx, round(100 * done_params/parameter_set_size,digits=2), parameter_set_size, cost_metric, cost_vector
-        done_params += 1
+    cost_out = Vector{eltype(parameter_matrix)}(undef, parameter_set_size)
+    chunks = Iterators.partition(1:parameter_set_size, cld(parameter_set_size, length(space_output_mt)))
+    tasks = map(enumerate(chunks)) do (buffer_index, chunk)
+        Threads.@spawn for parameter_index in chunk
+            parameter_vector = parameter_matrix[:, parameter_index]
+            updated_models = updateModels(parameter_vector, parameter_updater, parameter_scaling_type, selected_models)
+            coreTEM!(updated_models, space_forcing, space_spinup, loc_forcing_t, space_output_mt[buffer_index], space_land_mt[buffer_index], tem_info)
+            cost_vector = metricVector(output_array_mt[buffer_index], observations, cost_options)
+            cost_out[parameter_index] = combineMetric(cost_vector, multi_constraint_method)
+        end
     end
+    foreach(wait, tasks)
     return cost_out
 end
 
 
-function cost(parameter_vector, default_values, selected_models, space_forcing, space_spinup_forcing, loc_forcing_t, output_array, space_output, space_land, tem_info, observations, parameter_updater, cost_options, multi_constraint_method, parameter_scaling_type, ::CostModelObsPriors)
+function cost(parameter_vector, default_values, selected_models, space_forcing, space_spinup, loc_forcing_t, output_array, space_output, space_land, tem_info, observations, parameter_updater, cost_options, multi_constraint_method, parameter_scaling_type, ::CostModelObsPriors)
     # prior has to be calculated before the parameters are backscaled and models are updated
     cost_prior = metric(MSE(), parameter_vector, parameter_vector, default_values)
-    cost_metric = cost(parameter_vector, default_values, selected_models, space_forcing, space_spinup_forcing, loc_forcing_t, output_array, space_output, space_land, tem_info, observations, parameter_updater, cost_options, multi_constraint_method, parameter_scaling_type, CostModelObs())
+    cost_metric = cost(parameter_vector, default_values, selected_models, space_forcing, space_spinup, loc_forcing_t, output_array, space_output, space_land, tem_info, observations, parameter_updater, cost_options, multi_constraint_method, parameter_scaling_type, CostModelObs())
     cost_metric = cost_metric + cost_prior
-    @debug cost_vector, cost_metric
     return cost_metric
 end
 
 
-function cost(parameter_vector, default_values, selected_models, space_forcing, space_spinup_forcing, loc_forcing_t, output_array, space_output, space_land, tem_info, observations, parameter_updater, cost_options, multi_constraint_method, parameter_scaling_type)
-    cost_metric = cost(parameter_vector, default_values, selected_models, space_forcing, space_spinup_forcing, loc_forcing_t, output_array, space_output, space_land, tem_info, observations, parameter_updater, cost_options, multi_constraint_method, parameter_scaling_type, CostModelObs())
+function cost(parameter_vector, default_values, selected_models, space_forcing, space_spinup, loc_forcing_t, output_array, space_output, space_land, tem_info, observations, parameter_updater, cost_options, multi_constraint_method, parameter_scaling_type)
+    cost_metric = cost(parameter_vector, default_values, selected_models, space_forcing, space_spinup, loc_forcing_t, output_array, space_output, space_land, tem_info, observations, parameter_updater, cost_options, multi_constraint_method, parameter_scaling_type, CostModelObs())
     return cost_metric
 end
 
@@ -144,7 +150,6 @@ function costLand(parameter_vector::AbstractArray, selected_models, forcing, spi
     land_wrapper_timeseries = runTEM(updated_models, forcing, spinup_forcing, loc_forcing_t, land_timeseries, land_init, tem_info)
     cost_vector = metricVector(land_wrapper_timeseries, observations, cost_options)
     cost_metric = combineMetric(cost_vector, multi_constraint_method)
-    @debug cost_vector, cost_metric
     return cost_metric
 end
 
@@ -153,6 +158,5 @@ function costLand(parameter_vector::AbstractArray, selected_models, forcing, spi
     land_wrapper_timeseries = runTEM(updated_models, forcing, spinup_forcing, loc_forcing_t, land_init, tem_info)
     cost_vector = metricVector(land_wrapper_timeseries, observations, cost_options)
     cost_metric = combineMetric(cost_vector, multi_constraint_method)
-    @debug cost_vector, cost_metric
     return cost_metric
 end

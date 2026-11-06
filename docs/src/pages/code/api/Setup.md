@@ -29,8 +29,73 @@ end
 function backScaleParameters(parameter_vector_scaled, parameter_table, ::ScaleBounds)
     ub = parameter_table.upper  # upper bounds
     lb = parameter_table.lower   # lower bounds
-    parameter_vector_scaled .= lb .+ (ub .- lb) .* parameter_vector_scaled
-    return parameter_vector_scaled
+    return lb .+ (ub .- lb) .* parameter_vector_scaled
+end
+```
+
+:::
+
+
+----
+
+### checkIOModelStructure
+```@docs
+checkIOModelStructure
+```
+
+:::details Code
+
+```julia
+function checkIOModelStructure(info; model_funcs=(:define, :precompute, :compute))
+    models = info.models.forward
+    model_names = [Symbol(nameof(supertype(typeof(m)))) for m in models]
+    # `getInOutModel`/`getInOutModels` (SindbadTEM.Utils) unconditionally println progress for
+    # every model/function combination; that's fine for interactive/ad hoc use but far too noisy
+    # to run on every experiment setup, so it's silenced here rather than in SindbadTEM itself.
+    in_out = redirect_stdout(devnull) do
+        getInOutModels(models, model_funcs)
+    end
+    func_rank = Dict(f => i for (i, f) in enumerate(model_funcs))
+    exempt_namespaces = (:pools, :states, :diagnostics)
+
+    # registry: (namespace, variable) => [(model_index, func_rank), ...]
+    producers = Dict{Tuple{Symbol,Symbol}, Vector{Tuple{Int,Int}}}()
+    for (m_i, m_name) in enumerate(model_names)
+        for f in model_funcs
+            for (ns, var) in in_out[m_name][f][:output]
+                push!(get!(producers, (ns, var), Tuple{Int,Int}[]), (m_i, func_rank[f]))
+            end
+        end
+    end
+
+    # convention 1: single-writer unless pools/states/diagnostics
+    for ((ns, var), locs) in producers
+        if ns ∉ exempt_namespaces
+            distinct_models = unique(first.(locs))
+            if length(distinct_models) > 1
+                writer_names = join(unique(model_names[m_i] for m_i in distinct_models), ", ")
+                @warn "I/O convention violation: `land.$(ns).$(var)` is output by more than one model ($writer_names). Only variables in `land.pools`/`land.states`/`land.diagnostics` may be written by multiple models."
+            end
+        end
+    end
+
+    # convention 2: every input must have a valid earlier producer
+    for (m_i, m_name) in enumerate(model_names)
+        for f in model_funcs
+            for (ns, var) in in_out[m_name][f][:input]
+                (ns === :forcing || ns ∈ exempt_namespaces) && continue
+                locs = get(producers, (ns, var), Tuple{Int,Int}[])
+                has_valid_producer = any(locs) do (p_m, p_f)
+                    p_m < m_i || (p_m == m_i && p_f < func_rank[f])
+                end
+                if !has_valid_producer
+                    @warn "I/O convention violation: `land.$(ns).$(var)` is used as input in `$(f)` of `$(m_name)` (model #$(m_i) of $(length(model_names))) but has no valid earlier producer. Inputs must be a forcing, a `pools`/`states`/`diagnostics` variable, an output of an earlier model, or an output of an earlier function of the same model (order: $(join(model_funcs, ", ")))."
+                end
+            end
+        end
+    end
+
+    return nothing
 end
 ```
 
@@ -115,6 +180,7 @@ function convertParametersToNamedTuple(parameter_table, group_field::Symbol, nam
     n_rows = length(parameter_table)
     group_values = getproperty(parameter_table, group_field)
     name_values = getproperty(parameter_table, name_field)
+    disambiguator_values = hasproperty(parameter_table, :model_approach) ? getproperty(parameter_table, :model_approach) : nothing
 
     exclude_fields = (group_field, name_field)
     for redundant_field in (:name_full, :model_approach, :approach_func)
@@ -131,7 +197,7 @@ function convertParametersToNamedTuple(parameter_table, group_field::Symbol, nam
 
     group_nts = map(group_keys) do group_key
         row_inds = rows_by_group[group_key]
-        name_keys = Tuple(_sanitizeNamedTupleKey.(name_values[row_inds]))
+        name_keys = _uniqueNameKeysWithinGroup(group_key, row_inds, name_values, disambiguator_values)
         NamedTuple{name_keys}(Tuple(_concreteNamedTuple(drop_namedtuple_fields(parameter_table[row_ind], exclude_fields)) for row_ind in row_inds))
     end
     return NamedTuple{group_keys}(group_nts)
@@ -153,7 +219,9 @@ convertRunFlagsToTypes
 ```julia
 function convertRunFlagsToTypes(info)
     new_run = (;)
-    dr = deepcopy(info.settings.experiment.flags)
+    # a pixel with invalid forcing cannot be simulated, so it is skipped unless the
+    # experiment turns filtering off
+    dr = merge((; filter_nan_pixels=true), deepcopy(info.settings.experiment.flags))
     for pr in propertynames(dr)
         prf = getfield(dr, pr)
         prtoset = nothing
@@ -368,10 +436,12 @@ function createNestedDict(dict::AbstractDict)
                 subkey_name = subkey * string(key_index)
             end
             if subkey == last(key_list)
-                key_dict[subkey_name] = dict[kii]
+                key_dict[subkey_name] = toOrderedDict(dict[kii])
             else
                 if !haskey(key_dict, subkey_name)
-                    key_dict[subkey_name] = Dict()
+                    # an OrderedDict, like the parsed json, so that a level that is new in
+                    # the configuration is converted to a NamedTuple with the others
+                    key_dict[subkey_name] = DataStructures.OrderedDict()
                     key_dict[subkey_name][key_list[key_index+1]] = key_dict[key_list[key_index+1]*string(key_index+1)]
                 else
                     tmp = Dict()
@@ -734,7 +804,6 @@ getCostOptions
 ```julia
 function getCostOptions(optim_info::NamedTuple, vars_info, tem_variables, number_helpers, dates_helpers)
     varlist = Symbol.(optim_info.observational_constraints)
-    agg_type = []
     time_aggrs = []
     aggr_funcs = []
     all_costs = map(varlist) do v
@@ -760,12 +829,6 @@ function getCostOptions(optim_info::NamedTuple, vars_info, tem_variables, number
             end
             push!(prop_array, sel_value)
             if prop == :temporal_data_aggr
-                t_a = sel_value
-                to_push_type = TimeNoDiff()
-                if endswith(lowercase(t_a), "_anomaly") || endswith(lowercase(t_a), "_iav")
-                    to_push_type = TimeDiff()
-                end
-                push!(agg_type, to_push_type)
                 push!(time_aggrs, sel_value)
             end
             if prop == :aggr_func
@@ -790,25 +853,16 @@ function getCostOptions(optim_info::NamedTuple, vars_info, tem_variables, number
     #     cost_option = Accessors.@set cost_option.mod_ind = new_mod_ind
     # end
 
-    agg_indices = []
-    for (i, _aggr) in enumerate(time_aggrs)
-        aggr_func = getAggrFunc(aggr_funcs[i])
-        _aggr_name = string(_aggr)
-        skip_sampling = false
-        if startswith(_aggr_name, dates_helpers.temporal_resolution)
-            skip_sampling = true
-        end
-        aggInd = create_TimeSampler(dates_helpers.range, to_uppercase_first(_aggr, "Time"), aggr_func, skip_sampling)
-        push!(agg_indices, aggInd)
+    time_resamplers = map(enumerate(time_aggrs)) do (i, _aggr)
+        getCostTimeResampler(_aggr, dates_helpers, getAggrFunc(aggr_funcs[i]))
     end
     push!(all_options, obs_ind)
     push!(all_options, obs_sn)
     push!(all_options, mod_ind)
     push!(all_options, mod_field)
     push!(all_options, mod_subfield)
-    push!(all_options, agg_indices)
-    push!(all_options, agg_type)
-    all_props = [:variable, props_to_keep..., :obs_ind, :obs_sn, :mod_ind, :mod_field, :mod_subfield, :temporal_aggr, :temporal_aggr_type]
+    push!(all_options, time_resamplers)
+    all_props = [:variable, props_to_keep..., :obs_ind, :obs_sn, :mod_ind, :mod_field, :mod_subfield, :temporal_aggr]
     return (; Pair.(all_props, all_options)...)
 end
 ```
@@ -946,9 +1000,18 @@ function getExperimentInfo(sindbad_experiment::String; replace_info=Dict())
 
     info = setupInfo(info)
 
+    print_info(getExperimentInfo, @__FILE__, @__LINE__, "checking IO structure of the selected model structure...", n_m=1)
+    checkIOModelStructure(info)
+
     print_info(getExperimentInfo, @__FILE__, @__LINE__, "plotting IO signatures in the selected model structure...", n_m=1)
     for model_func in (:define, :precompute, :compute,)
         Base.moduleroot(@__MODULE__).Visualization.plotIOModelStructure(info, model_func)
+    end
+
+    carbon_cycle_index = findfirst(m -> nameof(supertype(typeof(m))) === :cCycleBase, info.models.forward)
+    if !isnothing(carbon_cycle_index)
+        print_info(getExperimentInfo, @__FILE__, @__LINE__, "plotting the carbon flow matrix of the selected carbon cycle model...", n_m=1)
+        Base.moduleroot(@__MODULE__).Visualization.plotCarbonFlows(info, info.models.forward[carbon_cycle_index])
     end
 
     saveInfo(info, info.helpers.run.save_info)
@@ -994,6 +1057,49 @@ function getGlobalAttributesForOutCubes(info)
         "julia" => string(VERSION),
     )
     return global_attr
+end
+```
+
+:::
+
+
+----
+
+### getLandVarDepthInfo
+```@docs
+getLandVarDepthInfo
+```
+
+:::details Code
+
+```julia
+function getLandVarDepthInfo(info, land, var_pairs)
+    depth_info = map(var_pairs) do v_full_pair
+        v_index = findfirst(x -> first(x) === first(v_full_pair) && last(x) === last(v_full_pair), info.output.variables)
+        dim_name = nothing
+        dim_size = nothing
+        if ~isnothing(v_index)
+            dim_name = last(info.output.depth_info[v_index])
+            dim_size = first(info.output.depth_info[v_index])
+        else
+            field_name = first(v_full_pair)
+            v_name = last(v_full_pair)
+            dim_name = string(v_name) * "_idx"
+            land_field = getproperty(land, field_name)
+            if hasproperty(land_field, v_name)
+                land_subfield = getproperty(land_field, v_name)
+                if isa(land_subfield, AbstractArray)
+                    dim_size = length(land_subfield)
+                elseif isa(land_subfield, Number)
+                    dim_size = 1
+                else
+                    dim_size = 0
+                end
+            end
+        end
+        dim_size, dim_name
+    end
+    return depth_info
 end
 ```
 
@@ -1100,6 +1206,13 @@ getParameterIndices
 :::details Code
 
 ```julia
+function getParameterIndices end
+
+function getParameterIndices(selected_models::LongTuple, parameter_table::Table)
+    selected_models_tuple = to_tuple(selected_models)
+    return getParameterIndices(selected_models_tuple, parameter_table)
+end
+
 function getParameterIndices(selected_models::LongTuple, parameter_table::Table)
     selected_models_tuple = to_tuple(selected_models)
     return getParameterIndices(selected_models_tuple, parameter_table)
@@ -1120,9 +1233,55 @@ end
 
 ----
 
+### getParameterIndicesPerModel
+```@docs
+getParameterIndicesPerModel
+```
+
+:::details Code
+
+```julia
+function getParameterIndicesPerModel(parameter_to_index::NamedTuple, selected_models)
+    return map(selected_models) do model
+        model_indices = get(parameter_to_index, nameof(typeof(model)), (;))
+        isempty(model_indices) ? nothing : model_indices
+    end
+end
+```
+
+:::
+
+
+----
+
+### getParameterInput
+```@docs
+getParameterInput
+```
+
+:::details Code
+
+```julia
+function getParameterInput(info)
+    hasproperty(info.settings, :parameters) || return nothing
+    parameter_input = info.settings.parameters
+    parameter_input isa NamedTuple || return nothing
+    isempty(parameter_input) && return nothing
+    path_info = (; experiment=info.temp.experiment)
+    default_map = setAbsoluteDataPath(get(parameter_input, :default_parameter_map, (;)), path_info)
+    variables = map(v -> setAbsoluteDataPath(v, path_info), get(parameter_input, :variables, (;)))
+    return (; default_parameter_map=default_map, variables=variables)
+end
+```
+
+:::
+
+
+----
+
 ### getParameters
 ```@docs
-getParameters
+Sindbad.Setup.getParameters
 ```
 
 :::details Code
@@ -1239,6 +1398,42 @@ end
 
 ----
 
+### getRestartVars
+```@docs
+getRestartVars
+```
+
+:::details Code
+
+```julia
+function getRestartVars(info, land)
+    pool_helpers = info.helpers.pools
+    main_pools = keys(pool_helpers.vals.self)
+    for (group, group_info) ∈ pairs(info.pool_structure)
+        combine = hasproperty(group_info, :combine) ? group_info.combine : nothing
+        if isnothing(combine) || isempty(string(combine)) || Symbol(combine) ∉ main_pools
+            @warn "The pool group `$(group)` has no main pool, so its pools are not written to the restart file and cannot be set by `SpinupInput`."
+        end
+    end
+    restart_vars = []
+    for main ∈ main_pools
+        if hasproperty(land.pools, main)
+            push!(restart_vars, (:pools, main))
+        else
+            components = [c for c ∈ pool_helpers.all_components[main] if hasproperty(land.pools, c)]
+            print_info(getRestartVars, @__FILE__, @__LINE__, "the main pool `$(main)` is not in land.pools, so its components $(components) are written to the restart file instead")
+            append!(restart_vars, [(:pools, c) for c ∈ components])
+        end
+    end
+    return Tuple(restart_vars)
+end
+```
+
+:::
+
+
+----
+
 ### getSindbadDataDepot
 ```@docs
 getSindbadDataDepot
@@ -1266,34 +1461,51 @@ getSpinupSequenceWithTypes
 :::details Code
 
 ```julia
-function getSpinupSequenceWithTypes(seqq, helpers_dates)
+function getSpinupSequenceWithTypes end
+
+getSpinupSequenceWithTypes(seqq, helpers_dates) = getSpinupSequenceWithTypes(seqq, helpers_dates, Dict{Symbol,Any}())
+
+function getSpinupSequenceWithTypes(seqq, helpers_dates, aggregator_cache, spinup_models=nothing)
     seqq_typed = []
-    for seq in seqq
-        for kk in keys(seq)
-            if kk == "forcing"
-                skip_sampling = false
-                if startswith(kk, helpers_dates.temporal_resolution)
-                    skip_sampling = true
-                end
-                aggregator = create_TimeSampler(helpers_dates.range, to_uppercase_first(seq[kk], "Time"), mean, skip_sampling)
-                seq["aggregator"] = aggregator
-                seq["aggregator_type"] = TimeNoDiff()
-                seq["aggregator_indices"] = [_ind for _ind in vcat(aggregator[1].indices...)]
-                seq["n_timesteps"] = length(aggregator[1].indices)
-                if occursin("_year", seq[kk])
-                    seq["aggregator_type"] = TimeIndexed()
-                    seq["n_timesteps"] = length(seq["aggregator_indices"])
-                end
-            end
-            if kk == "spinup_mode"
-                seq[kk] = getTypeInstanceForNamedOptions(seq[kk])
-            end
-            if seq[kk] isa String
-                seq[kk] = Symbol(seq[kk])
-            end
+    save_restart_flags = getSaveRestartFlags(seqq)
+    for (seq, save_restart) in zip(seqq, save_restart_flags)
+        mode_name, default_models = getSpinupModeName(seq["spinup_mode"])
+        spinup_mode = getTypeInstanceForNamedOptions(mode_name)
+        forcing_name = haskey(seq, "forcing") ? seq["forcing"] : nothing
+        if isnothing(forcing_name)
+            spinup_mode isa LoopTEM && error("The spinup step with `spinup_mode` $(seq["spinup_mode"]) has no forcing. A loop_TEM step runs the models over the forcing, so set its `forcing`, e.g., \"day_MSC\".")
+            forcing = :none
+            aggregator, aggregator_indices, n_timesteps, aggregator_type = nothing, Int[], 1, TimeIndexed()
+        else
+            forcing = Symbol(forcing_name)
+            aggregator, aggregator_indices, n_timesteps, aggregator_type = getSpinupAggregator(forcing_name, helpers_dates, aggregator_cache)
         end
-        optns = in(seq, "options") ? seqp["options"] : (;)
-        sst = SpinupSequenceWithAggregator(seq["forcing"], seq["n_repeat"], seq["n_timesteps"], seq["spinup_mode"], optns, seq["aggregator_indices"], seq["aggregator"], seq["aggregator_type"]);
+        optns = haskey(seq, "options") ? seq["options"] : (;)
+        model_indices = getSpinupModelsIndex(seq, default_models, spinup_models)
+        sst = SpinupStepWithAggregator(forcing, seq["n_repeat"], n_timesteps, spinup_mode, optns, aggregator_indices, aggregator, aggregator_type, save_restart, model_indices);
+        push!(seqq_typed, sst)
+    end
+    return seqq_typed
+end
+
+function getSpinupSequenceWithTypes(seqq, helpers_dates, aggregator_cache, spinup_models=nothing)
+    seqq_typed = []
+    save_restart_flags = getSaveRestartFlags(seqq)
+    for (seq, save_restart) in zip(seqq, save_restart_flags)
+        mode_name, default_models = getSpinupModeName(seq["spinup_mode"])
+        spinup_mode = getTypeInstanceForNamedOptions(mode_name)
+        forcing_name = haskey(seq, "forcing") ? seq["forcing"] : nothing
+        if isnothing(forcing_name)
+            spinup_mode isa LoopTEM && error("The spinup step with `spinup_mode` $(seq["spinup_mode"]) has no forcing. A loop_TEM step runs the models over the forcing, so set its `forcing`, e.g., \"day_MSC\".")
+            forcing = :none
+            aggregator, aggregator_indices, n_timesteps, aggregator_type = nothing, Int[], 1, TimeIndexed()
+        else
+            forcing = Symbol(forcing_name)
+            aggregator, aggregator_indices, n_timesteps, aggregator_type = getSpinupAggregator(forcing_name, helpers_dates, aggregator_cache)
+        end
+        optns = haskey(seq, "options") ? seq["options"] : (;)
+        model_indices = getSpinupModelsIndex(seq, default_models, spinup_models)
+        sst = SpinupStepWithAggregator(forcing, seq["n_repeat"], n_timesteps, spinup_mode, optns, aggregator_indices, aggregator, aggregator_type, save_restart, model_indices);
         push!(seqq_typed, sst)
     end
     return seqq_typed
@@ -1381,6 +1593,53 @@ end
 
 ----
 
+### parameterVariableAttributes
+```@docs
+parameterVariableAttributes
+```
+
+:::details Code
+
+```julia
+function parameterVariableAttributes(parameter_table, p_index)
+    p_row = parameter_table[p_index]
+    attributes = DataStructures.OrderedDict{String,Any}()
+    attributes["model"] = string(p_row.model)
+    attributes["name"] = string(p_row.name)
+    attributes["name_full"] = string(p_row.name_full)
+    attributes["model_approach"] = string(p_row.model_approach)
+    for p_field ∈ (:units, :units_ori, :timescale_run, :timescale_ori, :dist)
+        hasproperty(p_row, p_field) || continue
+        p_value = getproperty(p_row, p_field)
+        if !ismissing(p_value) && !isempty(string(p_value))
+            attributes[string(p_field)] = string(p_value)
+        end
+    end
+    for p_field ∈ (:default, :initial, :lower, :upper)
+        attributes[string(p_field)] = Float64(getproperty(p_row, p_field))
+    end
+    if hasproperty(p_row, :is_ml)
+        attributes["is_ml"] = Int(p_row.is_ml)
+    end
+    if hasproperty(p_row, :p_dist) && p_row.p_dist isa AbstractVector && !isempty(p_row.p_dist)
+        attributes["p_dist"] = Float64.(collect(p_row.p_dist))
+    end
+    return attributes
+end
+```
+
+:::
+
+
+----
+
+### parameterVariableName
+```@docs
+parameterVariableName
+```
+
+----
+
 ### perturbParameters
 ```@docs
 perturbParameters
@@ -1416,55 +1675,36 @@ end
 
 ----
 
-### prepCostOptions
+### poolNames
 ```@docs
-prepCostOptions
+poolNames
 ```
 
 :::details Code
 
 ```julia
-function prepCostOptions end
-
-
-function prepCostOptions(observations, cost_options)
-    return prepCostOptions(observations, cost_options, CostModelObs())
+function poolNames(configuration)
+    sub_pool_names, _ = generatedPoolNames(poolStructure(configuration))
+    return Tuple(sub_pool_names)
 end
+```
 
-function prepCostOptions(observations, cost_options)
-    return prepCostOptions(observations, cost_options, CostModelObs())
-end
+:::
 
-function prepCostOptions(observations, cost_options, ::CostModelObsPriors)
-    return prepCostOptions(observations, cost_options, CostModelObs())
-end
 
-function prepCostOptions(observations, cost_options, ::CostModelObs)
-    valids=[]
-    is_valid = []
-    vars = cost_options.variable
-    obs_inds = cost_options.obs_ind
-    min_data_points = cost_options.min_data_points
-    for vi in eachindex(vars)
-        obs_ind_start = obs_inds[vi]
-        min_point = min_data_points[vi]
-        y = observations[obs_ind_start]
-        yσ = observations[obs_ind_start+1]
-        idxs = Array(.!is_invalid_number.(y .* yσ))
-        total_point = sum(idxs)
-        if total_point < min_point
-            push!(is_valid, false)
-        else
-            push!(is_valid, true)
-        end
-        push!(valids, idxs)
-    end
-    cost_options = set_namedtuple_field(cost_options, (:valids, valids))
-    cost_options = set_namedtuple_field(cost_options, (:is_valid, is_valid))
-    cost_options = drop_namedtuple_fields(cost_options, (:min_data_points, :temporal_data_aggr, :aggr_func,))
-    cost_option_table = Table(cost_options)
-    cost_options_table_filtered = filter(row -> row.is_valid === true , cost_option_table)
-    return cost_options_table_filtered
+----
+
+### prepParameterUpdater
+```@docs
+prepParameterUpdater
+```
+
+:::details Code
+
+```julia
+function prepParameterUpdater(parameter_table, selected_models)
+    parameter_to_index = getParameterIndices(selected_models, parameter_table)
+    return ParameterUpdater(parameter_table, getParameterIndicesPerModel(parameter_to_index, selected_models))
 end
 ```
 
@@ -1495,6 +1735,11 @@ function readConfiguration(info_exp::AbstractDict, base_path::String)
             prm = CSV.File(config_path)
             tmp = Table(prm)
             info[k] = tmp
+        elseif k == "parameters" && isParameterFile(v)
+            # a parameter file given directly uses all its variables, and their
+            # settings are read from the attributes in getParameters
+            default_map = DataStructures.OrderedDict{String,Any}("data_path" => config_path)
+            info[k] = DataStructures.OrderedDict{String,Any}("default_parameter_map" => default_map, "variables" => DataStructures.OrderedDict{String,Any}())
         end
     end
 
@@ -1511,6 +1756,74 @@ function readConfiguration(info_exp::AbstractDict, base_path::String)
     end
     info["experiment"] = info_exp["experiment"]
     return info
+end
+```
+
+:::
+
+
+----
+
+### resolvePoolStructure
+```@docs
+resolvePoolStructure
+```
+
+:::details Code
+
+```julia
+function resolvePoolStructure(info::NamedTuple)
+    pools = info.settings.model_structure.pools
+    resolved = (;)
+    elements = unique(vcat(collect(propertynames(pools)), collect(propertynames(POOL_ELEMENT_PROCESS))))
+    for element ∈ elements
+        if !hasproperty(pools, element)
+            configuration = poolConfigurationForApproach(info, element)
+            isnothing(configuration) && continue
+            structure = poolStructure(configuration)
+            aliases = poolAliases(configuration)
+        else
+            block = getproperty(pools, element)
+            if isa(block, AbstractString)
+                configuration = try
+                    poolConfigurationFor(block)
+                catch e
+                    error("pools.$(element) is set to `$(block)`: $(e.msg)")
+                end
+                structure = poolStructure(configuration)
+                if isnothing(structure)
+                    error("pools.$(element) resolves to the configuration `$(nameof(configuration))`, " *
+                          "which declares no poolStructure.")
+                end
+                aliases = poolAliases(configuration)
+            else
+                structure = block
+                aliases = hasproperty(block, :aliases) ? block.aliases : (;)
+                if !hasproperty(block, :aliases)
+                    configuration = poolConfigurationForApproach(info, element)
+                    if !isnothing(configuration)
+                        aliases = poolAliases(configuration)
+                        if !isempty(aliases)
+                            block_sub_pool_names, _ = generatedPoolNames(block)
+                            config_sub_pool_names, _ = generatedPoolNames(poolStructure(configuration))
+                            if Set(block_sub_pool_names) != Set(config_sub_pool_names)
+                                error("pools.$(element) is written out in full, and its aliases are " *
+                                      "taken from `$(nameof(configuration))`, but the two disagree on " *
+                                      "which pools exist. Only in the block: " *
+                                      "$(join(sort(String.(setdiff(block_sub_pool_names, config_sub_pool_names))), ", ")). " *
+                                      "Only in the configuration: " *
+                                      "$(join(sort(String.(setdiff(config_sub_pool_names, block_sub_pool_names))), ", ")). " *
+                                      "Declare an `aliases` key in the block, or match the configuration.")
+                            end
+                        end
+                    end
+                end
+            end
+        end
+        validatePoolStructure(element, structure, aliases)
+        resolved = set_namedtuple_field(resolved, (Symbol(element), (; structure..., aliases=aliases)))
+    end
+    return resolved
 end
 ```
 
@@ -1659,31 +1972,7 @@ end
 
 function setModelOutputLandAll(info, land)
     output_vars = getAllLandVars(land)
-    depth_info = map(output_vars) do v_full_pair
-        v_index = findfirst(x -> first(x) === first(v_full_pair) && last(x) === last(v_full_pair), info.output.variables)
-        dim_name = nothing
-        dim_size = nothing
-        if ~isnothing(v_index)
-            dim_name = last(info.output.depth_info[v_index])
-            dim_size = first(info.output.depth_info[v_index])
-        else
-            field_name = first(v_full_pair)
-            v_name = last(v_full_pair)
-            dim_name = string(v_name) * "_idx"
-            land_field = getproperty(land, field_name)
-            if hasproperty(land_field, v_name)
-                land_subfield = getproperty(land_field, v_name)
-                if isa(land_subfield, AbstractArray)
-                    dim_size = length(land_subfield)
-                elseif isa(land_subfield, Number)
-                    dim_size = 1
-                else
-                    dim_size = 0
-                end
-            end
-        end
-        dim_size, dim_name
-    end
+    depth_info = getLandVarDepthInfo(info, land, output_vars)
     info = @set info.output.variables = output_vars
     info = @set info.output.depth_info = depth_info
     return info
@@ -1705,31 +1994,7 @@ setModelOutputLandAll
 ```julia
 function setModelOutputLandAll(info, land)
     output_vars = getAllLandVars(land)
-    depth_info = map(output_vars) do v_full_pair
-        v_index = findfirst(x -> first(x) === first(v_full_pair) && last(x) === last(v_full_pair), info.output.variables)
-        dim_name = nothing
-        dim_size = nothing
-        if ~isnothing(v_index)
-            dim_name = last(info.output.depth_info[v_index])
-            dim_size = first(info.output.depth_info[v_index])
-        else
-            field_name = first(v_full_pair)
-            v_name = last(v_full_pair)
-            dim_name = string(v_name) * "_idx"
-            land_field = getproperty(land, field_name)
-            if hasproperty(land_field, v_name)
-                land_subfield = getproperty(land_field, v_name)
-                if isa(land_subfield, AbstractArray)
-                    dim_size = length(land_subfield)
-                elseif isa(land_subfield, Number)
-                    dim_size = 1
-                else
-                    dim_size = 0
-                end
-            end
-        end
-        dim_size, dim_name
-    end
+    depth_info = getLandVarDepthInfo(info, land, output_vars)
     info = @set info.output.variables = output_vars
     info = @set info.output.depth_info = depth_info
     return info
@@ -1751,21 +2016,13 @@ setOptimization
 ```julia
 function setOptimization(info::NamedTuple)
     print_info(setOptimization, @__FILE__, @__LINE__, "setting ParameterOptimization and Observation Info...")
-    info = set_namedtuple_field(info, (:optimization, (;)))
-
-    # set information related to cost metrics for each variable
-    info = set_namedtuple_subfield(info, :optimization, (:model_parameter_default, info.settings.optimization.model_parameter_default))
-    info = set_namedtuple_subfield(info, :optimization, (:observational_constraints, info.settings.optimization.observational_constraints))
-
+    # The optimization info is built on its own and set in info once at the end, because
+    # every rebuild of info compiles anew for its large type.
     n_threads_cost = 1
     run_lazy =get(info.settings.experiment.flags, :run_lazy, false)
-    if info.settings.optimization.optimization_cost_threaded > 0 && info.settings.experiment.flags.run_optimization && !run_lazy
+    threaded_cost = info.settings.optimization.optimization_cost_threaded > 0 && info.settings.experiment.flags.run_optimization && !run_lazy
+    if threaded_cost
         n_threads_cost = info.settings.optimization.optimization_cost_threaded > 1 ? info.settings.optimization.optimization_cost_threaded : Threads.nthreads()
-        # overwrite land array type when threaded optimization is set
-        info = @set info.temp.helpers.run.land_output_type = PreAllocArrayMT()
-        # info = set_namedtuple_subfield(info,
-        # :optimization,
-        # (:n_threads_cost, n_threads_cost))
     end
 
     # get types for optimization run options
@@ -1774,13 +2031,11 @@ function setOptimization(info::NamedTuple)
     scaling_method = isnothing(info.settings.optimization.optimization_parameter_scaling) ? "scale_none" : info.settings.optimization.optimization_parameter_scaling
     parameter_scaling = getTypeInstanceForNamedOptions(scaling_method)
     optimization_types = (; cost_method, parameter_scaling, multi_constraint_method, n_threads_cost)
-    info = set_namedtuple_subfield(info, :optimization, (:run_options, optimization_types))
-        
-    # check and set the list of parameters to be optimized
-    
+    optimization = (; run_options=optimization_types)
+
     # set algorithm related options
-    info = setAlgorithmOptions(info, :algorithm_optimization)
-    info = setAlgorithmOptions(info, :algorithm_sensitivity_analysis)
+    optimization = setAlgorithmOptions(optimization, info, :algorithm_optimization)
+    optimization = setAlgorithmOptions(optimization, info, :algorithm_sensitivity_analysis)
     parameter_table = getOptimizationParametersTable(info.temp.models.parameter_table, info.settings.optimization.model_parameter_default, info.settings.optimization.model_parameters_to_optimize)
     
     checkOptimizedParametersInModels(info, parameter_table)
@@ -1790,19 +2045,19 @@ function setOptimization(info::NamedTuple)
 
     # get the variables to be used during optimization
     obs_vars, optim_vars, store_vars, model_vars = getConstraintNames(info.settings.optimization)
-    vars_info = (;)
-    vars_info = set_namedtuple_field(vars_info, (:obs, obs_vars))
-    vars_info = set_namedtuple_field(vars_info, (:optimization, optim_vars))
-    vars_info = set_namedtuple_field(vars_info, (:store, store_vars))
-    vars_info = set_namedtuple_field(vars_info, (:model, model_vars))
-    info = set_namedtuple_subfield(info, :optimization, (:variables, (vars_info)))
+    vars_info = (; obs=obs_vars, optimization=optim_vars, store=store_vars, model=model_vars)
+
+    # updateVariablesToStore reads the variables from info.optimization
+    temp = info.temp
+    if threaded_cost
+        # overwrite land array type when threaded optimization is set
+        temp = (; temp..., helpers=(; temp.helpers..., run=(; temp.helpers.run..., land_output_type=PreAllocArrayMT())))
+    end
+    info = (; info..., temp=temp, optimization=(; variables=vars_info))
     info = updateVariablesToStore(info)
     cost_options = getCostOptions(info.settings.optimization, vars_info, info.temp.output.variables, info.temp.helpers.numbers, info.temp.helpers.dates)
-    info = set_namedtuple_subfield(info, :optimization, (:cost_options, cost_options))
-    info = set_namedtuple_subfield(info, :optimization, (:parameter_table, parameter_table))
-    optimization_info = info.optimization
-    optimization_info = drop_namedtuple_fields(optimization_info, (:model_parameter_default, :model_parameters_to_optimize, :observational_constraints, :variables))
-    info = (; info..., optimization = optimization_info)
+    optimization = (; optimization..., cost_options=cost_options, parameter_table=parameter_table)
+    info = (; info..., optimization=optimization)
     return info
 end
 ```
@@ -1835,7 +2090,7 @@ function setOrderedSelectedModels(info::NamedTuple)
     end
     @debug "     setupInfo: creating initial out/land..."
 
-    info = (; info..., temp=(; info.temp..., models=(; sindbad_models=sindbad_models, selected_models=Table((; model=[order_selected_models...],t_repeat=t_repeat_models)))))
+    info = (; info..., temp=(; info.temp..., models=(; sindbad_models=sindbad_models, selected_models=Table((; model=[order_selected_models...], t_repeat=t_repeat_models)))))
     return info
 end
 ```
@@ -1855,7 +2110,10 @@ setPoolsInfo
 ```julia
 function setPoolsInfo(info::NamedTuple)
     print_info(setPoolsInfo, @__FILE__, @__LINE__, "setting Pools Info...")
-    elements = keys(info.settings.model_structure.pools)
+    # after this, the source of the structure stops mattering: everything below reads
+    # the resolved blocks, never info.settings.model_structure.pools
+    resolved_pools = resolvePoolStructure(info)
+    elements = propertynames(resolved_pools)
     tmp_states = (;)
     hlp_states = (;)
     model_array_type = getfield(Types, to_uppercase_first(info.settings.experiment.exe_rules.model_array_type, "ModelArray"))()
@@ -1870,14 +2128,15 @@ function setPoolsInfo(info::NamedTuple)
         hlp_elem = (;)
         tmp_states = set_namedtuple_field(tmp_states, (elSymbol, (;)))
         hlp_states = set_namedtuple_field(hlp_states, (elSymbol, (;)))
-        pool_info = getfield(getfield(info.settings.model_structure.pools, element), :components)
+        resolved_elem = getproperty(resolved_pools, Symbol(element))
+        pool_info = getfield(resolved_elem, :components)
         nlayers = Int64[]
         layer_thicknesses = num_type[]
         layer = Int64[]
         inits = []
         sub_pool_name = Symbol[]
         main_pool_name = Symbol[]
-        main_pools = Symbol.(keys(getfield(getfield(info.settings.model_structure.pools, element), :components)))
+        main_pools = Symbol.(keys(pool_info))
         layer_thicknesses, nlayers, layer, inits, sub_pool_name, main_pool_name = getPoolInformation(main_pools, pool_info, layer_thicknesses, nlayers, layer, inits, sub_pool_name, main_pool_name)
 
         # set empty tuple fields
@@ -1959,7 +2218,7 @@ function setPoolsInfo(info::NamedTuple)
         end
 
         ## combined pools
-        combine_pools = (getfield(getfield(info.settings.model_structure.pools, element), :combine))
+        combine_pools = getfield(resolved_elem, :combine)
         do_combine = true
         tmp_elem = set_namedtuple_field(tmp_elem, (:combine, (; docombine=true, pool=Symbol(combine_pools))))
         if do_combine
@@ -1995,8 +2254,8 @@ function setPoolsInfo(info::NamedTuple)
         end
 
         # check if additional variables exist
-        if hasproperty(getfield(info.settings.model_structure.pools, element), :state_variables)
-            state_variables = getfield(getfield(info.settings.model_structure.pools, element), :state_variables)
+        if hasproperty(resolved_elem, :state_variables)
+            state_variables = getfield(resolved_elem, :state_variables)
             tmp_elem = set_namedtuple_field(tmp_elem, (:state_variables, state_variables))
         end
         arraytype = :view
@@ -2005,6 +2264,21 @@ function setPoolsInfo(info::NamedTuple)
         end
         tmp_elem = set_namedtuple_field(tmp_elem, (:arraytype, arraytype))
         tmp_elem = set_namedtuple_field(tmp_elem, (:create, create))
+
+        # aliases: groupings that cut across the nesting, so they cannot be a nesting
+        # level. hlp_elem only -- an alias has no backing array, so keeping it out of
+        # tmp_elem keeps it out of `create`, `initial_values`, `all_components` and
+        # `n_layers`.
+        for alias ∈ propertynames(getfield(resolved_elem, :aliases))
+            targets = getproperty(getfield(resolved_elem, :aliases), alias)
+            alias_zix = Tuple(sort(vcat([collect(getproperty(hlp_elem.zix, t)) for t ∈ targets]...)))
+            hlp_elem = set_namedtuple_subfield(hlp_elem, :zix, (alias, alias_zix))
+        end
+
+        # the Vals built alongside the combined pool are what the generated
+        # setComponentFromMainPool dispatches on, so they have to travel with the
+        # element
+        hlp_elem = set_namedtuple_field(hlp_elem, (:vals, vals_tuple))
         tmp_states = set_namedtuple_field(tmp_states, (elSymbol, tmp_elem))
         hlp_states = set_namedtuple_field(hlp_states, (elSymbol, hlp_elem))
     end
@@ -2034,6 +2308,22 @@ function setPoolsInfo(info::NamedTuple)
         hlp_new = hlp_states
     end
 
+    # Every carbon pool name resolves, to real indices or to (), whatever the
+    # structure. An empty entry iterates zero times, statically, which is why models
+    # loop over helpers.pools.zix.X with no isempty branch and why a new pool needs no
+    # model edit -- the names come from the configurations themselves, see
+    # carbonPoolNames.  Filled here rather than per element on
+    # purpose: the carbon+water merge above is `(; carbon..., water...)`, so water
+    # wins on any shared key, and a per-element skeleton would have water's empty
+    # entries overwrite carbon's real indices. Doing it after the merge also covers a
+    # model structure with no carbon element at all, where the merge takes
+    # hlp_states.water wholesale.
+    for pool_name ∈ carbonPoolNames()
+        if !hasproperty(hlp_new.zix, pool_name)
+            hlp_new = set_namedtuple_subfield(hlp_new, :zix, (pool_name, ()))
+        end
+    end
+
     # get the number of layers per pool 
     n_layers = NamedTuple(map(propertynames(hlp_new.ones)) do one_pool
         n_pool = num_type(length(getproperty(hlp_new.ones, one_pool)))
@@ -2042,7 +2332,12 @@ function setPoolsInfo(info::NamedTuple)
     )
     hlp_new = (hlp_new..., n_layers=n_layers)
 
-    info = (; info..., pools=tmp_states, temp=(; info.temp..., helpers=(; info.temp.helpers..., pools=hlp_new)))
+    # provenance: info.settings.model_structure.pools stays exactly as the user wrote
+    # it, so the saved settings still read "carbon": "cCycleBase"; pool_structure
+    # records what that resolved to, so an output directory documents the structure
+    # actually run.
+    info = (; info..., pools=tmp_states, pool_structure=resolved_pools,
+        temp=(; info.temp..., helpers=(; info.temp.helpers..., pools=hlp_new)))
     return info
 end
 ```
@@ -2086,28 +2381,67 @@ function setSpinupAndForwardModels(info::NamedTuple)
     # change is_spinup to a vector of indices
     is_spinup = findall(is_spinup .== 1)
 
+    info = (; info..., temp=(; info.temp..., models=(; info.temp.models..., forward=selected_approach_forward, is_spinup=is_spinup)))
     # update the parameters of the approaches if a parameter value has been added from the experiment configuration
-    default_parameter_table = getParameters(selected_approach_forward, info.temp.helpers.numbers.num_type, info.temp.helpers.dates.temporal_resolution)
+    if length(selected_approach_forward) > 0
+        default_parameter_table = getParameters(selected_approach_forward, info.temp.helpers.numbers.num_type, info.temp.helpers.dates.temporal_resolution)
 
-    input_parameter_table = nothing
-    if hasproperty(info.settings.model_structure, :parameter_table) && !isempty(info.settings.model_structure.parameter_table)
-        print_info(setSpinupAndForwardModels, @__FILE__, @__LINE__, "---using input parameters from model_structure.parameter_table in replace_info", n_m=20)
+        input_parameter_table = nothing
+        if hasproperty(info.settings.model_structure, :parameter_table) && !isempty(info.settings.model_structure.parameter_table)
+            print_info(setSpinupAndForwardModels, @__FILE__, @__LINE__, "---using input parameters from model_structure.parameter_table in replace_info", n_m=20)
 
-        input_parameter_table = info.settings.model_structure.parameter_table
-    elseif hasproperty(info[:settings], :parameters) && !isempty(info.settings.parameters)
-        print_info(setSpinupAndForwardModels, @__FILE__, @__LINE__, "     ---using input parameters from settings.parameters passed from CSV input file", n_m=20)
-        input_parameter_table = info.settings.parameters
-    end
-    updated_parameter_table = copy(default_parameter_table)
-    if !isnothing(input_parameter_table)
-        if !isa(input_parameter_table, Table)
-            error("input_parameter_table must be a Table, but its type is $(typeof(input_parameter_table)). Fix the input error in the source (table or csv file) to continue...")
+            input_parameter_table = info.settings.model_structure.parameter_table
+        elseif hasproperty(info[:settings], :parameters) && info.settings.parameters isa Table && !isempty(info.settings.parameters)
+            # only a csv input is a Table. A json or zarr/nc input sets the parameters
+            # per location, which are loaded in getForcing and applied in prepTEM.
+            print_info(setSpinupAndForwardModels, @__FILE__, @__LINE__, "     ---using input parameters from settings.parameters passed from CSV input file", n_m=20)
+            input_parameter_table = info.settings.parameters
         end
-        updated_parameter_table = setInputParameters(default_parameter_table, input_parameter_table, info.temp.helpers.dates.temporal_resolution)
-        selected_approach_forward = updateModelParameters(updated_parameter_table, selected_approach_forward, updated_parameter_table.optimized)
+        updated_parameter_table = copy(default_parameter_table)
+        if !isnothing(input_parameter_table)
+            if !isa(input_parameter_table, Table)
+                error("input_parameter_table must be a Table, but its type is $(typeof(input_parameter_table)). Fix the input error in the source (table or csv file) to continue...")
+            end
+            updated_parameter_table = setInputParameters(default_parameter_table, input_parameter_table, info.temp.helpers.dates.temporal_resolution)
+            selected_approach_forward = updateModelParameters(updated_parameter_table, selected_approach_forward, updated_parameter_table.optimized)
+        end
+        info = (; info..., temp=(; info.temp..., models=(; info.temp.models..., forward=selected_approach_forward, is_spinup=is_spinup, parameter_table=updated_parameter_table)))
     end
-    info = (; info..., temp=(; info.temp..., models=(; info.temp.models..., forward=selected_approach_forward, is_spinup=is_spinup, parameter_table=updated_parameter_table))) 
     return info
+end
+```
+
+:::
+
+
+----
+
+### setTypedParameters
+```@docs
+setTypedParameters
+```
+
+:::details Code
+
+```julia
+function setTypedParameters(selected_models, parameter_to_index::NamedTuple, parameter_values)
+    return map(selected_models) do model
+        model_index = parameter_to_index[nameof(typeof(model))]
+        isempty(model_index) && return model
+        p_keys = keys(model_index)
+        new_values = map(p_keys) do p_key
+            convertParameterValue(getproperty(model, p_key), parameter_values[getfield(model_index, p_key)])
+        end
+        ConstructionBase.setproperties(model, NamedTuple{p_keys}(new_values))
+    end
+end
+
+function setTypedParameters(selected_models::Tuple, parameter_indices_per_model::Tuple, parameter_values)
+    return map((model, model_indices) -> setTypedModelParameters(model, model_indices, parameter_values), selected_models, parameter_indices_per_model)
+end
+
+function setTypedParameters(selected_models::LongTuple{N}, parameter_indices_per_model::LongTuple{N}, parameter_values) where {N}
+    return LongTuple{N}(map((models, model_indices) -> setTypedParameters(models, model_indices, parameter_values), selected_models.data, parameter_indices_per_model.data))
 end
 ```
 
@@ -2125,6 +2459,8 @@ setupInfo
 
 ```julia
 function setupInfo(info::NamedTuple)
+    # Retain configuration for safe, pre-run rebuilding of site-specific pool geometry.
+    setup_input = deepcopy(info)
     print_info(setupInfo, @__FILE__, @__LINE__, "Setting and consolidating Experiment Info...")
     # @show info.settings.model_structure.parameter_table.optimized
     info = setExperimentBasics(info)
@@ -2157,23 +2493,24 @@ function setupInfo(info::NamedTuple)
     land_init = createInitLand(info.pools, info.temp)
     info = (; info..., temp=(; info.temp..., helpers=(; info.temp.helpers..., land_init=land_init)))
 
-    data_settings = (; forcing = info.settings.forcing,)
+    data_settings = (;)
+    if hasproperty(info.settings, :forcing)
+        data_settings = set_namedtuple_field(data_settings, (:forcing, setDefaultForcingBounds(info.settings.forcing, info.temp.helpers.numbers.num_type)))
+    end
+    data_settings = set_namedtuple_field(data_settings, (:parameters, getParameterInput(info)))
     if (info.settings.experiment.flags.run_optimization || info.settings.experiment.flags.calc_cost) && hasproperty(info.settings.optimization, :algorithm_optimization)
         # @info "  setupInfo: setting ParameterOptimization and Observation info..."
         info = setOptimization(info)
         data_settings = set_namedtuple_field(data_settings, (:optimization, info.settings.optimization))
     else
-        parameter_table = info.temp.models.parameter_table
-        checkParameterBounds(parameter_table.name, parameter_table.initial, parameter_table.lower, parameter_table.upper, ScaleNone(), p_units=parameter_table.units, show_info=true, model_names=parameter_table.model_approach)
+        parameter_table = get(info.temp.models, :parameter_table, nothing)
+        if !isnothing(parameter_table)
+            checkParameterBounds(parameter_table.name, parameter_table.initial, parameter_table.lower, parameter_table.upper, ScaleNone(), p_units=parameter_table.units, show_info=true, model_names=parameter_table.model_approach)
+        end
      end
 
     if hasproperty(info.settings, :hybrid)
         info = setHybridInfo(info)
-    end
-
-    if !isnothing(info.settings.experiment.exe_rules.longtuple_size)
-        selected_approach_forward = to_longtuple(info.temp.models.forward, info.settings.experiment.exe_rules.longtuple_size)
-        info = @set info.temp.models.forward = selected_approach_forward
     end
 
     print_info(setupInfo, @__FILE__, @__LINE__, "Cleaning Info Fields...")
@@ -2183,7 +2520,20 @@ function setupInfo(info::NamedTuple)
     info = set_namedtuple_subfield(info, :experiment, (:data_settings, data_settings))
     info = set_namedtuple_subfield(info, :experiment, (:exe_rules, exe_rules))
     info = drop_namedtuple_fields(info, (:temp, :settings,))
-    return info
+
+    # Converted last because every NamedTuple rebuild above compiles anew for the type of
+    # info, and a LongTuple of all models makes that type very large.
+    if !isnothing(exe_rules.longtuple_size)
+        longtuple_size = exe_rules.longtuple_size
+        # Julia does not unroll `map` over a tuple of 32 or more elements, so it is not
+        # inferred and allocates. Every chunk of a long tuple must be shorter than that.
+        if longtuple_size >= 32
+            @warn "experiment.exe_rules.longtuple_size is $(longtuple_size). With 32 or more models in a chunk, setting parameters on the models is not type stable and allocates on every call, which slows down optimizations. Use a value from 16 to 31."
+        end
+        forward = to_longtuple(info.models.forward, longtuple_size)
+        return (; info..., models=(; info.models..., forward=forward), setup_input)
+    end
+    return (; info..., setup_input)
 end
 ```
 
@@ -2205,6 +2555,16 @@ function sindbadDefaultOptions end
 sindbadDefaultOptions(::SindbadTypes) = (;)
 
 sindbadDefaultOptions(::CMAEvolutionStrategyCMAES) = (; maxfevals = 50)
+
+sindbadDefaultOptions(::SpinupSequence) = (; n_repeat_base = 200, forcing_msc = "day_MSC")
+
+# invoke reaches the SpinupSequence method above, so this stays the shared defaults plus the
+# one option these methods add, rather than a second copy of them
+sindbadDefaultOptions(m::Union{SequenceWithAge,SequenceWithSpinupInput}) =(; invoke(sindbadDefaultOptions, Tuple{SpinupSequence}, m)..., disturbance_variable = "f_dist_year")
+
+# this method builds nothing, it replays the steps authored in the settings, so none of the
+# shared options above apply to it
+sindbadDefaultOptions(::SequenceList) = (; steps = [])
 
 sindbadDefaultOptions(::GSAMorris) = (; total_num_trajectory = 200, num_trajectory = 15, len_design_mat=10)
 
@@ -2293,6 +2653,26 @@ function updateModels(parameter_vector, parameter_updater, parameter_scaling_typ
     updated_models = updateModelParameters(parameter_updater, selected_models, parameter_vector)
     return updated_models
 end
+
+function updateModels(parameter_vector, parameter_updater, parameter_scaling_type, space_selected_models::AbstractVector)
+    parameter_vector = backScaleParameters(parameter_vector, parameter_updater, parameter_scaling_type)
+    parameter_to_index = parameter_updater isa Table ? getParameterIndices(first(space_selected_models), parameter_updater) : parameter_updater
+    return map(space_selected_models) do selected_models
+        setTypedParameters(selected_models, parameter_to_index, parameter_vector)
+    end
+end
+
+function updateModels(parameter_vector, parameter_updater::ParameterUpdater, parameter_scaling_type, selected_models)
+    parameter_vector = backScaleParameters(parameter_vector, parameter_updater.parameter_table, parameter_scaling_type)
+    return setTypedParameters(selected_models, parameter_updater.parameter_indices_per_model, parameter_vector)
+end
+
+function updateModels(parameter_vector, parameter_updater::ParameterUpdater, parameter_scaling_type, space_selected_models::AbstractVector)
+    parameter_vector = backScaleParameters(parameter_vector, parameter_updater.parameter_table, parameter_scaling_type)
+    return map(space_selected_models) do selected_models
+        setTypedParameters(selected_models, parameter_updater.parameter_indices_per_model, parameter_vector)
+    end
+end
 ```
 
 :::
@@ -2326,6 +2706,45 @@ end
 
 :::
 
+
+----
+
+### writeParameterInputJson
+```@docs
+writeParameterInputJson
+```
+
+:::details Code
+
+```julia
+function writeParameterInputJson(json_path, data_path, variable_attributes)
+    variables = DataStructures.OrderedDict{String,Any}()
+    for (variable_name, attributes) ∈ variable_attributes
+        entry = DataStructures.OrderedDict{String,Any}()
+        merge!(entry, attributes)
+        entry["source_variable"] = string(variable_name)
+        variables[string(variable_name)] = entry
+    end
+    default_map = DataStructures.OrderedDict{String,Any}("data_path" => data_path, "space_time_type" => "spatial")
+    parameter_input = DataStructures.OrderedDict{String,Any}("default_parameter_map" => default_map, "variables" => variables)
+    open(json_path, "w") do io
+        write(io, json(parameter_input; pretty=true))
+    end
+    return json_path
+end
+```
+
+:::
+
+
+----
+
+## Types
+
+### ParameterUpdater
+```@docs
+ParameterUpdater
+```
 
 ----
 

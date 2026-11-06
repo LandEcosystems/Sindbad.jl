@@ -7,18 +7,23 @@ end
 #! format: on
 
 function define(params::cTauSoilW_CASA, forcing, land, helpers)
-    @unpack_cTauSoilW_CASA params
-    @unpack_nt (soilW, cEco) ⇐ land.pools
-    @unpack_nt o_one ⇐ land.constants
+    @unpack_nt begin
+        (soilW, cEco) ⇐ land.pools
+        o_one ⇐ land.constants
+    end
 
     ## Instantiate variables
     c_eco_k_f_soilW = one.(cEco)
-    soilW_prev = zero(soilW)
+    fsoilW = o_one
     fsoilW_prev = o_one
-    ## pack land variables
-    @pack_nt (c_eco_k_f_soilW, fsoilW_prev) ⇒ land.diagnostics
-    @pack_nt soilW_prev ⇒ land.pools
+    # BGME was defined on monthly totals, so the stored soil water is spread over the
+    # time steps of a month. A month is 30 days, as in TIMESCALE_DAY_MULTIPLIER.
+    timesteps_per_month = oftype(o_one, inv(getUnitConversionForParameter("month", helpers.dates.temporal_resolution)))
+    soilW_prev = totalS(soilW)
 
+    ## pack land variables
+    @pack_nt (c_eco_k_f_soilW, fsoilW, fsoilW_prev) ⇒ land.diagnostics
+    @pack_nt (soilW_prev, timesteps_per_month) ⇒ land.cTauSoilW
     return land
 end
 
@@ -27,53 +32,45 @@ function compute(params::cTauSoilW_CASA, forcing, land, helpers)
     @unpack_cTauSoilW_CASA params
 
     ## unpack land variables
-    @unpack_nt c_eco_k_f_soilW ⇐ land.diagnostics
-
-    ## unpack land variables
     @unpack_nt begin
-        rain ⇐ land.fluxes
-        soilW_prev ⇐ land.pools
-        fsoilW_prev ⇐ land.diagnostics
-        PET ⇐ land.fluxes
+        (c_eco_k_f_soilW, fsoilW_prev) ⇐ land.diagnostics
+        (soilW_prev, timesteps_per_month) ⇐ land.cTauSoilW
+        soilW ⇐ land.pools
+        (rain, PET) ⇐ land.fluxes
         (z_zero, o_one) ⇐ land.constants
     end
-    # NUMBER OF TIME STEPS PER YEAR -> TIME STEPS PER MONTH
-    TSPY = helpers.dates.timesteps_in_year #sujan
-    TSPM = TSPY / 12
-    # BELOW GROUND RATIO [BGRATIO] AND BELOW GROUND MOISTURE EFFECT [BGME]
-    BGRATIO = z_zero
-    BGME = o_one
-    # PREVIOUS TIME STEP VALUES
-    pBGME = fsoilW_prev #sujan
-    # FOR PET > 0
-    ndx = (PET > 0)
-    # COMPUTE BGRATIO
-    BGRATIO[ndx] = (soilW_prev[ndx, 1] / TSPM + rain[ndx, tix]) / PET[ndx, tix]
-    # ADJUST ACCORDING TO Aws
-    BGRATIO = BGRATIO * Aws
-    # COMPUTE BGME
-    ndx1 = ndx & (BGRATIO >= 0.0 & BGRATIO < 1)
-    BGME[ndx1] = 0.1 + (0.9 * BGRATIO[ndx1])
-    ndx2 = ndx & (BGRATIO >= 1 & BGRATIO <= 2)
-    BGME[ndx2] = 1.0
-    ndx3 = ndx & (BGRATIO > 2 & BGRATIO <= 30)
-    BGME[ndx3] = 1 + 1 / 28 - 0.5 / 28 * BGRATIO[ndx[ndx3]]
-    ndx4 = ndx & (BGRATIO > 30)
-    BGME[ndx4] = 0.5
-    # WHEN PET IS 0; SET THE BGME TO THE PREVIOUS TIME STEPS VALUE
-    ndxn = (PET <= 0.0)
-    BGME[ndxn] = pBGME[ndxn]
-    BGME = at_least_zero(at_most_one(BGME))
-    # FEED IT TO THE STRUCTURE
-    fsoilW = BGME
+
+    # Belowground moisture effect (BGME) of Century. Without evaporative demand the
+    # previous value is kept.
+    if PET > z_zero
+        # BELOW GROUND RATIO, adjusted by Aws
+        BGRATIO = (soilW_prev / timesteps_per_month + rain) / PET * Aws
+        if BGRATIO < z_zero
+            BGME = o_one
+        elseif BGRATIO < o_one
+            BGME = oftype(o_one, 0.1) + oftype(o_one, 0.9) * BGRATIO
+        elseif BGRATIO <= oftype(o_one, 2)
+            BGME = o_one
+        elseif BGRATIO <= oftype(o_one, 30)
+            BGME = o_one + oftype(o_one, 1 / 28) - oftype(o_one, 0.5 / 28) * BGRATIO
+        else
+            BGME = oftype(o_one, 0.5)
+        end
+    else
+        BGME = fsoilW_prev
+    end
+    fsoilW = at_least_zero(at_most_one(BGME))
+
     # set the same moisture stress to all carbon pools
-    c_eco_k_f_soilW[helpers.pools.zix.cEco] = fsoilW
-    soilW_prev = soilW
+    for zix ∈ eachindex(c_eco_k_f_soilW)
+        @rep_elem fsoilW ⇒ (c_eco_k_f_soilW, zix)
+    end
+    soilW_prev = totalS(soilW)
     fsoilW_prev = fsoilW
 
     ## pack land variables
-    @pack_nt (fsoilW, fsoilW_prev) ⇒ land.diagnostics
-    @pack_nt soilW_prev ⇒ land.pools
+    @pack_nt (c_eco_k_f_soilW, fsoilW, fsoilW_prev) ⇒ land.diagnostics
+    @pack_nt soilW_prev ⇒ land.cTauSoilW
     return land
 end
 
@@ -94,6 +91,9 @@ $(getModelDocString(cTauSoilW_CASA))
 
 *Versions*
  - 1.0 on 12.01.2020 [sbesnard]  
+ - 1.1 on 11.10.2026 [skoirala]: ported the vectorized BGME code to a per time step scalar
+   form, with the previous total soil water kept in land.cTauSoilW and the time steps per
+   month taken from the model time step
 
 *Created by*
  - ncarvalhais

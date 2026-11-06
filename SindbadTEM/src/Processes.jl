@@ -55,7 +55,8 @@ julia> # end
 module Processes
 
     # Import & export necessary modules/functions
-    import SindbadTEM.TEMTypes: LandEcosystem, purpose
+    import SindbadTEM.TEMTypes: LandEcosystem, SindbadTypes, purpose
+    import SindbadTEM.TEMTypes: poolAliases, poolConfiguration, poolStructure
     using FieldMetadata: @metadata
     using Parameters: @with_kw
     @metadata timescale "" String
@@ -63,6 +64,21 @@ module Processes
     @metadata bounds (-Inf, Inf) Tuple
     @metadata units "" String
     export describe, bounds, units
+
+    """
+    Day-equivalent multiplier for each temporal-resolution unit SINDBAD supports. This is
+    the single source of truth for legal `timescale`/`temporal_resolution` unit strings --
+    add a new unit by adding one entry here.
+    """
+    const TIMESCALE_DAY_MULTIPLIER = Dict(
+        "second" => 1 / (60 * 60 * 24),
+        "minute" => 1 / (60 * 24),
+        "hour"   => 1 / 24,
+        "day"    => 1.0,
+        "month"  => 30.0,
+        "year"   => 365.0,
+    )
+    export TIMESCALE_DAY_MULTIPLIER
     export getApproachDocString
     # define dispatch structs for catching process errors
 
@@ -231,6 +247,9 @@ module Processes
     ```
     """
     function includeApproaches(modl, dir)
+        # track the file listing of the directory, so that adding or removing an
+        # approach file triggers recompilation of the package
+        include_dependency(dir)
         include.(filter(contains("$(nameof(modl))_"), readdir(dir; join=true)))
         return
     end

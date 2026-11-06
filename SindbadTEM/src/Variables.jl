@@ -133,34 +133,6 @@ sindbad_tem_variables = orD{Symbol,orD{Symbol,String}}(
         :land_field => "cFlow",
         :description => "name of the target pool for carbon flow"
     ),
-    :cFlow__c_flow_A_vec_ind => orD(
-        :standard_name => "c_flow_A_vec_ind",
-        :long_name => "index_carbon_flow_vector",
-        :units => "number",
-        :land_field => "cFlow",
-        :description => "indices of flow from giver to taker for carbon flow vector"
-    ),
-    :constants__c_flow_order => orD(
-        :standard_name => "c_flow_order",
-        :long_name => "carbon_flow_order",
-        :units => "number",
-        :land_field => "constants",
-        :description => "order of pooling while calculating the carbon flow"
-    ),
-    :constants__c_giver => orD(
-        :standard_name => "c_giver",
-        :long_name => "carbon_giver_pool",
-        :units => "number",
-        :land_field => "constants",
-        :description => "index of the source carbon pool for a given flow"
-    ),
-    :constants__c_taker => orD(
-        :standard_name => "c_taker",
-        :long_name => "carbon_taker_pool",
-        :units => "number",
-        :land_field => "constants",
-        :description => "index of the source carbon pool for a given flow"
-    ),
     :constants__n_groundW => orD(
         :standard_name => "n_groundW",
         :long_name => "num_layers_groundW",
@@ -329,6 +301,62 @@ sindbad_tem_variables = orD{Symbol,orD{Symbol,String}}(
         :land_field => "diagnostics",
         :description => "number of years needed for carbon turnover per carbon pool"
     ),
+    :diagnostics__c_fire_efflux => orD(
+        :standard_name => "c_fire_efflux",
+        :long_name => "fire_carbon_emission_per_pool",
+        :units => "gC/m2/time",
+        :land_field => "diagnostics",
+        :description => "carbon of each pool combusted by fire and emitted to the atmosphere"
+    ),
+    :diagnostics__c_fire_flow => orD(
+        :standard_name => "c_fire_flow",
+        :long_name => "fire_carbon_flow_to_litter_and_soil",
+        :units => "gC/m2/time",
+        :land_field => "diagnostics",
+        :description => "carbon of vegetation killed by fire or die-off but not combusted, received by each litter and soil pool"
+    ),
+    :diagnostics__c_fire_mortality => orD(
+        :standard_name => "c_fire_mortality",
+        :long_name => "fire_carbon_mortality_per_pool",
+        :units => "gC/m2/time",
+        :land_field => "diagnostics",
+        :description => "total carbon lost by each vegetation pool to fire or die-off, the combusted part plus the flow to litter and soil"
+    ),
+    :cCycleBase__c_flow_order => orD(
+        :standard_name => "c_flow_order",
+        :long_name => "carbon_flow_order",
+        :units => "number",
+        :land_field => "cCycleBase",
+        :description => "order of pooling while calculating the carbon flow"
+    ),
+    :cCycleBase__c_giver => orD(
+        :standard_name => "c_giver",
+        :long_name => "carbon_giver_pool",
+        :units => "number",
+        :land_field => "cCycleBase",
+        :description => "index of the source carbon pool for a given flow"
+    ),
+    :cCycleBase__c_taker => orD(
+        :standard_name => "c_taker",
+        :long_name => "carbon_taker_pool",
+        :units => "number",
+        :land_field => "cCycleBase",
+        :description => "index of the receiving carbon pool for a given flow"
+    ),
+    :cCycleBase__pool_names => orD(
+        :standard_name => "pool_names",
+        :long_name => "carbon_pool_names",
+        :units => "",
+        :land_field => "cCycleBase",
+        :description => "cEco_index => pool_name pair for each carbon pool -- informational only, for inspecting land.cCycleBase; no process matches pools by this"
+    ),
+    :cCycleBase__flow_edges => orD(
+        :standard_name => "flow_edges",
+        :long_name => "carbon_flow_edges",
+        :units => "",
+        :land_field => "cCycleBase",
+        :description => "flow_order => (giver_name => taker_name) pair for each carbon flow, in flow-vector order -- informational only, for inspecting land.cCycleBase; no process matches flows by this"
+    ),
     :diagnostics__c_flow_A_array => orD(
         :standard_name => "c_flow_A_array",
         :long_name => "carbon_flow_array",
@@ -343,6 +371,62 @@ sindbad_tem_variables = orD{Symbol,orD{Symbol,String}}(
         :land_field => "diagnostics",
         :description => "fraction of the carbon loss fron a (giver) pool that flows to a (taker) pool"
     ),
+    :diagnostics__c_flow_ME_vec => orD(
+        :standard_name => "c_flow_ME_vec",
+        :long_name => "microbial_efficiency_vector",
+        :units => "fraction",
+        :land_field => "diagnostics",
+        :description => "fraction of the carbon leaving a (giver) pool along each of its outgoing transfers that is retained by the (taker) pool rather than respired; allocated as one per flow by cCycleBase and filled in by cMicrobialEfficiency"
+    ),
+    :diagnostics__c_flow_ME_f_cLit => orD(
+        :standard_name => "c_flow_ME_f_cLit",
+        :long_name => "litter_pool_effect_microbial_efficiency",
+        :units => "fraction",
+        :land_field => "diagnostics",
+        :description => "litter pool control of the microbial carbon-transfer efficiency, per active carbon transfer; sets the efficiency of the transfers leaving the litter pools, and is one on every other transfer"
+    ),
+    :diagnostics__c_flow_ME_f_cMic => orD(
+        :standard_name => "c_flow_ME_f_cMic",
+        :long_name => "microbial_pool_effect_microbial_efficiency",
+        :units => "fraction",
+        :land_field => "diagnostics",
+        :description => "microbial pool control of the microbial carbon-transfer efficiency, per active carbon transfer; sets the efficiency of the transfers leaving the microbial pools, where the soil texture response acts, and is one on every other transfer"
+    ),
+    :diagnostics__c_flow_ME_f_cSoil => orD(
+        :standard_name => "c_flow_ME_f_cSoil",
+        :long_name => "soil_pool_effect_microbial_efficiency",
+        :units => "fraction",
+        :land_field => "diagnostics",
+        :description => "soil pool control of the microbial carbon-transfer efficiency, per active carbon transfer; sets the efficiency of the transfers leaving the soil carbon pools, and is one on every other transfer"
+    ),
+    :diagnostics__c_flow_QP_f_lignin => orD(
+        :standard_name => "c_flow_QP_f_lignin",
+        :long_name => "lignin_effect_carbon_quality_partition",
+        :units => "fraction",
+        :land_field => "diagnostics",
+        :description => "lignin control of the carbon-quality partition, per active carbon transfer; splits structural and woody litter decomposition between the slow soil pool and the microbial pools, and is one on every other flow"
+    ),
+    :diagnostics__c_flow_QP_f_metabolic_fraction => orD(
+        :standard_name => "c_flow_QP_f_metabolic_fraction",
+        :long_name => "metabolic_fraction_effect_carbon_quality_partition",
+        :units => "fraction",
+        :land_field => "diagnostics",
+        :description => "metabolic litter fraction control of the carbon-quality partition, per active carbon transfer; splits leaf and fine-root litterfall between the metabolic and structural litter pools, and is one on every other flow"
+    ),
+    :diagnostics__c_flow_QP_f_soil_props => orD(
+        :standard_name => "c_flow_QP_f_soil_props",
+        :long_name => "soil_property_effect_carbon_quality_partition",
+        :units => "fraction",
+        :land_field => "diagnostics",
+        :description => "soil property control of the carbon-quality partition, per active carbon transfer; splits slow-soil and soil-microbial decomposition between old soil carbon and the remaining pathway, and is one on every other flow"
+    ),
+    :diagnostics__c_flow_QP_vec => orD(
+        :standard_name => "c_flow_QP_vec",
+        :long_name => "carbon_quality_partition_vector",
+        :units => "fraction",
+        :land_field => "diagnostics",
+        :description => "fraction of the carbon loss from a (giver) pool that is routed along each of its outgoing transfers by carbon quality; allocated as one per flow by cCycleBase and filled in by cQualityPartition"
+    ),
     :diagnostics__c_flow_E_array => orD(
         :standard_name => "c_flow_E_array",
         :long_name => "carbon_flow_efficiency_array",
@@ -350,8 +434,8 @@ sindbad_tem_variables = orD{Symbol,orD{Symbol,String}}(
         :land_field => "diagnostics",
         :description => "an array containing the efficiency of each flow in the c_flow_A_array"
     ),
-    :diagnostics__C_to_N_cVeg => orD(
-        :standard_name => "C_to_N_cVeg",
+    :diagnostics__CN_ratio_cVeg => orD(
+        :standard_name => "CN_ratio_cVeg",
         :long_name => "carbon_to_nitrogen_ratio",
         :units => "ratio",
         :land_field => "diagnostics",
@@ -419,6 +503,13 @@ sindbad_tem_variables = orD{Symbol,orD{Symbol,String}}(
         :units => "fraction",
         :land_field => "diagnostics",
         :description => "effect of soil moisture on gpp. 1: no stress, 0: complete stress"
+    ),
+    :diagnostics__gpp_f_co2 => orD(
+        :standard_name => "gpp_f_co2",
+        :long_name => "ambient_co2_effect_gpp",
+        :units => "fraction",
+        :land_field => "diagnostics",
+        :description => "effect of ambient co2 on gpp relative to a reference co2. 1: at the reference co2"
     ),
     :diagnostics__gpp_f_vpd => orD(
         :standard_name => "gpp_f_vpd",
@@ -903,6 +994,20 @@ sindbad_tem_variables = orD{Symbol,orD{Symbol,String}}(
         :land_field => "gppDiffRadiation",
         :description => "minimum of cloudiness index until the time step from the beginning of simulation (including spinup)"
     ),
+    :gppVPD__T_0 => orD(
+        :standard_name => "T_0",
+        :long_name => "zero_celsius_in_kelvin",
+        :units => "K",
+        :land_field => "gppVPD",
+        :description => "0 °C in K, to convert the air temperature for the CO2 compensation point"
+    ),
+    :gppVPD__T_25 => orD(
+        :standard_name => "T_25",
+        :long_name => "reference_temperature_of_CO2_compensation_point",
+        :units => "K",
+        :land_field => "gppVPD",
+        :description => "25 °C in K, the reference temperature of the CO2 compensation point Γ_star_25"
+    ),
     :models__c_model => orD(
         :standard_name => "c_model",
         :long_name => "base_carbon_model",
@@ -1099,26 +1204,12 @@ sindbad_tem_variables = orD{Symbol,orD{Symbol,String}}(
         :land_field => "properties",
         :description => "the depth to the bottom of each soil layer"
     ),
-    :properties__LIGEFF => orD(
-        :standard_name => "LIGEFF",
-        :long_name => "LIGEFF",
-        :units => "fraction",
+    :properties__idx_soilW_end => orD(
+        :standard_name => "idx_soilW_end",
+        :long_name => "index_of_bottom_active_soil_layer",
+        :units => "number",
         :land_field => "properties",
-        :description => ""
-    ),
-    :properties__LIGNIN => orD(
-        :standard_name => "LIGNIN",
-        :long_name => "LIGNIN",
-        :units => "fraction",
-        :land_field => "properties",
-        :description => ""
-    ),
-    :properties__LITC2N => orD(
-        :standard_name => "LITC2N",
-        :long_name => "LITC2N",
-        :units => "fraction",
-        :land_field => "properties",
-        :description => ""
+        :description => "index of the deepest soil layer with non-zero thickness, which exchanges water with groundwater"
     ),
     :properties__k_fc => orD(
         :standard_name => "k_fc",
@@ -1141,12 +1232,61 @@ sindbad_tem_variables = orD{Symbol,orD{Symbol,String}}(
         :land_field => "properties",
         :description => "hydraulic conductivity of soil at wilting point per layer"
     ),
-    :properties__MTF => orD(
-        :standard_name => "MTF",
-        :long_name => "MTF",
+    :properties__lit_CN_ratio => orD(
+        :standard_name => "lit_CN_ratio",
+        :long_name => "litter_carbon_to_nitrogen_ratio",
+        :units => "gC/gN",
+        :land_field => "properties",
+        :description => "carbon-to-nitrogen ratio of litter"
+    ),
+    :properties__lit_frac_C_lignin => orD(
+        :standard_name => "lit_frac_C_lignin",
+        :long_name => "litter_carbon_fraction_of_lignin",
         :units => "fraction",
         :land_field => "properties",
-        :description => ""
+        :description => "carbon fraction of lignin"
+    ),
+    :properties__lit_frac_lignin => orD(
+        :standard_name => "lit_frac_lignin",
+        :long_name => "litter_lignin_fraction",
+        :units => "fraction",
+        :land_field => "properties",
+        :description => "fraction of litter that is lignin"
+    ),
+    :properties__lit_frac_lignin_struct => orD(
+        :standard_name => "lit_frac_lignin_struct",
+        :long_name => "litter_structural_lignin_fraction",
+        :units => "fraction",
+        :land_field => "properties",
+        :description => "lignin as a fraction of structural litter carbon, which controls how structural litter decomposition is split between the slow soil pool and the microbial pools"
+    ),
+    :properties__lit_frac_lignin_wood => orD(
+        :standard_name => "lit_frac_lignin_wood",
+        :long_name => "woody_lit_lignin_fraction",
+        :units => "fraction",
+        :land_field => "properties",
+        :description => "lignin fraction of woody litter, which controls the partitioning of woody and coarse-root litter decomposition"
+    ),
+    :properties__lit_frac_metabolic => orD(
+        :standard_name => "lit_frac_metabolic",
+        :long_name => "metabolic_lit_fraction",
+        :units => "fraction",
+        :land_field => "properties",
+        :description => "fraction of leaf and fine-root litterfall routed to the metabolic litter pools; the complement goes to the structural pools"
+    ),
+    :properties__lit_k_f_lignin => orD(
+        :standard_name => "lit_k_f_lignin",
+        :long_name => "k_lignin_effect",
+        :units => "fraction",
+        :land_field => "properties",
+        :description => "multiplicative effect of lignin content on the decomposition rate of the structural litter pools; one means no effect"
+    ),
+    :properties__lit_nonsol_to_sol_lignin => orD(
+        :standard_name => "lit_nonsol_to_sol_lignin",
+        :long_name => "nonsoluble_to_soluble_lignin",
+        :units => "fraction",
+        :land_field => "properties",
+        :description => "scalar converting nonsoluble to soluble lignin"
     ),
     :properties__ψ_fc => orD(
         :standard_name => "ψ_fc",
@@ -1169,13 +1309,6 @@ sindbad_tem_variables = orD{Symbol,orD{Symbol,String}}(
         :land_field => "properties",
         :description => "matric potential of soil at wiliting point per layer"
     ),
-    :properties__SCLIGNIN => orD(
-        :standard_name => "SCLIGNIN",
-        :long_name => "SCLIGNIN",
-        :units => "fraction",
-        :land_field => "properties",
-        :description => ""
-    ),
     :properties__soil_α => orD(
         :standard_name => "soil_α",
         :long_name => "soil_α",
@@ -1189,6 +1322,20 @@ sindbad_tem_variables = orD{Symbol,orD{Symbol,String}}(
         :units => "number",
         :land_field => "properties",
         :description => "beta parameter of soil per layer"
+    ),
+    :properties__soil_depth => orD(
+        :standard_name => "soil_depth",
+        :long_name => "soil_depth",
+        :units => "mm",
+        :land_field => "properties",
+        :description => "total soil depth of the location as the sum of soil layer thicknesses"
+    ),
+    :properties__layer_depth_fraction => orD(
+        :standard_name => "layer_depth_fraction",
+        :long_name => "soil_layer_fraction_within_soil_depth",
+        :units => "fraction",
+        :land_field => "properties",
+        :description => "fraction of the thickness of each soil layer within the soil depth"
     ),
     :properties__soil_layer_thickness => orD(
         :standard_name => "soil_layer_thickness",
@@ -1386,12 +1533,12 @@ sindbad_tem_variables = orD{Symbol,orD{Symbol,String}}(
         :land_field => "properties",
         :description => "amount of water in the soil at wiliting point per layer"
     ),
-    :rootWaterEfficiency__root_over => orD(
-        :standard_name => "root_over",
-        :long_name => "is_root_over",
-        :units => "boolean",
+    :rootWaterEfficiency__rooted_fraction => orD(
+        :standard_name => "rooted_fraction",
+        :long_name => "soil_layer_fraction_within_root_depth",
+        :units => "fraction",
         :land_field => "rootWaterEfficiency",
-        :description => "a boolean indicating if the root is allowed to exract water from a given layer depending on maximum rooting depth"
+        :description => "fraction of the thickness of each soil layer within the maximum rooting depth"
     ),
     :states__ambient_CO2 => orD(
         :standard_name => "ambient_CO2",
@@ -1462,6 +1609,13 @@ sindbad_tem_variables = orD{Symbol,orD{Symbol,String}}(
         :units => "mm",
         :land_field => "states",
         :description => "amount of water available for transpiration per soil layer"
+    ),
+    :states__veg_type_name => orD(
+        :standard_name => "veg_type_name",
+        :long_name => "vegetation_type",
+        :units => "class",
+        :land_field => "states",
+        :description => "vegetation type class of the pixel, the single source of vegetation type for downstream processes"
     ),
     :states__Tair_prev => orD(
         :standard_name => "Tair_prev",

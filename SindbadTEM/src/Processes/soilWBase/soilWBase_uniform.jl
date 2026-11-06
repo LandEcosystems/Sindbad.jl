@@ -32,11 +32,17 @@ function define(params::soilWBase_uniform, forcing, land, helpers)
     θ_wp = zero(soilW)
     soil_α = zero(soilW)
     soil_β = zero(soilW)
+    cumulative_soil_depths = cumsum(soil_layer_thickness)
+    soil_depth = sum(soil_layer_thickness)
+    idx_soilW_end = lastindex(soilW)
+    # every layer is fully within the soil
+    layer_depth_fraction = one.(soilW)
 
     # get the plant available water capacity
 
     @pack_nt begin
-        (k_fc, k_sat, k_wp, soil_layer_thickness, w_awc, w_fc, w_sat, w_wp, ∑w_awc, ∑w_fc, ∑w_sat, ∑w_wp, soil_α, soil_β, θ_fc, θ_sat, θ_wp, ψ_fc, ψ_sat, ψ_wp) ⇒ land.properties
+        (idx_soilW_end, soil_depth, layer_depth_fraction) ⇒ land.properties
+        (cumulative_soil_depths, k_fc, k_sat, k_wp, soil_layer_thickness, w_awc, w_fc, w_sat, w_wp, ∑w_awc, ∑w_fc, ∑w_sat, ∑w_wp, soil_α, soil_β, θ_fc, θ_sat, θ_wp, ψ_fc, ψ_sat, ψ_wp) ⇒ land.properties
     end
     return land
 end
@@ -51,29 +57,33 @@ function precompute(params::soilWBase_uniform, forcing, land, helpers)
     end
 
     for sl ∈ eachindex(soilW)
-        @rep_elem sp_k_sat[sl] ⇒ (k_sat, sl, :soilW)
-        @rep_elem sp_k_fc[sl] ⇒ (k_fc, sl, :soilW)
-        @rep_elem sp_k_wp[sl] ⇒ (k_wp, sl, :soilW)
-        @rep_elem sp_ψ_sat[sl] ⇒ (ψ_sat, sl, :soilW)
-        @rep_elem sp_ψ_fc[sl] ⇒ (ψ_fc, sl, :soilW)
-        @rep_elem sp_ψ_wp[sl] ⇒ (ψ_wp, sl, :soilW)
-        @rep_elem sp_θ_sat[sl] ⇒ (θ_sat, sl, :soilW)
-        @rep_elem sp_θ_fc[sl] ⇒ (θ_fc, sl, :soilW)
-        @rep_elem sp_θ_wp[sl] ⇒ (θ_wp, sl, :soilW)
-        @rep_elem sp_α[sl] ⇒ (soil_α, sl, :soilW)
-        @rep_elem sp_β[sl] ⇒ (soil_β, sl, :soilW)
+        @rep_elem sp_k_sat[sl] ⇒ (k_sat, sl)
+        @rep_elem sp_k_fc[sl] ⇒ (k_fc, sl)
+        @rep_elem sp_k_wp[sl] ⇒ (k_wp, sl)
+        @rep_elem sp_ψ_sat[sl] ⇒ (ψ_sat, sl)
+        @rep_elem sp_ψ_fc[sl] ⇒ (ψ_fc, sl)
+        @rep_elem sp_ψ_wp[sl] ⇒ (ψ_wp, sl)
+        @rep_elem sp_θ_sat[sl] ⇒ (θ_sat, sl)
+        @rep_elem sp_θ_fc[sl] ⇒ (θ_fc, sl)
+        @rep_elem sp_θ_wp[sl] ⇒ (θ_wp, sl)
+        @rep_elem sp_α[sl] ⇒ (soil_α, sl)
+        @rep_elem sp_β[sl] ⇒ (soil_β, sl)
 
         sd_sl = soil_depths[sl]
-        @rep_elem sd_sl ⇒ (soil_layer_thickness, sl, :soilW)
+        @rep_elem sd_sl ⇒ (soil_layer_thickness, sl)
         p_w_fc_sl = θ_fc[sl] * sd_sl
-        @rep_elem p_w_fc_sl ⇒ (w_fc, sl, :soilW)
+        @rep_elem p_w_fc_sl ⇒ (w_fc, sl)
         w_wp_sl = θ_wp[sl] * sd_sl
-        @rep_elem w_wp_sl ⇒ (w_wp, sl, :soilW)
+        @rep_elem w_wp_sl ⇒ (w_wp, sl)
         p_w_sat_sl = θ_sat[sl] * sd_sl
-        @rep_elem p_w_sat_sl ⇒ (w_sat, sl, :soilW)
+        @rep_elem p_w_sat_sl ⇒ (w_sat, sl)
         # soilW_sl = min(soilW[sl], w_sat[sl])
-        # @rep_elem soilW_sl ⇒ (soilW, sl, :soilW)
+        # @rep_elem soilW_sl ⇒ (soilW, sl)
     end
+
+    # depth of the bottom of each layer and total soil depth
+    cumulative_soil_depths = cumsum(soil_layer_thickness)
+    soil_depth = sum(soil_layer_thickness)
 
     # get the plant available water capacity
     w_awc = w_fc - w_wp
@@ -85,7 +95,8 @@ function precompute(params::soilWBase_uniform, forcing, land, helpers)
     ∑w_awc = sum(w_awc)
 
     @pack_nt begin
-        (k_fc, k_sat, k_wp, soil_layer_thickness, w_awc, w_fc, w_sat, w_wp, ∑w_awc, ∑w_fc, ∑w_sat, ∑w_wp, soil_α, soil_β, θ_fc, θ_sat, θ_wp, ψ_fc, ψ_sat, ψ_wp) ⇒ land.properties
+        soil_depth ⇒ land.properties
+        (cumulative_soil_depths, k_fc, k_sat, k_wp, soil_layer_thickness, w_awc, w_fc, w_sat, w_wp, ∑w_awc, ∑w_fc, ∑w_sat, ∑w_wp, soil_α, soil_β, θ_fc, θ_sat, θ_wp, ψ_fc, ψ_sat, ψ_wp) ⇒ land.properties
         soilW ⇒ land.pools
     end
     return land
@@ -105,7 +116,8 @@ $(getModelDocString(soilWBase_uniform))
 
 *Versions*
  - 1.0 on 18.11.2019 [skoirala | @dr-ko]: clean up & consistency
- - 1.1 on 03.12.2019 [skoirala | @dr-ko]: handling potentail vertical distribution of soil texture  
+ - 1.1 on 03.12.2019 [skoirala | @dr-ko]: handling potentail vertical distribution of soil texture
+ - 1.2 on 02.11.2026 [skoirala]: save `layer_depth_fraction` as one for every layer
 
 *Created by*
  - ncarvalhais

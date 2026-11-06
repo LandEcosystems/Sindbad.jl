@@ -11,17 +11,14 @@ end
 function define(params::rootWaterEfficiency_expCvegRoot, forcing, land, helpers)
     @unpack_rootWaterEfficiency_expCvegRoot params
     @unpack_nt begin
-        soil_layer_thickness ⇐ land.properties
         soilW ⇐ land.pools
     end
     ## Instantiate variables
     root_water_efficiency = one.(soilW)
-    cumulative_soil_depths = cumsum(soil_layer_thickness)
-    root_over = one.(soilW)
+    rooted_fraction = one.(soilW)
     ## pack land variables
     @pack_nt begin
-        root_over ⇒ land.rootWaterEfficiency
-        cumulative_soil_depths ⇒ land.properties
+        rooted_fraction ⇒ land.rootWaterEfficiency
         root_water_efficiency ⇒ land.diagnostics
     end
     return land
@@ -32,23 +29,22 @@ function precompute(params::rootWaterEfficiency_expCvegRoot, forcing, land, help
     @unpack_rootWaterEfficiency_expCvegRoot params
     ## unpack land variables
     @unpack_nt begin
-        root_over ⇐ land.rootWaterEfficiency
-        cumulative_soil_depths ⇐ land.properties
+        rooted_fraction ⇐ land.rootWaterEfficiency
+        (cumulative_soil_depths, soil_layer_thickness) ⇐ land.properties
         z_zero ⇐ land.constants
         max_root_depth ⇐ land.diagnostics
         soilW ⇐ land.pools
     end
-    if max_root_depth > z_zero
-        @rep_elem one(eltype(root_over)) ⇒ (root_over, 1, :soilW)
-    end
-    for sl ∈ eachindex(soilW)[2:end]
-        soilcumuD = cumulative_soil_depths[sl-1]
+    # one above the root depth, the rooted fraction of the layer holding it, and
+    # zero below
+    for sl ∈ eachindex(soilW)
+        soilcumuD = sl == 1 ? z_zero : cumulative_soil_depths[sl-1]
         rootOver = max_root_depth - soilcumuD
-        rootEff = rootOver >= z_zero ? one(eltype(root_over)) : zero(eltype(root_over))
-        @rep_elem rootEff ⇒ (root_over, sl, :soilW)
+        rootEff = clamp_zero_one(rootOver / soil_layer_thickness[sl])
+        @rep_elem rootEff ⇒ (rooted_fraction, sl)
     end
     ## pack land variables
-    @pack_nt root_over ⇒ land.rootWaterEfficiency
+    @pack_nt rooted_fraction ⇒ land.rootWaterEfficiency
     return land
 end
 
@@ -57,17 +53,17 @@ function compute(params::rootWaterEfficiency_expCvegRoot, forcing, land, helpers
     @unpack_rootWaterEfficiency_expCvegRoot params
     ## unpack land variables
     @unpack_nt begin
-        root_over ⇐ land.rootWaterEfficiency
+        rooted_fraction ⇐ land.rootWaterEfficiency
         root_water_efficiency ⇐ land.diagnostics
-        (cVegRoot, soilW) ⇐ land.pools
+        (cEco, soilW) ⇐ land.pools
     end
     ## calculate variables
     tmp_rootEff = max_root_water_efficiency -
-                  (max_root_water_efficiency - min_root_water_efficiency) * (exp(-k_efficiency_cVegRoot * totalS(cVegRoot))) # root fraction/efficiency as a function of total carbon in root pools
+                  (max_root_water_efficiency - min_root_water_efficiency) * (exp(-k_efficiency_cVegRoot * totalS_indices(cEco, helpers.pools.zix.cVegRoot))) # root fraction/efficiency as a function of total carbon in root pools
 
     for sl ∈ eachindex(soilW)
-        root_water_efficiency_sl = root_over[sl] * tmp_rootEff
-        @rep_elem root_water_efficiency_sl ⇒ (root_water_efficiency, sl, :soilW)
+        root_water_efficiency_sl = rooted_fraction[sl] * tmp_rootEff
+        @rep_elem root_water_efficiency_sl ⇒ (root_water_efficiency, sl)
     end
     ## pack land variables
     @pack_nt root_water_efficiency ⇒ land.diagnostics
@@ -88,6 +84,8 @@ $(getModelDocString(rootWaterEfficiency_expCvegRoot))
 
 *Versions*
  - 1.0 on 28.04.2020  
+ - 1.1 on 02.11.2026 [skoirala | @dr-ko]: the layer holding the root depth counts
+   with its rooted fraction
 
 *Created by*
  - skoirala | @dr-ko

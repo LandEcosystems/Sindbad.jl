@@ -3,6 +3,11 @@ export cFireBurnedArea_none
 struct cFireBurnedArea_none <: cFireBurnedArea end
 
 function define(params::cFireBurnedArea_none, forcing, land, helpers)
+    @unpack_nt z_zero ⇐ land.constants
+
+    c_fire_fba = z_zero
+
+    @pack_nt c_fire_fba ⇒ land.diagnostics
     return land
 end
 

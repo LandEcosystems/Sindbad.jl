@@ -1,5 +1,7 @@
 export getDepthDimensionSizeName
 export getDepthInfoAndVariables
+export getLandVarDepthInfo
+export getRestartVars
 export setModelOutput
 export setModelOutputLandAll
 export updateVariablesToStore
@@ -108,6 +110,75 @@ function getDepthInfoAndVariables(info, output_vars)
     return output_info
 end
 
+
+"""
+    getOutputCompression(model_output)
+
+Returns the compression settings for the output files from the `data_compression`
+field of the `model_output` settings.
+
+# Arguments:
+- `model_output`: the `model_output` settings of the experiment
+
+# Returns:
+- A NamedTuple with the `level` and `digits` of the compression.
+
+# Notes:
+- `data_compression` is an object with the optional fields `level` and `digits`,
+  e.g., `"data_compression": {"level": 4, "digits": 6}`.
+- `level` is the compression level, with -1 or 0 for no compression and 1 to 9 for
+  increasing compression. For NetCDF output, it is the deflate level. For Zarr
+  output, it is the level of the Blosc compressor with lz4. When it is not set, it is
+  `nothing` and the writer uses the default of the output format, which is 4 for
+  NetCDF and 5 for Zarr.
+- `digits` is the number of significant decimal digits kept in the output data. The
+  data are rounded to the fewest mantissa bits that hold these digits before they are
+  written, which makes them compress much better. When it is not set, it is
+  `nothing` and the data are written at full precision. A Float32 holds about 7
+  digits, so 7 or more also keeps Float32 data unchanged.
+"""
+function getOutputCompression(model_output)
+    data_compression = hasproperty(model_output, :data_compression) ? model_output.data_compression : (;)
+    if !(data_compression isa NamedTuple)
+        error("model_output.data_compression must be an object with the optional fields `level` and `digits`, got `$(data_compression)`")
+    end
+    level = hasproperty(data_compression, :level) ? data_compression.level : nothing
+    if !isnothing(level) && (!(level isa Integer) || !(-1 <= level <= 9))
+        error("model_output.data_compression.level must be an integer from -1 to 9, got `$(level)`")
+    end
+    digits = hasproperty(data_compression, :digits) ? data_compression.digits : nothing
+    if !isnothing(digits) && (!(digits isa Integer) || digits < 1)
+        error("model_output.data_compression.digits must be a positive integer, got `$(digits)`")
+    end
+    return (; level=isnothing(level) ? nothing : Int(level), digits=isnothing(digits) ? nothing : Int(digits))
+end
+
+"""
+    getPlotResolution(model_output)
+
+Returns the resolution of the saved figures in dots per inch from the `model_output`
+settings of the experiment.
+
+# Arguments:
+- `model_output`: the `model_output` settings of the experiment
+
+# Returns:
+- The dots per inch as an `Int`, 100 when `plot_resolution` is not set or is `null`.
+
+# Notes:
+- A high resolution, e.g., 300 for print, makes the figures of a run with many
+  variables slow to save. 100 is enough to look at the figures on a screen.
+- The resolution applies to the raster figures, e.g., png. Vector figures such as pdf
+  do not depend on it.
+"""
+function getPlotResolution(model_output)
+    plot_resolution = hasproperty(model_output, :plot_resolution) ? model_output.plot_resolution : nothing
+    isnothing(plot_resolution) && return 100
+    if !(plot_resolution isa Integer) || plot_resolution < 1
+        error("model_output.plot_resolution must be a positive integer of dots per inch, got `$(plot_resolution)`")
+    end
+    return Int(plot_resolution)
+end
 
 """
     getPoolSize(info_pools::NamedTuple, pool_name::Symbol)
@@ -308,7 +379,8 @@ function setExperimentOutput(info)
     if info.settings.experiment.flags.run_optimization || info.settings.experiment.flags.calc_cost
         push!(sub_output, "optimization")
     end
-    out_info = (; dirs=(;), format=info.settings.experiment.model_output.format)
+    model_output = info.settings.experiment.model_output
+    out_info = (; dirs=(;), format=model_output.format, data_compression=getOutputCompression(model_output), plot_resolution=getPlotResolution(model_output))
     for s_o ∈ sub_output
         if s_o == "root"
             out_info = set_namedtuple_subfield(out_info, :dirs, (Symbol(s_o), path_output_full))
@@ -319,8 +391,7 @@ function setExperimentOutput(info)
         end
     end
     global_metadata = getGlobalAttributesForOutCubes(info)
-    file_prefix = joinpath(out_info.dirs.data, info.temp.experiment.basics.name * "_" * info.temp.experiment.basics.domain)
-    out_file_info = (; global_metadata=global_metadata, file_prefix=file_prefix)
+    out_file_info = (; global_metadata=global_metadata)
     out_info = (; out_info..., file_info=out_file_info)  
     info = set_namedtuple_field(info, (:output, out_info))
     print_info(nothing, @__FILE__, @__LINE__, "→→→    output directory set to: `$(info.output.dirs.root)`")
@@ -361,7 +432,32 @@ Retrieves all model variables from `land` and overwrites the output information 
 """
 function setModelOutputLandAll(info, land)
     output_vars = getAllLandVars(land)
-    depth_info = map(output_vars) do v_full_pair
+    depth_info = getLandVarDepthInfo(info, land, output_vars)
+    info = @set info.output.variables = output_vars
+    info = @set info.output.depth_info = depth_info
+    return info
+end
+
+
+"""
+    getLandVarDepthInfo(info, land, var_pairs)
+
+Gets the size and name of the depth dimension of each variable in `var_pairs`.
+
+# Arguments:
+- `info`: A NamedTuple containing experiment configuration and helper information.
+- `land`: A core SINDBAD NamedTuple containing variables for a given time step.
+- `var_pairs`: A tuple of field and subfield pairs of variables in `land`.
+
+# Returns:
+- A tuple with one `(dim_size, dim_name)` entry per variable.
+
+# Notes:
+- A variable that is already an output variable keeps the depth information set in
+  the output settings. Any other variable takes its size from its value in `land`.
+"""
+function getLandVarDepthInfo(info, land, var_pairs)
+    depth_info = map(var_pairs) do v_full_pair
         v_index = findfirst(x -> first(x) === first(v_full_pair) && last(x) === last(v_full_pair), info.output.variables)
         dim_name = nothing
         dim_size = nothing
@@ -386,9 +482,51 @@ function setModelOutputLandAll(info, land)
         end
         dim_size, dim_name
     end
-    info = @set info.output.variables = output_vars
-    info = @set info.output.depth_info = depth_info
-    return info
+    return depth_info
+end
+
+
+"""
+    getRestartVars(info, land)
+
+Collects the pools that are written to the restart file.
+
+# Arguments:
+- `info`: A SINDBAD NamedTuple with the pool helpers of the model structure.
+- `land`: A core SINDBAD NamedTuple containing all variables for a given time step.
+
+# Returns:
+- A tuple of `(:pools, name)` pairs, one for each main pool, such as `cEco` and `TWS`.
+  For a main pool that is not in `land.pools`, its component pools that are in
+  `land.pools` are written instead.
+
+# Notes:
+- Only the main pools are saved when they exist, because each holds all of its
+  component pools. The `SpinupInput` spinup mode fills the component pools from the main
+  pools.
+- A warning is shown for a pool group without a main pool, because its pools are then
+  missing from the restart file.
+"""
+function getRestartVars(info, land)
+    pool_helpers = info.helpers.pools
+    main_pools = keys(pool_helpers.vals.self)
+    for (group, group_info) ∈ pairs(info.pool_structure)
+        combine = hasproperty(group_info, :combine) ? group_info.combine : nothing
+        if isnothing(combine) || isempty(string(combine)) || Symbol(combine) ∉ main_pools
+            @warn "The pool group `$(group)` has no main pool, so its pools are not written to the restart file and cannot be set by `SpinupInput`."
+        end
+    end
+    restart_vars = []
+    for main ∈ main_pools
+        if hasproperty(land.pools, main)
+            push!(restart_vars, (:pools, main))
+        else
+            components = [c for c ∈ pool_helpers.all_components[main] if hasproperty(land.pools, c)]
+            print_info(getRestartVars, @__FILE__, @__LINE__, "the main pool `$(main)` is not in land.pools, so its components $(components) are written to the restart file instead")
+            append!(restart_vars, [(:pools, c) for c ∈ components])
+        end
+    end
+    return Tuple(restart_vars)
 end
 
 """

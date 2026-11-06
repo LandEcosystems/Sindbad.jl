@@ -45,7 +45,7 @@
     "format": "nc",
     "output_array_type": "array",
     "path": null,
-    "plot_model_output": false,
+    "plot_resolution": 100,
     "save_single_file": true,
     "variables": {
       "fluxes.gpp": null,
@@ -56,14 +56,11 @@
       "diagnostics.gpp_f_vpd": null
     }
   },
-  "model_spinup": {
-    "restart_file": null,
-    "sequence": [
-      {
-        "forcing": "first_year",
-        "n_repeat": 200,
-        "spinup_mode": "all_forward_models"
-      }
-    ]
-  }
+  "spinup_sequence": [
+    {
+      "forcing": "first_year",
+      "n_repeat": 200,
+      "spinup_mode": "all_forward_models"
+    }
+  ]
 }

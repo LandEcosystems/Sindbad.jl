@@ -7,28 +7,17 @@ function define(params::cCycleConsistency_simple, forcing, land, helpers)
     ## unpack land variables
     @unpack_nt begin
         cEco ⇐ land.pools
-        c_flow_A_array ⇐ land.diagnostics
-        c_giver ⇐ land.constants
+        (c_giver, c_taker) ⇐ land.cCycleBase
     end
     # make list of indices which give carbon to other pools during the flow, and separate them if 
-    # they are above or below the diagonal in flow vector
-giver_upper = Tuple([ind[2] for ind ∈ findall(>(0), upper_triangle_mask(c_flow_A_array) .* c_flow_A_array)])
-giver_lower = Tuple([ind[2] for ind ∈ findall(>(0), lower_triangle_mask(c_flow_A_array) .* c_flow_A_array)])
+    # they are above or below the diagonal in flow vector. A flow is one off-diagonal
+    # entry at row taker, column giver, so the side of the diagonal it falls on is
+    # the taker index against the giver index, with no transfer matrix needed
+    giver_upper = Tuple([c_giver[f] for f ∈ eachindex(c_giver, c_taker) if c_taker[f] < c_giver[f]])
+    giver_lower = Tuple([c_giver[f] for f ∈ eachindex(c_giver, c_taker) if c_taker[f] > c_giver[f]])
     giver_upper_unique = unique(giver_upper)
     giver_lower_unique = unique(giver_lower)
-    giver_upper_indices = []
-    for giv in giver_upper_unique
-        giver_pos = findall(==(giv), c_giver)
-        push!(giver_upper_indices, Tuple(giver_pos))
-    end
-    giver_lower_indices = []
-    for giv in giver_lower_unique
-        giver_pos = findall(==(giv), c_giver)
-        push!(giver_lower_indices, Tuple(giver_pos))
-    end
-    giver_lower_indices = Tuple(giver_lower_indices)
-    giver_upper_indices = Tuple(giver_upper_indices)
-    @pack_nt (giver_lower_unique, giver_lower_indices, giver_upper_unique, giver_upper_indices) ⇒ land.cCycleConsistency
+    @pack_nt (giver_lower_unique, giver_upper_unique) ⇒ land.cCycleConsistency
     return land
 end
 
@@ -44,14 +33,52 @@ function throwError(land, msg)
     error(msg)
 end
 
+function checkCcycleBalance(land, helpers, ::DoCatchModelErrors)
+    @unpack_nt begin
+        ΔcEco ⇐ land.pools
+        (npp, auto_respiration, eco_respiration, hetero_respiration, product_respiration, nee, nbp) ⇐ land.fluxes
+        tolerance ⇐ helpers.numbers
+    end
+
+    if !isapprox(eco_respiration, auto_respiration + hetero_respiration; atol=tolerance)
+        throwError(land, "carbon balance error: eco_respiration != auto_respiration + hetero_respiration. Cannot continue")
+    end
+
+    if !isapprox(nee, hetero_respiration - npp; atol=tolerance)
+        throwError(land, "carbon balance error: nee != hetero_respiration - npp. Cannot continue")
+    end
+
+    if !isapprox(nbp, -nee - product_respiration; atol=tolerance)
+        throwError(land, "carbon balance error: nbp != -nee - product_respiration [$(nbp), -$(nee) - $(product_respiration)]. Cannot continue")
+    end
+
+    if !isapprox(totalS(ΔcEco), nbp; atol=tolerance)
+        throwError(land, "carbon balance error: total ΔcEco != nbp [$(totalS(ΔcEco)) != $(nbp)]. Cannot continue")
+    end
+
+    return nothing
+end
+
+function checkCcycleBalance(land, helpers, ::DoNotCatchModelErrors)
+    return nothing
+end
+
 function checkCcycleErrors(params::cCycleConsistency_simple, forcing, land, helpers, ::DoCatchModelErrors) #when check is on
     ## unpack land variables
     @unpack_nt begin
         c_allocation ⇐ land.diagnostics
         c_flow_A_vec ⇐ land.diagnostics
-        (giver_lower_unique, giver_lower_indices, giver_upper_unique, giver_upper_indices) ⇐ land.cCycleConsistency
+        c_flow_QP_vec ⇐ land.diagnostics
+        c_flow_ME_vec ⇐ land.diagnostics
+        (c_giver, c_taker) ⇐ land.cCycleBase
+        (giver_lower_unique, giver_upper_unique) ⇐ land.cCycleConsistency
         tolerance ⇐ helpers.numbers
     end
+
+    zix_cVeg = helpers.pools.zix.cVeg
+    zix_cLit = helpers.pools.zix.cLit
+    zix_cMic = helpers.pools.zix.cMic
+    zix_cSoil = helpers.pools.zix.cSoil
 
     # check allocation
     for i in eachindex(c_allocation)
@@ -71,6 +98,64 @@ function checkCcycleErrors(params::cCycleConsistency_simple, forcing, land, help
     end
 
     # Check carbon flow vector
+    # A -1 in diagonals, 0 or a number in off-diagonals
+
+    # TO SIMPLIFY QP must be finite, must remain neutral for vegetation takers, and must sum to one per giver over litter, microbial, and soil takers.
+    if !isempty(c_giver)
+        current_giver = c_giver[1]
+        qp_sum = zero(eltype(c_flow_QP_vec))
+        n_qp_flows = 0
+
+        @inbounds for fO ∈ eachindex(c_giver)
+            giver = c_giver[fO]
+
+            if giver != current_giver
+                if n_qp_flows > 0 && (!isfinite(qp_sum) || abs(qp_sum - one(qp_sum)) > tolerance)
+                    throwError(land, "cQualityPartition does not contain finite values summing to one for giver pool $(current_giver). Cannot continue")
+                end
+
+                current_giver = giver
+                qp_sum = zero(qp_sum)
+                n_qp_flows = 0
+            end
+
+            taker = c_taker[fO]
+            QP = c_flow_QP_vec[fO]
+
+            if !isfinite(QP)
+                throwError(land, "cQualityPartition contains a non-finite value at flow index $(fO). Cannot continue")
+            end
+
+            # TO SIMPLIFY QP must not modify transfers whose taker is a vegetation pool.
+            if taker ∈ zix_cVeg
+                if QP != one(QP)
+                    throwError(land, "cQualityPartition modifies a flow into a vegetation pool at index $(fO). Cannot continue")
+                end
+            elseif taker ∈ zix_cLit || taker ∈ zix_cMic || taker ∈ zix_cSoil
+                qp_sum += QP
+                n_qp_flows += 1
+            end
+        end
+
+        if n_qp_flows > 0 && (!isfinite(qp_sum) || abs(qp_sum - one(qp_sum)) > tolerance)
+            throwError(land, "cQualityPartition does not contain finite values summing to one for giver pool $(current_giver). Cannot continue")
+        end
+    end
+
+    # TO SIMPLIFY ME must be finite and bounded between zero and one on every carbon-flow edge.
+    @inbounds for fO ∈ eachindex(c_giver)
+        ME = c_flow_ME_vec[fO]
+
+        if !isfinite(ME) || ME < zero(ME) || ME > one(ME)
+            throwError(land, "microbial efficiency must be finite and inside [0, 1] at flow index $(fO). Cannot continue")
+        end
+
+        # TO SIMPLIFY ME must remain neutral on transfers originating from vegetation pools.
+        if c_giver[fO] ∈ zix_cVeg && ME != zero(ME)
+            throwError(land, "microbial efficiency modifies a vegetation-originating flow at index $(fO). Cannot continue")
+        end
+    end
+
     # check if any of the off-diagonal values of flow vector is negative
     for i in eachindex(c_flow_A_vec)
         if c_flow_A_vec[i] < zero(eltype(c_flow_A_vec))
@@ -89,33 +174,49 @@ function checkCcycleErrors(params::cCycleConsistency_simple, forcing, land, help
     # below the diagonal
     # the sum of A per column below the diagonals is always < 1. The tolerance allows for small overshoot over 1, but this may result in a negative carbon pool if frequent
 
-    for (i, giv) in enumerate(giver_upper_unique)
-        s = zero(eltype(c_flow_A_vec))
-        for ind in giver_upper_indices[i]
-            s = s + c_flow_A_vec[ind]
-        end
+    # sum each giver's outflows by scanning c_giver directly. giver_*_indices is a
+    # tuple of tuples with different lengths, so indexing it with a runtime index
+    # cannot be inferred and allocates at every time step.
+    for giv in giver_upper_unique
+        s = giverOutflowSum(c_flow_A_vec, c_giver, giv)
         if (s - one(s)) > helpers.numbers.tolerance
-            throwError(land, "sum of giver flow greater than one in upper cFlow vector for $(info.helpers.pools.components.cEco[giv]) pool. Cannot continue.")
+            throwError(land, "sum of giver flow greater than one in upper cFlow vector for $(helpers.pools.components.cEco[giv]) pool. Cannot continue.")
         end
     end
 
-    for (i, giv) in enumerate(giver_lower_unique)
-        s = zero(eltype(c_flow_A_vec))
-        for ind in giver_lower_indices[i]
-            s = s + c_flow_A_vec[ind]
-        end
+    for giv in giver_lower_unique
+        s = giverOutflowSum(c_flow_A_vec, c_giver, giv)
         if (s - one(s)) > helpers.numbers.tolerance
-            throwError(land, "sum of giver flow greater than one in lower cFlow vector for $(info.helpers.pools.components.cEco[giv]) pool. Cannot continue.")
+            throwError(land, "sum of giver flow greater than one in lower cFlow vector for $(helpers.pools.components.cEco[giv]) pool. Cannot continue.")
         end
     end
 
     return nothing
+end
+
+"""
+giverOutflowSum(c_flow_A_vec, c_giver, giv)
+sum of the flow vector over every flow whose giver pool is giv
+"""
+function giverOutflowSum(c_flow_A_vec, c_giver, giv)
+    s = zero(eltype(c_flow_A_vec))
+    for fO in eachindex(c_giver)
+        if c_giver[fO] == giv
+            s = s + c_flow_A_vec[fO]
+        end
+    end
+    return s
 end
 
 function checkCcycleErrors(params::cCycleConsistency_simple, forcing, land, helpers, ::DoNotCatchModelErrors) #when check is off/false
     return nothing
 end
-
+#=
+function precompute(params::cCycleConsistency_simple, forcing, land, helpers)
+    checkCcycleErrors(params, forcing, land, helpers, DoCatchModelErrors())
+    return land
+end
+=#
 function compute(params::cCycleConsistency_simple, forcing, land, helpers)
     checkCcycleErrors(params, forcing, land, helpers, helpers.run.catch_model_errors)
     return land

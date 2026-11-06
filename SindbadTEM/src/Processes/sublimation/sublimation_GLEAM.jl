@@ -64,7 +64,7 @@ function compute(params::sublimation_GLEAM, forcing, land, helpers)
     # Then sublimation [mm/day] is calculated in GLEAM using a P.T. equation
     sublimation = min(snowW[1] + ΔsnowW[1], PTtermSub * frac_snow) # assumes that sublimation occurs from the 1st snow layer if there is multilayered snow model
 
-    @add_to_elem -sublimation ⇒ (ΔsnowW, 1, :snowW)
+    @add_to_elem -sublimation ⇒ (ΔsnowW, 1)
 
     ## pack land variables
     @pack_nt begin

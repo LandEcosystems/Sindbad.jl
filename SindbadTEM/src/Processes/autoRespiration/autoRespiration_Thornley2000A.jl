@@ -35,7 +35,7 @@ function compute(params::autoRespiration_Thornley2000A, forcing, land, helpers)
         (c_eco_efflux, auto_respiration_growth, auto_respiration_maintain) ⇐ land.fluxes
         (cEco, cVeg) ⇐ land.pools
         gpp ⇐ land.fluxes
-        C_to_N_cVeg ⇐ land.diagnostics
+        CN_ratio_cVeg ⇐ land.diagnostics
         (c_allocation, auto_respiration_f_airT) ⇐ land.diagnostics
     end
     # adjust nitrogen efficiency rate of maintenance respiration to the current
@@ -48,21 +48,13 @@ function compute(params::autoRespiration_Thornley2000A, forcing, land, helpers)
 
         # scalars of maintenance respiration for models A; B & C
         # km is the maintenance respiration coefficient [d-1]
-        k_respiration_maintain_ix = at_most_one(one(eltype(C_to_N_cVeg)) / C_to_N_cVeg[ix] * RMN * auto_respiration_f_airT)
+        k_respiration_maintain_ix = at_most_one(one(eltype(CN_ratio_cVeg)) / CN_ratio_cVeg[ix] * RMN * auto_respiration_f_airT)
         k_respiration_maintain_su_ix = k_respiration_maintain[ix] * YG
 
         # maintenance respiration first: R_m = km * C
         RA_M_ix = k_respiration_maintain_ix * cEco[ix]
         # no negative maintenance respiration
         RA_M_ix = at_least_zero(RA_M_ix)
-
-        #TODO: check if this is correct
-        # if helpers.pools.components.cEco[ix] == :cVegReserve
-        #     if (cEco[ix] - RA_M_ix) < land.states.c_remain
-        #         RA_M_ix = zero(RA_M_ix)
-        #     end
-        # end
-
 
         # growth respiration: R_g = (1.0 - YG) * (GPP * allocationToPool - R_m)
         RA_G_ix = (one(YG) - YG) * (gpp * c_allocation[ix] - RA_M_ix)
@@ -72,11 +64,11 @@ function compute(params::autoRespiration_Thornley2000A, forcing, land, helpers)
 
         # total respiration per pool: R_a = R_m + R_g
         cEcoEfflux_ix = RA_M_ix + RA_G_ix
-        @rep_elem cEcoEfflux_ix ⇒ (c_eco_efflux, ix, :cEco)
-        @rep_elem k_respiration_maintain_ix ⇒ (k_respiration_maintain, ix, :cEco)
-        @rep_elem k_respiration_maintain_su_ix ⇒ (k_respiration_maintain_su, ix, :cEco)
-        @rep_elem RA_M_ix ⇒ (auto_respiration_maintain, ix, :cEco)
-        @rep_elem RA_G_ix ⇒ (auto_respiration_growth, ix, :cEco)
+        @rep_elem cEcoEfflux_ix ⇒ (c_eco_efflux, ix)
+        @rep_elem k_respiration_maintain_ix ⇒ (k_respiration_maintain, ix)
+        @rep_elem k_respiration_maintain_su_ix ⇒ (k_respiration_maintain_su, ix)
+        @rep_elem RA_M_ix ⇒ (auto_respiration_maintain, ix)
+        @rep_elem RA_G_ix ⇒ (auto_respiration_growth, ix)
     end
     ## pack land variables
     @pack_nt begin

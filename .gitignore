@@ -14,7 +14,7 @@
 *.rar
 *.out
 *.log
-*logs
+logs/
 *.dat
 *.tmp
 *.txt

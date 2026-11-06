@@ -346,9 +346,9 @@ Spinup_cEco
 
 Spinup_cEco_TWS
 
-SpinupSequence
+SpinupStep
 
-SpinupSequenceWithAggregator
+SpinupStepWithAggregator
 
 TEMTypes
 
@@ -524,8 +524,6 @@ cCycleBase_GSI
 
 cCycleBase_GSI_PlantForm
 
-cCycleBase_GSI_PlantForm_LargeKReserve
-
 cCycleBase_simple
 
 cCycleConsistency
@@ -533,8 +531,6 @@ cCycleConsistency
 cCycleConsistency_simple
 
 cCycleDisturbance
-
-cCycleDisturbance_WROASTED
 
 cCycleDisturbance_cFlow
 
@@ -1354,9 +1350,9 @@ Spinup_cEco
 
 Spinup_cEco_TWS
 
-SpinupSequence
+SpinupStep
 
-SpinupSequenceWithAggregator
+SpinupStepWithAggregator
 
 TEMTypes
 
@@ -1532,8 +1528,6 @@ cCycleBase_GSI
 
 cCycleBase_GSI_PlantForm
 
-cCycleBase_GSI_PlantForm_LargeKReserve
-
 cCycleBase_simple
 
 cCycleConsistency
@@ -1541,8 +1535,6 @@ cCycleConsistency
 cCycleConsistency_simple
 
 cCycleDisturbance
-
-cCycleDisturbance_WROASTED
 
 cCycleDisturbance_cFlow
 
@@ -2362,9 +2354,9 @@ Sindbad.Types.Spinup_cEco
 
 Sindbad.Types.Spinup_cEco_TWS
 
-Sindbad.Types.SpinupSequence
+Sindbad.Types.SpinupStep
 
-Sindbad.Types.SpinupSequenceWithAggregator
+Sindbad.Types.SpinupStepWithAggregator
 
 SindbadTEM.TEMTypes
 
@@ -2540,8 +2532,6 @@ SindbadTEM.Processes.cCycleBase_GSI
 
 SindbadTEM.Processes.cCycleBase_GSI_PlantForm
 
-SindbadTEM.Processes.cCycleBase_GSI_PlantForm_LargeKReserve
-
 SindbadTEM.Processes.cCycleBase_simple
 
 SindbadTEM.Processes.cCycleConsistency
@@ -2549,8 +2539,6 @@ SindbadTEM.Processes.cCycleConsistency
 SindbadTEM.Processes.cCycleConsistency_simple
 
 SindbadTEM.Processes.cCycleDisturbance
-
-SindbadTEM.Processes.cCycleDisturbance_WROASTED
 
 SindbadTEM.Processes.cCycleDisturbance_cFlow
 
@@ -3370,9 +3358,9 @@ Sindbad.Types.Spinup_cEco
 
 Sindbad.Types.Spinup_cEco_TWS
 
-Sindbad.Types.SpinupSequence
+Sindbad.Types.SpinupStep
 
-Sindbad.Types.SpinupSequenceWithAggregator
+Sindbad.Types.SpinupStepWithAggregator
 
 SindbadTEM.TEMTypes
 
@@ -3548,8 +3536,6 @@ SindbadTEM.Processes.cCycleBase_GSI
 
 SindbadTEM.Processes.cCycleBase_GSI_PlantForm
 
-SindbadTEM.Processes.cCycleBase_GSI_PlantForm_LargeKReserve
-
 SindbadTEM.Processes.cCycleBase_simple
 
 SindbadTEM.Processes.cCycleConsistency
@@ -3557,8 +3543,6 @@ SindbadTEM.Processes.cCycleConsistency
 SindbadTEM.Processes.cCycleConsistency_simple
 
 SindbadTEM.Processes.cCycleDisturbance
-
-SindbadTEM.Processes.cCycleDisturbance_WROASTED
 
 SindbadTEM.Processes.cCycleDisturbance_cFlow
 

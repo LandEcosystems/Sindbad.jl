@@ -49,9 +49,9 @@ Parses and saves the code and structs of the selected model structure for the gi
 function parseSaveCode(info)
     print_info(parseSaveCode, @__FILE__, @__LINE__, "saving Selected Models Code...")
     models = info.temp.models.forward
-    outfile_define = joinpath(info.output.dirs.code, info.temp.experiment.basics.name * "_" * info.temp.experiment.basics.domain * "_model_definitions.jl")
-    outfile_code = joinpath(info.output.dirs.code, info.temp.experiment.basics.name * "_" * info.temp.experiment.basics.domain * "_model_functions.jl")
-    outfile_struct = joinpath(info.output.dirs.code, info.temp.experiment.basics.name * "_" * info.temp.experiment.basics.domain * "_model_structs.jl")
+    outfile_define = joinpath(info.output.dirs.code, "model_definitions.jl")
+    outfile_code = joinpath(info.output.dirs.code, "model_functions.jl")
+    outfile_struct = joinpath(info.output.dirs.code, "model_structs.jl")
     fallback_code_define = nothing
     fallback_code_precompute = nothing
     fallback_code_compute = nothing
@@ -223,7 +223,8 @@ function setDatesInfo(info::NamedTuple)
         end
         tmp_dates = set_namedtuple_field(tmp_dates, (time_prop, prop_val))
     end
-    timestep = getfield(Dates, Symbol(titlecase(info.settings.experiment.basics.time.temporal_resolution)))(1)
+    tr_n, tr_unit = parseTemporalResolution(info.settings.experiment.basics.time.temporal_resolution)
+    timestep = getfield(Dates, Symbol(titlecase(tr_unit)))(tr_n)
     time_range = DateTime(info.settings.experiment.basics.time.date_begin):timestep:DateTime(info.settings.experiment.basics.time.date_end)
     tmp_dates = set_namedtuple_field(tmp_dates, (:temporal_resolution, info.settings.experiment.basics.time.temporal_resolution))
     tmp_dates = set_namedtuple_field(tmp_dates, (:timestep, timestep))
@@ -248,7 +249,11 @@ Sets up model run flags and output array types for the experiment.
 function setModelRunInfo(info::NamedTuple)
     print_info(setModelRunInfo, @__FILE__, @__LINE__, "setting Model Run Flags...")
     if info.settings.experiment.flags.run_optimization
+        # consistency checks (cCycleConsistency_simple, waterBalance_simple) must never run during optimization
         info = @set info.settings.experiment.flags.catch_model_errors = false
+    else
+        # ...and must always run, unconditionally, during forward/cost runs, regardless of the user's setting
+        info = @set info.settings.experiment.flags.catch_model_errors = true
     end
     run_vals = convertRunFlagsToTypes(info)
     # check if lazy run is set, and if so, set output array type to YAXArray regardless of the setting in json, as well as land output type to YAXArray
@@ -311,104 +316,314 @@ end
 
 
 """
-    setRestartFilePath(info::NamedTuple)
+    getSpinupAggregator(forcing_name, helpers_dates, aggregator_cache)
 
-Validates and sets the absolute path for the restart file used in spinup.
+Build the temporal aggregator of a spinup forcing set, reusing an already built one when the
+same forcing name has been seen before.
 
 # Arguments:
-- `info`: A NamedTuple containing the experiment configuration.
+- `forcing_name`: The name of the spinup forcing set, such as `"day_MSC"`, `"all_years"` or a
+  period spec such as `"8-day_msc"`.
+- `helpers_dates`: A NamedTuple containing date-related helpers.
+- `aggregator_cache`: A Dict in which aggregators built so far are kept, keyed by forcing name.
 
 # Returns:
-- The updated `info` NamedTuple with the absolute restart file path set.
-"""
-function setRestartFilePath(info::NamedTuple)
-    restart_file_in = get(info.settings.experiment.model_spinup, :restart_file, nothing)
-    restart_file = nothing
+- A tuple of the aggregator, its flattened indices, the number of timesteps, and the sampler type.
 
-    if !isnothing(restart_file_in)
-        if restart_file_in[(end-4):end] != ".jld2"
-            error(
-                "info.settings.experiment.model_spinup.restartFile has a file ending other than .jld2. Only jld2 files are supported for loading spinup. Either give a correct file or set info.settings.experiment.flags.load_spinup to false."
-            )
-        end
-        if isabspath(restart_file_in)
-            restart_file = restart_file_in
-        else
-            restart_file = joinpath(info.temp.experiment.dirs.experiment, restart_file_in)
-        end
-        info = @set info.settings.experiment.model_spinup.restart_file = restart_file
+# Notes:
+- The name is resolved with `get_TimeSampler`, and `time_sampling_type` decides how the forcing
+  is derived. `TimeIndexed` methods such as `first_year` select timesteps, and the aggregator
+  is `nothing`. `TimeNoDiff` methods such as `day_MSC` resample the forcing with a
+  `TimeResampler`.
+- Anomalies are rejected, since they are not a forcing.
+- The aggregator depends only on the forcing name and the experiment date range, both of which
+  are the same for every location. Caching it keeps the per-location cost of building a
+  sequence to choosing the repeats and the spinup modes.
+"""
+function getSpinupAggregator(forcing_name, helpers_dates, aggregator_cache)
+    forcing_key = Symbol(forcing_name)
+    haskey(aggregator_cache, forcing_key) && return aggregator_cache[forcing_key]
+    method = get_TimeSampler(String(forcing_name))
+    aggregator_type = time_sampling_type(method)
+    if aggregator_type isa TimeIndexed
+        aggregator = nothing
+        aggregator_indices = [_ind for _ind in vcat(create_TimeSampler(helpers_dates.range, method)[1].indices...)]
+        n_timesteps = length(aggregator_indices)
+    elseif aggregator_type isa TimeNoDiff
+        aggregator = TimeResampler(helpers_dates.range, method; sampler_func=mean)
+        aggregator_indices = [_ind for _ind in vcat(first(aggregator.samplers).indices...)]
+        n_timesteps = length(time_resample_dates(aggregator))
+    else
+        error("spinup forcing \"$(forcing_name)\" gives $(nameof(typeof(method))), which is an anomaly and cannot be used as spinup forcing. Use a selection such as \"all_years\" or a resampling such as \"day_MSC\".")
     end
-    return info
+    built = (aggregator, aggregator_indices, n_timesteps, aggregator_type)
+    aggregator_cache[forcing_key] = built
+    return built
 end
 
 """
     getSpinupSequenceWithTypes(seqq, helpers_dates)
+    getSpinupSequenceWithTypes(seqq, helpers_dates, aggregator_cache, spinup_models=nothing)
 
 Processes the spinup sequence and assigns types for temporal aggregators for spinup forcing.
 
 # Arguments:
 - `seqq`: The spinup sequence from the experiment configuration.
 - `helpers_dates`: A NamedTuple containing date-related helpers.
+- `aggregator_cache`: A Dict of already built aggregators, shared across the locations of a run.
+- `spinup_models`: The model names and default spinup indices from
+  `getSpinupModelsInfo`.
 
 # Returns:
 - A processed spinup sequence with forcing types for temporal aggregators.
 """
-function getSpinupSequenceWithTypes(seqq, helpers_dates)
+function getSpinupSequenceWithTypes end
+
+getSpinupSequenceWithTypes(seqq, helpers_dates) = getSpinupSequenceWithTypes(seqq, helpers_dates, Dict{Symbol,Any}())
+
+function getSpinupSequenceWithTypes(seqq, helpers_dates, aggregator_cache, spinup_models=nothing)
     seqq_typed = []
-    for seq in seqq
-        for kk in keys(seq)
-            if kk == "forcing"
-                skip_sampling = false
-                if startswith(kk, helpers_dates.temporal_resolution)
-                    skip_sampling = true
-                end
-                aggregator = create_TimeSampler(helpers_dates.range, to_uppercase_first(seq[kk], "Time"), mean, skip_sampling)
-                seq["aggregator"] = aggregator
-                seq["aggregator_type"] = TimeNoDiff()
-                seq["aggregator_indices"] = [_ind for _ind in vcat(aggregator[1].indices...)]
-                seq["n_timesteps"] = length(aggregator[1].indices)
-                if occursin("_year", seq[kk])
-                    seq["aggregator_type"] = TimeIndexed()
-                    seq["n_timesteps"] = length(seq["aggregator_indices"])
-                end
-            end
-            if kk == "spinup_mode"
-                seq[kk] = getTypeInstanceForNamedOptions(seq[kk])
-            end
-            if seq[kk] isa String
-                seq[kk] = Symbol(seq[kk])
-            end
+    save_restart_flags = getSaveRestartFlags(seqq)
+    for (seq, save_restart) in zip(seqq, save_restart_flags)
+        mode_name, default_models = getSpinupModeName(seq["spinup_mode"])
+        spinup_mode = getTypeInstanceForNamedOptions(mode_name)
+        forcing_name = haskey(seq, "forcing") ? seq["forcing"] : nothing
+        if isnothing(forcing_name)
+            spinup_mode isa LoopTEM && error("The spinup step with `spinup_mode` $(seq["spinup_mode"]) has no forcing. A loop_TEM step runs the models over the forcing, so set its `forcing`, e.g., \"day_MSC\".")
+            forcing = :none
+            aggregator, aggregator_indices, n_timesteps, aggregator_type = nothing, Int[], 1, TimeIndexed()
+        else
+            forcing = Symbol(forcing_name)
+            aggregator, aggregator_indices, n_timesteps, aggregator_type = getSpinupAggregator(forcing_name, helpers_dates, aggregator_cache)
         end
-        optns = in(seq, "options") ? seqp["options"] : (;)
-        sst = SpinupSequenceWithAggregator(seq["forcing"], seq["n_repeat"], seq["n_timesteps"], seq["spinup_mode"], optns, seq["aggregator_indices"], seq["aggregator"], seq["aggregator_type"]);
+        optns = haskey(seq, "options") ? seq["options"] : (;)
+        model_indices = getSpinupModelsIndex(seq, default_models, spinup_models)
+        sst = SpinupStepWithAggregator(forcing, seq["n_repeat"], n_timesteps, spinup_mode, optns, aggregator_indices, aggregator, aggregator_type, save_restart, model_indices);
         push!(seqq_typed, sst)
     end
     return seqq_typed
 end
 
 """
+    getSaveRestartFlags(seqq)
+
+Returns the `save_restart` flag of every step of a spinup sequence. The pools are
+stored for the restart file after the step whose flag is true.
+
+# Arguments:
+- `seqq`: the steps of the spinup sequence, as given in the settings
+
+# Returns:
+- a vector with one `Bool` per step
+
+# Notes:
+- A step without a `save_restart` field is false, so older sequences keep working.
+- When no step is true, the last step saves the restart.
+- More than one true step throws an error.
+"""
+function getSaveRestartFlags(seqq)
+    save_restart_flags = Bool[haskey(seq, "save_restart") && seq["save_restart"] === true for seq in seqq]
+    n_saves = count(save_restart_flags)
+    if n_saves > 1
+        error("The spinup sequence has `save_restart` set to true in steps $(findall(save_restart_flags)). Only one step can save the restart.")
+    end
+    if n_saves == 0 && !isempty(save_restart_flags)
+        save_restart_flags[end] = true
+    end
+    return save_restart_flags
+end
+
+"""
+    getSpinupSequenceConfig(seqq)
+
+Normalizes the `sequence` field of the spinup settings into the method and options that build
+a location's spinup sequence later, in `prepTEM`, where the forcing is available.
+
+# Arguments:
+- `seqq`: The `sequence` field of the spinup settings. Either a list of sequence steps, or a
+  NamedTuple with a `method` and, optionally, its `options`, or nothing.
+
+# Returns:
+- A NamedTuple with the sequence `method` instance and its `options`. Everything a method
+  needs is in `options`, so an authored list of steps is carried there too, as `steps`.
+
+# Notes:
+- A missing or null `sequence` falls back to `SequenceDefault`, so that an experiment that
+  runs the spinup without naming a sequence gets a sensible one rather than no steps at all.
+"""
+function getSpinupSequenceConfig(seqq)
+    if isnothing(seqq)
+        method = SequenceDefault()
+        return (; method=method, options=sindbadDefaultOptions(method))
+    end
+    if seqq isa NamedTuple && haskey(seqq, :method)
+        method = getTypeInstanceForNamedOptions(String(seqq.method))
+        return (; method=method, options=merge_namedtuple(sindbadDefaultOptions(method), get(seqq, :options, (;))))
+    end
+    method = SequenceList()
+    return (; method=method, options=merge_namedtuple(sindbadDefaultOptions(method), (; steps=seqq)))
+end
+
+"""
+    setDefaultForcingBounds(forcing_settings, num_type)
+
+Sets the bounds of `default_forcing` to `[-Inf, Inf]` of the model number type when they
+are missing, null or an empty list.
+
+# Arguments:
+- `forcing_settings`: the forcing settings from the forcing configuration file
+- `num_type`: the number type of the model, from `model_number_type` in the experiment
+
+# Returns:
+- the forcing settings with typed default bounds
+
+# Notes:
+- JSON cannot hold infinite numbers, so the open bounds are set here. A forcing variable
+  without its own bounds then gets typed bounds that do not clamp, instead of an
+  untyped empty list, so the cleaned forcing data stays concretely typed.
+"""
+function setDefaultForcingBounds(forcing_settings, num_type)
+    hasproperty(forcing_settings, :default_forcing) || return forcing_settings
+    default_forcing = forcing_settings.default_forcing
+    bounds = hasproperty(default_forcing, :bounds) ? default_forcing.bounds : nothing
+    if isnothing(bounds) || isempty(bounds)
+        default_forcing = merge(default_forcing, (; bounds=[typemin(num_type), typemax(num_type)]))
+        forcing_settings = merge(forcing_settings, (; default_forcing=default_forcing))
+    end
+    return forcing_settings
+end
+
+"""
     setSpinupInfo(info::NamedTuple)
 
-Processes the spinup configuration and prepares the spinup sequence.
+Processes the spinup configuration and prepares the spinup sequence method.
 
 # Arguments:
 - `info`: A NamedTuple containing the experiment configuration.
 
 # Returns:
 - The updated `info` NamedTuple with spinup-related fields added.
+
+# Notes:
+- The sequence is read from `spinup_sequence` in the experiment settings. It is either a
+  list of spinup steps or a sequence method with its options.
+- The sequence itself is not built here. A sequence method may need the forcing of a location
+  to decide the steps, so the sequence is built per location in `prepTEM`.
 """
 function setSpinupInfo(info)
     print_info(setSpinupInfo, @__FILE__, @__LINE__, "setting Spinup Info...")
-    info = setRestartFilePath(info)
-    infospin = info.settings.experiment.model_spinup
-    # change spinup sequence dispatch variables to Val, get the temporal aggregators
-    seqq = get(infospin, :sequence, nothing)
-    if !isnothing(seqq)
-        seqq_typed = getSpinupSequenceWithTypes(seqq, info.temp.helpers.dates)
-        infospin = set_namedtuple_field(infospin, (:sequence, [_s for _s in seqq_typed]))
-    end
+    exp_settings = info.settings.experiment
+    spinup_sequence = getSpinupSequenceSetting(exp_settings)
+    infospin = getSpinupSequenceConfig(spinup_sequence)
+    infospin = (; infospin..., models=getSpinupModelsInfo(info.temp.models))
     info = set_namedtuple_subfield(info, :temp, (:spinup, infospin))
     return info
+end
+
+"""
+    getSpinupModelsInfo(models_info)
+
+Collects what is needed to choose the models of every spinup step.
+
+# Arguments:
+- `models_info`: the models NT in `info.temp`, after `setSpinupAndForwardModels`
+
+# Returns:
+- a NT with the `names` of the selected models in their order and the `default` indices
+  of the models with `use_in_spinup` set to true
+"""
+function getSpinupModelsInfo(models_info)
+    names = hasproperty(models_info, :selected_models) ? Tuple(Symbol.(models_info.selected_models.model)) : ()
+    default = hasproperty(models_info, :is_spinup) ? Tuple(models_info.is_spinup) : Tuple(eachindex(names))
+    return (; names=names, default=default)
+end
+
+"""
+    getSpinupModelsIndex(seq, default_models, spinup_models)
+
+Returns the indices of the selected models that are run in one spinup step.
+
+# Arguments:
+- `seq`: one step of the spinup sequence, as given in the settings
+- `default_models`: the `models` setting used when the step has no `models` field
+- `spinup_models`: the `names` and `default` indices from `getSpinupModelsInfo`, or
+  nothing when they are not known
+
+# Returns:
+- a `Val` of the tuple of model indices, or nothing when all the selected models are run
+
+# Notes:
+- The `models` field of a step is "forward" for all models, "spinup" for the models
+  with `use_in_spinup` set to true, null for no models, or a list of model names.
+"""
+function getSpinupModelsIndex(seq, default_models, spinup_models)
+    setting = haskey(seq, "models") ? seq["models"] : default_models
+    isnothing(setting) && return Val(())
+    setting == "forward" && return nothing
+    isnothing(spinup_models) && setting == "spinup" && return nothing
+    isnothing(spinup_models) && error("The spinup step has `models` set to $(setting), but the models of the model structure are not known.")
+    names = spinup_models.names
+    if setting == "spinup"
+        index = collect(spinup_models.default)
+    elseif setting isa AbstractVector
+        index = sort(unique([getSpinupModelIndex(model, names) for model in setting]))
+    else
+        error("The spinup step has `models` set to $(setting). Use \"forward\", \"spinup\", null, or a list of model names.")
+    end
+    index == collect(eachindex(names)) && return nothing
+    return Val(Tuple(index))
+end
+
+"""
+    getSpinupModeName(mode_name)
+
+Returns the name of the spinup mode of a step and the models it runs by default.
+
+# Arguments:
+- `mode_name`: the `spinup_mode` of a step, as given in the settings
+
+# Returns:
+- a tuple of the spinup mode name and the default `models` setting of the step
+
+# Notes:
+- The older `sel_spinup_models` and `all_forward_models` are read as `loop_TEM`.
+"""
+function getSpinupModeName(mode_name)
+    mode_name = String(mode_name)
+    mode_name == "sel_spinup_models" && return ("loop_TEM", "spinup")
+    mode_name == "all_forward_models" && return ("loop_TEM", "forward")
+    return (mode_name, "forward")
+end
+
+function getSpinupModelIndex(model, names)
+    index = findfirst(==(Symbol(model)), names)
+    isnothing(index) && error("The spinup step has the model $(model) in `models`, but it is not in the model structure. The models are $(names).")
+    return index
+end
+
+"""
+    getSpinupSequenceSetting(exp_settings)
+
+Returns the spinup sequence from the experiment settings, or `nothing` when there is
+none. `spinup_sequence` at the top level is used when present. Otherwise the sequence
+of the older `model_spinup` section is used, with a deprecation warning, so that
+existing experiment files keep working.
+"""
+function getSpinupSequenceSetting(exp_settings)
+    has_new = hasproperty(exp_settings, :spinup_sequence)
+    has_old = hasproperty(exp_settings, :model_spinup) && hasproperty(exp_settings.model_spinup, :sequence)
+    if has_new && has_old
+        @warn "The experiment settings have both `spinup_sequence` and `model_spinup.sequence`. Using `spinup_sequence` and ignoring `model_spinup`."
+    end
+    if has_new
+        spinup_sequence = exp_settings.spinup_sequence
+    elseif has_old
+        @warn "`model_spinup.sequence` in the experiment settings is deprecated. Move it to `spinup_sequence` at the top level, e.g. `\"spinup_sequence\": [...]`. In replace_info, use the key `experiment.spinup_sequence`."
+        spinup_sequence = exp_settings.model_spinup.sequence
+    else
+        spinup_sequence = nothing
+    end
+    return spinup_sequence
 end
 
 
@@ -454,6 +669,8 @@ Processes the experiment configuration and sets up all necessary fields for mode
 - The updated `info` NamedTuple with all necessary fields for model simulation.
 """
 function setupInfo(info::NamedTuple)
+    # Retain configuration for safe, pre-run rebuilding of site-specific pool geometry.
+    setup_input = deepcopy(info)
     print_info(setupInfo, @__FILE__, @__LINE__, "Setting and consolidating Experiment Info...")
     # @show info.settings.model_structure.parameter_table.optimized
     info = setExperimentBasics(info)
@@ -488,8 +705,9 @@ function setupInfo(info::NamedTuple)
 
     data_settings = (;)
     if hasproperty(info.settings, :forcing)
-        data_settings = set_namedtuple_field(data_settings, (:forcing, info.settings.forcing))
+        data_settings = set_namedtuple_field(data_settings, (:forcing, setDefaultForcingBounds(info.settings.forcing, info.temp.helpers.numbers.num_type)))
     end
+    data_settings = set_namedtuple_field(data_settings, (:parameters, getParameterInput(info)))
     if (info.settings.experiment.flags.run_optimization || info.settings.experiment.flags.calc_cost) && hasproperty(info.settings.optimization, :algorithm_optimization)
         # @info "  setupInfo: setting ParameterOptimization and Observation info..."
         info = setOptimization(info)
@@ -505,11 +723,6 @@ function setupInfo(info::NamedTuple)
         info = setHybridInfo(info)
     end
 
-    if !isnothing(info.settings.experiment.exe_rules.longtuple_size)
-        selected_approach_forward = to_longtuple(info.temp.models.forward, info.settings.experiment.exe_rules.longtuple_size)
-        info = @set info.temp.models.forward = selected_approach_forward
-    end
-
     print_info(setupInfo, @__FILE__, @__LINE__, "Cleaning Info Fields...")
     exe_rules = info.settings.experiment.exe_rules
     info = drop_namedtuple_fields(info, (:model_structure, :experiment, :output, :pools))
@@ -517,6 +730,19 @@ function setupInfo(info::NamedTuple)
     info = set_namedtuple_subfield(info, :experiment, (:data_settings, data_settings))
     info = set_namedtuple_subfield(info, :experiment, (:exe_rules, exe_rules))
     info = drop_namedtuple_fields(info, (:temp, :settings,))
-    return info
+
+    # Converted last because every NamedTuple rebuild above compiles anew for the type of
+    # info, and a LongTuple of all models makes that type very large.
+    if !isnothing(exe_rules.longtuple_size)
+        longtuple_size = exe_rules.longtuple_size
+        # Julia does not unroll `map` over a tuple of 32 or more elements, so it is not
+        # inferred and allocates. Every chunk of a long tuple must be shorter than that.
+        if longtuple_size >= 32
+            @warn "experiment.exe_rules.longtuple_size is $(longtuple_size). With 32 or more models in a chunk, setting parameters on the models is not type stable and allocates on every call, which slows down optimizations. Use a value from 16 to 31."
+        end
+        forward = to_longtuple(info.models.forward, longtuple_size)
+        return (; info..., models=(; info.models..., forward=forward), setup_input)
+    end
+    return (; info..., setup_input)
 end
 

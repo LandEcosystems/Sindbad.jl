@@ -2,7 +2,7 @@ export transpirationSupply_wAWCvegFraction
 
 #! format: off
 @bounds @describe @units @timescale @with_kw struct transpirationSupply_wAWCvegFraction{T1} <: transpirationSupply
-    k_transpiration::T1 = 1.0 | (0.02, 1.0) | "fraction of total maximum available water that can be transpired" | "" | ""
+    k_transpiration::T1 = 0.10 | (0.002, 0.99) | "fraction of total maximum available water that can be transpired" | "day-1" | "day"
 end
 #! format: on
 

@@ -49,4 +49,10 @@ function SindbadTEM.analyse_tem()
     Base.invokelatest(runApproachTests)
 end
 
+function SindbadTEM.analyse_process(names::AbstractString...)
+    isempty(names) && error("usage: analyse_process(\"process_name\", ...)")
+    _ensure_loaded()
+    Base.invokelatest(runApproachTests; processes=collect(names))
+end
+
 end # module

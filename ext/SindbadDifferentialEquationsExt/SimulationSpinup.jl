@@ -9,14 +9,13 @@ import Sindbad.Simulation: spinup
 using Sindbad: ODEAutoTsit5Rodas5, ODEDP5, ODETsit5, SSPDynamicSSTsit5, SSPSSRootfind, getSpinupInfo, getDeltaPool, set_namedtuple_subfield
 
 # Example methods (for reference):
-# - spinup(::Any, ::Any, ::Any, ::Any, ::Any, ::Any, ::AllForwardModels) @ Sindbad.Simulation src/Simulation/spinupTEM.jl:239
 # - spinup(::Any, ::Any, ::Any, ::Any, ::Any, ::Any, ::SSPSSRootfind) @ Sindbad.Simulation src/Simulation/spinupTEM.jl:423
 # - spinup(::Any, ::Any, ::Any, ::Any, ::Any, ::Any, ::ODEDP5) @ Sindbad.Simulation src/Simulation/spinupTEM.jl:378
 # - spinup(::Any, ::Any, ::Any, ::Any, ::Any, ::Any, ::ODEAutoTsit5Rodas5) @ Sindbad.Simulation src/Simulation/spinupTEM.jl:363
 # - spinup(::Any, ::Any, ::Any, ::Any, ::Any, ::Any, ::NlsolveFixedpointTrustregionTWS) @ SindbadNLsolveExt ext/SindbadNLsolveExt/SimulationSpinup.jl:33
 # - spinup(::Any, ::Any, ::Any, ::Any, ::Any, ::Any, ::NlsolveFixedpointTrustregionCEco) @ SindbadNLsolveExt ext/SindbadNLsolveExt/SimulationSpinup.jl:66
 # - spinup(::Any, ::Any, ::Any, ::Any, ::Any, ::Any, ::EtaScaleAH) @ Sindbad.Simulation src/Simulation/spinupTEM.jl:244
-# - spinup(::Any, ::Any, ::Any, ::Any, ::Any, ::Any, ::SelSpinupModels) @ Sindbad.Simulation src/Simulation/spinupTEM.jl:234
+# - spinup(::Any, ::Any, ::Any, ::Any, ::Any, ::Any, ::LoopTEM) @ Sindbad.Simulation src/Simulation/spinupTEM.jl:234
 # - spinup(::Any, ::Any, ::Any, ::Any, ::Any, ::Any, ::EtaScaleA0HCWD) @ Sindbad.Simulation src/Simulation/spinupTEM.jl:335
 # - spinup(::Any, ::Any, ::Any, ::Any, ::Any, ::Any, ::ODETsit5) @ Sindbad.Simulation src/Simulation/spinupTEM.jl:394
 # - spinup(::Any, ::Any, ::Any, ::Any, ::Any, ::Any, ::NlsolveFixedpointTrustregionCEcoTWS) @ SindbadNLsolveExt ext/SindbadNLsolveExt/SimulationSpinup.jl:43

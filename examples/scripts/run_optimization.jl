@@ -12,7 +12,7 @@ using CMAEvolutionStrategy; # required: the CMAES optimizer used by both setups'
 #                            is a vector of those indices. Kept well below the full 205 by default
 #                            to keep runs fast -- bump `n_sites` for a larger spatial domain.
 # `site_index` : which site to use when `mode == :pixel` (1..205).
-setup = "LUE";
+setup = "WROASTED";
 mode = :pixel;
 site_index = 1;
 
@@ -60,4 +60,4 @@ optim_result = optimizeTEM(forcing, obs_array, info);
 
 # Equivalent one-liner -- also runs a forward pass with the optimized parameters afterward and
 # prints a default-vs-optimized loss table:
-# out_opti = runExperimentOpti(experiment_json; replace_info=replace_info, log_level=:info);
+# out_opti = runExperimentOpti(experiment_json; replace_info=replace_info, display_level=:info);

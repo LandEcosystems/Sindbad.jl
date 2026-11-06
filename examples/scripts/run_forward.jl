@@ -9,7 +9,7 @@ using Sindbad;
 #                            is a vector of those indices. Kept well below the full 205 by default
 #                            to keep runs fast -- bump `n_sites` for a larger spatial domain.
 # `site_index` : which site to use when `mode == :pixel` (1..205).
-setup = "LUE";
+setup = "WROASTED";
 mode = :pixel;
 site_index = 1;
 
@@ -44,11 +44,11 @@ info = getExperimentInfo(experiment_json; replace_info=replace_info); # parses a
 forcing = getForcing(info); # loads the forcing cube and applies the `forcing.subset.site` + time-range subsetting
 run_helpers = prepTEM(forcing, info); # builds per-location model/output/land state; models come from `info.models.forward`
 runTEM!(
-    run_helpers.space_selected_models, run_helpers.space_forcing, run_helpers.space_spinup_forcing,
+    run_helpers.space_selected_models, run_helpers.space_forcing, run_helpers.space_spinup,
     run_helpers.loc_forcing_t, run_helpers.space_output, run_helpers.space_land, run_helpers.tem_info,
 );
 # `run_helpers.space_output` now holds the forward run's output for every selected site.
 
 # Equivalent one-liner -- also writes the output cubes to `output_path`, which the steps
 # above do not do:
-# out_forward = runExperimentForward(experiment_json; replace_info=replace_info, log_level=:info);
+# out_forward = runExperimentForward(experiment_json; replace_info=replace_info, display_level=:info);

@@ -58,6 +58,10 @@ module SindbadTEM
    @reexport using CodeTracking
    @reexport using DataStructures: DataStructures
    @reexport using StaticArraysCore: StaticArray, SVector, MArray, SizedArray
+   # StaticArraysCore only defines the types. The array methods on them, such as size
+   # and getindex, live in StaticArrays, so it has to be loaded here and not left to
+   # whichever other package happens to load it.
+   import StaticArrays
    @reexport using Accessors: @set
    @reexport using StatsBase
    @reexport using InteractiveUtils
@@ -96,7 +100,7 @@ module SindbadTEM
    include("Processes.jl")
    @reexport using .Processes
    include("DevTools.jl")
-   export test_model, analyse_tem, test_tem
+   export test_model, analyse_tem, analyse_process, test_tem
 
    # append the docstring of the LandEcosystem type to the docstring of the SindbadTEM module so that all the methods of the LandEcosystem type are included after the models have been described
    @doc """

@@ -129,18 +129,16 @@ function runExperiment end
 
 function runExperiment(info::NamedTuple, forcing::NamedTuple, ::DoCalcCost)
     print_info_separator(sep_text="Forward Simulation + Cost Calculation")
-    set_log_level()
     observations = getObservation(info, forcing.helpers)
     obs_array = [Array(_o) for _o in observations.data]; # TODO: necessary now for performance because view of keyedarray is slow
     print_info(runExperiment, @__FILE__, @__LINE__, "do forward run...")
-    forward_output = runForward(forcing, info, DoNotRunLazy())
+    forward_output = runForward(forcing, info, DoNotRunLazy()).output
     print_info(runExperiment, @__FILE__, @__LINE__, "calculate cost...")
     cost_options = prepCostOptions(obs_array, info.optimization.cost_options)
     loss_vector = metricVector(forward_output, obs_array, cost_options)
     for _cp in Pair.(Pair.(cost_options.variable, nameof.(typeof.(cost_options.cost_metric))),  loss_vector)
         println(_cp)
     end
-    set_log_level()
     return (; forcing, info, loss=loss_vector, observation=obs_array, output=forward_output)
 end
 
@@ -148,47 +146,88 @@ end
 
 function runExperiment(info::NamedTuple, forcing::NamedTuple, ::Union{DoRunForward, DoNotRunOptimization})
     run_output = runForward(forcing, info, info.helpers.run.run_lazy)
-    set_log_level()
-    return (; forcing, info, output=run_output)
+    return (; forcing, info, output=run_output.output, restart=run_output.restart, spinup=run_output.spinup, output_saved=run_output.output_saved, lazy_store=run_output.lazy_store)
 end
 
 
 function runExperiment(info::NamedTuple, forcing::NamedTuple, ::DoRunOptimization)
+    info = withoutSpinupStore(info)
     observations = getObservation(info, forcing.helpers)
     additionaldims = setdiff(keys(forcing.helpers.sizes), info.experiment.data_settings.forcing.data_dimension.time)
     run_output = nothing
     if isempty(additionaldims)
         print_info(runExperiment, @__FILE__, @__LINE__, "run optimization per pixel...")
-        run_output = optimizeTEMYax(forcing, info.tem, info.optimization, observations; max_cache=info.settings.experiment.exe_rules.yax_max_cache)
+        run_output = optimizeTEMLazy(forcing, info.tem, info.optimization, observations; max_cache=getYaxMaxCache(info, (forcing.data..., observations.data...); n_forcing=length(forcing.data)))
     else
         print_info(runExperiment, @__FILE__, @__LINE__, "run optimization for spatial domain...")
         obs_array = [Array(_o) for _o in observations.data]; # TODO: necessary now for performance because view of keyedarray is slow
         optim_params = optimizeTEM(forcing, obs_array, info)
-        optim_file_prefix = joinpath(info.output.dirs.optimization, info.experiment.basics.name * "_" * info.experiment.basics.domain)
-        print_info(runExperiment, @__FILE__, @__LINE__, "saving optimized parameters to file: $(optim_file_prefix)_model_parameters_optimized.csv")
-        CSV.write(optim_file_prefix * "_model_parameters_optimized.csv", optim_params)
+        optim_file = joinpath(info.output.dirs.optimization, "model_parameters_optimized.csv")
+        print_info(runExperiment, @__FILE__, @__LINE__, "saving optimized parameters to file: $(optim_file)")
+        CSV.write(optim_file, optim_params)
+        saveParameterCubes(info, optim_params, forcing.helpers)
         run_output = optim_params
     end
-    set_log_level()
     return (; forcing, info, observation=obs_array, parameters=run_output)
 end
 
 
 """
-    runExperimentCost(sindbad_experiment::String; replace_info::Dict=Dict(), log_level::Symbol=:info)
+    withoutSpinupStore(info)
+
+Returns `info` with `store_spinup` set to `DoNotStoreSpinup`. The model runs of an
+optimization and of a sensitivity analysis use it, and the forward runs keep the
+setting of the experiment.
+"""
+withoutSpinupStore(info) = @set info.helpers.run.store_spinup = DoNotStoreSpinup()
+
+
+"""
+    plotForwardRun(info, forcing, def_output, spinup; opt_output=nothing)
+
+Plots the forcing and the debug time series of every output variable of a forward
+run, and the stored spinup when there is one.
+
+# Arguments
+- `info`: a SINDBAD NamedTuple with all information needed for setup and execution of
+  an experiment
+- `forcing`: the forcing NamedTuple of the run
+- `def_output`: the output of the forward run with the default parameters, or the
+  only output of a plain forward run
+- `spinup`: the stored spinup from `prepSpinupOut`, or `nothing` when it is not
+  stored
+- `opt_output`: the output of the forward run with the optimized parameters, or
+  `nothing` for a plain forward run
+
+# Notes
+- Nothing is drawn unless `visualization_backend` is set to `"Plots"` and Plots is
+  loaded.
+"""
+function plotForwardRun(info, forcing, def_output, spinup; opt_output=nothing)
+    plotForcing(info, forcing)
+    plotTimeSeries(info, opt_output, def_output; forcing_helpers=forcing.helpers)
+    # the stored spinup is that of the optimized run when there is one
+    isnothing(spinup) || plotSpinup(info, spinup; output=isnothing(opt_output) ? def_output : opt_output)
+    return nothing
+end
+
+
+"""
+    runExperimentCost(sindbad_experiment::String; replace_info::Dict=Dict(), display_level::Symbol=:info)
 
 Calculate cost for a given experiment through the `runExperiment` function in `DoCalcCost` mode.
 
 # Arguments
 - `sindbad_experiment::String`: Path to the experiment configuration file
 - `replace_info::Dict`: Dictionary of configuration overrides (default: empty Dict)
-- `log_level::Symbol`: Logging level (default: :info)
+- `display_level::Symbol`: Level of the log and of what `print_info` shows, see
+  `set_log_level` (default: :info)
 
 # Returns
 - A NamedTuple containing the experiment results including cost calculations
 """
-function runExperimentCost(sindbad_experiment::String; replace_info=Dict(), log_level=:info)
-    set_log_level(log_level)
+function runExperimentCost(sindbad_experiment::String; replace_info=Dict(), display_level=:info)
+    set_log_level(display_level)
     setExperimentMode!(replace_info, :cost)
     info, forcing = prepExperiment(sindbad_experiment; replace_info=replace_info)
     cost_output = runExperiment(info, forcing, info.helpers.run.calc_cost)
@@ -198,26 +237,33 @@ end
 
 
 """
-    runExperimentForward(sindbad_experiment::String; replace_info::Dict=Dict(), log_level::Symbol=:info)
+    runExperimentForward(sindbad_experiment::String; replace_info::Dict=Dict(), display_level::Symbol=:info)
 
 Run forward simulation for a given experiment through the `runExperiment` function in `DoRunForward` mode.
 
 # Arguments
 - `sindbad_experiment::String`: Path to the experiment configuration file
 - `replace_info::Dict`: Dictionary of configuration overrides (default: empty Dict)
-- `log_level::Symbol`: Logging level (default: :info)
+- `display_level::Symbol`: Level of the log and of what `print_info` shows, see
+  `set_log_level` (default: :info)
 
 # Returns
 - A NamedTuple containing the experiment results including model outputs
 """
-function runExperimentForward(sindbad_experiment::String; replace_info=Dict(), log_level=:info)
+function runExperimentForward(sindbad_experiment::String; replace_info=Dict(), display_level=:info)
+    set_log_level(display_level)
     print_info_separator(sep_text="Forward Simulation")
-    set_log_level(log_level)
     setExperimentMode!(replace_info, :forward)
     info, forcing = prepExperiment(sindbad_experiment; replace_info=replace_info)
     run_output = runExperiment(info, forcing, info.helpers.run.run_forward)
     output_dims = getOutDims(info, forcing.helpers)
-    saveOutCubes(info, values(run_output.output), output_dims, info.output.variables)
+    run_output.output_saved || saveOutCubes(info, values(run_output.output), output_dims, info.output.variables)
+    saveRestartCubes(info, run_output.restart)
+    saveSpinupCubes(info, run_output.spinup)
+    removeLazyStore(run_output.lazy_store)
+    # the figures need the forcing and output in memory, which a lazy run does not
+    # have
+    info.helpers.run.run_lazy isa DoRunLazy || plotForwardRun(info, forcing, run_output.output, run_output.spinup)
     set_log_level()
     return run_output
 end
@@ -225,7 +271,7 @@ end
 
 
 """
-    runExperimentForwardParams(params_vector::Vector, sindbad_experiment::String; replace_info::Dict=Dict(), log_level::Symbol=:info)
+    runExperimentForwardParams(params_vector::Vector, sindbad_experiment::String; replace_info::Dict=Dict(), display_level::Symbol=:info)
 
 Run forward simulation of the model with default as well as modified settings with input/optimized parameters through call of the `runTEM!` function.
 
@@ -233,14 +279,15 @@ Run forward simulation of the model with default as well as modified settings wi
 - `params_vector::Vector`: Vector of parameters to use for the simulation
 - `sindbad_experiment::String`: Path to the experiment configuration file
 - `replace_info::Dict`: Dictionary of configuration overrides (default: empty Dict)
-- `log_level::Symbol`: Logging level (default: :info)
+- `display_level::Symbol`: Level of the log and of what `print_info` shows, see
+  `set_log_level` (default: :info)
 
 # Returns
 - A NamedTuple containing both default and optimized model outputs
 """
-function runExperimentForwardParams(params_vector::Vector, sindbad_experiment::String; replace_info=Dict(), log_level=:info)
+function runExperimentForwardParams(params_vector::Vector, sindbad_experiment::String; replace_info=Dict(), display_level=:info)
+    set_log_level(display_level)
     print_info_separator(sep_text="Forward Simulation with Input/Optimized Parameters")
-    set_log_level(log_level)
     print_info(runExperimentForwardParams, @__FILE__, @__LINE__, "running forward simulation with input/optimized parameters...", n_m=1)
     replace_info = deepcopy(replace_info)
     setExperimentMode!(replace_info, :cost)
@@ -248,87 +295,108 @@ function runExperimentForwardParams(params_vector::Vector, sindbad_experiment::S
 
     default_models = info.models.forward;
 
-    default_output = runForward(default_models, forcing, info, DoNotRunLazy())
+    default_output = runForward(default_models, forcing, info, DoNotRunLazy()).output
 
     parameter_table = info.optimization.parameter_table;
     optimized_models = updateModelParameters(parameter_table, default_models, params_vector)
-    optimized_output = runForward(optimized_models, forcing, info, DoNotRunLazy())
+    optimized_run = runForward(optimized_models, forcing, info, DoNotRunLazy())
+    optimized_output = optimized_run.output
 
     output_dims = getOutDims(info, forcing.helpers)
     saveOutCubes(info, values(optimized_output), output_dims, info.output.variables)
+    saveRestartCubes(info, optimized_run.restart)
+    saveSpinupCubes(info, optimized_run.spinup)
+    plotForwardRun(info, forcing, default_output, optimized_run.spinup; opt_output=optimized_output)
 
     forward_output = (; optimized=optimized_output, default=default_output)
     set_log_level()
-    return (; forcing, info, output=forward_output)
+    return (; forcing, info, output=forward_output, spinup=optimized_run.spinup)
 end
 
 
 """
-    runExperimentFullOutput(sindbad_experiment::String; replace_info::Dict=Dict(), log_level::Symbol=:info)
+    runExperimentFullOutput(sindbad_experiment::String; replace_info::Dict=Dict(), display_level::Symbol=:info)
 
 Run forward simulation of the model through `runExperiment` function in `DoRunForward` mode but with all output variables saved.
 
 # Arguments
 - `sindbad_experiment::String`: Path to the experiment configuration file
 - `replace_info::Dict`: Dictionary of configuration overrides (default: empty Dict)
-- `log_level::Symbol`: Logging level (default: :info)
+- `display_level::Symbol`: Level of the log and of what `print_info` shows, see
+  `set_log_level` (default: :info)
 
 # Returns
 - A NamedTuple containing the complete model outputs
 """
-function runExperimentFullOutput(sindbad_experiment::String; replace_info=Dict(), log_level=:info)
+function runExperimentFullOutput(sindbad_experiment::String; replace_info=Dict(), display_level=:info)
+    set_log_level(display_level)
     print_info_separator(sep_text="Forward Simulation + Output of All Variables")
-    set_log_level(log_level)
     replace_info = deepcopy(replace_info)
     setExperimentMode!(replace_info, :forward)
     info, forcing = prepExperiment(sindbad_experiment; replace_info=replace_info)
     info = @set info.helpers.run.land_output_type = PreAllocArrayAll()
     run_helpers = prepTEM(info.models.forward, forcing, info)
     info = @set info.output.variables = run_helpers.output_vars
-    runTEM!(run_helpers.space_selected_models, run_helpers.space_forcing, run_helpers.space_spinup_forcing, run_helpers.loc_forcing_t, run_helpers.space_output, run_helpers.space_land, run_helpers.tem_info)
+    runTEM!(run_helpers.space_selected_models, run_helpers.space_forcing, run_helpers.space_spinup, run_helpers.loc_forcing_t, run_helpers.space_output, run_helpers.space_restart, run_helpers.space_land, run_helpers.tem_info; show_progress=true)
     output_dims = run_helpers.output_dims
     run_output = run_helpers.output_array
     saveOutCubes(info, run_output, output_dims, run_helpers.output_vars)
+    saveRestartCubes(info, run_helpers.restart)
+    spinup = prepSpinupOut(info, run_helpers)
+    saveSpinupCubes(info, spinup)
+    full_output = (; Pair.(getUniqueVarNames(run_helpers.output_vars), run_output)...)
+    plotForwardRun(info, forcing, full_output, spinup)
     set_log_level()
-    return (; forcing, info, output=(; Pair.(getUniqueVarNames(run_helpers.output_vars), run_output)...))
+    return (; forcing, info, output=full_output, spinup)
 end
 
 
 """
-    runExperimentOpti(sindbad_experiment::String; replace_info::Dict=Dict(), log_level::Symbol=:warn)
+    runExperimentOpti(sindbad_experiment::String; replace_info::Dict=Dict(), display_level::Symbol=:warn)
 
 Run optimization experiment through `runExperiment` function in `DoRunOptimization` mode, followed by forward run with optimized parameters.
 
 # Arguments
 - `sindbad_experiment::String`: Path to the experiment configuration file
 - `replace_info::Dict`: Dictionary of configuration overrides (default: empty Dict)
-- `log_level::Symbol`: Logging level (default: :warn)
+- `display_level::Symbol`: Level of the log and of what `print_info` shows, see
+  `set_log_level` (default: :warn)
 
 # Returns
 - A NamedTuple containing optimization results, model outputs, and cost metrics
 """
-function runExperimentOpti(sindbad_experiment::String; replace_info=Dict(), log_level=:warn)
+function runExperimentOpti(sindbad_experiment::String; replace_info=Dict(), display_level=:warn)
+    set_log_level(display_level)
     print_info_separator(sep_text="ParameterOptimization Experiment")
-    set_log_level(log_level)
     setExperimentMode!(replace_info, :optimization)
     info, forcing = prepExperiment(sindbad_experiment; replace_info=replace_info)
+    # the final forward run in runExperimentForwardParams prepares its own info, so
+    # it stores the spinup when the experiment says so
+    info = withoutSpinupStore(info)
     run_helpers = prepTEM(info.models.forward, forcing, info)
     opti_output = runExperiment(info, forcing, info.helpers.run.run_optimization)
-    set_log_level(:info)
     fp_output = runExperimentForwardParams(opti_output.parameters.optimized, sindbad_experiment; replace_info=replace_info)
+    print_info_separator()
     cost_options = prepCostOptions(opti_output.observation, info.optimization.cost_options)
     loss_vector = metricVector(fp_output.output.optimized, opti_output.observation, cost_options)
     loss_vector_def = metricVector(fp_output.output.default, opti_output.observation, cost_options)
     loss_table = Table((; variable=cost_options.variable, metric=cost_options.cost_metric, loss_opt=loss_vector, loss_def=loss_vector_def))
+    println("Total loss:: optimized: $(sum(loss_vector)), default: $(sum(loss_vector_def))")
     display(loss_table)
+    savePerformanceMetrics(fp_output.info, cost_options, opti_output.observation, fp_output.output.default, fp_output.output.optimized)
     parameters_nt = convertParametersToNamedTuple(opti_output.parameters, :model, :name)
-    return (; forcing, cost_options, run_helpers, info=fp_output.info, loss=loss_table, observation=opti_output.observation, output=fp_output.output, parameters=opti_output.parameters, parameters_nt=parameters_nt)
+    out_opti = (; forcing, cost_options, run_helpers, info=fp_output.info, loss=loss_table, observation=opti_output.observation, output=fp_output.output, spinup=fp_output.spinup, parameters=opti_output.parameters, parameters_nt=parameters_nt)
+    # the forcing, debug and spinup figures of the final forward run come from
+    # runExperimentForwardParams
+    plotTimeSeries(out_opti)
+    plotPerformanceHistograms(out_opti)
+    return out_opti
 end
 
 
 
 """
-    runExperimentSensitivity(sindbad_experiment::String; replace_info::Dict=Dict(), batch::Bool=true, log_level::Symbol=:warn)
+    runExperimentSensitivity(sindbad_experiment::String; replace_info::Dict=Dict(), batch::Bool=true, display_level::Symbol=:warn)
 
 Run sensitivity analysis for a given experiment.
 
@@ -336,15 +404,18 @@ Run sensitivity analysis for a given experiment.
 - `sindbad_experiment::String`: Path to the experiment configuration file
 - `replace_info::Dict`: Dictionary of configuration overrides (default: empty Dict)
 - `batch::Bool`: Whether to run sensitivity analysis in batch mode (default: true)
-- `log_level::Symbol`: Logging level (default: :warn)
+- `display_level::Symbol`: Level of the log and of what `print_info` shows, see
+  `set_log_level` (default: :warn)
 
 # Returns
 - A NamedTuple containing sensitivity analysis results and related data
 """
-function runExperimentSensitivity(sindbad_experiment::String; replace_info=Dict(), batch=true, log_level=:warn)
+function runExperimentSensitivity(sindbad_experiment::String; replace_info=Dict(), batch=true, display_level=:warn)
+    set_log_level(display_level)
     print_info_separator(sep_text="Sensitivity Analysis Experiment")
     setExperimentMode!(replace_info, :optimization)
     info, forcing = prepExperiment(sindbad_experiment; replace_info=replace_info)
+    info = withoutSpinupStore(info)
     observations = getObservation(info, forcing.helpers)
 
     obs_array = [Array(_o) for _o in observations.data]; # TODO: necessary now for performance because view of keyedarray is slow
@@ -358,7 +429,6 @@ function runExperimentSensitivity(sindbad_experiment::String; replace_info=Dict(
 
     # d_opt = getproperty(Setup, :GSAMorris)()
     method_options =info.optimization.sensitivity_analysis.options
-    set_log_level(log_level)
 
     sensitivity = globalSensitivity(cost_function, method_options, p_bounds, info.optimization.sensitivity_analysis.method, batch=batch)
     sensitivity_output = (; opti_helpers..., info=info, forcing=forcing, obs_array=obs_array, observations=observations,sensitivity=sensitivity, p_bounds=p_bounds)
@@ -379,20 +449,27 @@ Run a SINDBAD forward simulation, choosing between eager and lazy execution.
 - `info::NamedTuple`: A SINDBAD NamedTuple containing all information needed for setup and execution of an experiment
 - `mode::RunFlag`: Type dispatch parameter determining how the forward run is executed:
   - `DoNotRunLazy`: Run eagerly in memory via `runTEM!`
-  - `DoRunLazy`: Run lazily over YAXArrays via `runTEMYax`
+  - `DoRunLazy`: Build the lazy run over YAXArrays with `prepTEMLazy` and run it in
+    one pass with `doLazyRun`
 
 # Returns
-- For `DoNotRunLazy` mode:
-  - A NamedTuple pairing each unique output variable name (from `info.output.variables`) with its computed time series
-- For `DoRunLazy` mode:
-  - The lazy YAXArray output produced by `runTEMYax`
+- A NamedTuple with:
+  - `output`: for `DoNotRunLazy`, a NamedTuple pairing each unique output variable name (from `info.output.variables`) with its computed time series. For `DoRunLazy`, a Dataset of the computed output, read from the store of `doLazyRun`.
+  - `restart`: the pools of every location after the spinup step with `save_restart`, to be written with `saveRestartCubes`
+  - `spinup`: for `DoNotRunLazy` with `store_spinup` true, `cEco` and `TWS` of every
+    location at every stored spinup step from `prepSpinupOut`, to be written with
+    `saveSpinupCubes`. Otherwise `nothing`.
+  - `output_saved`: whether the output is already in its final file, which is the case
+    for a lazy run with zarr output in one file
+  - `lazy_store`: what `removeLazyStore` removes once the output and restart are saved,
+    `nothing` for an eager run
 
 # Description
 This function is the entry point for executing the forward model of a SINDBAD experiment. It dispatches on the run mode to select between two execution strategies:
 - Eager run: Evaluates the model in memory for all locations and collects the results into a NamedTuple keyed by output variable names
-- Lazy run: Builds a lazy YAXArray computation that is materialized on demand, which is useful for large spatial domains that do not fit in memory
+- Lazy run: Builds a lazy YAXArray computation and runs it block by block into a zarr store, which is useful for large spatial domains that do not fit in memory
 
-Both modes operate on the same `forcing` and `info` and produce the model forward output; they differ only in when and how the computation is carried out.
+Both modes operate on the same `forcing` and `info` and return computed model output; they differ only in how the computation is carried out and where the output is kept.
 """
 function runForward end
 
@@ -403,17 +480,82 @@ end
 
 # Explicit-model forms: run an arbitrary set of `selected_models` (e.g. default vs.
 # parameter-updated models), so callers route their forward runs through `runForward`
-# instead of calling `runTEM!`/`runTEMYax` directly.
+# instead of calling `runTEM!`/`prepTEMLazy` directly.
 function runForward(selected_models, forcing, info, ::DoNotRunLazy)
-    run_output = runTEM!(selected_models, forcing, info)
-    run_output = (; Pair.(getUniqueVarNames(info.output.variables), run_output)...)
-    return run_output
+    run_helpers = prepTEM(selected_models, forcing, info)
+    runTEM!(run_helpers.space_selected_models, run_helpers.space_forcing, run_helpers.space_spinup, run_helpers.loc_forcing_t, run_helpers.space_output, run_helpers.space_restart, run_helpers.space_land, run_helpers.tem_info; show_progress=true)
+    run_output = (; Pair.(getUniqueVarNames(info.output.variables), run_helpers.output_array)...)
+    return (; output=run_output, restart=run_helpers.restart, spinup=prepSpinupOut(info, run_helpers), output_saved=false, lazy_store=nothing)
 end
 
 function runForward(selected_models, forcing, info, ::DoRunLazy)
-    run_output = runTEMYax(
-        selected_models,
-        forcing,
-        info)
-    return run_output
+    lazy_run = prepTEMLazy(selected_models, forcing, info)
+    computed = doLazyRun(info, lazy_run.xmap)
+    restart = (; dataset=computed.restart, variables=lazy_run.restart_vars, spinup_mode=lazy_run.spinup_mode)
+    return (; output=computed.output, restart=restart, spinup=nothing, output_saved=computed.output_saved, lazy_store=computed.lazy_store)
 end
+
+"""
+    doLazyRun(info, xmap_cubes)
+
+Runs the lazy run of `prepTEMLazy` in one pass, which computes its output and restart
+cubes into a zarr store before they are saved.
+
+# Arguments:
+- `info`: a SINDBAD NT with all information needed for setup and execution of an experiment
+- `xmap_cubes`: the `xmap` field returned by `prepTEMLazy`
+
+# Returns:
+- A NamedTuple with the `output` and `restart` Datasets read from the store, whether
+  the `output_saved` is already in its final file, and the `lazy_store` that
+  `removeLazyStore` removes after saving.
+
+# Notes:
+- Saving the lazy cubes one by one runs the model once per variable, so all of them
+  are computed in one pass.
+- With a zarr output in one file, the pass writes the final `all_variables.zarr` with
+  the attributes of the variables and the run and the compression of the settings, so
+  the output is written once. `output_saved` is then true, and only the restart cubes
+  are removed from that file after they are saved to their own file.
+- Otherwise the pass writes `lazy_run.zarr` in the data output directory, which is
+  copied to the output files and then removed.
+- The block of grids of the pass is set by `exe_rules.yax_block_grids`, see
+  `getLoopRanges`.
+- `exe_rules.parallelization` sets how the blocks run, see `getBlockRunner`.
+"""
+function doLazyRun(info, xmap_cubes)
+    max_cache, loop_ranges, run_filter = getLoopRanges(info, xmap_cubes)
+    parallelization = info.helpers.run.parallelization
+    if !isLazyOutputFinal(info)
+        store_path = joinpath(info.output.dirs.data, "lazy_run.zarr")
+        print_info(doLazyRun, @__FILE__, @__LINE__, "running the lazy run in one pass to `$(store_path)`", n_m=4)
+        computed = runTEMLazy(xmap_cubes, store_path; max_cache=max_cache, loop_ranges=loop_ranges, run_filter=run_filter, parallelization=parallelization)
+        return (; output=computed.output, restart=computed.restart, output_saved=false, lazy_store=store_path)
+    end
+    store_path = joinpath(info.output.dirs.data, "all_variables.zarr")
+    print_info(doLazyRun, @__FILE__, @__LINE__, "running the lazy run in one pass to `$(store_path)`", n_m=4)
+    t_step = info.experiment.basics.temporal_resolution
+    variable_properties = Dict(Symbol(name) => getVariableInfo(getVarFull(var_pair), t_step) for (name, var_pair) ∈ zip(getUniqueVarNames(info.output.variables), info.output.variables))
+    computed = runTEMLazy(xmap_cubes, store_path; max_cache=max_cache, loop_ranges=loop_ranges, run_filter=run_filter, variable_properties=variable_properties, global_properties=info.output.file_info.global_metadata, save_kwargs=getSaveKwargs(info), parallelization=parallelization)
+    print_info(nothing, @__FILE__, @__LINE__, "saved all variables to `$(store_path)`", n_m=4)
+    return (; output=computed.output, restart=computed.restart, output_saved=true, lazy_store=(; path=store_path, arrays=xmap_cubes.restart_keys))
+end
+
+"""
+    isLazyOutputFinal(info)
+
+Returns whether the pass of a lazy run can write the final output file, i.e., the
+output is zarr in a single file.
+"""
+isLazyOutputFinal(info) = info.output.format == "zarr" && info.helpers.run.save_single_file isa DoSaveSingleFile
+
+"""
+    removeLazyStore(lazy_store)
+
+Removes what the lazy run of `runForward` leaves after the output and restart are
+saved: nothing, the whole `lazy_run.zarr`, or the restart arrays of the final output
+file.
+"""
+removeLazyStore(::Nothing) = nothing
+removeLazyStore(store_path::AbstractString) = rm(store_path; recursive=true)
+removeLazyStore(lazy_store::NamedTuple) = dropVariablesFromStore(lazy_store.path, lazy_store.arrays)

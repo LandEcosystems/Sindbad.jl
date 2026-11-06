@@ -44,7 +44,7 @@
     "format": "zarr",
     "output_array_type": "array",
     "path": null,
-    "plot_model_output": false,
+    "plot_resolution": 100,
     "save_single_file": true,
     "variables": {
       "diagnostics.auto_respiration_f_airT": null,
@@ -91,10 +91,10 @@
       "diagnostics.c_eco_k": "d_cEco",
       "fluxes.c_eco_out": "d_cEco",
       "fluxes.eco_respiration": null,
-      "diagnostics.c_flow_A_vec": 10,
+      "diagnostics.c_flow_A_vec": 11,
       "states.aboveground_biomass": null,
       "states.fAPAR": null,
-      "states.fAPAR_bare": null,
+      "states.fAPAR_grid": null,
       "states.frac_snow": null,
       "states.PAW": "d_soil",
       "diagnostics.root_water_efficiency": "d_soil",
@@ -103,29 +103,26 @@
       "diagnostics.WUE": null
     }
   },
-  "model_spinup": {
-    "restart_file": null,
-    "sequence": [
-      {
-        "forcing": "all_years",
-        "n_repeat": 1,
-        "spinup_mode": "all_forward_models"
-      },
-      {
-        "forcing": "day_MSC",
-        "n_repeat": 1,
-        "spinup_mode": "all_forward_models"
-      },
-      {
-        "forcing": "first_year",
-        "n_repeat": 20,
-        "spinup_mode": "all_forward_models"
-      },
-      {
-        "forcing": "first_year",
-        "n_repeat": 1,
-        "spinup_mode": "eta_scale_AH"
-      }
-    ]
-  }
+  "spinup_sequence": [
+    {
+      "forcing": "all_years",
+      "n_repeat": 1,
+      "spinup_mode": "all_forward_models"
+    },
+    {
+      "forcing": "day_MSC",
+      "n_repeat": 1,
+      "spinup_mode": "all_forward_models"
+    },
+    {
+      "forcing": "first_year",
+      "n_repeat": 20,
+      "spinup_mode": "all_forward_models"
+    },
+    {
+      "forcing": "first_year",
+      "n_repeat": 1,
+      "spinup_mode": "eta_scale_AH"
+    }
+  ]
 }

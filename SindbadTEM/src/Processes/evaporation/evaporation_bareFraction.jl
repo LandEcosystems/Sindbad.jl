@@ -24,7 +24,7 @@ function compute(params::evaporation_bareFraction, forcing, land, helpers)
     evaporation = min(PET_evaporation, (soilW[1] + ΔsoilW[1]) * ks)
 
     # update soil moisture changes
-    @add_to_elem -evaporation ⇒ (ΔsoilW, 1, :soilW)
+    @add_to_elem -evaporation ⇒ (ΔsoilW, 1)
 
     ## pack land variables
     @pack_nt begin

@@ -49,14 +49,14 @@ info = drop_namedtuple_fields(info, (:settings,));
 
 run_helpers = prepTEM(forcing, info);
 
-@time runTEM!(run_helpers.space_selected_models, run_helpers.space_forcing, run_helpers.space_spinup_forcing, run_helpers.loc_forcing_t, run_helpers.space_output, run_helpers.space_land, run_helpers.tem_info)
+@time runTEM!(run_helpers.space_selected_models, run_helpers.space_forcing, run_helpers.space_spinup, run_helpers.loc_forcing_t, run_helpers.space_output, run_helpers.space_land, run_helpers.tem_info)
 
-@time land_stacked_ts = runTEM(info.models.forward, run_helpers.space_forcing[1], run_helpers.space_spinup_forcing[1], run_helpers.loc_forcing_t, deepcopy(run_helpers.loc_land), run_helpers.tem_info);
+@time land_stacked_ts = runTEM(info.models.forward, run_helpers.space_forcing[1], run_helpers.space_spinup[1], run_helpers.loc_forcing_t, deepcopy(run_helpers.loc_land), run_helpers.tem_info);
 
 land_stacked_prealloc = Vector{typeof(run_helpers.loc_land)}(undef, info.helpers.dates.size);
 
-@time land_stacked_prealloc = runTEM(info.models.forward, run_helpers.space_forcing[1], run_helpers.space_spinup_forcing[1], run_helpers.loc_forcing_t, land_stacked_prealloc, run_helpers.loc_land, run_helpers.tem_info);
-runTEM(info.models.forward, run_helpers.space_forcing[1], run_helpers.space_spinup_forcing[1], run_helpers.loc_forcing_t, land_stacked_prealloc, run_helpers.loc_land, run_helpers.tem_info);
+@time land_stacked_prealloc = runTEM(info.models.forward, run_helpers.space_forcing[1], run_helpers.space_spinup[1], run_helpers.loc_forcing_t, land_stacked_prealloc, run_helpers.loc_land, run_helpers.tem_info);
+runTEM(info.models.forward, run_helpers.space_forcing[1], run_helpers.space_spinup[1], run_helpers.loc_forcing_t, land_stacked_prealloc, run_helpers.loc_land, run_helpers.tem_info);
 
 parameter_table = info.optimization.parameter_table;
 
@@ -71,8 +71,8 @@ cost_options = prepCostOptions(obs_array, info.optimization.cost_options);
 parameter_table = info.optimization.parameter_table;
 defaults = parameter_table.initial;
 
-@time cost(defaults, defaults, info.models.forward, run_helpers.space_forcing, run_helpers.space_spinup_forcing, run_helpers.loc_forcing_t, run_helpers.output_array, run_helpers.space_output, run_helpers.space_land, run_helpers.tem_info, obs_array, parameter_table, cost_options, info.optimization.run_options.multi_constraint_method, info.optimization.run_options.parameter_scaling, info.optimization.run_options.cost_method)
+@time cost(defaults, defaults, info.models.forward, run_helpers.space_forcing, run_helpers.space_spinup, run_helpers.loc_forcing_t, run_helpers.output_array, run_helpers.space_output, run_helpers.space_land, run_helpers.tem_info, obs_array, parameter_table, cost_options, info.optimization.run_options.multi_constraint_method, info.optimization.run_options.parameter_scaling, info.optimization.run_options.cost_method)
 
-@time costLand(defaults, info.models.forward, run_helpers.space_forcing[1], run_helpers.space_spinup_forcing[1], run_helpers.loc_forcing_t, nothing, run_helpers.loc_land, run_helpers.tem_info, obs_array, parameter_table, cost_options, info.optimization.run_options.multi_constraint_method, info.optimization.run_options.parameter_scaling)
+@time costLand(defaults, info.models.forward, run_helpers.space_forcing[1], run_helpers.space_spinup[1], run_helpers.loc_forcing_t, nothing, run_helpers.loc_land, run_helpers.tem_info, obs_array, parameter_table, cost_options, info.optimization.run_options.multi_constraint_method, info.optimization.run_options.parameter_scaling)
 
-@time costLand(defaults, info.models.forward, run_helpers.space_forcing[1], run_helpers.space_spinup_forcing[1], run_helpers.loc_forcing_t, land_stacked_prealloc, run_helpers.loc_land, run_helpers.tem_info, obs_array, parameter_table, cost_options, info.optimization.run_options.multi_constraint_method, info.optimization.run_options.parameter_scaling)
+@time costLand(defaults, info.models.forward, run_helpers.space_forcing[1], run_helpers.space_spinup[1], run_helpers.loc_forcing_t, land_stacked_prealloc, run_helpers.loc_land, run_helpers.tem_info, obs_array, parameter_table, cost_options, info.optimization.run_options.multi_constraint_method, info.optimization.run_options.parameter_scaling)

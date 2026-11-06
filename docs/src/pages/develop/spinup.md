@@ -17,24 +17,21 @@ Spinup is configured in the experiment settings file through two main sections:
 - `spinup_TEM`: Activates the spinup process
 - `store_spinup`: Controls whether to store spinup results from each sequence
 
-2. **Model Spinup Section**:
+2. **Spinup Sequence**:
 ```json
-"model_spinup": {
-    "restart_file": null,
-    "sequence": [
-        {
-            "forcing": "all_years",
-            "n_repeat": 1,
-            "spinup_mode": "all_forward_models"
-        }
-    ]
-}
+"spinup_sequence": [
+    {
+        "forcing": "all_years",
+        "n_repeat": 1,
+        "spinup_mode": "all_forward_models"
+    }
+]
 ```
-- `restart_file`: Path to a previous simulation's state (null for no restart)
-- `sequence`: Array of spinup steps executed sequentially
+- `spinup_sequence`: Array of spinup steps executed sequentially, or a sequence method with its options
   - `forcing`: Forcing variant to use
   - `n_repeat`: Number of sequence repetitions
   - `spinup_mode`: The spinup method to use
+  - `save_restart`: Optional, false by default. The pools for the restart file are saved after the step where it is true. When no step sets it, the last step is used. Only one step can set it.
 
 ## Available Spinup Methods
 
@@ -58,7 +55,9 @@ This will display a formatted list of all spinup methods and their descriptions.
 
 Current methods include:
 - `AllForwardModels`: Use all forward models for spinup
+- `ClearanceA0`: Cut the vegetation carbon pools down to c_remain, as `EtaScaleA0H` does without the scaling by ηH
 - `EtaScaleA0H`: Scale carbon pools using diagnostic scalars for ηH and c_remain
+- `EtaScaleH`: Scale only the heterotrophic carbon pools using diagnostic scalars for ηH. `ClearanceA0` followed by `EtaScaleH` changes the pools as `EtaScaleA0H` does
 - `EtaScaleAH`: Scale carbon pools using diagnostic scalars for ηH and ηA
 - `NlsolveFixedpointTrustregionCEco`: Use a fixed-point nonlinear solver with trust region for carbon pools (cEco)
 - `NlsolveFixedpointTrustregionCEcoTWS`: Use a fixed-point nonlinear solver with trust region for both cEco and TWS

@@ -76,6 +76,7 @@ purpose(::Type{DoNotStoreSpinup}) = "Disable storing of spinup results"
 
 # ------------------------- parallelization options-------------------------
 export ParallelizationPackage
+export PmapParallelization
 export QbmapParallelization
 export ThreadsParallelization
 
@@ -83,6 +84,9 @@ export ThreadsParallelization
 abstract type ParallelizationPackage <: SimulationTypes end
 
 purpose(::Type{ParallelizationPackage}) = "Abstract type for using different parallelization packages in SINDBAD"
+
+struct PmapParallelization <: ParallelizationPackage end
+purpose(::Type{PmapParallelization}) = "Use Distributed workers with pmap, each with its own threads, for parallelization"
 
 struct QbmapParallelization <: ParallelizationPackage end
 purpose(::Type{QbmapParallelization}) = "Use Qbmap for parallelization"
@@ -120,13 +124,14 @@ purpose(::Type{SpinupTypes}) = "Abstract type for model spinup related functions
 
 # ------------------------- spinup mode ------------------------------------------------------------
 export SpinupMode
-export AllForwardModels
-export SelSpinupModels
+export LoopTEM
+export SpinupInput
+export ClearanceA0
 export EtaScaleA0H
 export EtaScaleA0HCWD
 export EtaScaleAHCWD
 export EtaScaleAH
-export NlsolveFixedpointTrustregionCEco
+export EtaScaleH
 export NlsolveFixedpointTrustregionCEcoTWS
 export NlsolveFixedpointTrustregionTWS
 export ODEAutoTsit5Rodas5
@@ -141,8 +146,8 @@ export SSPSSRootfind
 abstract type SpinupMode <: SpinupTypes end
 purpose(::Type{SpinupMode}) = "Abstract type for model spinup modes in SINDBAD"
 
-struct AllForwardModels <: SpinupMode end
-purpose(::Type{AllForwardModels}) = "Use all forward models for spinup"
+struct ClearanceA0 <: SpinupMode end
+purpose(::Type{ClearanceA0}) = "cut the vegetation carbon pools down to c_remain, as EtaScaleA0H does without the scaling by ηH"
 
 struct EtaScaleA0H <: SpinupMode end
 purpose(::Type{EtaScaleA0H}) = "scale carbon pools using diagnostic scalars for ηH and c_remain"
@@ -155,6 +160,10 @@ purpose(::Type{EtaScaleAHCWD}) = "scale carbon pools of CWD (cLitSlow) using ηH
 
 struct EtaScaleAH <: SpinupMode end
 purpose(::Type{EtaScaleAH}) = "scale carbon pools using diagnostic scalars for ηH and ηA"
+
+
+struct EtaScaleH <: SpinupMode end
+purpose(::Type{EtaScaleH}) = "scale only the heterotrophic carbon pools using diagnostic scalars for ηH"
 
 struct NlsolveFixedpointTrustregionCEco <: SpinupMode end
 purpose(::Type{NlsolveFixedpointTrustregionCEco}) = "use a fixed-point nonlinear solver with trust region for carbon pools (cEco)"
@@ -174,8 +183,11 @@ purpose(::Type{ODEDP5}) = "use the DP5 method from DifferentialEquations.jl for 
 struct ODETsit5 <: SpinupMode end
 purpose(::Type{ODETsit5}) = "use the Tsit5 method from DifferentialEquations.jl for solving ODEs"
 
-struct SelSpinupModels <: SpinupMode end
-purpose(::Type{SelSpinupModels}) = "run only the models selected for spinup in the model structure"
+struct LoopTEM <: SpinupMode end
+purpose(::Type{LoopTEM}) = "run the TEM over the spinup forcing with the models of the step"
+
+struct SpinupInput <: SpinupMode end
+purpose(::Type{SpinupInput}) = "replace the pools with the forcing variables of the same name, e.g., the main pools of a restart file, and fill their component pools"
 
 struct SSPDynamicSSTsit5 <: SpinupMode end
 purpose(::Type{SSPDynamicSSTsit5}) = "use the SteadyState solver with DynamicSS and Tsit5 methods"
@@ -216,27 +228,64 @@ end
 purpose(::Type{Spinup_cEco}) = "Spinup spinup_mode for cEco"
 
 
-# ------------------------- spinup sequence and types ------------------------------------------------------------
+# ------------------------- spinup sequence method ------------------------------------------------------------
 export SpinupSequence
-export SpinupSequenceWithAggregator
+export SequenceDefault
+export SequenceList
+export SequenceWithAge
+export SequenceWithSpinupInput
 
-struct SpinupSequenceWithAggregator <: SpinupTypes
+abstract type SpinupSequence <: SpinupTypes end
+purpose(::Type{SpinupSequence}) = "Abstract type for methods that build the spinup sequence of a location in SINDBAD"
+
+struct SequenceDefault <: SpinupSequence end
+purpose(::Type{SequenceDefault}) = "spin the selected spinup models up on the mean seasonal cycle, bracketed by a run over all years, and use this when the experiment settings give no sequence"
+
+struct SequenceList <: SpinupSequence end
+purpose(::Type{SequenceList}) = "use the explicit list of spinup sequences given in the experiment settings"
+
+struct SequenceWithAge <: SpinupSequence end
+purpose(::Type{SequenceWithAge}) = "build the spinup sequence from the disturbance year of the location so that the years since disturbance are replayed"
+
+struct SequenceWithSpinupInput <: SpinupSequence end
+purpose(::Type{SequenceWithSpinupInput}) = "build the spinup sequence with spinup input from previously saved cEco and TWS pools through forcing json"
+
+
+# ------------------------- spinup sequence and types ------------------------------------------------------------
+export SpinupStep
+export SpinupStepWithAggregator
+
+struct SpinupStepWithAggregator{F,M<:SpinupMode,A,T<:TimeSamplerMethod,I} <: SpinupTypes
     forcing::Symbol
     n_repeat::Int
     n_timesteps::Int
-    spinup_mode::SpinupMode
+    spinup_mode::M
     options::NamedTuple
     aggregator_indices::Vector{Int}
-    aggregator::Vector{TimeSample}
-    aggregator_type::TimeSamplerMethod
+    aggregator::A
+    aggregator_type::T
+    save_restart::Bool
+    model_indices::I
 end
-purpose(::Type{SpinupSequenceWithAggregator}) = "Spinup sequence with time aggregation for corresponding forcingtime series"
 
-struct SpinupSequence <: SpinupTypes
+# The forcing name is carried as the type parameter `F` as well as in the field, so that
+# looking the sequence's forcing up in the spinup forcing NamedTuple resolves at compile time.
+# `save_restart` marks the step after which the pools are stored for the restart file.
+# The aggregator is a TimeResampler for resampled forcing and nothing for selected timesteps.
+# `model_indices` is a Val of the indices of the models run in the step, or nothing
+# for all of them.
+function SpinupStepWithAggregator(forcing::Symbol, n_repeat, n_timesteps, spinup_mode::M, options, aggregator_indices, aggregator::A, aggregator_type::T, save_restart=false, model_indices::I=nothing) where {M<:SpinupMode,A,T<:TimeSamplerMethod,I}
+    return SpinupStepWithAggregator{forcing,M,A,T,I}(forcing, n_repeat, n_timesteps, spinup_mode, options, aggregator_indices, aggregator, aggregator_type, save_restart, model_indices)
+end
+purpose(::Type{SpinupStepWithAggregator}) = "Spinup sequence with time aggregation for corresponding forcingtime series"
+
+struct SpinupStep <: SpinupTypes
     forcing::Symbol
     n_repeat::Int
     n_timesteps::Int
     spinup_mode::SpinupMode
     options::NamedTuple
+    save_restart::Bool
 end
-purpose(::Type{SpinupSequence}) = "Basic Spinup sequence without time aggregation"
+SpinupStep(forcing, n_repeat, n_timesteps, spinup_mode, options) = SpinupStep(forcing, n_repeat, n_timesteps, spinup_mode, options, false)
+purpose(::Type{SpinupStep}) = "Basic Spinup sequence without time aggregation"

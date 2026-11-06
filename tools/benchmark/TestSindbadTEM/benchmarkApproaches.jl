@@ -29,6 +29,21 @@ include(joinpath(test_data_dir, "land.jl"))
 include(joinpath(test_data_dir, "referenceApproaches.jl"))
 include(joinpath(test_data_dir, "helpers.jl"))
 
+# `T()`/`ref_type()` (a bare, no-argument constructor) uses each parametric approach's own
+# literal `@with_kw` default values as written in its source file, which are plain Float64
+# literals -- giving e.g. autoRespiration_Thornley2000A{Float64,Float64} instead of the
+# {Float32,Float32} a real run builds via getTypedModel (converting to the experiment's
+# configured numeric type). Land/forcing here are Float32 throughout, so a Float64-parametrized
+# approach mixing with them needs type promotion on every operation -- and since this affects
+# every reference approach used to advance the chain, not just the approach under test, that
+# promotion cost cascades through land and gets misattributed to whichever approach happens to
+# be measured downstream, not the approach that's actually parametrized wrong. Use the same
+# properly-typed construction as checkApproaches.jl's typedApproach for both the tested approach
+# and every reference approach advancing the chain.
+test_num_type = eltype(land.pools.cEco)
+test_model_timestep = "day"
+typedApproach(::Type{T}) where {T <: LandEcosystem} = getTypedModel(nameof(T), test_model_timestep, test_num_type)
+
 # This script's own run (called directly, or as a subprocess by `test_tem()`/CI's test-tem job)
 # takes long enough (every approach's define/precompute/compute, several hundred approaches) that
 # running it silently until the final "Wrote N rows" is disorienting -- flush eagerly (stdout is
@@ -286,7 +301,7 @@ end
 function advanceReference(f, ref_type, forcing, land, helpers, step_label)
     ref_type === nothing && return land
     try
-        return f(ref_type(), forcing, land, helpers)
+        return f(typedApproach(ref_type), forcing, land, helpers)
     catch e
         @warn "Reference approach failed while advancing the sequential chain; leaving `land` unchanged for this step" step = step_label ref = ref_type exception = e
         return land
@@ -301,7 +316,7 @@ function runDefinePrecomputePhase(results, land0)
         progress("[define+precompute $i/$n] $process_name")
         for T in leafSubtypes(step.process_type)
             approach_name = string(nameof(T))
-            params = T()
+            params = typedApproach(T)
             m_define = measureMethod(SM.define, :define, params, tmp_forcing, land, tmp_helpers)
             recordResult!(results, process_name, approach_name, "define", m_define)
             m_precompute = measureMethod(SM.precompute, :precompute, params, tmp_forcing, m_define.result, tmp_helpers)
@@ -347,7 +362,7 @@ function runComputePhase(results, land0)
         progress("[compute $i/$n] $process_name")
         for T in leafSubtypes(step.process_type)
             approach_name = string(nameof(T))
-            params = T()
+            params = typedApproach(T)
             m_compute = chainedComputeResult(params, tmp_forcing, land, tmp_helpers)
             recordResult!(results, process_name, approach_name, "compute", m_compute)
         end
