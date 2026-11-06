@@ -2,6 +2,8 @@
 export backScaleParameters
 export checkParameterBounds
 export getParameterIndicesPerModel
+export GradientParameterUpdater
+export prepGradientParameterUpdater
 export ParameterUpdater
 export prepParameterUpdater
 export scaleParameters
@@ -340,6 +342,41 @@ end
 prepParameterUpdater(parameter_table, space_selected_models::AbstractVector) = prepParameterUpdater(parameter_table, first(space_selected_models))
 
 """
+    GradientParameterUpdater(parameter_table, parameter_indices_per_model)
+
+Holds what `updateModels` needs to set the parameters of a fixed model structure in a
+gradient, as in the loss of a hybrid run. Build it once with
+`prepGradientParameterUpdater`.
+
+# Fields:
+- `parameter_table`: the table of the parameters, used to back scale the parameter
+  vector
+- `parameter_indices_per_model`: the index of each parameter in the parameter vector,
+  with one element per model in model order, see `getParameterIndicesPerModel`
+
+# Notes:
+- Like `ParameterUpdater`, the models are paired with their indices by position, so
+  no model is looked up by name and the update is inferred.
+- Unlike `ParameterUpdater`, the values are set as they are and not converted to the
+  types of the model fields, so the duals of a gradient reach the models.
+"""
+struct GradientParameterUpdater{T,I}
+    parameter_table::T
+    parameter_indices_per_model::I
+end
+
+"""
+    prepGradientParameterUpdater(parameter_table, selected_models)
+
+Returns a `GradientParameterUpdater` for `selected_models` and the parameters in
+`parameter_table`, to pass to `updateModels` as the `parameter_updater`.
+"""
+function prepGradientParameterUpdater(parameter_table, selected_models)
+    parameter_to_index = getParameterIndices(selected_models, parameter_table)
+    return GradientParameterUpdater(parameter_table, getParameterIndicesPerModel(parameter_to_index, selected_models))
+end
+
+"""
     updateModels(parameter_vector, parameter_updater, parameter_scaling_type, selected_models)
 
 Updates the parameters of selected models using the provided parameter vector.
@@ -379,6 +416,35 @@ end
 function updateModels(parameter_vector, parameter_updater::ParameterUpdater, parameter_scaling_type, selected_models)
     parameter_vector = backScaleParameters(parameter_vector, parameter_updater.parameter_table, parameter_scaling_type)
     return setTypedParameters(selected_models, parameter_updater.parameter_indices_per_model, parameter_vector)
+end
+
+function updateModels(parameter_vector, parameter_updater::GradientParameterUpdater, parameter_scaling_type, selected_models)
+    parameter_vector = backScaleParameters(parameter_vector, parameter_updater.parameter_table, parameter_scaling_type)
+    return setParameters(selected_models, parameter_updater.parameter_indices_per_model, parameter_vector)
+end
+
+"""
+    setParameters(selected_models, parameter_indices_per_model, parameter_values)
+
+Returns `selected_models` with the values of `parameter_values` set at the indices of
+`parameter_indices_per_model`, as they are and without converting them to the types of
+the model fields, see `GradientParameterUpdater`.
+"""
+function setParameters end
+
+function setParameters(selected_models::Tuple, parameter_indices_per_model::Tuple, parameter_values)
+    return map((model, model_indices) -> setModelParameters(model, model_indices, parameter_values), selected_models, parameter_indices_per_model)
+end
+
+function setParameters(selected_models::LongTuple{N}, parameter_indices_per_model::LongTuple{N}, parameter_values) where {N}
+    return LongTuple{N}(map((models, model_indices) -> setParameters(models, model_indices, parameter_values), selected_models.data, parameter_indices_per_model.data))
+end
+
+# A model without parameters to set is returned as it is.
+setModelParameters(model, ::Nothing, parameter_values) = model
+
+function setModelParameters(model, model_indices::NamedTuple, parameter_values)
+    return ConstructionBase.setproperties(model, map(p_index -> parameter_values[p_index], model_indices))
 end
 
 function updateModels(parameter_vector, parameter_updater::ParameterUpdater, parameter_scaling_type, space_selected_models::AbstractVector)

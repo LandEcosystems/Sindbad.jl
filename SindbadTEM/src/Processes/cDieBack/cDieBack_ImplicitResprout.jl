@@ -30,9 +30,13 @@ function compute(params::cDieBack_ImplicitResprout, forcing, land, helpers)
         z_zero ⇐ land.constants
         (c_f_cVeg_dieOff, c_flow_QP_vec, c_disturbance_mortality, c_disturbance_flow, c_disturbance_efflux) ⇐ land.diagnostics
     end
-    # losses are per time step, so clear the previous step before accumulating
-    @rep_vec c_disturbance_mortality ⇒ helpers.pools.zeros.cEco
-    @rep_vec c_disturbance_flow ⇒ helpers.pools.zeros.cEco
+    # losses are per time step, so clear the previous step before accumulating.
+    # Clear to a zero of the element type of cEco, so the two vectors keep one type
+    # whether or not the die-off branch runs. With ForwardDiff.Dual parameters, a
+    # Float32 reset would otherwise make the land type depend on a runtime value.
+    c_zero = zero(first(cEco))
+    @rep_vec c_disturbance_mortality ⇒ c_zero
+    @rep_vec c_disturbance_flow ⇒ c_zero
     @rep_vec c_disturbance_efflux ⇒ helpers.pools.zeros.cEco
     zix_cVeg = helpers.pools.zix.cVeg
     if c_f_cVeg_dieOff > z_zero

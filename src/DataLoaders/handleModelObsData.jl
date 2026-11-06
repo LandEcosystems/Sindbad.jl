@@ -31,6 +31,32 @@ end
 
 
 """
+    ObsMaskedArray(dat, obs_mask)
+
+A lazy view of `dat` that is `NaN` wherever `obs_mask` is false, as
+`maskWithObservation`, but without the copy.
+
+# Notes:
+- The model output is masked like this before it is aggregated, in every cost
+  evaluation. Reading through the view gives the same values as the masked copy and
+  allocates nothing, and nothing is written, so threaded cost evaluations can share
+  `obs_mask`.
+- `obs_mask` has as many elements as `dat` and is read by linear index, so it may have
+  another shape, as with `maskWithObservation`.
+"""
+struct ObsMaskedArray{T,N,A<:AbstractArray{T,N},M<:AbstractArray{Bool}} <: AbstractArray{T,N}
+    data::A
+    mask::M
+end
+
+Base.size(x::ObsMaskedArray) = size(x.data)
+Base.IndexStyle(::Type{<:ObsMaskedArray}) = IndexLinear()
+
+Base.@propagate_inbounds function Base.getindex(x::ObsMaskedArray{T}, i::Int) where {T}
+    return ifelse(x.mask[i], x.data[i], convert(T, NaN))
+end
+
+"""
     maskWithObservation(dat, obs_mask)
 
 Return a copy of `dat` that is `NaN` wherever `obs_mask` is false.
@@ -92,7 +118,7 @@ are aggregated over the same time steps.
 function aggregateModelData end
 
 function aggregateModelData(ŷ, cost_option, ::DoAggrObs)
-    ŷ = maskWithObservation(ŷ, cost_option.obs_mask)
+    ŷ = ObsMaskedArray(ŷ, cost_option.obs_mask)
     return aggregateData(ŷ, cost_option, cost_option.aggr_order)
 end
 
@@ -213,12 +239,10 @@ end
 
 """
 function getModelOutputView(_dat::AbstractArray{<:Any,N}) where N
-    dim = 1
-    inds = map(size(_dat)) do _
-        ind = dim == 2 ? 1 : Colon()
-        dim += 1
-        ind
-    end
+    # the second dimension is dropped and every other one is kept whole. ntuple with a
+    # static N builds the indices without the counter that map needed, which was
+    # captured and boxed by its closure and allocated at every call.
+    inds = ntuple(i -> i == 2 ? 1 : Colon(), Val(N))
     @view _dat[inds...]
 end
 
@@ -274,6 +298,9 @@ julia> # filtered_cost_options = prepCostOptions(observations, cost_options, Cos
     the cost. They are aggregated here once, and not in every cost evaluation.
   - `valids`: Indices of valid data points for each variable at the resolution of
     the cost.
+  - `valid_indices`: The positions of the valid data points in `valids`, found once
+    here. A view with a Bool mask finds them again at every call, which allocated an
+    index vector three times per variable in every cost evaluation.
   - `is_valid`: A boolean flag indicating whether the variable meets the minimum data point requirement.
 - Unnecessary fields such as `min_data_points`, `temporal_data_aggr`, and `aggr_func` are removed from the final `cost_options`.
 """
@@ -293,6 +320,7 @@ function prepCostOptions(observations, cost_options, ::CostModelObs)
     obs_ys = []
     obs_yσs = []
     valids = []
+    valid_indices = []
     is_valid = []
     for cost_option in Table(cost_options)
         y = observations[cost_option.obs_ind]
@@ -305,11 +333,13 @@ function prepCostOptions(observations, cost_options, ::CostModelObs)
         push!(obs_ys, y)
         push!(obs_yσs, yσ)
         push!(valids, idxs)
+        push!(valid_indices, findall(idxs))
     end
     cost_options = set_namedtuple_field(cost_options, (:obs_mask, obs_masks))
     cost_options = set_namedtuple_field(cost_options, (:obs_y, obs_ys))
     cost_options = set_namedtuple_field(cost_options, (:obs_yσ, obs_yσs))
     cost_options = set_namedtuple_field(cost_options, (:valids, valids))
+    cost_options = set_namedtuple_field(cost_options, (:valid_indices, valid_indices))
     cost_options = set_namedtuple_field(cost_options, (:is_valid, is_valid))
     cost_options = drop_namedtuple_fields(cost_options, (:min_data_points, :temporal_data_aggr, :aggr_func,))
     cost_option_table = Table(cost_options)

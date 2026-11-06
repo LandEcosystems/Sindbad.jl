@@ -146,16 +146,30 @@ function getLossFunctionHandles(info, run_helpers, sites)
     loss_functions = []
     loss_component_functions = []
 
+    # the initial land in the types of the gradient duals, built once for all sites,
+    # so that the land does not change type during a run, see getGradientLand
+    gradient_land = getGradientLand(info.hybrid.ml_gradient.method, run_helpers.loc_land,
+        info.models.forward, getParameterIndices(info.models.forward, info.optimization.parameter_table),
+        info.optimization.parameter_table, run_helpers.loc_forcing_t, run_helpers.tem_info.model_helpers,
+        info.helpers.numbers.num_type, info.hybrid.ml_gradient.options)
+
+    # the parameter indices per model, found once for all sites, so the loss sets the
+    # parameters without looking up the models by name, see GradientParameterUpdater
+    parameter_updater = prepGradientParameterUpdater(info.optimization.parameter_table, info.models.forward)
+
     for site_location in eachindex(sites)
-        parameter_to_index = getParameterIndices(info.models.forward, info.optimization.parameter_table)
         loc_forcing = run_helpers.space_forcing[site_location]
         loc_obs = run_helpers.space_observation[site_location]
         loc_output = getCacheFromOutput(run_helpers.space_output[site_location], info.hybrid.ml_gradient.method)
         loc_spinup = run_helpers.space_spinup[site_location]
         loc_cost_option = prepCostOptions(loc_obs, info.optimization.cost_options)
-        loss_tmp(x) = loss(x, info.models.forward, parameter_to_index, info.optimization.run_options.parameter_scaling, loc_forcing, loc_spinup, run_helpers.loc_forcing_t, loc_output, deepcopy(run_helpers.loc_land), run_helpers.tem_info, loc_obs, loc_cost_option, info.optimization.run_options.multi_constraint_method, info.hybrid.ml_gradient.method, info.hybrid.ml_training.options.loss_function)
+        # one copy of the initial lands per site, made here once, so that sites do not
+        # share them, rather than a new copy at every call of the loss
+        loc_land = deepcopy(run_helpers.loc_land)
+        loc_gradient_land = deepcopy(gradient_land)
+        loss_tmp(x) = loss(x, info.models.forward, parameter_updater, info.optimization.run_options.parameter_scaling, loc_forcing, loc_spinup, run_helpers.loc_forcing_t, loc_output, selectLand(loc_land, loc_gradient_land, x), run_helpers.tem_info, loc_obs, loc_cost_option, info.optimization.run_options.multi_constraint_method, info.hybrid.ml_gradient.method, info.hybrid.ml_training.options.loss_function)
 
-        loss_vector_tmp(x) = lossComponents(x, info.models.forward, parameter_to_index, info.optimization.run_options.parameter_scaling, loc_forcing, loc_spinup, run_helpers.loc_forcing_t, loc_output, deepcopy(run_helpers.loc_land), run_helpers.tem_info, loc_obs, loc_cost_option, info.optimization.run_options.multi_constraint_method, info.hybrid.ml_gradient.method, info.hybrid.ml_training.options.loss_function)
+        loss_vector_tmp(x) = lossComponents(x, info.models.forward, parameter_updater, info.optimization.run_options.parameter_scaling, loc_forcing, loc_spinup, run_helpers.loc_forcing_t, loc_output, selectLand(loc_land, loc_gradient_land, x), run_helpers.tem_info, loc_obs, loc_cost_option, info.optimization.run_options.multi_constraint_method, info.hybrid.ml_gradient.method, info.hybrid.ml_training.options.loss_function)
 
         push!(loss_functions, loss_tmp)
         push!(loss_component_functions, loss_vector_tmp)

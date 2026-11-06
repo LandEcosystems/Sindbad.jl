@@ -10,26 +10,19 @@ end
 
 function define(params::gppAirT_De2025, forcing, land, helpers)
 	@unpack_nt f_airT_day ⇐ forcing
+	@unpack_nt o_one ⇐ land.constants
 
 	## initialize filtered temperature with current temperature
 	Tf_prev = f_airT_day
 
-	## pack land variables
-	@pack_nt Tf_prev ⇒ land.diagnostics
-	return land
-end
-
-function precompute(params::gppAirT_De2025, forcing, land, helpers)
-	@unpack_gppAirT_De2025 params
-	@unpack_nt f_airT_day ⇐ forcing
-	@unpack_nt Tf_prev ⇐ land.diagnostics
-	@unpack_nt o_one ⇐ land.constants
-
-	## initialize diagnostics
+	## initialize the response here, not in precompute. Precompute runs again at the
+	## start of every run, and a reset to the Float32 o_one would change the type of
+	## land there when the parameters are ForwardDiff.Dual. compute overwrites it
+	## before it is read.
 	gpp_f_airT = o_one
 
 	## pack land variables
-	@pack_nt gpp_f_airT ⇒ land.diagnostics
+	@pack_nt (Tf_prev, gpp_f_airT) ⇒ land.diagnostics
 	return land
 end
 

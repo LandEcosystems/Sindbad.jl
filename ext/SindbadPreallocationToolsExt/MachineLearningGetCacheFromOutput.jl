@@ -14,5 +14,10 @@ using Sindbad: ForwardDiffGrad
 # ------------------------------------------------------------------
 
 function getCacheFromOutput(loc_output, ::ForwardDiffGrad)
-    return DiffCache.(loc_output)
+    # The caches are built on plain arrays of the output of the location, not on the
+    # views into the output of all locations. For a view, get_tmp rebuilds the dual
+    # array in the shape of the view with a copy at every call, which allocated the
+    # full dual output once per loss evaluation. For an array, it only reshapes. The
+    # loss reads its outputs from the cache, so they need not land in the shared array.
+    return DiffCache.(Array.(loc_output))
 end
