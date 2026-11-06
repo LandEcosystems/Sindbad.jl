@@ -123,6 +123,7 @@ export ActivationType
 export FluxRelu
 export FluxSigmoid
 export FluxTanh
+export FluxSoftplus
 export CustomSigmoid
 
 abstract type ActivationType <: MachineLearningTypes end
@@ -139,6 +140,10 @@ requires_package(::Type{FluxSigmoid}) = "Flux"
 struct FluxTanh <: ActivationType end
 purpose(::Type{FluxTanh}) = "Use Flux.jl Tanh activation function"
 requires_package(::Type{FluxTanh}) = "Flux"
+
+struct FluxSoftplus <: ActivationType end
+purpose(::Type{FluxSoftplus}) = "Use Flux.jl Softplus activation function"
+requires_package(::Type{FluxSoftplus}) = "Flux"
 
 struct CustomSigmoid <: ActivationType end
 purpose(::Type{CustomSigmoid}) = "Use a custom sigmoid activation function. In this case, the `k_σ` parameter in ml_model sections of the settings is used to control the steepness of the sigmoid function."

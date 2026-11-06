@@ -1,6 +1,6 @@
 import Sindbad.MachineLearning:
     activationFunction
-using Sindbad: FluxRelu, FluxTanh, FluxSigmoid
+using Sindbad: FluxRelu, FluxTanh, FluxSigmoid, FluxSoftplus
 
 function activationFunction(_, ::FluxRelu)
     return Flux.relu
@@ -10,4 +10,7 @@ function activationFunction(_, ::FluxTanh)
 end
 function activationFunction(_, ::FluxSigmoid)
     return Flux.sigmoid
+end
+function activationFunction(_, ::FluxSoftplus)
+    return Flux.softplus
 end
