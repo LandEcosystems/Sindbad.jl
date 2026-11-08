@@ -591,7 +591,14 @@ function getPoolInformation(main_pools, pool_info, layer_thicknesses, nlayers, l
             append!(layer_thicknesses, layer_thickness)
             append!(nlayers, fill(1, lenpool))
             append!(layer, collect(1:lenpool))
-            append!(inits, fill((main_pool_info[2]), lenpool))
+            ### Adjust it to handle the case when init_val is a vector of initial values. The previous implementation only handled the case when init_val is a single value. >> better for the experiment to have a vector of initial values for each layer in the pool, such as using same initial values.
+            init_val = main_pool_info[2]
+            if init_val isa AbstractVector
+                length(init_val) == lenpool || error("Pool $(main_pool): $(length(init_val)) initial values for $(lenpool) layers")
+                append!(inits, init_val)
+            else
+                append!(inits, fill(init_val, lenpool))
+            end
 
             if prename == ""
                 append!(sub_pool_name, fill(main_pool, lenpool))

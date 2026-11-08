@@ -46,7 +46,7 @@ end
 RootPotentialLinear(mode::Int, A, B) = RootPotentialLinear(mode, promote(A, B)...)
 
 #! format: off
-@bounds @describe @units @timescale @with_kw struct plantHydraulics_PHS{T1,T2,T3,T4,T5,T6,T7,T8,T9,T10,T11,T12,T13,T14,T15,T16,T17,T18,T19,T20,T21,T22,T23,T24,T25,T26,T27,T28,T29,T30,T31,T32,T33,T34,T35,T36,T37,T38,T39,T40,T41,T42,T43,T44,T45,T46,T47,T48,T49,T50,T51,T52,T53,T54,T55,T56,T57,T58,T59,T60,T61,T62,T63,T64,T65,T66,T67,T68,T69,T70,T71,T72,T73,T74,T75,T76,T77,T78,T79,T80,T81,T82,T83,T84,T85,T86,T87,T88,T89,T90,T91,T92,T93,T94,T95,T96,T97,T98,T99,T100,T101,T102,T103,T104,T105,T106,T107,T108,T109,T110,T111,T112,T113,T114,T115,T116,T117,T118,T119,T120,T121,T122,T123,T124,T125,T126,T127,T128,T129,T130,T131,T132,T133,T134,T135,T136,T137,T138,T139,T140,T141,T142} <: plantHydraulics
+@bounds @describe @units @timescale @with_kw struct plantHydraulics_PHS{T1,T2,T3,T4,T5,T6,T7,T8,T9,T10,T11,T12,T13,T14,T15,T16,T17,T18,T19,T20,T21,T22,T23,T24,T25,T26,T27,T28,T29,T30,T31,T32,T33,T34,T35,T36,T37,T38,T39,T40,T41,T42,T43,T44,T45,T46,T47,T48,T49,T50,T51,T52,T53,T54,T55,T56,T57,T58,T59,T60,T61,T62,T63,T64,T65,T66,T67,T68,T69,T70,T71,T72,T73,T74,T75,T76,T77,T78,T79,T80,T81,T82,T83,T84,T85,T86,T87,T88,T89,T90,T91,T92,T93,T94,T95,T96,T97,T98,T99,T100,T101,T102,T103,T104,T105,T106,T107,T108,T109,T110,T111,T112,T113,T114,T115,T116,T117,T118,T119,T120,T121,T122,T123,T124,T125,T126,T127,T128,T129,T130,T131,T132,T133,T134,T135,T136,T137,T138,T139,T140,T141,T142,T143,T144,T145,T146} <: plantHydraulics
     # root params
     root_radius::T1 = 1.5e-3 | (1.0e-5, 1.0e-2) | "fine-root radius used to infer root spacing from SINDBAD root surface area" | "m" | ""
     biomass_to_carbon::T2 = 0.488 | (0.1, 1.0) | "root carbon per unit root dry biomass" | "gC gDM-1" | ""
@@ -236,6 +236,12 @@ RootPotentialLinear(mode::Int, A, B) = RootPotentialLinear(mode, promote(A, B)..
     tl_J::T141 = 283.15 | (270, 290) | "Low-temperature semi-deactivation temperature" | "K" | ""
     th_J::T142 = 314.15 | (300, 320) | "High-temperature semi-deactivation temperature" | "K" | ""
 
+    # convergence of the leaf temperature iteration
+    convergence_Tleaf_K::T143 = 1e-3 | (1e-6, 1e-1) | "the leaf temperature iteration stops when the Newton step of the leaf temperature is smaller than this tolerance" | "K" | ""
+    convergence_gs::T144 = 1e-3 | (1e-6, 1e-1) | "the leaf temperature iteration stops only when the relative residual of the stomatal conductance is smaller than this tolerance" | "" | ""
+    Tleaf_max_step::T145 = 1.0 | (0.1, 10.0) | "maximum change of the leaf temperature in one iteration, as delmax in CLM5 (CanopyFluxesMod)" | "K" | ""
+    convergence_LE::T146 = 0.1 | (1e-4, 10.0) | "the leaf temperature iteration stops only when the change of the canopy latent heat flux between two iterations is smaller than this tolerance, as dlemin in CLM5 (CanopyFluxesMod)" | "W m-2" | ""
+
 end
 #! format: on
 
@@ -288,6 +294,7 @@ function define(params::plantHydraulics_PHS, forcing, land, helpers)
     temp_leaf_balance = z_zero
     phs_transpiration_max = z_zero
     LE_canopy = H_canopy_flux = Rn_canopy = z_zero # canopy energy fluxes, W m-2 ground
+    leaf_energy_balance_error = z_zero # energy balance error of the leaf temperature iteration, W m-2 ground
 
     # don't consider the soil depth gravity potential, only the matric potential, unit: m.
     ψ_soil = zero(soilW)
@@ -311,7 +318,7 @@ function define(params::plantHydraulics_PHS, forcing, land, helpers)
         (temp_leaf_degC, temp_leaf_K) ⇒ land.diagnostics
         (leaf_temp_diff, temp_leaf_balance) ⇒ land.diagnostics
         phs_transpiration_max ⇒ land.diagnostics
-        (LE_canopy, H_canopy_flux, Rn_canopy) ⇒ land.diagnostics
+        (LE_canopy, H_canopy_flux, Rn_canopy, leaf_energy_balance_error) ⇒ land.diagnostics
         phs_root_water_uptake ⇒ land.fluxes
         (nvg, avg, mvg) ⇒ land.diagnostics
     end
@@ -346,15 +353,15 @@ end
 function compute(params::plantHydraulics_PHS, forcing, land, helpers)
     @unpack_plantHydraulics_PHS params
     @unpack_nt begin
-        (f_rn, f_ws, f_airT_day, f_daytime_seconds, f_canopy_height, f_VPD_day, f_psurf_day) ⇐ forcing
+        (f_rn, f_ws, f_airT, f_daytime_seconds, f_canopy_height, f_VPD_day, f_psurf_day) ⇐ forcing
         (LAI, fAPAR) ⇐ land.states
-        leaf_temp_diff ⇐ land.diagnostics
+        (leaf_temp_diff, ψ_leaf_prev) ⇐ land.diagnostics
         (z_zero, o_one) ⇐ land.constants
     end
 
     ### Initialize
     H_canopy = f_canopy_height # m
-    temp_leaf_degC = f_airT_day + leaf_temp_diff
+    temp_leaf_degC = f_airT + leaf_temp_diff
     LAI_l = max(LAI, minimum_lai) # m2 m-2, LAI used to convert between leaf and ground area
     rs = maximum_stomatal_resistance # s m-1, stomatal resistance, initialized to maximum value (closed stomata)
 
@@ -381,18 +388,20 @@ function compute(params::plantHydraulics_PHS, forcing, land, helpers)
     ψ_leaf_act = ψ_leaf_tmp
     β_leaf = cal_vulnerability_curve(params, ψ_leaf_act, p50_leaf, shape_factor_leaf)
 
-    land = cal_Farquhar_info(params, forcing, land, helpers, temp_leaf_degC)
-    @unpack_nt begin
-        (ca_Pa, ca_mol, gamma_star, efficient_lai, patm) ⇐ land.diagnostics
-        (leaf_saturated_VPD, air_actual_pressure) ⇐ land.diagnostics
-        (KM, J_actual, Vcmax, dark_respiration, dark_respiration_mol) ⇐ land.diagnostics
-        (Κ_soil_root, Κ_soil, Κ_root, ψ_soil, fraction_root, root_surface_area) ⇐ land.diagnostics
-        root_over ⇐ land.rootWaterEfficiency
-    end
+    # the Farquhar variables are only written to the land after the leaf temperature iteration.
+    farquhar_info = _Farquhar_info(params, forcing, land, helpers, temp_leaf_degC)
+    (; ca_Pa, ca_mol, gamma_star, efficient_lai, patm, leaf_saturated_VPD, air_actual_pressure, leaf_saturated_pressure, KM, J_actual, Vcmax, dark_respiration, dark_respiration_mol) = farquhar_info
     fq = (; Vcmax, KM, J_actual, gamma_star, ca_mol, ca_Pa, patm, efficient_lai, dark_respiration, dark_respiration_mol, f_daytime_seconds)
 
     # the plant is active when there is canopy and at least one soil layer can take up water.
     plant_active = LAI > minimum_lai && root_active
+
+    # warm start of an active plant: the leaf water potential of the previous time step is a better first guess than the potential without transpiration.
+    if plant_active && isfinite(ψ_leaf_prev) && ψ_leaf_prev < z_zero
+        ψ_leaf_tmp = oftype(ψ_leaf_tmp, ψ_leaf_prev)
+        ψ_leaf_act = ψ_leaf_tmp
+        β_leaf = cal_vulnerability_curve(params, ψ_leaf_act, p50_leaf, shape_factor_leaf)
+    end
 
     ### Step 2: calculate canopy NET radiation, W m-2.
     # As in SCOPE, the energy balance, aerodynamic resistance (ra) and stomatal resistance (rs) are for ONE LEAF (per m2 of leaf area).
@@ -406,6 +415,14 @@ function compute(params::plantHydraulics_PHS, forcing, land, helpers)
 
     ra = (LAI + 1) * (raa + rawc) # s m-1, same as rac in SCOPE ebal.m
     Wc = Tleaf_damping
+    temp_leaf_prev = temp_leaf_degC
+    ϵ_prev = z_zero
+    LE_prev = T_step_prev = z_zero
+    ϵ_residual = z_zero # energy balance error of the leaf after the iteration, W m-2 leaf
+    gs_used = gs_used_prev = gs_res_prev = z_zero
+    gs_weight = o_one
+    gs_weight_min = oftype(gs_weight, 0.2)
+    gs_weight_max = oftype(gs_weight, 1.5)
 
     # for an inactive plant (no canopy, or no root that can take up water), no leaf energy balance is solved: leaf temperature equals air temperature and no transpiration.
     n_Tleaf_iterations = plant_active ? Int(Tleaf_max_iterations) : z_zero
@@ -419,71 +436,94 @@ function compute(params::plantHydraulics_PHS, forcing, land, helpers)
         # gs_Medlyn is the conductance for CO2, mol m-2 s-1. Water vapor conductance is diffusivity_ratio times larger.
         _, _, _, _, _, _, gs_Medlyn = _GPP_Farquhar(params, fq, β_leaf, ci_unsat, leaf_VPD)
 
-        rs = gs_Medlyn > z_zero ? rhoa / (Mair * con_1e_3) / (diffusivity_ratio * gs_Medlyn) : maximum_stomatal_resistance # mol m-2 s-1 to s m-1
-
-        for _ in 1:Int(STEMMUS_max_iterations)
-            ### Step 3.3: calculate leaf latent and heat fluxes.
-            LE, H, transpiration, e_to_q, lambda = cal_latent_heat_fluxes(params, forcing, land, helpers, temp_leaf_degC, ψ_leaf_tmp, ra, rs)
-
-            ### Step 3.4: solve PHS, the leaf transpiration (mm d-1, per m2 leaf) is scaled to whole canopy (m d-1).
-            transpiration = transpiration * LAI_l * con_1e_3 # m d-1
-            ψ_root, ψ_stem, ψ_leaf_tmp = _plant_hydraulic(params, rl, H_canopy, LAI, transpiration)
-
-            if abs(ψ_leaf_act - ψ_leaf_tmp) < convergence_water_potential
-                ψ_leaf_act = ψ_leaf_act + psi_leaf_damping * (ψ_leaf_tmp - ψ_leaf_act)
-                break
+        # The feedback between stomatal conductance and leaf water potential makes the plain fixed-point iteration oscillate (period 2) on hot and dry days. The conductance is therefore relaxed with the secant method on the fixed-point residual (equivalent to Aitken's delta-squared / Irons-Tuck relaxation); the fixed point itself is not changed.
+        if iter == 1
+            gs_used = gs_Medlyn
+        else
+            gs_res = gs_Medlyn - gs_used
+            if iter > 2 && abs(gs_res - gs_res_prev) > eps(gs_res)
+                gs_weight = clamp(-(gs_used - gs_used_prev) / (gs_res - gs_res_prev), gs_weight_min, gs_weight_max)
             end
-            ψ_leaf_act = ψ_leaf_act + psi_leaf_damping * (ψ_leaf_tmp - ψ_leaf_act)
+            gs_res_prev = gs_res
+            gs_used_prev = gs_used
+            gs_used = gs_used + gs_weight * gs_res
         end
+        rs = gs_used > z_zero ? rhoa / (Mair * con_1e_3) / (diffusivity_ratio * gs_used) : maximum_stomatal_resistance # mol m-2 s-1 to s m-1
+
+        ### Step 3.3 and 3.4: solve the plant hydraulic system for the leaf water potential with the leaf fluxes (fixed point of the leaf water potential at the given leaf temperature and stomatal resistance).
+        for _ in 1:Int(STEMMUS_max_iterations)
+            LE, H, transpiration, e_to_q, lambda = _latent_heat_fluxes(params, forcing, leaf_saturated_pressure, air_actual_pressure, temp_leaf_degC, ψ_leaf_tmp, ra, rs)
+
+            # the leaf transpiration (mm d-1, per m2 leaf) is scaled to whole canopy (m d-1).
+            transpiration = transpiration * LAI_l * con_1e_3 # m d-1
+            ψ_root, ψ_stem, ψ_leaf_new = _plant_hydraulic(params, rl, H_canopy, LAI, transpiration)
+
+            water_converged = abs(ψ_leaf_new - ψ_leaf_tmp) < convergence_water_potential
+            ψ_leaf_tmp = ψ_leaf_new
+            water_converged && break
+        end
+        ψ_leaf_act = ψ_leaf_tmp
 
         ### Step 3.5: calcualte energy balance, J m-2 d-1 leaf.
         # LE occurs at daytime, but H occurs all day.
         # The update of Tleaf needs W m-2 leaf.
-        ϵ = (Rn_leaf - LE * f_daytime_seconds - H * day_second) / day_second # W m-2 leaf
+        ϵ_fluxes = (Rn_leaf - LE * f_daytime_seconds - H * day_second) / day_second # W m-2 leaf
+        # as in CLM5 (CanopyFluxesMod, efe), the latent heat flux is reduced to 10% when it changes sign between two iterations, which damps the oscillation between dew and transpiration. The energy that is not balanced by this goes to the sensible heat (see ϵ_residual).
+        LE_balance = iter > 1 && LE * LE_prev < z_zero ? oftype(LE, 0.1) * LE : LE
+        ϵ = (Rn_leaf - LE_balance * f_daytime_seconds - H * day_second) / day_second # W m-2 leaf
 
         # convergence: the energy balance error of the canopy (W m-2 ground) is smaller than the tolerance.
         if abs(ϵ) * LAI_l < convergence_Tleaf
+            ϵ_residual = ϵ_fluxes
             break
         end
 
-        if iter == Tleaf_relax_iter_1
-            Wc = Tleaf_damping_5
-        elseif iter == Tleaf_relax_iter_2
-            Wc = Tleaf_damping_10
-        elseif iter == Tleaf_relax_iter_3
-            Wc = Tleaf_damping_30
+        ### Step 3.6: Estimate new leaf temperature with a Newton step, as in CLM5 (CanopyFluxesMod, dt_veg).
+        # sensitivity of the energy balance error to the leaf temperature, W m-2 K-1: dϵ/dTleaf = -(dH/dT + f_daytime_seconds / day_second * dLE/dT). Rn is prescribed, so the longwave term of CLM5 is not part of it.
+        sh = leaf_saturated_pressure * kPa_2_hPa * esat_b * esat_c / (esat_c + temp_leaf_degC)^2 # slope of the saturation vapor pressure, hPa K-1
+        demonator_analytic = (rhoa * cp) / ra + f_daytime_seconds / day_second * rhoa * lambda * e_to_q * sh / (ra + rs)
+        demonator = demonator_analytic
+        # after the first iteration the sensitivity is estimated by the secant of the last two iterations, which includes the feedback of the leaf temperature on stomatal conductance and water potential.
+        if iter > 1
+            D_secant = (ϵ_prev - ϵ) / (temp_leaf_degC - temp_leaf_prev)
+            if isfinite(D_secant) && D_secant > demonator / 5 && D_secant < demonator * 5
+                demonator = D_secant
+            end
+        end
+        newton_step = ϵ / demonator # K
+
+        # convergence as in CLM5 (CanopyFluxesMod, dtmin and dlemin, at least two iterations): the last two changes of the leaf temperature and the change of the canopy latent heat flux are small. In addition, the stomatal conductance has converged.
+        if iter > 1 && max(abs(newton_step), abs(T_step_prev)) < convergence_Tleaf_K && abs(LE_balance - LE_prev) * LAI_l < convergence_LE && abs(gs_res) <= convergence_gs * gs_Medlyn
+            ϵ_residual = ϵ_fluxes
+            break
         end
 
-        ### Step 3.6: Estimate new leaf temperature.
-        leaf_saturated_pressure = cal_saturated_pressure(params, temp_leaf_degC) # kPa
-        sh = leaf_saturated_pressure * kPa_2_hPa * esat_b * esat_c / (esat_c + temp_leaf_degC)^2 # slope of the saturation vapor pressure, hPa K-1
-        demonator = ((rhoa * cp) / ra + rhoa * lambda * e_to_q * sh / (ra + rs) + 4 * leaf_emissivity * sigma_SB * (temp_leaf_degC + deg_2_K)^3)
-        delta_T = Wc * ϵ / demonator # K
-        ### avoid extreme leaf temperature changes in one iteration, which may cause numerical instability.
-        # delta_T = clamp(delta_T, -1, 1) # K
-        temp_leaf_degC = temp_leaf_degC + delta_T
+        # as in CLM5 (CanopyFluxesMod, delmax), the change of the leaf temperature in one iteration is limited, which prevents a divergence of the iteration.
+        T_step = clamp(Wc * newton_step, -Tleaf_max_step, Tleaf_max_step)
+        temp_leaf_prev = temp_leaf_degC
+        ϵ_prev = ϵ
+        LE_prev = LE_balance
+        T_step_prev = T_step
+        temp_leaf_degC = temp_leaf_degC + T_step
+        # energy balance error after the step, linearized as err in CLM5 (used when the iteration ends without convergence).
+        ϵ_residual = ϵ_fluxes - demonator_analytic * T_step
 
-        ### Step 3.7: Update leaf VPD and β_leaf.
-        leaf_saturated_pressure = cal_saturated_pressure(params, temp_leaf_degC)
+        ### Step 3.7: Update Farquhar info.
+        farquhar_info = _Farquhar_info(params, forcing, land, helpers, temp_leaf_degC)
+        (; ca_Pa, ca_mol, gamma_star, efficient_lai, patm, leaf_saturated_VPD, leaf_saturated_pressure, KM, J_actual, Vcmax, dark_respiration, dark_respiration_mol) = farquhar_info
+
+        ### Step 3.8: Update leaf VPD and β_leaf.
         leaf_VPD, leaf_RH, leaf_actual_pressure = _leaf_humidity_status(params, leaf_saturated_pressure, air_actual_pressure, temp_leaf_degC + deg_2_K, ψ_leaf_act)
         β_leaf = cal_vulnerability_curve(params, ψ_leaf_act, p50_leaf, shape_factor_leaf)
-
-        ### Step 3.8: Update Farquhar info.
-        land = cal_Farquhar_info(params, forcing, land, helpers, temp_leaf_degC)
-        @unpack_nt begin
-            (ca_Pa, ca_mol, gamma_star, efficient_lai, patm) ⇐ land.diagnostics
-            leaf_saturated_VPD ⇐ land.diagnostics
-            (KM, J_actual, Vcmax, dark_respiration, dark_respiration_mol) ⇐ land.diagnostics
-            (Κ_soil_root, Κ_soil, Κ_root, ψ_soil, fraction_root, root_surface_area) ⇐ land.diagnostics
-            root_over ⇐ land.rootWaterEfficiency
-        end
         fq = (; Vcmax, KM, J_actual, gamma_star, ca_mol, ca_Pa, patm, efficient_lai, dark_respiration, dark_respiration_mol, f_daytime_seconds)
 
     end
 
+    land = _pack_Farquhar_info(land, farquhar_info)
+
     ### Step 4: Record results.
     # Tleaf and Tair.
-    leaf_temp_diff = temp_leaf_degC - f_airT_day
+    leaf_temp_diff = temp_leaf_degC - f_airT
 
     # water potential
     ψ_leaf = ψ_leaf_prev = ψ_leaf_act
@@ -508,8 +548,10 @@ function compute(params::plantHydraulics_PHS, forcing, land, helpers)
     delta_tr = phs_transpiration - tran_gs # mm d-1, canopy scale
 
     # energy fluxes of the canopy, W m-2 ground.
+    # as in CLM5 (CanopyFluxesMod, err and erre added to eflx_sh_veg), the remaining energy balance error of the leaf goes to the sensible heat, so that the canopy energy balance is closed.
+    leaf_energy_balance_error = ϵ_residual * LAI_l # W m-2 ground
     LE_canopy = LE * LAI_l
-    H_canopy_flux = H * LAI_l
+    H_canopy_flux = (H + ϵ_residual) * LAI_l
 
     @pack_nt begin
         (rs, ra, ustar, uz0, rai, rar, rac, rws, rbc, raa, rawc, raws) ⇒ land.diagnostics
@@ -520,7 +562,7 @@ function compute(params::plantHydraulics_PHS, forcing, land, helpers)
         (gs_Medlyn, gs_canopy, ci_Pa, ci_prev) ⇒ land.diagnostics
         (leaf_VPD, leaf_RH, leaf_actual_pressure) ⇒ land.diagnostics
         (phs_transpiration, tran_gs, delta_tr) ⇒ land.diagnostics
-        (LE_canopy, H_canopy_flux, Rn_canopy) ⇒ land.diagnostics
+        (LE_canopy, H_canopy_flux, Rn_canopy, leaf_energy_balance_error) ⇒ land.diagnostics
         leaf_temp_diff ⇒ land.diagnostics
     end
 
@@ -599,8 +641,8 @@ function cal_resistances(params::plantHydraulics_PHS, forcing, land, helpers, L=
     x_soil = n * soil_roughness_height / h
     rai = z > zr ? (log((z - d) / (zr - d)) - ph_z + ph_zr) / (k_von * ustar) : zero(ustar) # W&V Eq 41
     rar = (zr - h) / (zr - d) / (k_von * ustar) - phs_zr + phs_h # W&V Eq 39
-    rac = h * sinh(n) / (n * Kh) * (log(tanh(n / 2)) - log(tanh(x_z0 / 2))) # W&V Eq 42
-    rws = h * sinh(n) / (n * Kh) * (log(tanh(x_z0 / 2)) - log(tanh(x_soil / 2))) # W&V Eq 43
+    rac = _within_canopy_resistance(h, n, Kh, n, x_z0) # W&V Eq 42
+    rws = _within_canopy_resistance(h, n, Kh, x_z0, x_soil) # W&V Eq 43
     rbc = rbc_coefficient / LAI * sqrt(leaf_width / uz0) # W&V Eq 31, but slightly different
 
     raa = min(maximum_resistance, rai + rar + rac) # above the canopy
@@ -611,6 +653,26 @@ function cal_resistances(params::plantHydraulics_PHS, forcing, land, helpers, L=
 end
 
 # stability correction for momentum, Paulson (1970)
+# h * sinh(n) / (n * Kh) * (log(tanh(x_upper / 2)) - log(tanh(x_lower / 2))), the within-canopy resistances of W&V Eq 42 and 43.
+# Written directly, the formula fails for a dense canopy: sinh(n) grows as exp(n) with n proportional to LAI, while tanh(x / 2) rounds to 1, so that it gives 0 (LAI larger than about 15 in Float32) and Inf * 0 = NaN when h * sinh(n) overflows (LAI larger than about 95).
+# Here sinh(n) = exp(n) (1 - exp(-2n)) / 2 and exp(n) log(tanh(x / 2)) = -2 exp(n - x) (1 + exp(-2x) / 3 + exp(-4x) / 5 + ...) for large x, evaluated in Float64.
+# The result is limited to the largest finite value of the input type (reached only for an unrealistically dense canopy, LAI larger than about 800); the resistances that use it are limited by maximum_resistance anyway.
+function _within_canopy_resistance(h, n, Kh, x_upper, x_lower)
+    T = typeof(h)
+    h, n, Kh, x_upper, x_lower = Float64(h), Float64(n), Float64(Kh), Float64(x_upper), Float64(x_lower)
+    resistance = h * (1 - exp(-2 * n)) / (2 * n * Kh) * (_exp_log_tanh_half(n, x_upper) - _exp_log_tanh_half(n, x_lower))
+    return T(clamp(resistance, -floatmax(T), floatmax(T)))
+end
+
+# exp(n) * log(tanh(x / 2))
+function _exp_log_tanh_half(n, x)
+    if x > 10
+        e2 = exp(-2 * x)
+        return -2 * exp(n - x) * (1 + e2 / 3 + e2^2 / 5 + e2^3 / 7)
+    end
+    return exp(n) * log(tanh(x / 2))
+end
+
 function _psi_momentum(params::plantHydraulics_PHS, z, L)
     @unpack_plantHydraulics_PHS params
     if L < L_unstable
@@ -708,12 +770,14 @@ end
 function _soil_layer_hydrology(::Type{T}, params::plantHydraulics_PHS, vg, LAI, sai, Rsf, froot_to_leaf, z_zero, soilW_l, ΔsoilW_l, D_soil_inv_mm_l, D_soil_cum_m_l, D_root_deno_l, D_soil_m_l, k_sat_l, root_over_l, rsa_l) where {T}
     @unpack_plantHydraulics_PHS params
     θ = (soilW_l + ΔsoilW_l) * D_soil_inv_mm_l
-    soil_potential, theta_res, theta_sat, saturation = _soil_matric_potential(params, vg, θ)
+    soil_potential, theta_res, theta_sat, saturation, saturation_pow_m = _soil_matric_potential(params, vg, θ)
 
     if root_over_l > z_zero
         root_fraction = rsa_l / Rsf
         layer_head = _pos_Inf_not_NaN(soil_potential - D_soil_cum_m_l)
-        k_soil_unsat = k_sat_l * mm_2_m * sqrt(saturation) * (1 - (1 - saturation ^ (1 / vg.mvg)) ^ vg.mvg) ^ 2 # m d-1
+        # (1 - (1 - S^(1/m))^m)^2 with S^(1/m) from _soil_matric_potential; powers are evaluated as exp(y * log(x)), which is faster than x^y.
+        one_minus_pow_m = max(1 - saturation_pow_m, z_zero)
+        k_soil_unsat = k_sat_l * mm_2_m * sqrt(saturation) * (1 - exp(vg.mvg * log(one_minus_pow_m))) ^ 2 # m d-1
 
         ### soil conductance based on van-Genuchten model., m d-1
         Ω_soil = sqrt(oftype(root_radius, π) / 2) * sqrt(root_radius * D_soil_m_l / rsa_l) / k_soil_unsat # m d-1
@@ -738,17 +802,18 @@ function _soil_matric_potential(params::plantHydraulics_PHS, vg, θ)
     z_zero = zero(saturation)
     o_one = one(saturation)
 
-    inverse_saturation = saturation ^ (-o_one / vg.mvg)
+    # powers are evaluated as exp(y * log(x)), which is faster than x^y; saturation_pow_m is S^(1/m) = 1 / S^(-1/m).
+    inverse_saturation = exp(-log(saturation) / vg.mvg) # S^(-1/m)
     if !isfinite(inverse_saturation)
-        return oftype(z_zero, minimum_soil_potential), θ_res, θ_sat, saturation
+        return oftype(z_zero, minimum_soil_potential), θ_res, θ_sat, saturation, z_zero
     end
 
     pressure_term = max(inverse_saturation - o_one, z_zero)
-    ψ_soil_matric = -(pressure_term ^ (o_one / vg.nvg)) / vg.avg
+    ψ_soil_matric = -exp(log(pressure_term) / vg.nvg) / vg.avg # -(S^(-1/m) - 1)^(1/n) / α
     if !isfinite(ψ_soil_matric)
-        return oftype(z_zero, minimum_soil_potential), θ_res, θ_sat, saturation
+        return oftype(z_zero, minimum_soil_potential), θ_res, θ_sat, saturation, inv(inverse_saturation)
     end
-    return clamp(ψ_soil_matric, minimum_soil_potential, z_zero), θ_res, θ_sat, saturation
+    return clamp(ψ_soil_matric, minimum_soil_potential, z_zero), θ_res, θ_sat, saturation, inv(inverse_saturation)
 end
 
 ### =========================
@@ -905,11 +970,17 @@ function cal_saturated_pressure(params::plantHydraulics_PHS, Temperature)
 end
 
 function cal_Farquhar_info(params::plantHydraulics_PHS, forcing, land, helpers, temp_leaf_degC)
+    farquhar_info = _Farquhar_info(params, forcing, land, helpers, temp_leaf_degC)
+    return _pack_Farquhar_info(land, farquhar_info)
+end
+
+# the Farquhar variables at a leaf temperature as a NamedTuple. The leaf temperature iteration uses it directly and writes the land only once after the iteration.
+function _Farquhar_info(params::plantHydraulics_PHS, forcing, land, helpers, temp_leaf_degC)
     @unpack_plantHydraulics_PHS params
     @unpack_nt begin
         (f_SW, f_VPD_day, f_daytime_seconds) ⇐ forcing
         (ambient_CO2, LAI, fAPAR) ⇐ land.states
-        (f_psurf_day, f_airT_day) ⇐ forcing
+        (f_psurf_day, f_airT) ⇐ forcing
         (z_zero, o_one) ⇐ land.constants
     end
 
@@ -939,13 +1010,18 @@ function cal_Farquhar_info(params::plantHydraulics_PHS, forcing, land, helpers, 
     J_actual = Jmax > minimum_Jmax ? numerator / sqrt(denominator) : z_zero # mol C m-2 s-1
 
     # Leaf VPD is calculated based on Kelvin equation to consider the effects of leaf water potential.
-    air_saturated_pressure = cal_saturated_pressure(params, f_airT_day) # kPa
+    air_saturated_pressure = cal_saturated_pressure(params, f_airT) # kPa
     leaf_saturated_pressure = cal_saturated_pressure(params, temp_leaf_degC) # kPa
     air_actual_pressure = at_least_zero(air_saturated_pressure - at_least_zero(f_VPD_day)) # kPa
     leaf_saturated_VPD = at_least_zero(leaf_saturated_pressure - air_actual_pressure) # kPa
 
     dark_respiration, factor_LAI_Nitrogen_dark_respiration, dark_respiration_mol = cal_dark_respiration(params, forcing, land, helpers, Vcmax)
 
+    return (; KM, patm, temp_fac, arrhenius_factor, deactivation_high_temp, deactivation_low_temp, Sharpe_Schoolfield_fac_Vc, Sharpe_Schoolfield_fac_J, Jmax, Vcmax, J_actual, gamma_star, ca_Pa, ca_mol, efficient_lai, leaf_saturated_pressure, air_saturated_pressure, air_actual_pressure, leaf_saturated_VPD, temp_leaf_degC, temp_leaf_K, Iabs, Phi_o, dark_respiration, factor_LAI_Nitrogen_dark_respiration, dark_respiration_mol)
+end
+
+function _pack_Farquhar_info(land, farquhar_info)
+    (; KM, patm, temp_fac, arrhenius_factor, deactivation_high_temp, deactivation_low_temp, Sharpe_Schoolfield_fac_Vc, Sharpe_Schoolfield_fac_J, Jmax, Vcmax, J_actual, gamma_star, ca_Pa, ca_mol, efficient_lai, leaf_saturated_pressure, air_saturated_pressure, air_actual_pressure, leaf_saturated_VPD, temp_leaf_degC, temp_leaf_K, Iabs, Phi_o, dark_respiration, factor_LAI_Nitrogen_dark_respiration, dark_respiration_mol) = farquhar_info
     @pack_nt begin
         (KM, patm, temp_fac) ⇒ land.diagnostics
         (arrhenius_factor, deactivation_high_temp, deactivation_low_temp, Sharpe_Schoolfield_fac_Vc, Sharpe_Schoolfield_fac_J) ⇒ land.diagnostics
@@ -957,6 +1033,7 @@ function cal_Farquhar_info(params::plantHydraulics_PHS, forcing, land, helpers, 
         (Iabs, Phi_o) ⇒ land.diagnostics
         (dark_respiration, factor_LAI_Nitrogen_dark_respiration, dark_respiration_mol) ⇒ land.diagnostics
     end
+    return land
 end
 
 ### =========================
@@ -1068,6 +1145,10 @@ function _solve_ci_Pa(params::plantHydraulics_PHS, fq, leaf_stress, ci_prev, lea
         return clamp(best_ci, fq.gamma_star, fq.ca_Pa)
     end
 
+    # analytical candidates first: for each limiting regime the Farquhar-Medlyn system is a quadratic equation of ci. A candidate is only accepted when it fulfils the full residual (including the minimum of the two limitations), otherwise the bracketing solver below is used.
+    ci_analytic = _solve_ci_analytic(params, fq, leaf_stress, leaf_VPD)
+    isnan(ci_analytic) || return ci_analytic
+
     residual = ci -> _ci_residual(params, fq, leaf_stress, ci, leaf_VPD)
 
     ϵ_lower = residual(ci_lower)
@@ -1085,6 +1166,60 @@ function _solve_ci_Pa(params::plantHydraulics_PHS, fq, leaf_stress, ci_prev, lea
     end
     
     return oftype(ci_lower, ci_prev)
+end
+
+# Roots of the ci residual for the Rubisco-limited and the light-limited regime.
+# Both limitations have the form A = V (ci - Γ) / (ci + K): Rubisco V = Vcmax * stress, K = KM; light V = J / 4, K = 2 Γ.
+# With An = A - Rd, gs = g0 + a An (a = (1 + g1 / sqrt(VPD)) / ca_mol) and the residual gs (ca - ci) / patm - An = 0, multiplying by (ci + K) gives u ci^2 - b ci - c = 0 with
+# P = V - Rd, Q = V Γ + Rd K, u = g0 + a P, w = g0 K - a Q, b = u ca - w - patm P, c = ca w + patm Q.
+# When gs is zero (closed stomata, zero VPD or a negative g0 + a An) the root is An = 0, i.e. ci = Q / P.
+# Every root of the residual is a root of one of the regimes. A candidate is accepted only if it fulfils the full residual (including the minimum of the two limitations) and if it is the only root, otherwise NaN is returned and the bracketing solver is used.
+function _solve_ci_analytic(params::plantHydraulics_PHS, fq, leaf_stress, leaf_VPD)
+    @unpack_plantHydraulics_PHS params
+    failure = oftype(fq.ca_Pa, NaN)
+    ca = Float64(fq.ca_Pa)
+    Γ = Float64(fq.gamma_star)
+    patm = Float64(fq.patm)
+    Rd = Float64(fq.dark_respiration_mol)
+    open_stomata = isfinite(leaf_VPD) && leaf_VPD > zero(leaf_VPD)
+    a = open_stomata ? (1.0 + Float64(g1) / sqrt(Float64(leaf_VPD))) / Float64(fq.ca_mol) : 0.0
+    g0_ = open_stomata ? Float64(g0) : 0.0
+    root = failure
+    n_roots = 0
+    for regime in 1:2
+        V = regime == 1 ? Float64(fq.Vcmax) * Float64(leaf_stress) : Float64(fq.J_actual) / 4
+        K = regime == 1 ? Float64(fq.KM) : 2 * Γ
+        P = V - Rd
+        Q = V * Γ + Rd * K
+        u = g0_ + a * P
+        w = g0_ * K - a * Q
+        b = u * ca - w - patm * P
+        c = ca * w + patm * Q
+        disc = b * b + 4 * u * c
+        for candidate in 1:3
+            if candidate == 3
+                ci = P > 0.0 ? Q / P : NaN # An = 0
+            elseif u == 0.0
+                ci = (candidate == 1 && b != 0.0) ? -c / b : NaN # linear equation
+            elseif disc >= 0.0
+                ci = (b + (candidate == 1 ? 1.0 : -1.0) * sqrt(disc)) / (2 * u)
+            else
+                ci = NaN
+            end
+            if Γ <= ci <= ca
+                ci_f = oftype(fq.ca_Pa, ci)
+                if abs(_ci_residual(params, fq, leaf_stress, ci_f, leaf_VPD)) < ci_residual_tolerance
+                    if n_roots == 0
+                        root = ci_f
+                        n_roots = 1
+                    elseif abs(ci_f - root) > 2 * convergence_ci
+                        return failure # more than one root
+                    end
+                end
+            end
+        end
+    end
+    return root
 end
 
 function _ci_residual(params::plantHydraulics_PHS, fq, leaf_stress, ci, leaf_VPD)
@@ -1268,11 +1403,14 @@ end
 # calculate leaf latent and sensible heat fluxes.
 ### =========================
 function cal_latent_heat_fluxes(params::plantHydraulics_PHS, forcing, land, helpers, Tleaf, psi_leaf_m, ra, rs)
+    @unpack_nt (leaf_saturated_pressure, air_actual_pressure) ⇐ land.diagnostics
+    return _latent_heat_fluxes(params, forcing, leaf_saturated_pressure, air_actual_pressure, Tleaf, psi_leaf_m, ra, rs)
+end
+
+# leaf_saturated_pressure is the saturated vapor pressure at Tleaf.
+function _latent_heat_fluxes(params::plantHydraulics_PHS, forcing, leaf_saturated_pressure, air_actual_pressure, Tleaf, psi_leaf_m, ra, rs)
     @unpack_plantHydraulics_PHS params
-    @unpack_nt begin
-        (f_psurf_day, f_airT_day, f_daytime_seconds) ⇐ forcing
-        (leaf_saturated_pressure, air_actual_pressure) ⇐ land.diagnostics
-    end
+    @unpack_nt (f_psurf_day, f_airT, f_daytime_seconds) ⇐ forcing
     # ra is aerodynamic resistance for heat, s m-1.
     # all fluxes are per m2 of leaf area, as in SCOPE heatfluxes.m.
     # rs is stomatal resistance, s m-1.
@@ -1290,7 +1428,7 @@ function cal_latent_heat_fluxes(params::plantHydraulics_PHS, forcing, land, help
     qa = kPa_2_hPa * air_actual_pressure * e_to_q # vapor pressure of the air, kPa to hPa, and then to specific humidity, kg kg-1.
 
     LE = rhoa / (ra + rs) * lambda * (qi - qa) # W m-2
-    H = rhoa * cp / ra * (Tleaf - f_airT_day) # W m-2
+    H = rhoa * cp / ra * (Tleaf - f_airT) # W m-2
 
     transpiration = LE / lambda * f_daytime_seconds # kg m-2 s-1 (= mm s-1) over the daytime seconds, mm d-1 (per m2 leaf)
 
@@ -1353,5 +1491,6 @@ $(getModelDocString(plantHydraulics_PHS))
  - 1.0 on 21.09.2026 [jzhou]
  - 1.1 on 05.10.2026 [jzhou]
  - 1.2 on 18.10.2026 [jzhou]: leaf temperature from the leaf energy balance (after SCOPE)
+ - 1.3 on 06.11.2026: faster solution of the leaf energy balance. The leaf temperature update is a Newton step (secant after the first iteration) with the sensitivity of the energy balance error that is used in `ϵ`, the stomatal conductance is relaxed with the secant method, the leaf water potential is iterated directly and starts from the previous time step, `ci` is solved analytically for each limiting regime (verified with the residual, the Brent solver is the fallback), the Farquhar variables are written to the land once after the iteration. The leaf temperature update follows CLM5 (CanopyFluxesMod): the change of the leaf temperature in one iteration is limited (`Tleaf_max_step`, delmax), the latent heat flux is reduced to 10% when it changes sign between two iterations, the iteration stops when the last two changes of the leaf temperature (`convergence_Tleaf_K`, dtmin) and the change of the latent heat flux (`convergence_LE`, dlemin) are small and the stomatal conductance has converged (`convergence_gs`), and the remaining energy balance error goes to the sensible heat (diagnostic `leaf_energy_balance_error`). The relaxation parameters `Tleaf_damping_5`, `Tleaf_damping_10`, `Tleaf_damping_30` and `Tleaf_relax_iter_1/2/3` and `psi_leaf_damping` are not used anymore.
 """
 plantHydraulics_PHS

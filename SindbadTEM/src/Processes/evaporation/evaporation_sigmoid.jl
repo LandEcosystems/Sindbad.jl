@@ -1,9 +1,10 @@
 export evaporation_sigmoid
 
 #! format: off
-@bounds @describe @units @timescale @with_kw struct evaporation_sigmoid{T1,T2} <: evaporation
-    beta_shape::T1 = 3.0 | (2.0, 10.0) | "sigmoid parameters" | "" | ""
-    beta_50::T2 = 0.2 | (0.01, 0.5) | "sigmoid parameters" | "day-1" | "day"
+@bounds @describe @units @timescale @with_kw struct evaporation_sigmoid{T1,T2, T3} <: evaporation
+    beta_shape::T1 = 10.0 | (4.0, 40.0) | "sensitivity of Es to soil moisture" | "" | ""
+    beta_50::T2 = 0.4 | (0.1, 0.9) | "water stress equals 0.5. Relative soil saturation" | "" | ""
+    α::T3 = 1.0 | (0.5, 1.5) | "α coefficient of Priestley-Taylor formula for soil" | "" | ""
 end
 #! format: on
 
@@ -17,19 +18,25 @@ function compute(params::evaporation_sigmoid, forcing, land, helpers)
         soilW ⇐ land.pools
         ΔsoilW ⇐ land.pools
         PET ⇐ land.fluxes
-        (sp_θ_wp, sp_θ_fc, soil_layer_thickness) ⇐ land.properties
+        (f_thetar_van_Genuchten, f_thetas_van_Genuchten) ⇐ forcing
+        soil_layer_thickness ⇐ land.properties
         (z_zero, o_one) ⇐ land.constants
     end
 
     # multiply equilibrium PET with αSoil & [1.0 - fAPAR] to get potential soil evap
-    PET_evaporation = at_least_zero(PET * (o_one - fAPAR))
+    PET_evaporation = at_least_zero(PET * α * (o_one - fAPAR))
     # water stress from the surface soil.
-    beta_50 = clamp(beta_50, sp_θ_wp[1], sp_θ_fc[1]) # ensure beta_50 is within the range of soil moisture content
-    theta = (soilW[1] + ΔsoilW[1]) / soil_layer_thickness[1] # soil moisture content, m3/m3
-    beta_soil_evaporation = o_one / (o_one + exp(beta_shape * (beta_50 - theta)))
-    beta_soil_evaporation = clamp_zero_one(beta_soil_evaporation)
+    dz = soil_layer_thickness[1]
+    θ_r, θ_s = f_thetar_van_Genuchten, f_thetas_van_Genuchten
+    W_top = soilW[1] + ΔsoilW[1]
+    saturation = clamp_zero_one((W_top / dz - θ_r) / (θ_s - θ_r))
+    β_raw = o_one / (o_one + exp(beta_shape * (beta_50 - saturation)))
+    β_dry = o_one / (o_one + exp(beta_shape * beta_50))
+    β_wet = o_one / (o_one + exp(beta_shape * (beta_50 - o_one)))
+    beta_soil_evaporation = clamp_zero_one((β_raw - β_dry) / (β_wet - β_dry))
 
-    evaporation = PET_evaporation * beta_soil_evaporation
+    # Soil evaporation is limited by the available water in the top soil layer.
+    evaporation = min(PET_evaporation * beta_soil_evaporation, at_least_zero(W_top - θ_r * dz))
 
     # update soil moisture changes
     @add_to_elem -evaporation ⇒ (ΔsoilW, 1)
@@ -55,6 +62,8 @@ $(getModelDocString(evaporation_sigmoid))
 # Extended help
 
 *References*
+1. Lee, T. J., & Pielke, R. A. (1992). Estimating the soil surface specific humidity. Journal of Applied Meteorology, 31(5), 480–484.
+2. Merlin, O., Al Bitar, A., Rivalland, V., Béziat, P., Ceschia, E., & Dedieu, G. (2011). An analytical model of evaporation efficiency for unsaturated soil surfaces with an arbitrary thickness. Journal of Applied Meteorology and Climatology, 50(2), 457–471. doi:10.1175/2010JAMC2418.1
 
 *Versions*
  - 1.0 on 04.11.2026 [jzhou]

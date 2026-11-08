@@ -247,7 +247,6 @@ module Processes
     ```
     """
     function includeApproaches(modl, dir)
-        include_dependency(dir)
         include.(filter(contains("$(nameof(modl))_"), readdir(dir; join=true)))
         return
     end

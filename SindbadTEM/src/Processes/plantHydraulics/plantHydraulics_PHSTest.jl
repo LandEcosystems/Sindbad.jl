@@ -259,13 +259,13 @@
 # function compute(params::plantHydraulics_PHS, forcing, land, helpers)
 #     @unpack_plantHydraulics_PHS params
 #     @unpack_nt begin
-#         f_airT_day ⇐ forcing
+#         f_airT ⇐ forcing
 #         leaf_temp_diff ⇐ land.diagnostics
 #         o_one ⇐ land.constants
 #     end
 
 #     ### Step 0: initialize
-#     temp_leaf_degC = f_airT_day + leaf_temp_diff
+#     temp_leaf_degC = f_airT + leaf_temp_diff
 
 #     ### Step 1: calculate resistances, soil hydrology, and Farquhar info.
 #     land = cal_soil_hydrology(params, forcing, land, helpers)
@@ -295,7 +295,7 @@
 #     end
     
 #     land = cal_PHS_root_uptake(params, forcing, land_phs, helpers)
-#     leaf_temp_diff = temp_leaf_degC - f_airT_day
+#     leaf_temp_diff = temp_leaf_degC - f_airT
 #     @pack_nt leaf_temp_diff ⇒ land.diagnostics
 #     return land
 # end
@@ -552,7 +552,7 @@
 #     @unpack_nt begin
 #         (f_SW, f_VPD_day, f_daytime_seconds) ⇐ forcing
 #         (ambient_CO2, LAI, fAPAR) ⇐ land.states
-#         (f_psurf_day, f_airT_day) ⇐ forcing
+#         (f_psurf_day, f_airT) ⇐ forcing
 #         (z_zero, o_one) ⇐ land.constants
 #     end
 
@@ -580,7 +580,7 @@
 #     J_actual = Jmax > minimum_Jmax ? numerator / sqrt(denominator) : z_zero # mol C m-2 s-1
 
 #     # Leaf VPD is calculated based on Kelvin equation to consider the effects of leaf water potential.
-#     air_saturated_pressure = cal_saturated_pressure(f_airT_day) # kPa
+#     air_saturated_pressure = cal_saturated_pressure(f_airT) # kPa
 #     leaf_saturated_pressure = cal_saturated_pressure(temp_leaf_degC) # kPa
 #     air_actual_pressure = at_least_zero(air_saturated_pressure - at_least_zero(f_VPD_day)) # kPa
 #     leaf_saturated_VPD = at_least_zero(leaf_saturated_pressure - air_actual_pressure) # kPa
@@ -1019,13 +1019,13 @@
 # function cal_leaf_energy_balance(params::plantHydraulics_PHS, forcing, land, helpers)
 #     @unpack_plantHydraulics_PHS params
 #     @unpack_nt begin
-#         (f_rn, f_ws, f_airT_day, f_daytime_seconds) ⇐ forcing
+#         (f_rn, f_ws, f_airT, f_daytime_seconds) ⇐ forcing
 #         (LAI, fAPAR) ⇐ land.states
 #         (patm, efficient_lai, gs_Medlyn, ψ_leaf, air_actual_pressure, temp_leaf_degC) ⇐ land.diagnostics
 #     end
 
 #     cp = c_p * con_1e6 # J kg-1 K-1
-#     air_K = f_airT_day + deg_2_K
+#     air_K = f_airT + deg_2_K
 
 #     ### net radiation absorbed by the canopy, W m-2 ground; radiation is assumed to fall in the daytime.
 #     fc = fAPAR
@@ -1052,9 +1052,9 @@
 #         leaf_vapor_hPa = 10 * cal_saturated_pressure(temp_leaf_balance) * min(exp(psi_leaf_Pa * Vw / (k_R * leaf_K)), 1) # Kelvin equation
 #         vapor_slope = leaf_vapor_hPa * 17.27 * 237.3 / (temp_leaf_balance + 237.3) ^ 2 # hPa K-1
 
-#         net_radiation = Rn - longwave_slope * (temp_leaf_balance - f_airT_day)
+#         net_radiation = Rn - longwave_slope * (temp_leaf_balance - f_airT)
 #         latent_heat = ρ * lambda * e_to_q * (leaf_vapor_hPa - air_vapor_hPa) / (r_a + r_s)
-#         sensible_heat = ρ * cp * (temp_leaf_balance - f_airT_day) / r_a
+#         sensible_heat = ρ * cp * (temp_leaf_balance - f_airT) / r_a
 #         energy_residual = net_radiation - latent_heat - sensible_heat
 #         energy_slope = ρ * cp / r_a + ρ * lambda * e_to_q * vapor_slope / (r_a + r_s) + longwave_slope
 
@@ -1062,7 +1062,7 @@
 #         temp_leaf_balance += delta_temp
 #         abs(delta_temp) < 1e-4 && break
 #     end
-#     temp_leaf_balance = clamp(temp_leaf_balance, f_airT_day - 10, f_airT_day + 20)
+#     temp_leaf_balance = clamp(temp_leaf_balance, f_airT - 10, f_airT + 20)
 #     temp_leaf_balance = LAI > minimum_lai && isfinite(temp_leaf_balance) ? temp_leaf_balance : temp_leaf_degC
 #     temp_leaf_balance = oftype(temp_leaf_degC, temp_leaf_balance)
 
@@ -1176,11 +1176,11 @@
 
 #     @unpack_plantHydraulics_PHS params
 #     @unpack_nt begin
-#         (f_psurf_day, f_airT_day) ⇐ forcing
+#         (f_psurf_day, f_airT) ⇐ forcing
 #     end
 
 #     # Air temperature, deg C
-#     Ta = f_airT_day
+#     Ta = f_airT
 #     # Atmospheric pressure, kPa
 #     patm = f_psurf_day
 

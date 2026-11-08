@@ -249,7 +249,7 @@
 # function compute(params::plantHydraulics_CLM, forcing, land, helpers)
 #     @unpack_plantHydraulics_CLM params
 #     @unpack_nt begin
-#         (f_rn, f_PAR, f_airT_day, f_daytime_seconds, f_canopy_height, f_month_air_temperature) ⇐ forcing
+#         (f_rn, f_PAR, f_airT, f_daytime_seconds, f_canopy_height, f_month_air_temperature) ⇐ forcing
 #         (LAI, fAPAR, ambient_CO2, PAW) ⇐ land.states
 #         (z_zero, o_one) ⇐ land.constants
 #     end
@@ -288,7 +288,7 @@
 #     # leaf temperature and energy, W m-2 ground
 #     temp_leaf_K = sol.Tv
 #     temp_leaf_degC = sol.Tv - deg_2_K
-#     leaf_temp_diff = temp_leaf_degC - f_airT_day
+#     leaf_temp_diff = temp_leaf_degC - f_airT
 #     LE_canopy = sol.LE
 #     H_canopy_flux = sol.H
 #     Rn_canopy = sol.Rn
@@ -401,12 +401,12 @@
 # function _clm_atmosphere(params::plantHydraulics_CLM, forcing)
 #     @unpack_plantHydraulics_CLM params
 #     @unpack_nt begin
-#         (f_airT_day, f_VPD_day, f_psurf_day, f_ws) ⇐ forcing
+#         (f_airT, f_VPD_day, f_psurf_day, f_ws) ⇐ forcing
 #     end
-#     Ta_K = f_airT_day + deg_2_K
+#     Ta_K = f_airT + deg_2_K
 #     P_kPa = f_psurf_day
 #     P_Pa = P_kPa * con_1e3
-#     es_air, _ = _clm_esat(params, f_airT_day)
+#     es_air, _ = _clm_esat(params, f_airT)
 #     e_air = at_least_zero(es_air - at_least_zero(f_VPD_day)) # kPa
 #     q_air = eps_ratio * e_air / (P_kPa - vapor_correction * e_air) # kg kg-1
 #     rho_air = (P_Pa - vapor_correction * e_air * con_1e3) / (R_air * Ta_K) # kg m-3
