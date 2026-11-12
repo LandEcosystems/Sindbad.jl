@@ -15,7 +15,9 @@ function compute(params::cBiomass_treeGrass_cVegReserveScaling, forcing, land, h
     cVegWood_sum = totalS_indices(cEco, helpers.pools.zix.cVegWood)
     cVegReserve_sum = totalS_indices(cEco, helpers.pools.zix.cVegReserve)
     cVegRoot_sum = totalS_indices(cEco, helpers.pools.zix.cVegRoot)
-    aboveground_biomass = (cVegWood_sum + cVegLeaf_sum) + cVegReserve_sum * (cVegWood_sum + cVegLeaf_sum) / (cVegWood_sum + cVegLeaf_sum + cVegRoot_sum)
+    cVeg_struct = cVegWood_sum + cVegLeaf_sum + cVegRoot_sum
+    above_frac = ifelse(iszero(cVeg_struct), zero(cVeg_struct), (cVegWood_sum + cVegLeaf_sum) / cVeg_struct)
+    aboveground_biomass = (cVegWood_sum + cVegLeaf_sum) + cVegReserve_sum * above_frac
 
 	
     aboveground_biomass = frac_tree > zero(frac_tree) ? aboveground_biomass : cVegWood_sum

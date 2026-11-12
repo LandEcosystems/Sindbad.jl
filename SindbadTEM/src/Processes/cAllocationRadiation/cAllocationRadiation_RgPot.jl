@@ -18,7 +18,7 @@ function compute(params::cAllocationRadiation_RgPot, forcing, land, helpers)
 
 	rg_pot_max = max(rg_pot_max, f_rg_pot)
 
-	c_allocation_f_cloud = f_rg_pot / rg_pot_max
+	c_allocation_f_cloud = ifelse(iszero(rg_pot_max), zero(rg_pot_max), f_rg_pot / rg_pot_max)
 
 	@pack_nt begin
 		c_allocation_f_cloud ⇒ land.diagnostics
