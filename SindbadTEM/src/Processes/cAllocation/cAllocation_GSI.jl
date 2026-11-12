@@ -41,10 +41,11 @@ function compute(params::cAllocation_GSI, forcing, land, helpers)
     # allocation to root; wood & leaf
     w_t = c_allocation_f_soilW + c_allocation_f_soilT
     two_w_t = w_t + w_t
+    is_zero_wt = iszero(w_t)
 
-    a_cVegLeaf = c_allocation_f_soilW / two_w_t
-    a_cVegWood = c_allocation_f_soilW / two_w_t
-    a_cVegRoot = c_allocation_f_soilT / w_t
+    a_cVegLeaf = ifelse(is_zero_wt, oftype(w_t, 0.25), c_allocation_f_soilW / two_w_t)
+    a_cVegWood = ifelse(is_zero_wt, oftype(w_t, 0.25), c_allocation_f_soilW / two_w_t)
+    a_cVegRoot = ifelse(is_zero_wt, oftype(w_t, 0.5), c_allocation_f_soilT / w_t)
 
     # @needscheck. from semda l and w are allocated more when there is no water stress
     # % change a2L a2R a2W according to DAS components...
