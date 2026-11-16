@@ -1,7 +1,7 @@
 export cDieBack_ImplicitResprout
 
 #! format: off
-@bounds @describe @units @timescale @with_kw struct cDieBack_ImplicitResprout{T1} <: cCycleDisturbance
+@bounds @describe @units @timescale @with_kw struct cDieBack_ImplicitResprout{T1} <: cDieBack
     frac_reserve_survival::T1 = 1.0 | (0.0, 1.0) | "fraction of the reserve carbon pools that survives upon a disturbance" | "" | ""
 end
 #! format: on
@@ -20,34 +20,36 @@ function define(params::cDieBack_ImplicitResprout, forcing, land, helpers)
 end
 
 function compute(params::cDieBack_ImplicitResprout, forcing, land, helpers)
-    ## unpack forcing
-    @unpack_nt f_dist_intensity ⇐ forcing
     @unpack_cDieBack_ImplicitResprout params
 
     ## unpack land variables
     @unpack_nt begin
-        (c_giver, c_taker, c_flow_QP_vec, zix_cHeterotrophic, zix_cVeg) ⇐ land.cCycleBase
+        (c_flow_order, c_giver, c_taker, zix_cHeterotrophic) ⇐ land.cCycleBase
         cEco ⇐ land.pools
         c_remain ⇐ land.states
-        c_model ⇐ land.models
-        (c_disturbance_mortality, c_disturbance_flow, c_disturbance_efflux) ⇐ land.diagnostics
+        z_zero ⇐ land.constants
+        (c_f_cVeg_dieOff, c_flow_QP_vec, c_disturbance_mortality, c_disturbance_flow, c_disturbance_efflux) ⇐ land.diagnostics
     end
-    if f_dist_intensity > z_zero
+    # losses are per time step, so clear the previous step before accumulating.
+    # Clear to a zero of the element type of cEco, so the two vectors keep one type
+    # whether or not the die-off branch runs. With ForwardDiff.Dual parameters, a
+    # Float32 reset would otherwise make the land type depend on a runtime value.
+    c_zero = zero(first(cEco))
+    @rep_vec c_disturbance_mortality ⇒ c_zero
+    @rep_vec c_disturbance_flow ⇒ c_zero
+    @rep_vec c_disturbance_efflux ⇒ helpers.pools.zeros.cEco
+    zix_cVeg = helpers.pools.zix.cVeg
+    if c_f_cVeg_dieOff > z_zero
         for fO ∈ c_flow_order
-            c_giver[fO] ∈ zix_cVeg || continue
+            # only flows from vegetation to litter and soil, as in cFire_simple, so that
+            # c_flow_QP_vec sums to one per giver and each pool loses its die-off once
+            c_giver[fO] ∈ zix_cVeg && c_taker[fO] ∈ zix_cHeterotrophic || continue
             frac_lives = c_giver[fO] ∈ helpers.pools.zix.cVegReserve ? frac_reserve_survival : zero(frac_reserve_survival)
-            cLoss = at_least_zero(cEco[c_giver[fO]] - c_remain * frac_lives) * f_dist_intensity * c_flow_QP_vec[fO]
-            #=
-            # deplete pool
-            @add_to_elem -cLoss ⇒ (cEco, c_giver[fO])
-            # transfer to litter
-            @add_to_elem cLoss ⇒ (cEco, c_taker[fO])
-            =#
+            cLoss = at_least_zero(cEco[c_giver[fO]] - c_remain * frac_lives) * c_f_cVeg_dieOff * c_flow_QP_vec[fO]
             # track mortality
             @add_to_elem cLoss ⇒ (c_disturbance_mortality, c_giver[fO])
             @add_to_elem cLoss ⇒ (c_disturbance_flow, c_taker[fO])
         end
-        land = adjustPackPoolComponents(land, helpers, c_model)
     end
     ## pack land variables
     @pack_nt begin 

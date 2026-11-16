@@ -8,7 +8,7 @@ This file is included from the extension module and can use `Optimization`.
 import Sindbad.ParameterOptimization: optimizer
 
 # get all the types needed to dispatch the function. These types should defined in a corresponding file in Sindbad so that they can be used for dispatching and setup, if that were needed.
-using Sindbad: OptimizationBBOxnes, OptimizationBBOadaptive, OptimizationBFGS, OptimizationFminboxGradientDescentFD, OptimizationFminboxGradientDescent, OptimizationGCMAESDef, OptimizationGCMAESFD, OptimizationMultistartOptimization, OptimizationNelderMead, OptimizationQuadDirect
+using Sindbad: OptimizationBBOxnes, OptimizationBBOadaptive, OptimizationBFGS, OptimizationFminboxGradientDescentFD, OptimizationFminboxGradientDescent, OptimizationMultistartOptimization, OptimizationNelderMead, OptimizationQuadDirect
 
 # Example methods (for reference):
 # - src/ParameterOptimization/optimizer.jl:55  optimizer(::Any, ::Any, ::Any, ::Any, ::Any, ::ParameterOptimizationMethod) @ Sindbad.ParameterOptimization
@@ -20,6 +20,9 @@ using Sindbad: OptimizationBBOxnes, OptimizationBBOadaptive, OptimizationBFGS, O
 #     # TODO: implement
 # end
 
+function ∇loss!(G, x, p, cost_function)
+    FiniteDiff.finite_difference_gradient!(G, cost_function, x)
+end
 
 function optimizer(cost_function, default_values, lower_bounds, upper_bounds, algo_options, ::OptimizationBBOxnes)
     # default_options = (; maxiters = 100)
@@ -66,22 +69,8 @@ function optimizer(cost_function, default_values, lower_bounds, upper_bounds, al
 end
 
 
-function optimizer(cost_function, default_values, lower_bounds, upper_bounds, algo_options, ::OptimizationGCMAESDef)
-    optim_cost = (p, tmp=nothing) -> cost_function(p)
-    optim_cost_f = OptimizationFunction(optim_cost)
-    optim_prob = OptimizationProblem(optim_cost_f, default_values; lb=lower_bounds, ub=upper_bounds)
-    optim_para = solve(optim_prob, GCMAESOpt())
-    return optim_para
-end
-
-
-function optimizer(cost_function, default_values, lower_bounds, upper_bounds, algo_options, ::OptimizationGCMAESFD)
-    optim_cost = (p, tmp=nothing) -> cost_function(p)
-    optim_cost_f = OptimizationFunction(optim_cost, Optimization.AutoForwardDiff())
-    optim_prob = OptimizationProblem(optim_cost_f, default_values; lb=lower_bounds, ub=upper_bounds)
-    optim_para = solve(optim_prob, GCMAESOpt())
-    return optim_para
-end
+# OptimizationGCMAESDef / OptimizationGCMAESFD live in ext/SindbadOptimizationGCMAESExt
+# (they need `GCMAESOpt` from the OptimizationGCMAES sub-package, not from Optimization itself).
 
 function optimizer(cost_function, default_values, lower_bounds, upper_bounds, algo_options, ::OptimizationMultistartOptimization)
     optim_cost = (p, tmp=nothing) -> cost_function(p)

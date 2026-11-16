@@ -62,11 +62,11 @@ requires_package(::Type{OptimizationFminboxGradientDescentFD}) = "Optimization"
 
 struct OptimizationGCMAESDef <: ParameterOptimizationMethod end
 purpose(::Type{OptimizationGCMAESDef}) = "Global CMA-ES optimization with default settings from Optimization.jl"
-requires_package(::Type{OptimizationGCMAESDef}) = "Optimization"
+requires_package(::Type{OptimizationGCMAESDef}) = "OptimizationGCMAES"
 
 struct OptimizationGCMAESFD <: ParameterOptimizationMethod end
 purpose(::Type{OptimizationGCMAESFD}) = "Global CMA-ES optimization using forward differentiation from Optimization.jl"
-requires_package(::Type{OptimizationGCMAESFD}) = "Optimization"
+requires_package(::Type{OptimizationGCMAESFD}) = "OptimizationGCMAES"
 
 struct OptimizationMultistartOptimization <: ParameterOptimizationMethod end
 purpose(::Type{OptimizationMultistartOptimization}) = "Multi-start optimization to find global optimum from Optimization.jl"

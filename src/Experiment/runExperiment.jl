@@ -340,7 +340,7 @@ function runExperimentForward(sindbad_experiment::String; replace_info=Dict(), l
     CSV.write(loss_table_output_file, loss_table)
 
     output_dims = getOutDims(info, forcing.helpers)
-    saveOutCubes(info, values(run_output.output), output_dims, info.output.variables)
+    saveOutCubes(info, values(run_output.output), output_dims, info.output.variables; file_suffix="_default")
     set_log_level()
     return run_output
 end
@@ -361,7 +361,7 @@ Run forward simulation of the model with default as well as modified settings wi
 # Returns
 - A NamedTuple containing both default and optimized model outputs
 """
-function runExperimentForwardParams(params_vector::Vector, sindbad_experiment::String; replace_info=Dict(), log_level=:info)
+function runExperimentForwardParams(params_vector::Vector, sindbad_experiment::String; replace_info=Dict(), log_level=:info, file_suffix="")
     # print_info_separator(sep_text="Forward Simulation with Input/Optimized Parameters")
     # set_log_level(log_level)
     # print_info(runExperimentForwardParams, @__FILE__, @__LINE__, "running forward simulation with input/optimized parameters...", n_m=1)
@@ -384,7 +384,7 @@ function runExperimentForwardParams(params_vector::Vector, sindbad_experiment::S
     # set_log_level()
 
     info, forcing = prepExperimentForwardParams(sindbad_experiment; replace_info=replace_info)
-    return runExperimentForwardParams(params_vector, info, forcing; log_level=log_level)
+    return runExperimentForwardParams(params_vector, info, forcing; log_level=log_level, file_suffix=file_suffix)
 end
 
 """
@@ -405,7 +405,7 @@ end
 
 Same as above, with the `info` and `forcing` of `prepExperimentForwardParams`, so that the settings can be read before the parameters are known (see `runExperimentOpti`).
 """
-function runExperimentForwardParams(params_vector::Vector, info::NamedTuple, forcing::NamedTuple; log_level=:info)
+function runExperimentForwardParams(params_vector::Vector, info::NamedTuple, forcing::NamedTuple; log_level=:info, file_suffix="")
     print_info_separator(sep_text="Forward Simulation with Input/Optimized Parameters")
     set_log_level(log_level)
     print_info(runExperimentForwardParams, @__FILE__, @__LINE__, "running forward simulation with input/optimized parameters...", n_m=1)
@@ -419,7 +419,7 @@ function runExperimentForwardParams(params_vector::Vector, info::NamedTuple, for
     optimized_output = runTEM!(optimized_models, forcing, info)
 
     output_dims = getOutDims(info, forcing.helpers)
-    saveOutCubes(info, optimized_output, output_dims, info.output.variables)
+    saveOutCubes(info, optimized_output, output_dims, info.output.variables; file_suffix=file_suffix)
     
     forward_output = (; optimized=(; Pair.(getUniqueVarNames(info.output.variables), optimized_output)...), default=(; Pair.(getUniqueVarNames(info.output.variables), default_output)...))
     set_log_level()
@@ -516,7 +516,7 @@ function runExperimentOpti(sindbad_experiment::String; replace_info=Dict(), log_
     run_helpers = prepTEM(info.models.forward, forcing, info)
     opti_output = runExperiment(info, forcing, info.helpers.run.run_optimization)
     set_log_level(:info)
-    fp_output = runExperimentForwardParams(opti_output.parameters.optimized, fp_info, fp_forcing)
+    fp_output = runExperimentForwardParams(opti_output.parameters.optimized, fp_info, fp_forcing; file_suffix="_optimized")
     cost_options = prepCostOptions(opti_output.observation, info.optimization.cost_options)
     loss_vector = metricVector(fp_output.output.optimized, opti_output.observation, cost_options)
     loss_vector_def = metricVector(fp_output.output.default, opti_output.observation, cost_options)

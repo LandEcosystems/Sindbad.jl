@@ -48,7 +48,7 @@ end
 
 """
     saveOutCubes(data_path_base, global_metadata, var_pairs, data, data_dims, out_format, t_step, <: OutputStrategy)
-    saveOutCubes(info, out_cubes, output_dims, output_vars)
+    saveOutCubes(info, out_cubes, output_dims, output_vars; file_suffix="")
 
 saves the output variables from the run as one file
 
@@ -58,6 +58,7 @@ saves the output variables from the run as one file
 - `data`: data to be written to file
 - `data_dims`: a vector of dimension of data for each variable to be written to a file
 - `var_pairs`: a tuple of pairs of sindbad variables to write including the field and subfield of land as the first and last element
+- `file_suffix`: (shorthand version only) string appended to `info.output.file_info.file_prefix`, e.g. `"_default"` or `"_optimized"`
 - `out_format`: format of the output file
 - `t_step`: a string for time step of the model run to be used in the units attribute of variables
 - `<: OutputStrategy`: Dispatch type indicating file output mode with the following options:
@@ -108,6 +109,6 @@ function saveOutCubes(data_path_base, global_metadata, data, data_dims, var_pair
 end
 
 
-function saveOutCubes(info, out_cubes, output_dims, output_vars)
-    saveOutCubes(info.output.file_info.file_prefix, info.output.file_info.global_metadata, out_cubes, output_dims, output_vars, info.output.format, info.experiment.basics.temporal_resolution, info.helpers.run.save_single_file)
+function saveOutCubes(info, out_cubes, output_dims, output_vars; file_suffix="")
+    saveOutCubes(info.output.file_info.file_prefix * file_suffix, info.output.file_info.global_metadata, out_cubes, output_dims, output_vars, info.output.format, info.experiment.basics.temporal_resolution, info.helpers.run.save_single_file)
 end
