@@ -43,6 +43,9 @@ julia> combineMetric(metric_vec, MetricMaximum())
 function combineMetric end
 
 function combineMetric(metric_vector::AbstractArray, ::MetricSum)
+    # a location without any valid observation constraint has an empty metric vector,
+    # and it adds nothing to the loss
+    isempty(metric_vector) && return 0.0
     return sum(metric_vector)
 end
 

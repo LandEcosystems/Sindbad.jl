@@ -157,12 +157,14 @@ function getLossFunctionHandles(info, run_helpers, sites)
     # parameters without looking up the models by name, see GradientParameterUpdater
     parameter_updater = prepGradientParameterUpdater(info.optimization.parameter_table, info.models.forward)
 
+    sites_without_constraints = []
     for site_location in eachindex(sites)
         loc_forcing = run_helpers.space_forcing[site_location]
         loc_obs = run_helpers.space_observation[site_location]
         loc_output = getCacheFromOutput(run_helpers.space_output[site_location], info.hybrid.ml_gradient.method)
         loc_spinup = run_helpers.space_spinup[site_location]
         loc_cost_option = prepCostOptions(loc_obs, info.optimization.cost_options)
+        isempty(loc_cost_option) && push!(sites_without_constraints, sites[site_location])
         # one copy of the initial lands per site, made here once, so that sites do not
         # share them, rather than a new copy at every call of the loss
         loc_land = deepcopy(run_helpers.loc_land)
@@ -173,6 +175,9 @@ function getLossFunctionHandles(info, run_helpers, sites)
 
         push!(loss_functions, loss_tmp)
         push!(loss_component_functions, loss_vector_tmp)
+    end
+    if !isempty(sites_without_constraints)
+        @warn "These sites have too few valid observations for every constraint, so their loss is zero and they do not train the model: $(sites_without_constraints)"
     end
     loss_functions = MachineLearning.KeyedArray(loss_functions; site=sites)
     loss_component_functions = MachineLearning.KeyedArray(loss_component_functions; site=sites)
