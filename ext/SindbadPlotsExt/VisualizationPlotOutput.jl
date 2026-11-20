@@ -259,22 +259,24 @@ function plotPerformanceHistograms(out_opti, ::VisualizationPlots)
         (obs_var, obs_σ, def_var) = getData(def_dat, obs_array, var_row)
         (_, _, opt_var) = getData(opt_dat, obs_array, var_row)
 
-        (obs_var_no_nan, obs_σ_no_nan, def_var_no_nan) = getDataWithoutNaN(obs_var, obs_σ, def_var)
-        (obs_var_no_nan, obs_σ_no_nan, opt_var_no_nan) = getDataWithoutNaN(obs_var, obs_σ, opt_var)
+        # the default and the optimized output can have NaN at different time steps, so
+        # each keeps the observations of its own valid time steps
+        (obs_def_no_nan, obs_σ_def_no_nan, def_var_no_nan) = getDataWithoutNaN(obs_var, obs_σ, def_var)
+        (obs_opt_no_nan, obs_σ_opt_no_nan, opt_var_no_nan) = getDataWithoutNaN(obs_var, obs_σ, opt_var)
 
         loss_space = map([run_helpers.space_ind...]) do lsi
             opt_pix = view_at_trailing_indices(opt_var, lsi)
             def_pix = view_at_trailing_indices(def_var, lsi)
             obs_pix = view_at_trailing_indices(obs_var, lsi)
             obs_σ_pix = view_at_trailing_indices(obs_σ, lsi)
-            (obs_pix_no_nan, obs_σ_pix_no_nan, opt_pix_no_nan) = getDataWithoutNaN(obs_pix, obs_σ_pix, opt_pix)
-            (_, _, def_pix_no_nan) = getDataWithoutNaN(obs_pix, obs_σ_pix, def_pix)
-            [metric(lossMetric, def_pix_no_nan, obs_pix_no_nan, obs_σ_pix_no_nan), metric(lossMetric, opt_pix_no_nan, obs_pix_no_nan, obs_σ_pix_no_nan)]
+            (obs_pix_def, obs_σ_pix_def, def_pix_no_nan) = getDataWithoutNaN(obs_pix, obs_σ_pix, def_pix)
+            (obs_pix_opt, obs_σ_pix_opt, opt_pix_no_nan) = getDataWithoutNaN(obs_pix, obs_σ_pix, opt_pix)
+            [metric(lossMetric, def_pix_no_nan, obs_pix_def, obs_σ_pix_def), metric(lossMetric, opt_pix_no_nan, obs_pix_opt, obs_σ_pix_opt)]
         end
 
         metric_name = nameof(typeof(lossMetric))
-        metr_def = metric(lossMetric, def_var_no_nan, obs_var_no_nan, obs_σ_no_nan)
-        metr_opt = metric(lossMetric, opt_var_no_nan, obs_var_no_nan, obs_σ_no_nan)
+        metr_def = metric(lossMetric, def_var_no_nan, obs_def_no_nan, obs_σ_def_no_nan)
+        metr_opt = metric(lossMetric, opt_var_no_nan, obs_opt_no_nan, obs_σ_opt_no_nan)
         p_title = "$(vname) | $(metric_name) def $(_roundText(metr_def)), opt $(_roundText(metr_opt))"
         show_legend = i == 1 ? :topleft : false
         p = plots_histogram(first.(loss_space); _figStyle()..., title=p_title, titlefontsize=9, bins=b_range, alpha=0.55, label="def per location", color=_def_color, linecolor=:white, linewidth=0.3, xlabel="$(metric_name)", ylabel="number of locations", guidefontsize=8, tickfontsize=7, grid=:y, legend=show_legend, legendfontsize=7)
