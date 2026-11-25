@@ -23,11 +23,7 @@ end
 function gradientSite(::PolyesterForwardDiffGrad, x_vals, gradient_options::NamedTuple, loss_f::F) where {F}
     ∇x = similar(x_vals) # pre-allocate
     chunk_size = gradient_options.chunk_size
-    if occursin("arm64-apple-darwin", Sys.MACHINE) 
-        error("Not supported on M1 systems, try using ForwardDiff instead.")
-    else
-        PolyesterForwardDiff.threaded_gradient!(loss_f, ∇x, x_vals, ForwardDiff.Chunk(chunk_size));
-    end
+    PolyesterForwardDiff.threaded_gradient!(loss_f, ∇x, x_vals, ForwardDiff.Chunk(chunk_size));
     return ∇x
 end
 
